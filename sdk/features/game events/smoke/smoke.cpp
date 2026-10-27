@@ -9,7 +9,7 @@
 
 #include "smoke.h"
 
-#include "../../../dep/imgui/imgui.h"
+#include "../../../../dep/imgui/imgui.h"
 
 namespace features::game_events::smoke {
     constexpr float smoke_duration = 15.0f;

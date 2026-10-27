@@ -10,7 +10,7 @@
 
 #include "inferno.h"
 
-#include "../../../dep/imgui/imgui.h"
+#include "../../../../dep/imgui/imgui.h"
 
 namespace features::game_events::inferno {
     constexpr float inferno_duration = 7.03125f;

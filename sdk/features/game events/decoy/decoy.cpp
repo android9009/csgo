@@ -9,7 +9,7 @@
 
 #include "decoy.h"
 
-#include "../../../dep/imgui/imgui.h"
+#include "../../../../dep/imgui/imgui.h"
 
 namespace features::game_events::decoy {
     constexpr float decoy_duration = 15.0f;
