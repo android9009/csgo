@@ -157,7 +157,8 @@ namespace features::miscellaneous {
     void panorama_blur() {
         const static auto panorama_blur = interfaces::convar_system->find_convar(xs("@panorama_disable_blur"));
 
-        panorama_blur->set_value(settings.visuals.local.disable_panorama_blur);
+        if (panorama_blur)
+            panorama_blur->set_value(settings.visuals.local.disable_panorama_blur);
     }
 
     void force_crosshair() {

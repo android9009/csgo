@@ -383,7 +383,8 @@ namespace util {
         interfaces::convar_system->find_convar(xs("weapon_debug_spread_show"))->set_value(0);
         interfaces::convar_system->find_convar(xs("cl_crosshair_recoil"))->set_value(0);
         interfaces::convar_system->find_convar(xs("mat_postprocess_enable"))->set_value(1);
-        interfaces::convar_system->find_convar(xs("@panorama_disable_blur"))->set_value(0);
+        if (const auto panorama_blur = interfaces::convar_system->find_convar(xs("@panorama_disable_blur")))
+            panorama_blur->set_value(0);
         interfaces::convar_system->find_convar(xs("phys_pushscale"))->set_value(1);
         interfaces::convar_system->find_convar(xs("cl_ragdoll_gravity"))->set_value(600);
 
