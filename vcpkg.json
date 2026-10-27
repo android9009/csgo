@@ -2,7 +2,10 @@
   "name": "millionware",
   "version-string": "1.0.0",
   "dependencies": [
-    "freetype",
+    {
+      "name": "freetype",
+      "default-features": false
+    },
     "luajit"
   ]
 }

@@ -3,15 +3,8 @@
 
 ## Сборка
 
-Требуются Visual Studio 2022 с набором C++ (v143), Windows SDK и vcpkg с интеграцией MSBuild.
+Требуются Visual Studio 2022 с набором C++ (v143), Windows SDK и Git, доступный в PATH. Глобально устанавливать vcpkg или выполнять `vcpkg integrate install` не нужно.
 
-Если vcpkg ещё не установлен, один раз выполните в командной строке:
+Откройте `millionware.sln` и выберите конфигурацию `beta release` или `stable release` с платформой `Win32`. Перед первой сборкой скрипт `scripts/install-dependencies.cmd` автоматически скачает официальный vcpkg в локальную папку `.vcpkg`, а затем установит FreeType и LuaJIT в `vcpkg_installed`.
 
-```bat
-git clone https://github.com/microsoft/vcpkg
-cd vcpkg
-.\bootstrap-vcpkg.bat
-.\vcpkg integrate install
-```
-
-После этого откройте `millionware.sln` и выберите конфигурацию `beta release` или `stable release` с платформой `Win32`. FreeType и LuaJIT нужных конфигураций будут автоматически установлены из `vcpkg.json` при первой сборке. Первая установка зависимостей может занять некоторое время.
+Первая установка зависимостей может занять заметное время. Следующие сборки будут только проверять, что зависимости уже актуальны.
