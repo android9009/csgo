@@ -25,6 +25,8 @@
     <RootNamespace>sdk</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>sdk</ProjectName>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestInstall>true</VcpkgManifestInstall>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='stable debug|Win32'" Label="Configuration">
@@ -75,8 +77,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Configuration)\</IntDir>
-    <IncludePath>$(SolutionDir)dep\freetype\include;$(SolutionDir)dep\lua\include;$(SolutionDir)dep\luajit\src;$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)dep\freetype\win32\Debug;$(SolutionDir)dep\lua\win32\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
     <SourcePath>$(VC_SourcePath);</SourcePath>
   </PropertyGroup>
@@ -84,23 +85,20 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Configuration)\</IntDir>
-    <IncludePath>$(SolutionDir)dep\freetype\include;$(SolutionDir)dep\lua\include;$(SolutionDir)dep\luajit\src;$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)dep\freetype\win32\Debug;$(SolutionDir)dep\lua\win32\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='stable release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Configuration)\</IntDir>
-    <IncludePath>$(SolutionDir)dep\freetype\include;$(SolutionDir)dep\lua\include;$(SolutionDir)dep\luajit\src;$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)dep\freetype\win32\Release;$(SolutionDir)dep\lua\win32\Release;$(SolutionDir)dep\lua\win32\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
     <TargetName>stable</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='beta release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Configuration)\</IntDir>
-    <IncludePath>$(SolutionDir)dep\freetype\include;$(SolutionDir)dep\lua\include;$(SolutionDir)dep\luajit\src;$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)dep\freetype\win32\Release;$(SolutionDir)dep\lua\win32\Release;$(SolutionDir)dep\lua\win32\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)dep\LuaBridge;$(IncludePath)</IncludePath>
     <TargetName>beta</TargetName>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='stable debug|Win32'">
