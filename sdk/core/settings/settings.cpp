@@ -119,7 +119,6 @@ static config_item_t items[] = {
     // Global
     config_item_t{settings.global.accent_color, CONFIG_ITEM_COLOR, xs("global"), xs("accent_color")},
     config_item_t{settings.global.weapon_groups, CONFIG_ITEM_BOOL, xs("global"), xs("weapon_groups")},
-    config_item_t{settings.global.debug_overlay, CONFIG_ITEM_BOOL, xs("global"), xs("debug_overlay")},
     // Legit bot
     MAKE_LEGIT_BOT(lbot_global),
     MAKE_LEGIT_BOT(lbot_pistols),

@@ -4,7 +4,6 @@
 #include "../core/settings/settings.h"
 #include "../core/util/util.h"
 
-#include "../engine/debug/debug_overlay.h"
 #include "../engine/security/xorstr.h"
 
 #include "../features/discord presence/rpc.h"
@@ -14,7 +13,6 @@
 #include "../features/visuals/world/world.h"
 
 void __fastcall hooks::frame_stage_notify(c_base_client_dll *ecx, uintptr_t edx, e_client_frame_stage frame_stage) {
-    PROFILE_WITH(fsn[(int) frame_stage]);
 
     //discord_rpc::update();
     features::miscellaneous::panorama_blur(); // main menu blur can be removed

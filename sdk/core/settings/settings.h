@@ -12,7 +12,6 @@ struct settings_t {
         std::string config_name = xs("default");
         color_t accent_color = {222, 102, 122, 255};
         bool weapon_groups = false;
-        bool debug_overlay = false;
     } global;
 
     struct legitbot_t {

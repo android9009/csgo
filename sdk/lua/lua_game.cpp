@@ -1,6 +1,5 @@
 #include "lua_game.hpp"
 
-#include "../engine/debug/debug_overlay.h"
 #include "../engine/logging/logging.h"
 
 bool lua::init() {
@@ -304,7 +303,6 @@ void lua::callbacks::override_view(view_setup_t *view_setup) {
 }
 
 void lua::callbacks::draw() {
-    PROFILE_WITH(present[1]);
 
     /*if (!mutex.initialized) {
         return;
@@ -328,7 +326,6 @@ void lua::callbacks::draw() {
 }
 
 void lua::callbacks::draw_front() {
-    PROFILE_WITH(present[2]);
 
     /*if (!mutex.initialized) {
         return;

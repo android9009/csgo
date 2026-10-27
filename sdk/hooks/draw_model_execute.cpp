@@ -3,7 +3,6 @@
 #include "../core/interfaces/interfaces.h"
 #include "../core/settings/settings.h"
 
-#include "../engine/debug/debug_overlay.h"
 #include "../engine/security/xorstr.h"
 
 #include "../core/util/util.h"
@@ -16,7 +15,6 @@
 void __fastcall hooks::draw_model_execute(uintptr_t ecx, uintptr_t edx, void *ctx, void *state, c_model_render_info *info,
                                           matrix3x4_t *matrix) {
 
-    PROFILE_WITH(dme);
 
     static c_material *textured = nullptr;
     static c_material *flat = nullptr;
