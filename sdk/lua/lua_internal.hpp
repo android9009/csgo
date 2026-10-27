@@ -1,7 +1,7 @@
 #pragma once
 
 // clang-format off
-#include <luajit/lua.hpp>
+#include "../../../dep/luajit/src/lua.hpp"
 #include "../../../dep/LuaBridge/LuaBridge.h"
 // clang-format on
 

@@ -362,6 +362,12 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-# vcpkg manifest dependencies
-/.vcpkg/
-/vcpkg_installed/
+# Prebuilt Win32 dependencies are stored in the repository.
+!dep/freetype/win32/
+!dep/freetype/win32/Debug/
+!dep/freetype/win32/Debug/freetype.lib
+!dep/freetype/win32/Release/
+!dep/freetype/win32/Release/freetype.lib
+!dep/lua/win32/
+!dep/lua/win32/Debug/
+!dep/lua/win32/Debug/lua51.lib
