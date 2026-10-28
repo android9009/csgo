@@ -310,8 +310,23 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 
 		player->set_layers(record->layers);
 
+		const bool neutralize_torso = player != HACKS->local && (side != side_original || record->choke > 1);
+		auto& body_yaw = state->pose_param_mappings[PLAYER_POSE_PARAM_BODY_YAW];
+		const int body_yaw_index = neutralize_torso ? body_yaw.index : -1;
+		const bool valid_body_yaw = body_yaw_index >= 0 && body_yaw_index < 24;
+
+		float body_yaw_backup{};
+		if (valid_body_yaw)
+		{
+			body_yaw_backup = player->pose_parameter()[body_yaw_index];
+			body_yaw.set_value(player, 0.f);
+		}
+
 		matrix_side->bone_builder.store(player, matrix_side->matrix, 0x7FF00, hdr, flags_base, parent_count);
 		matrix_side->bone_builder.setup();
+
+		if (valid_body_yaw)
+			player->pose_parameter()[body_yaw_index] = body_yaw_backup;
 	}
 }
 
