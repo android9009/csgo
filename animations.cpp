@@ -500,42 +500,6 @@ static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t
 	}
 }
 
-#ifndef LEGACY
-static void update_visible_flick(anims_t* anim)
-{
-	if (anim->records.size() < 3)
-		return;
-
-	auto& current = anim->records[0];
-	auto& excursion = anim->records[1];
-	auto& previous = anim->records[2];
-
-	if (!current.filled || !excursion.filled || !previous.filled
-		|| current.dormant || excursion.dormant || previous.dormant
-		|| current.shifting || excursion.shifting || previous.shifting)
-		return;
-
-	// A visible fake flick is an observed one-tick excursion followed by a
-	// return. Longer gaps are ordinary turns/fakelag, not this signal.
-	if (TIME_TO_TICKS(current.sim_time - excursion.sim_time) != 1
-		|| TIME_TO_TICKS(excursion.sim_time - previous.sim_time) != 1)
-		return;
-
-	const auto yaw_in = std::fabs(math::normalize_yaw(excursion.eye_angles.y - previous.eye_angles.y));
-	const auto yaw_out = std::fabs(math::normalize_yaw(current.eye_angles.y - excursion.eye_angles.y));
-	const auto yaw_return = std::fabs(math::normalize_yaw(current.eye_angles.y - previous.eye_angles.y));
-
-	constexpr float min_excursion = 45.f;
-	constexpr float max_return_error = 20.f;
-	if (yaw_in >= min_excursion && yaw_out >= min_excursion && yaw_return <= max_return_error)
-	{
-		// This identifies only the measured visible record. It says nothing
-		// about a hidden defensive angle and never fabricates a replacement.
-		excursion.visible_flick = true;
-	}
-}
-#endif
-
 void thread_collect_info(c_cs_player* player)
 {
 	auto state = player->animstate();
@@ -646,7 +610,7 @@ void thread_collect_info(c_cs_player* player)
 		if (layer_delta <= 18)
 			new_record.choke = std::max(layer_delta, 1);
 
-		new_record.shooting = new_record.last_shot_time > last_record->sim_time && new_record.last_shot_time <= new_record.sim_time;
+		new_record.shooting = new_record.last_shot_time > last_record->sim_time && new_record.last_shot_time <= last_record->sim_time;
 		if (!new_record.shooting)
 			new_record.last_reliable_angle = player->eye_angles();
 
@@ -699,10 +663,6 @@ void thread_collect_info(c_cs_player* player)
 	}
 	else
 		new_record.shifting = false;
-
-#ifndef LEGACY
-	update_visible_flick(anim);
-#endif
 
 	backup->restore(player);
 
@@ -1110,10 +1070,8 @@ void c_animation_fix::render_matrices(c_cs_player* player)
 
 		auto record = &anim->records.front();
 
-		// Build the ordinary model from the resolved animstate left by update_sides.
-		// Keep the independently clamped rage/backtrack matrices out of the render path.
-		if (!player->setup_uninterpolated_bones(anim, render_matrix))
-			math::memcpy_sse(render_matrix, record->matrix_orig.matrix, sizeof(render_matrix));
+		// copy matrix for render
+		math::memcpy_sse(render_matrix, record->matrix_orig.matrix, sizeof(render_matrix));
 
 		// adjust render matrix pos
 		math::change_bones_position(render_matrix, 128, record->origin, player->get_render_origin());

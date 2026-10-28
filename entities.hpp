@@ -541,7 +541,7 @@ public:
 
 	float studio_set_pose_parameter(int index, float value, float& ctl_value);
 	void interpolate_moveparent_pos();
-	bool setup_uninterpolated_bones(anims_t* anim, matrix3x4_t* matrix);
+	void setup_uninterpolated_bones(anims_t* anim, matrix3x4_t* matrix);
 
 	vec3_t get_hitbox_position(int hitbox, matrix3x4_t* matrix);
 

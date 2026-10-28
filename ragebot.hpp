@@ -4,25 +4,14 @@
 
 constexpr int MAX_SCANNED_POINTS = 150;
 constexpr float MATRIX_HEAD_ROTATION = 0.70710678f;
-constexpr int MAX_SEEDS = 256;
+constexpr int MAX_SEEDS = 128;
 
 using multipoint_t = std::pair<vec3_t, bool>;
 using multipoints_t = std::vector<multipoint_t>;
 using rage_bullet_t = std::pair<vec3_t, std::uint64_t>;
 
-struct spread_seed_t
-{
-	float inaccuracy_radius{};
-	float spread_radius{};
-
-	float inaccuracy_cos{};
-	float inaccuracy_sin{};
-	float spread_cos{};
-	float spread_sin{};
-};
-
 struct resolver_info_t;
-inline std::vector<spread_seed_t> precomputed_seeds{};
+inline std::vector<std::tuple<float, float, float>> precomputed_seeds{};
 
 struct restore_record_t;
 
@@ -299,27 +288,12 @@ public:
 
 	INLINE void build_seeds()
 	{
-		if (!precomputed_seeds.empty())
-			return;
-
-		precomputed_seeds.reserve(MAX_SEEDS);
 		for (auto i = 0; i < MAX_SEEDS; i++)
 		{
 			math::random_seed(i + 1);
 
-			const auto inaccuracy_radius = math::random_float(0.f, 1.f);
-			const auto inaccuracy_angle = math::random_float(0.f, M_PI * 2.f);
-			const auto spread_radius = math::random_float(0.f, 1.f);
-			const auto spread_angle = math::random_float(0.f, M_PI * 2.f);
-
-			precomputed_seeds.emplace_back(spread_seed_t{
-				inaccuracy_radius,
-				spread_radius,
-				std::cos(inaccuracy_angle),
-				std::sin(inaccuracy_angle),
-				std::cos(spread_angle),
-				std::sin(spread_angle)
-			});
+			const auto pi_seed = math::random_float(0.f, M_PI * 2);
+			precomputed_seeds.emplace_back(math::random_float(0.f, 1.f), std::sin(pi_seed), std::cos(pi_seed));
 		}
 	}
 
