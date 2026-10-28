@@ -20,7 +20,7 @@ namespace
 	void append_unique_multipoint(rage_player_t* rage, const rage_point_t& point)
 	{
 		const std::lock_guard<std::mutex> lock(multipoint_points_mutex);
-		for (const auto& existing : rage->points_to_scan)
+		for (auto& existing : rage->points_to_scan)
 		{
 			if (existing.aim_point == point.aim_point)
 				return;
