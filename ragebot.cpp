@@ -219,6 +219,8 @@ namespace
 		const auto desync_config = shot.desync_config == 0 ? std::string("auto") : std::to_string(shot.desync_config);
 		const auto flick = shot_flick_state(shot);
 		const auto safest = shot_safest_state(shot);
+		const auto backtrack_selection = tfm::format("selected[dmg=%d total=%d safe=%d/5] safest[%s]",
+			debug.selected_damage, debug.selected_total_damage, debug.selected_safety, safest.c_str());
 		const auto state = shot_enemy_state(record);
 
 		EVENT_LOGS->push_message(tfm::format(
@@ -230,25 +232,33 @@ namespace
 			shot.spread, shot.inaccuracy), {}, true);
 
 		EVENT_LOGS->push_message(tfm::format(
-			"AIM BT #%d | bt=%dt h%d/v%d | history=%d valid=%d scanned=%d | sim=%.3f target=%.3f record_tick=%d cmd_tick=%d | ping=%.1fms lerp=%.1fms | selected[dmg=%d total=%d safe=%d/5] safest[%s]",
+			"AIM BT #%d | bt=%dt h%d/v%d | history=%d valid=%d scanned=%d | sim=%.3f target=%.3f record_tick=%d cmd_tick=%d | ping=%.1fms lerp=%.1fms | %s",
 			shot.command_number, shot.backtrack_ticks, debug.selected_history, debug.selected_valid,
 			debug.history_records, debug.valid_records, debug.scanned_records,
 			record.sim_time, shot.target_sim_time, TIME_TO_TICKS(record.sim_time), shot.command_tick,
-			shot.latency * 1000.f, shot.lerp * 1000.f,
-			debug.selected_damage, debug.selected_total_damage, debug.selected_safety, safest.c_str()), {}, true);
+			shot.latency * 1000.f, shot.lerp * 1000.f, backtrack_selection.c_str()), {}, true);
 
-		EVENT_LOGS->push_message(tfm::format(
-			"AIM RES #%d | matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d record_status=%s | now=%s/%s now_status=%s misses=%d legit/fake=%d/%d brute=%d/%d fs=%d/%d | state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
-			shot.command_number, shot_matrix_name(record), shot_matrix_desync(record), desync_config.c_str(),
+		// The non-variadic tinyformat overloads used by MSVC accept at most
+		// sixteen values. Build the detailed line from smaller format blocks.
+		const auto record_debug = tfm::format(
+			"matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d record_status=%s",
+			shot_matrix_name(record), shot_matrix_desync(record), desync_config.c_str(),
 			record.eye_angles.y, record.lby, math::normalize_yaw(record.eye_angles.y - record.lby),
-			shot_record_resolver_mode(record), shot_side_name(record.resolver_side), record.resolver_side, record.resolver_resolved ? 1 : 0,
-			shot_resolver_status_name(record.resolver_status),
+			shot_record_resolver_mode(record), shot_side_name(record.resolver_side), record.resolver_side,
+			record.resolver_resolved ? 1 : 0, shot_resolver_status_name(record.resolver_status));
+		const auto resolver_debug = tfm::format(
+			"now=%s/%s now_status=%s misses=%d legit/fake=%d/%d brute=%d/%d fs=%d/%d",
 			resolver_now.c_str(), shot_side_name(shot.resolver.side), shot_resolver_status_name(shot.resolver.debug_status),
 			shot.resolver_misses, shot.resolver.legit_ticks, shot.resolver.fake_ticks,
 			shot.resolver.m_was_first_bruteforce ? 1 : 0, shot.resolver.m_was_second_bruteforce ? 1 : 0,
-			shot.resolver.freestanding.updated ? 1 : 0, shot.resolver.freestanding.side,
+			shot.resolver.freestanding.updated ? 1 : 0, shot.resolver.freestanding.side);
+		const auto state_debug = tfm::format(
+			"state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
 			state.c_str(), record.velocity.length_2d(), record.duck_amt, record.choke,
-			flick.c_str(), debug.shifted_records, record.tickbase_shift ? 1 : 0, record.break_lc ? 1 : 0), {}, true);
+			flick.c_str(), debug.shifted_records, record.tickbase_shift ? 1 : 0, record.break_lc ? 1 : 0);
+
+		EVENT_LOGS->push_message(tfm::format("AIM RES #%d | %s | %s | %s",
+			shot.command_number, record_debug.c_str(), resolver_debug.c_str(), state_debug.c_str()), {}, true);
 	}
 
 	void log_shot_outcome(const aim_shot_record_t& shot, const char* result, const std::string& reason = {})
@@ -273,16 +283,23 @@ namespace
 			: std::string("none");
 		const auto age_ms = (HACKS->predicted_time - shot.time) * 1000.f;
 
-		EVENT_LOGS->push_message(tfm::format(
-			"AIM %s #%d %s | reason=%s actual=%s expected=%d delta=%s min=%d | wanted=%s hitgroup=%s group_match=%s hp=%d->%s | hc=%.1f%%(%s) bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s now_status=%s flick=%s | impact=%s events=%d/%d age=%.1fms spread=%.5f inacc=%.5f",
-			result, shot.command_number, shot.target_name.c_str(), reason.empty() ? "-" : reason.c_str(),
-			actual_damage.c_str(), shot.expected_damage, damage_delta.c_str(), shot.min_damage,
-			wanted_hitbox.c_str(), actual_hitgroup.c_str(), group_match, shot.target_health, remaining_health.c_str(),
-			shot.hitchance * 100.f, shot_hitchance_source_name(shot.hitchance_source), shot.backtrack_ticks, shot.backtrack.selected_history, shot.backtrack.selected_valid,
-			shot_matrix_name(shot.record), shot_matrix_desync(shot.record), shot_record_resolver_mode(shot.record),
-			shot_side_name(shot.record.resolver_side), shot_resolver_status_name(shot.resolver.debug_status),
-			flick.c_str(), impact.c_str(), shot.fire ? 1 : 0, shot.impact_fire ? 1 : 0,
-			age_ms, shot.spread, shot.inaccuracy), {}, true);
+		const auto damage_debug = tfm::format(
+			"reason=%s actual=%s expected=%d delta=%s min=%d | wanted=%s hitgroup=%s group_match=%s hp=%d->%s",
+			reason.empty() ? "-" : reason.c_str(), actual_damage.c_str(), shot.expected_damage,
+			damage_delta.c_str(), shot.min_damage, wanted_hitbox.c_str(), actual_hitgroup.c_str(),
+			group_match, shot.target_health, remaining_health.c_str());
+		const auto aim_debug = tfm::format(
+			"hc=%.1f%%(%s) bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s now_status=%s flick=%s",
+			shot.hitchance * 100.f, shot_hitchance_source_name(shot.hitchance_source), shot.backtrack_ticks,
+			shot.backtrack.selected_history, shot.backtrack.selected_valid, shot_matrix_name(shot.record),
+			shot_matrix_desync(shot.record), shot_record_resolver_mode(shot.record),
+			shot_side_name(shot.record.resolver_side), shot_resolver_status_name(shot.resolver.debug_status), flick.c_str());
+		const auto event_debug = tfm::format(
+			"impact=%s events=%d/%d age=%.1fms spread=%.5f inacc=%.5f",
+			impact.c_str(), shot.fire ? 1 : 0, shot.impact_fire ? 1 : 0, age_ms, shot.spread, shot.inaccuracy);
+
+		EVENT_LOGS->push_message(tfm::format("AIM %s #%d %s | %s | %s | %s",
+			result, shot.command_number, shot.target_name.c_str(), damage_debug.c_str(), aim_debug.c_str(), event_debug.c_str()), {}, true);
 	}
 }
 
