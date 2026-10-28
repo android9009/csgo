@@ -35,7 +35,7 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{5f68854c-01eb-435b-913e-139078cf39a0}</ProjectGuid>
     <RootNamespace>SDK</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>opaihook</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
