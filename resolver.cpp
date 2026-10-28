@@ -11,7 +11,7 @@ namespace resolver
 	{
 		vec3_t fw{}, at_target_fw{};
 
-		math::vector_angles(at_target_fw, vec3_t(HACKS->local->origin() - player->origin()));
+		math::vector_angles(vec3_t(HACKS->local->origin() - player->origin()), at_target_fw);
 		math::angle_vectors(vec3_t(0, at_target_fw.y - 90.f, 0), fw);
 
 		return fw;
@@ -47,7 +47,7 @@ namespace resolver
 
 		vec3_t at_target_fw{};
 
-		math::vector_angles(at_target_fw, vec3_t(HACKS->local->origin() - player->get_abs_origin()));
+		math::vector_angles(vec3_t(HACKS->local->origin() - player->get_abs_origin()), at_target_fw);
 
 		float at_target = math::normalize_yaw(at_target_fw.y);
 		float angle = math::normalize_yaw(player->eye_angles().y);
