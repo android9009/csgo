@@ -90,6 +90,86 @@ namespace
 		}
 	}
 
+	const char* shot_hitchance_source_name(shot_hitchance_source_t source)
+	{
+		switch (source)
+		{
+		case hitchance_source_nospread:
+			return "nospread";
+		case hitchance_source_disabled:
+			return "disabled";
+		case hitchance_source_low_spread:
+			return "low_spread";
+		default:
+			return "seeds";
+		}
+	}
+
+	const char* shot_resolver_status_name(resolver_debug_status_t status)
+	{
+		switch (status)
+		{
+		case resolver_status_resolved:
+			return "resolved";
+		case resolver_status_no_fake:
+			return "no fake";
+		case resolver_status_disabled:
+			return "disabled";
+		case resolver_status_bot:
+			return "bot";
+		case resolver_status_no_weapon_info:
+			return "no weapon info";
+		case resolver_status_no_local:
+			return "no local";
+		case resolver_status_local_dead:
+			return "local dead";
+		case resolver_status_no_animstate:
+			return "no animstate";
+		case resolver_status_no_hdr:
+			return "no hdr";
+		case resolver_status_unresolved:
+			return "unresolved";
+		default:
+			return "none";
+		}
+	}
+
+	bool shot_hitgroup_matches(const aim_shot_record_t& shot)
+	{
+		switch (shot.hitbox)
+		{
+		case HITBOX_HEAD:
+			return shot.hitgroup == HITGROUP_HEAD;
+		case HITBOX_NECK:
+			return shot.hitgroup == HITGROUP_NECK || shot.hitgroup == HITGROUP_HEAD;
+		case HITBOX_PELVIS:
+		case HITBOX_STOMACH:
+			return shot.hitgroup == HITGROUP_STOMACH;
+		case HITBOX_THORAX:
+		case HITBOX_CHEST:
+		case HITBOX_UPPER_CHEST:
+			return shot.hitgroup == HITGROUP_CHEST;
+		case HITBOX_LEFT_THIGH:
+		case HITBOX_LEFT_CALF:
+		case HITBOX_LEFT_FOOT:
+			return shot.hitgroup == HITGROUP_LEFTLEG;
+		case HITBOX_RIGHT_THIGH:
+		case HITBOX_RIGHT_CALF:
+		case HITBOX_RIGHT_FOOT:
+			return shot.hitgroup == HITGROUP_RIGHTLEG;
+		case HITBOX_LEFT_HAND:
+		case HITBOX_LEFT_UPPER_ARM:
+		case HITBOX_LEFT_FOREARM:
+			return shot.hitgroup == HITGROUP_LEFTARM;
+		case HITBOX_RIGHT_HAND:
+		case HITBOX_RIGHT_UPPER_ARM:
+		case HITBOX_RIGHT_FOREARM:
+			return shot.hitgroup == HITGROUP_RIGHTARM;
+		default:
+			return true;
+		}
+	}
+
 	std::string shot_flick_state(const aim_shot_record_t& shot)
 	{
 		if (shot.record.visible_flick)
@@ -142,10 +222,10 @@ namespace
 		const auto state = shot_enemy_state(record);
 
 		EVENT_LOGS->push_message(tfm::format(
-			"AIM FIRE #%d %s | box=%s point=%s eye=%s | hc=%.1f%% req=%.1f%% | dmg=%d min=%d hp=%d | safe=%d/5 spread=%.5f inacc=%.5f",
+			"AIM FIRE #%d %s | box=%s point=%s eye=%s | hc=%.1f%%(%s) req=%.1f%% | dmg=%d min=%d hp=%d | safe=%d/5 spread=%.5f inacc=%.5f",
 			shot.command_number, shot.target_name.c_str(), hitbox.c_str(),
 			shot.center_point ? "center" : "multipoint", shot.predicted_eye ? "predicted" : "current",
-			shot.hitchance * 100.f, shot.required_hitchance * 100.f,
+			shot.hitchance * 100.f, shot_hitchance_source_name(shot.hitchance_source), shot.required_hitchance * 100.f,
 			shot.expected_damage, shot.min_damage, shot.target_health, shot.safety,
 			shot.spread, shot.inaccuracy), {}, true);
 
@@ -158,11 +238,12 @@ namespace
 			debug.selected_damage, debug.selected_total_damage, debug.selected_safety, safest.c_str()), {}, true);
 
 		EVENT_LOGS->push_message(tfm::format(
-			"AIM RES #%d | matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d | now=%s/%s misses=%d legit/fake=%d/%d brute=%d/%d fs=%d/%d | state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
+			"AIM RES #%d | matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d record_status=%s | now=%s/%s now_status=%s misses=%d legit/fake=%d/%d brute=%d/%d fs=%d/%d | state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
 			shot.command_number, shot_matrix_name(record), shot_matrix_desync(record), desync_config.c_str(),
 			record.eye_angles.y, record.lby, math::normalize_yaw(record.eye_angles.y - record.lby),
 			shot_record_resolver_mode(record), shot_side_name(record.resolver_side), record.resolver_side, record.resolver_resolved ? 1 : 0,
-			resolver_now.c_str(), shot_side_name(shot.resolver.side),
+			shot_resolver_status_name(record.resolver_status),
+			resolver_now.c_str(), shot_side_name(shot.resolver.side), shot_resolver_status_name(shot.resolver.debug_status),
 			shot.resolver_misses, shot.resolver.legit_ticks, shot.resolver.fake_ticks,
 			shot.resolver.m_was_first_bruteforce ? 1 : 0, shot.resolver.m_was_second_bruteforce ? 1 : 0,
 			shot.resolver.freestanding.updated ? 1 : 0, shot.resolver.freestanding.side,
@@ -177,8 +258,11 @@ namespace
 
 		const auto hit = shot.damage >= 0;
 		const auto timeout = std::string(result) == "TIMEOUT";
-		const auto actual_damage = hit ? std::to_string(shot.damage) : timeout ? std::string("?") : std::string("0");
+		const auto actual_damage_value = hit ? shot.damage : 0;
+		const auto actual_damage = timeout ? std::string("?") : std::to_string(actual_damage_value);
+		const auto damage_delta = timeout ? std::string("?") : std::to_string(actual_damage_value - shot.expected_damage);
 		const auto remaining_health = hit ? std::to_string(shot.remaining_health) : std::string("?");
+		const auto group_match = hit ? (shot_hitgroup_matches(shot) ? "1" : "0") : "?";
 		const auto wanted_hitbox = main_utils::hitbox_to_string(shot.hitbox);
 		const auto actual_hitgroup = hit ? main_utils::hitgroup_to_string(shot.hitgroup)
 			: timeout ? std::string("unknown") : std::string("none");
@@ -187,15 +271,18 @@ namespace
 			? tfm::format("error=%.1fu aim=%.1fu impact=%.1fu", shot.impact.dist_to(shot.point),
 				shot.start.dist_to(shot.point), shot.start.dist_to(shot.impact))
 			: std::string("none");
+		const auto age_ms = (HACKS->predicted_time - shot.time) * 1000.f;
 
 		EVENT_LOGS->push_message(tfm::format(
-			"AIM %s #%d %s | reason=%s actual=%s expected=%d min=%d | wanted=%s hitgroup=%s hp=%s | hc=%.1f%% bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s flick=%s | impact=%s spread=%.5f inacc=%.5f",
+			"AIM %s #%d %s | reason=%s actual=%s expected=%d delta=%s min=%d | wanted=%s hitgroup=%s group_match=%s hp=%d->%s | hc=%.1f%%(%s) bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s now_status=%s flick=%s | impact=%s events=%d/%d age=%.1fms spread=%.5f inacc=%.5f",
 			result, shot.command_number, shot.target_name.c_str(), reason.empty() ? "-" : reason.c_str(),
-			actual_damage.c_str(), shot.expected_damage, shot.min_damage,
-			wanted_hitbox.c_str(), actual_hitgroup.c_str(), remaining_health.c_str(),
-			shot.hitchance * 100.f, shot.backtrack_ticks, shot.backtrack.selected_history, shot.backtrack.selected_valid,
+			actual_damage.c_str(), shot.expected_damage, damage_delta.c_str(), shot.min_damage,
+			wanted_hitbox.c_str(), actual_hitgroup.c_str(), group_match, shot.target_health, remaining_health.c_str(),
+			shot.hitchance * 100.f, shot_hitchance_source_name(shot.hitchance_source), shot.backtrack_ticks, shot.backtrack.selected_history, shot.backtrack.selected_valid,
 			shot_matrix_name(shot.record), shot_matrix_desync(shot.record), shot_record_resolver_mode(shot.record),
-			shot_side_name(shot.record.resolver_side), flick.c_str(), impact.c_str(), shot.spread, shot.inaccuracy), {}, true);
+			shot_side_name(shot.record.resolver_side), shot_resolver_status_name(shot.resolver.debug_status),
+			flick.c_str(), impact.c_str(), shot.fire ? 1 : 0, shot.impact_fire ? 1 : 0,
+			age_ms, shot.spread, shot.inaccuracy), {}, true);
 	}
 }
 
@@ -946,16 +1033,20 @@ void get_result(bool& out, const vec3_t& start, const vec3_t& end, rage_player_t
 	out = can_hit_hitbox(start, end, rage, hitbox, matrix, record);
 }
 
-bool hitchance(vec3_t eye_pos, rage_player_t& rage, const rage_point_t& point, anim_record_t* record, const float& chance, matrix3x4_t* matrix, float* hitchance_out = nullptr)
+bool hitchance(vec3_t eye_pos, rage_player_t& rage, const rage_point_t& point, anim_record_t* record, const float& chance, matrix3x4_t* matrix, float* hitchance_out = nullptr, shot_hitchance_source_t* source = nullptr)
 {
 	if (hitchance_out)
 		*hitchance_out = 0.f;
+	if (source)
+		*source = hitchance_source_seeds;
 
 	static auto weapon_accuracy_nospread = HACKS->convars.weapon_accuracy_nospread;
 	if (weapon_accuracy_nospread && weapon_accuracy_nospread->get_bool())
 	{
 		if (hitchance_out)
 			*hitchance_out = 1.f;
+		if (source)
+			*source = hitchance_source_nospread;
 
 		return true;
 	}
@@ -964,6 +1055,8 @@ bool hitchance(vec3_t eye_pos, rage_player_t& rage, const rage_point_t& point, a
 	{
 		if (hitchance_out)
 			*hitchance_out = 1.f;
+		if (source)
+			*source = hitchance_source_disabled;
 
 		return true;
 	}
@@ -979,6 +1072,8 @@ bool hitchance(vec3_t eye_pos, rage_player_t& rage, const rage_point_t& point, a
 	{
 		if (hitchance_out)
 			*hitchance_out = 1.f;
+		if (source)
+			*source = hitchance_source_low_spread;
 
 		return true;
 	}
@@ -1651,8 +1746,9 @@ void c_ragebot::run()
 
 		float out_chance = 0.f;
 		auto max_hitchance = rage_config.hitchance * 0.01f;
+		auto hitchance_source = hitchance_source_seeds;
 
-		if (!hitchance(ideal_start, best_rage_player, best_point, best_record, max_hitchance, nullptr, &out_chance))
+		if (!hitchance(ideal_start, best_rage_player, best_point, best_record, max_hitchance, nullptr, &out_chance, &hitchance_source))
 			return;
 
 		if (g_cfg.rage.auto_fire)
@@ -1675,6 +1771,7 @@ void c_ragebot::run()
 
 			add_shot_record(best_rage_player.player, best_point, best_record, ideal_start,
 				out_chance, max_hitchance, damage, best_rage_player.backtrack);
+			shots.back().hitchance_source = hitchance_source;
 			log_shot_fire(shots.back());
 
 			if ((g_cfg.binds[hs_b].toggled || !ANTI_AIM->is_fake_ducking()) && !*HACKS->send_packet)
@@ -1794,7 +1891,8 @@ void c_ragebot::player_hurt(c_game_event* event)
 	shot->damage = event->get_int(CXOR("dmg_health"));
 	shot->hitgroup = event->get_int(CXOR("hitgroup"));
 	shot->remaining_health = event->get_int(CXOR("health"));
-	log_shot_outcome(*shot, "HIT", "confirmed");
+	const auto group_match = shot_hitgroup_matches(*shot);
+	log_shot_outcome(*shot, "HIT", group_match ? "confirmed" : "confirmed wrong_hitgroup");
 	shots.erase(shot);
 }
 
@@ -1929,8 +2027,8 @@ void c_ragebot::proceed_misses()
 						}
 						else
 						{
-							miss_reason = "unresolved";
-							EVENT_LOGS->push_message(XOR("Missed shot due to ?"));
+							miss_reason = std::string("unresolved/") + shot_resolver_status_name(shot.resolver.debug_status);
+							EVENT_LOGS->push_message(std::string("Missed shot due to ") + miss_reason);
 						}
 					}
 					else

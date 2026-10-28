@@ -104,10 +104,23 @@ namespace resolver
 	inline void prepare_side(c_cs_player* player, anim_record_t* current, anim_record_t* previous)
 	{
 		auto& info = resolver_info[player->index()];
+		info.debug_status = info.resolved ? resolver_status_resolved : resolver_status_unresolved;
 		if (!HACKS->weapon_info || !HACKS->local || !HACKS->local->is_alive() || player->is_bot() || !g_cfg.rage.resolver)
 		{
 			if (info.resolved)
 				info.reset();
+
+			// Diagnostics only: preserve why this resolver path was unavailable.
+			if (!HACKS->weapon_info)
+				info.debug_status = resolver_status_no_weapon_info;
+			else if (!HACKS->local)
+				info.debug_status = resolver_status_no_local;
+			else if (!HACKS->local->is_alive())
+				info.debug_status = resolver_status_local_dead;
+			else if (player->is_bot())
+				info.debug_status = resolver_status_bot;
+			else if (!g_cfg.rage.resolver)
+				info.debug_status = resolver_status_disabled;
 
 			return;
 		}
@@ -118,12 +131,16 @@ namespace resolver
 			if (info.resolved)
 				info.reset();
 
+			info.debug_status = resolver_status_no_animstate;
 			return;
 		}
 
 		auto hdr = player->get_studio_hdr();
 		if (!hdr)
+		{
+			info.debug_status = resolver_status_no_hdr;
 			return;
+		}
 
 		if (current->choke < 2)
 			info.add_legit_ticks();
@@ -134,6 +151,7 @@ namespace resolver
 		{
 			info.resolved = false;
 			info.mode = XOR("no fake");
+			info.debug_status = resolver_status_no_fake;
 			return;
 		}
 
@@ -153,7 +171,8 @@ namespace resolver
 				info.mode = XOR("static");
 			}
 
-			info.resolved = true;		
+			info.resolved = true;
+			info.debug_status = resolver_status_resolved;
 		}
 
 		if (previous)
@@ -198,6 +217,7 @@ namespace resolver
 					info.mode = XOR("layers");
 					info.anim_resolve_ticks = HACKS->global_vars->tickcount;
 					info.resolved = true;
+					info.debug_status = resolver_status_resolved;
 				}
 			}
 		}
@@ -232,6 +252,7 @@ namespace resolver
 			}
 
 			info.resolved = true;
+			info.debug_status = resolver_status_resolved;
 		}
 	}
 

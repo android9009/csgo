@@ -26,6 +26,14 @@ inline std::vector<spread_seed_t> precomputed_seeds{};
 
 struct restore_record_t;
 
+enum shot_hitchance_source_t
+{
+	hitchance_source_seeds,
+	hitchance_source_nospread,
+	hitchance_source_disabled,
+	hitchance_source_low_spread,
+};
+
 struct backtrack_debug_t
 {
 	int history_records{};
@@ -70,6 +78,7 @@ struct aim_shot_record_t
 	int command_number{};
 	int desync_config{};
 	int resolver_misses{};
+	shot_hitchance_source_t hitchance_source{};
 
 	float time{};
 	float init_time{};

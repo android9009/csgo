@@ -21,6 +21,21 @@ enum resolver_debug_mode_t
 	resolver_mode_unknown,
 };
 
+enum resolver_debug_status_t
+{
+	resolver_status_none,
+	resolver_status_resolved,
+	resolver_status_no_fake,
+	resolver_status_disabled,
+	resolver_status_bot,
+	resolver_status_no_weapon_info,
+	resolver_status_no_local,
+	resolver_status_local_dead,
+	resolver_status_no_animstate,
+	resolver_status_no_hdr,
+	resolver_status_unresolved,
+};
+
 struct matrix_t
 {
 	c_bone_builder bone_builder{};
@@ -79,6 +94,7 @@ struct anim_record_t
 	float thirdperson_recoil{};
 	// Diagnostics captured with this record, not the resolver's later state.
 	resolver_debug_mode_t resolver_mode{};
+	resolver_debug_status_t resolver_status{};
 	bool resolver_resolved{};
 	int resolver_side{};
 	// Bone-builder yaw deltas, not networked enemy angles.
@@ -219,6 +235,7 @@ struct anim_record_t
 		lby = 0.f;
 		thirdperson_recoil = 0.f;
 		resolver_mode = resolver_mode_none;
+		resolver_status = resolver_status_none;
 		resolver_resolved = false;
 		resolver_side = 0;
 		aim_desync = 0.f;

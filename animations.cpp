@@ -566,6 +566,7 @@ void thread_collect_info(c_cs_player* player)
 
 		const auto& resolver_snapshot = resolver_info[player->index()];
 		record.resolver_mode = get_resolver_debug_mode(resolver_snapshot.mode);
+		record.resolver_status = resolver_snapshot.debug_status;
 		record.resolver_resolved = resolver_snapshot.resolved;
 		record.resolver_side = resolver_snapshot.side;
 

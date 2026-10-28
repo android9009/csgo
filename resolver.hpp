@@ -40,6 +40,7 @@ struct resolver_info_t
 	}
 
 	std::string mode{};
+	resolver_debug_status_t debug_status{};
 	c_animation_layers initial_layers[13]{};
 
 	struct freestanding_t
@@ -112,6 +113,7 @@ struct resolver_info_t
 		m_was_second_bruteforce = false;
 
 		mode = "";
+		debug_status = resolver_status_none;
 
 		freestanding.reset();
 
