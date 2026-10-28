@@ -968,12 +968,10 @@ void c_anti_aim::cleanup()
 
 #ifdef LEGACY
 	auto local_anim = ANIMFIX->get_local_anims();
-	if (HACKS->client_state->choked_commands < 1) {
-		local_anim->sent_eye_pos = HACKS->cmd->viewangles;
-		return;
-	}
 
-	if (!*HACKS->send_packet)
+	// Visual desync must use the angles of the packet actually sent,
+	// rather than the angles of a command that is only being choked.
+	if (*HACKS->send_packet)
 		local_anim->sent_eye_pos = HACKS->cmd->viewangles;
 #endif
 }
