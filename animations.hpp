@@ -38,6 +38,8 @@ struct anim_record_t
 	bool walking{};
 	bool strafing{};
 	bool break_lc{};
+	// A reversed simulation timeline is not an ordinary backtrack record.
+	bool tickbase_shift{};
 	bool shooting{};
 	// Set only from an observed visible out-and-back yaw sequence.
 	bool visible_flick{};
@@ -173,6 +175,7 @@ struct anim_record_t
 		real_on_ground = false;
 		dormant = false;
 		break_lc = false;
+		tickbase_shift = false;
 		shooting = false;
 		visible_flick = false;
 		fakewalking = false;

@@ -339,7 +339,8 @@ static void update_visible_flick(anims_t* anim)
 	auto& previous = anim->records[2];
 
 	if (!current.filled || !excursion.filled || !previous.filled
-		|| current.dormant || excursion.dormant || previous.dormant)
+		|| current.dormant || excursion.dormant || previous.dormant
+		|| current.tickbase_shift || excursion.tickbase_shift || previous.tickbase_shift)
 		return;
 
 	// Only an observed one-tick excursion followed by a return is a flick.
@@ -421,13 +422,19 @@ void thread_collect_info(c_cs_player* player)
 		return;
 	}
 
-	player->store_layers(resolver_info[player->index()].initial_layers);
-	player->update_weapon_dispatch_layers();
-
 	anim_record_t* previous = nullptr;
 
 	if (anim->records.size() > 0)
 		previous = &anim->records.front();
+
+	// A rendered frame is not necessarily a new simulation tick. Duplicate
+	// records otherwise consume the small backtrack scan budget and can hide a
+	// real one-tick defensive flick behind identical entries.
+	if (previous && player->sim_time() == previous->sim_time)
+		return;
+
+	player->store_layers(resolver_info[player->index()].initial_layers);
+	player->update_weapon_dispatch_layers();
 
 	auto& record = anim->records.emplace_front();
 	record.dormant = anim->dormant_ticks < 2;
@@ -435,6 +442,20 @@ void thread_collect_info(c_cs_player* player)
 
 	if (!previous || ((record.origin - previous->origin).length_sqr() > 4096.f))
 		record.break_lc = true;
+
+	if (!previous || HACKS->cl_lagcomp0)
+		anim->last_valid_time = 0.f;
+	else if (record.sim_time < previous->sim_time)
+	{
+		// Defensive/tickbase shifts can make the networked timeline go backwards.
+		// Keep the record for animation history, but do not treat it as an ordinary
+		// backtrack target until the timeline catches up with the previous record.
+		anim->last_valid_time = std::max(anim->last_valid_time,
+			previous->sim_time + HACKS->global_vars->interval_per_tick);
+		record.tickbase_shift = true;
+	}
+	else if (anim->last_valid_time > record.sim_time)
+		record.tickbase_shift = true;
 
 	if (previous)
 	{

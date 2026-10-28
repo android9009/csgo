@@ -674,7 +674,8 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 	valid_records.reserve(lagcomp->records.size());
 	for (auto& record : lagcomp->records)
 	{
-		if (record.filled && !record.dormant && LAGCOMP->is_tick_valid(record.break_lc, record.sim_time))
+		if (record.filled && !record.dormant && !record.tickbase_shift
+			&& LAGCOMP->is_tick_valid(record.break_lc, record.sim_time))
 			valid_records.emplace_back(&record);
 	}
 
@@ -1216,7 +1217,7 @@ void c_ragebot::knife_bot()
 
 		auto first_find = std::find_if(anims->records.begin(), anims->records.end(), [&](anim_record_t& record) 
 			{
-			return LAGCOMP->is_tick_valid(record.break_lc, record.sim_time);
+			return !record.tickbase_shift && LAGCOMP->is_tick_valid(record.break_lc, record.sim_time);
 			});
 
 		anim_record_t* first = nullptr;
@@ -1246,7 +1247,7 @@ void c_ragebot::knife_bot()
 			
 		auto last_find = std::find_if(anims->records.rbegin(), anims->records.rend(), [&](anim_record_t& record) 
 		{
-			return LAGCOMP->is_tick_valid(record.break_lc, record.sim_time);
+			return !record.tickbase_shift && LAGCOMP->is_tick_valid(record.break_lc, record.sim_time);
 		});
 
 		anim_record_t* last = nullptr;
