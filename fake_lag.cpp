@@ -66,10 +66,29 @@ int c_fake_lag::get_max_choke()
 
 #ifdef LEGACY
 	if (EXPLOITS->enabled())
+		return add_ticks;
 #else
 	if (EXPLOITS->enabled() && !EXPLOITS->reset_dt)
-#endif
+	{
+		const auto defensive_peek = EXPLOITS->get_exploit_mode() == EXPLOITS_DT
+			&& EXPLOITS->defensive.tickbase_choke != 100
+			&& HACKS->can_peek;
+
+		if (defensive_peek && g_cfg.antihit.fakelag)
+		{
+			// Leave room for the defensive shift in the same command budget.
+			// Never reduce an existing desync choke; only add the configured
+			// fakelag where ordinary DT would otherwise ignore its limit.
+			const auto available_choke = std::clamp(
+				HACKS->max_choke - EXPLOITS->limits.double_tap + 1,
+				0, HACKS->max_choke);
+			const auto peek_choke = std::min(g_cfg.antihit.fakelag_limit, available_choke);
+			return std::clamp(std::max(add_ticks, peek_choke), 0, HACKS->max_choke);
+		}
+
 		return add_ticks;
+	}
+#endif
 
 	if (g_cfg.antihit.fakelag)
 		return std::clamp(g_cfg.antihit.fakelag_limit, 0, HACKS->max_choke);

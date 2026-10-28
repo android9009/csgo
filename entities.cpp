@@ -305,7 +305,7 @@ void c_cs_player::interpolate_moveparent_pos()
 	}
 }
 
-void c_cs_player::setup_uninterpolated_bones(anims_t* anim, matrix3x4_t* matrix)
+bool c_cs_player::setup_uninterpolated_bones(anims_t* anim, matrix3x4_t* matrix)
 {
 	invalidate_bone_cache();
 
@@ -327,15 +327,22 @@ void c_cs_player::setup_uninterpolated_bones(anims_t* anim, matrix3x4_t* matrix)
 
 	HACKS->global_vars->framecount = -999;
 
+	const auto old_setup_bones = anim->setup_bones;
 	anim->setup_bones = true;
-	setup_bones(matrix, matrix == nullptr ? -1 : 128, 0x7FF00, curtime);
-	anim->setup_bones = false;
+	const auto result = setup_bones(matrix, matrix == nullptr ? -1 : 128, 0x7FF00, curtime);
+	anim->setup_bones = old_setup_bones;
 
 #ifndef LEGACY
-	anim->clamp_bones_in_bbox = true;
-	offsets::clamp_bones_in_bbox.cast<void(__thiscall*)(void*, matrix3x4_t*, int)>()(this, matrix ? matrix : bone_cache().base(), 0x7FF00);
-	anim->clamp_bones_in_bbox = false;
+	if (result)
+	{
+		const auto old_clamp_bones = anim->clamp_bones_in_bbox;
+		anim->clamp_bones_in_bbox = true;
+		offsets::clamp_bones_in_bbox.cast<void(__thiscall*)(void*, matrix3x4_t*, int)>()(this, matrix ? matrix : bone_cache().base(), 0x7FF00);
+		anim->clamp_bones_in_bbox = old_clamp_bones;
+	}
 #endif
+
+	return result;
 }
 
 vec3_t c_cs_player::get_hitbox_position(int hitbox, matrix3x4_t* matrix)
