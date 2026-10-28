@@ -708,6 +708,7 @@ void c_animation_fix::update_local()
 	{
 		anim->reset();
 		local_anims.reset();
+		local_anims.cached_model = HACKS->local->get_model();
 		state->reset();
 
 		anim->ptr = HACKS->local;
@@ -718,9 +719,19 @@ void c_animation_fix::update_local()
 	{
 		state->reset();
 		local_anims.reset();
+		local_anims.cached_model = HACKS->local->get_model();
 
 		anim->ptr = HACKS->local;
 		anim->old_spawn_time = HACKS->local->spawn_time();
+		return;
+	}
+
+	if (local_anims.cached_model != HACKS->local->get_model())
+	{
+		local_anims.reset();
+		local_anims.cached_model = HACKS->local->get_model();
+		state->reset();
+		anim->setup_bones = anim->clamp_bones_in_bbox = true;
 		return;
 	}
 
@@ -784,6 +795,7 @@ void c_animation_fix::update_local()
 		{
 			local_anims.bone_builder.store(HACKS->local, local_anims.matrix, 0x7FF00, hdr, bone_flags_base, bone_parent_count);
 			local_anims.bone_builder.setup();
+			local_anims.matrix_valid = true;
 
 			auto speed_portion_walk = state->speed_as_portion_of_walk_top_speed;
 			auto speed_portion_duck = state->speed_as_portion_of_crouch_top_speed;
@@ -831,6 +843,12 @@ void c_animation_fix::render_matrices(c_cs_player* player)
 
 	if (player == HACKS->local)
 	{
+		if (!local_anim->matrix_valid || local_anim->cached_model != player->get_model())
+		{
+			anim->setup_bones = anim->clamp_bones_in_bbox = true;
+			return;
+		}
+
 		const auto& abs_origin = player->get_abs_origin();
 
 		// adjust render matrix pos

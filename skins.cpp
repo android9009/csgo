@@ -480,11 +480,7 @@ namespace skin_changer
 
 	inline int get_original_model_idx()
 	{
-		static int result{};
-		while (!result)
-			result = HACKS->model_info->get_model_index(CXOR("models/player/custom_player/legacy/ctm_fbi_varianth.mdl"));
-
-		return result;
+		return HACKS->model_info->get_model_index(CXOR("models/player/custom_player/legacy/ctm_fbi_varianth.mdl"));
 	}
 
 	__forceinline void agent_changer(int stage)
@@ -1278,29 +1274,32 @@ namespace skin_changer
 
 	__forceinline void on_game_events(c_game_event* event)
 	{
-		if (std::strcmp(event->get_name(), CXOR("player_connect_full")) || std::strcmp(event->get_name(), CXOR("round_start")))
+		if (std::strcmp(event->get_name(), CXOR("player_connect_full")) && std::strcmp(event->get_name(), CXOR("round_start")))
 			return;
 
-		int user_id = HACKS->engine->get_player_for_user_id(event->get_int(CXOR("userid")));
+		const bool is_round_start = !std::strcmp(event->get_name(), CXOR("round_start"));
+		c_cs_player* player = HACKS->local;
 
-		auto player = (c_cs_player*)HACKS->entity_list->get_client_entity(user_id);
-		if (!player)
-			return;
+		if (!is_round_start)
+		{
+			int user_id = HACKS->engine->get_player_for_user_id(event->get_int(CXOR("userid")));
+			player = (c_cs_player*)HACKS->entity_list->get_client_entity(user_id);
+		}
 
-		if (player->index() != HACKS->engine->get_local_player())
+		if (!player || player->index() != HACKS->engine->get_local_player())
 			return;
 
 		auto mask = get_mask_model_name();
 		if (!precached_on_round_start)
 		{
-			auto result = should_precache(default_mask) && should_precache(mask);
+			auto result = should_precache(default_mask) && (!*mask || should_precache(mask));
 			if (result)
 				precached_on_round_start = true;
 		}
 
-		if (!std::strcmp(event->get_name(), CXOR("round_start")))
+		if (is_round_start)
 		{
-			if (player->is_alive() && !should_precache(CXOR("models/player/custom_player/legacy/ctm_fbi_varianth.mdl")))
+			if (!should_precache(CXOR("models/player/custom_player/legacy/ctm_fbi_varianth.mdl")))
 				precached_on_round_start = false;
 		}
 	}

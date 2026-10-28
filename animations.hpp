@@ -319,6 +319,8 @@ struct local_anims_t
 	c_animation_layers backup_layers[13]{};
 	c_animation_layers layers[13]{};
 	matrix3x4_t matrix[128]{};
+	const model_t* cached_model{};
+	bool matrix_valid{};
 
 	bone_blending_t real_blending{};
 	bone_blending_t restore_blending{};
@@ -358,6 +360,8 @@ struct local_anims_t
 		for (auto& i : matrix)
 			i = {};
 
+		cached_model = nullptr;
+		matrix_valid = false;
 		old_state = {};
 		bone_builder.reset();
 	}
