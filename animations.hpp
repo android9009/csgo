@@ -99,8 +99,10 @@ struct anim_record_t
 		eye_angles = player->eye_angles();
 		walking = player->is_walking();
 		strafing = player->strafing();
+#ifndef LEGACY
 		collision_change_time = player->collision_change_time();
 		collision_change_origin = player->collision_change_origin();
+#endif
 		lby = player->lower_body_yaw();
 		thirdperson_recoil = player->thirdperson_recoil();
 		view_offset = player->view_offset();

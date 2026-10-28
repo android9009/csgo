@@ -292,8 +292,10 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 	if (collideable)
 		offsets::set_collision_bounds.cast<void(__thiscall*)(void*, vec3_t*, vec3_t*)>()(collideable, &player->bb_mins(), &player->bb_maxs());
 
+#ifndef LEGACY
 	record->collision_change_origin = player->collision_change_origin();
 	record->collision_change_time = player->collision_change_time();
+#endif
 
 	player->invalidate_bone_cache();
 	{

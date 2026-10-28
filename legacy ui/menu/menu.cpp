@@ -11,10 +11,6 @@
 #include <d3d9.h>
 #include <d3dx9.h>
 
-#ifndef _DEBUG
-#include <VirtualizerSDK.h>
-#endif // !_DEBUG
-
 #define add_texture_to_memory D3DXCreateTextureFromFileInMemory
 
 std::vector< std::string > key_strings = { XOR("None"), XOR("M1"), XOR("M2"), XOR("Ctrl+brk"), XOR("M3"), XOR("M4"), XOR("M5"), XOR(" "), XOR("Back"), XOR("Tab"),
