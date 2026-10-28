@@ -683,6 +683,9 @@ void c_menu::draw_ui_items()
 						checkbox(CXOR("Auto fire"), &g_cfg.rage.auto_fire);
 
 						checkbox(CXOR("Anti aim correction"), &g_cfg.rage.resolver);
+
+						auto desync_format = g_cfg.rage.desync_degree == 0 ? CXOR("Auto") : CXOR("%d");
+						slider_int(CXOR("Enemy desync"), &g_cfg.rage.desync_degree, -58, 58, desync_format.c_str());
 					}
 					end_child;
 

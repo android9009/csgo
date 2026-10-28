@@ -109,6 +109,21 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 	if (!state)
 		return;
 
+	const int manual_desync = player != HACKS->local ? std::clamp(g_cfg.rage.desync_degree, -58, 58) : 0;
+	auto apply_desync = [&](float eye_yaw)
+	{
+		if (manual_desync != 0)
+		{
+			state->abs_yaw = math::normalize_yaw(eye_yaw + manual_desync);
+			return;
+		}
+
+		if (side == side_original)
+			resolver::apply_side(player, record, record->choke);
+		else
+			state->abs_yaw = math::normalize_yaw(eye_yaw + state->get_max_rotation() * side);
+	};
+
 	if (!previous)
 	{
 		state->last_update_time = (record->sim_time - HACKS->global_vars->interval_per_tick);
@@ -169,10 +184,7 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 			}
 		}
 
-		if (side == side_original)
-			resolver::apply_side(player, record, record->choke);
-		else
-			state->abs_yaw = math::normalize_yaw(record->eye_angles.y + state->get_max_rotation() * side);
+		apply_desync(record->eye_angles.y);
 
 		player->eflags().remove(EFL_DIRTY_ABSVELOCITY);
 		player->set_abs_origin(player->origin());
@@ -278,10 +290,7 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 			RESTORE(player->sim_time());
 			player->sim_time() = current_command_time;
 
-			if (side == side_original)
-				resolver::apply_side(player, record, record->choke);
-			else
-				state->abs_yaw = math::normalize_yaw(player->eye_angles().y + state->get_max_rotation() * side);
+			apply_desync(player->eye_angles().y);
 
 			player->force_update_animations(anim);
 		}
@@ -310,7 +319,7 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 
 		player->set_layers(record->layers);
 
-		const bool neutralize_torso = player != HACKS->local && (side != side_original || record->choke > 1);
+		const bool neutralize_torso = player != HACKS->local && (side != side_original || record->choke > 1 || manual_desync != 0);
 		auto& body_yaw = state->pose_param_mappings[PLAYER_POSE_PARAM_BODY_YAW];
 		const int body_yaw_index = neutralize_torso ? body_yaw.index : -1;
 		const bool valid_body_yaw = body_yaw_index >= 0 && body_yaw_index < 24;

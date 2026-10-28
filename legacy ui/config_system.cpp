@@ -165,6 +165,7 @@ namespace config
 			save_int(rage, CXOR("spike_amt"), default_config.rage.spike_amt);
 			save_int(rage, CXOR("roll_amt"), default_config.rage.roll_amt);
 			save_int(rage, CXOR("roll_amt_pitch"), default_config.rage.roll_amt_pitch);
+			save_int(rage, CXOR("desync_degree"), default_config.rage.desync_degree);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), default_config.rage.round_lagcomp);
@@ -494,6 +495,7 @@ namespace config
 			save_int(rage, CXOR("spike_amt"), g_cfg.rage.spike_amt);
 			save_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
 			save_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
+			save_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);
@@ -834,6 +836,7 @@ namespace config
 			load_int(rage, CXOR("spike_amt"), g_cfg.rage.spike_amt);
 			load_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
 			load_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
+			load_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
 
 #if ALPHA || _DEBUG || BETA
 			load_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);

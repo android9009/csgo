@@ -247,6 +247,7 @@ struct configs_t
 		int spike_amt{};
 		int roll_amt = 50;
 		int roll_amt_pitch = 0;
+		int desync_degree{};
 
 		int group_type{};
 
