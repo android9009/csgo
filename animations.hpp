@@ -10,6 +10,17 @@ enum simulate_side_t
 	side_original,
 };
 
+enum resolver_debug_mode_t
+{
+	resolver_mode_none,
+	resolver_mode_no_fake,
+	resolver_mode_freestanding,
+	resolver_mode_static,
+	resolver_mode_layers,
+	resolver_mode_brute,
+	resolver_mode_unknown,
+};
+
 struct matrix_t
 {
 	c_bone_builder bone_builder{};
@@ -66,6 +77,13 @@ struct anim_record_t
 	float collision_change_origin{};
 	float lby{};
 	float thirdperson_recoil{};
+	// Diagnostics captured with this record, not the resolver's later state.
+	resolver_debug_mode_t resolver_mode{};
+	bool resolver_resolved{};
+	int resolver_side{};
+	// Bone-builder yaw deltas, not networked enemy angles.
+	float aim_desync{};
+	float zero_desync{};
 
 	vec3_t velocity{};
 	vec3_t velocity_for_animfix{};
@@ -200,6 +218,11 @@ struct anim_record_t
 		last_eyeang_diff_time = 0.f;
 		lby = 0.f;
 		thirdperson_recoil = 0.f;
+		resolver_mode = resolver_mode_none;
+		resolver_resolved = false;
+		resolver_side = 0;
+		aim_desync = 0.f;
+		zero_desync = 0.f;
 
 		velocity.reset();
 		velocity_for_animfix.reset();

@@ -103,6 +103,23 @@ void fix_velocity(anim_record_t* record, anim_record_t* previous, c_cs_player* p
 	}
 }
 
+static resolver_debug_mode_t get_resolver_debug_mode(const std::string& mode)
+{
+	if (mode.empty())
+		return resolver_mode_none;
+	if (mode == "no fake")
+		return resolver_mode_no_fake;
+	if (mode == "freestanding")
+		return resolver_mode_freestanding;
+	if (mode == "static")
+		return resolver_mode_static;
+	if (mode == "layers")
+		return resolver_mode_layers;
+	if (mode == "brute")
+		return resolver_mode_brute;
+	return resolver_mode_unknown;
+}
+
 static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_t* record, anim_record_t* previous, int side, c_studio_hdr* hdr, int* flags_base, int parent_count)
 {
 	auto state = player->animstate();
@@ -325,6 +342,15 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 
 		matrix_side->bone_builder.store(player, matrix_side->matrix, 0x7FF00, hdr, flags_base, parent_count);
 		matrix_side->bone_builder.setup();
+
+		// Diagnostics only: preserve the yaw delta that actually generated the
+		// matrix used by ragebot. This does not alter animation reconstruction.
+		const auto matrix_desync = math::normalize_yaw(
+			matrix_side->bone_builder.angles.y - matrix_side->bone_builder.eye_angles.y);
+		if (side == side_original)
+			record->aim_desync = matrix_desync;
+		else if (side == side_zero)
+			record->zero_desync = matrix_desync;
 	}
 }
 
@@ -537,6 +563,11 @@ void thread_collect_info(c_cs_player* player)
 		}
 
 		resolver::prepare_side(player, &record, previous);
+
+		const auto& resolver_snapshot = resolver_info[player->index()];
+		record.resolver_mode = get_resolver_debug_mode(resolver_snapshot.mode);
+		record.resolver_resolved = resolver_snapshot.resolved;
+		record.resolver_side = resolver_snapshot.side;
 
 		// update orig side
 		update_sides(player, anim, &record, previous, side_original, hdr, bone_flags_base, bone_parent_count);

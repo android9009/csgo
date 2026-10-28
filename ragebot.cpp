@@ -28,6 +28,175 @@ namespace
 
 		rage->points_to_scan.emplace_back(point);
 	}
+
+	bool shot_debug_enabled()
+	{
+		return (g_cfg.visuals.eventlog.logs & 4) != 0;
+	}
+
+	const char* shot_matrix_name(const anim_record_t& record)
+	{
+#ifndef LEGACY
+		if (record.visible_flick)
+			return "zero/flick";
+#endif
+		return "original";
+	}
+
+	float shot_matrix_desync(const anim_record_t& record)
+	{
+#ifndef LEGACY
+		if (record.visible_flick)
+			return record.zero_desync;
+#endif
+		return record.aim_desync;
+	}
+
+	const char* shot_side_name(int side)
+	{
+		switch (side)
+		{
+		case side_left:
+			return "left";
+		case side_zero:
+			return "zero";
+		case side_right:
+			return "right";
+		case side_original:
+			return "original";
+		default:
+			return "unknown";
+		}
+	}
+
+	const char* shot_record_resolver_mode(const anim_record_t& record)
+	{
+		switch (record.resolver_mode)
+		{
+		case resolver_mode_no_fake:
+			return "no fake";
+		case resolver_mode_freestanding:
+			return "freestanding";
+		case resolver_mode_static:
+			return "static";
+		case resolver_mode_layers:
+			return "layers";
+		case resolver_mode_brute:
+			return "brute";
+		case resolver_mode_unknown:
+			return "unknown";
+		default:
+			return "none";
+		}
+	}
+
+	std::string shot_flick_state(const aim_shot_record_t& shot)
+	{
+		if (shot.record.visible_flick)
+			return "selected";
+		if (shot.backtrack.flick_records > 0)
+			return "observed";
+		return "none";
+	}
+
+	std::string shot_safest_state(const aim_shot_record_t& shot)
+	{
+		const auto& debug = shot.backtrack;
+		if (debug.safest_history < 0)
+			return "none";
+
+		const auto safest_bt = std::abs(TIME_TO_TICKS(shot.target_sim_time - debug.safest_sim_time));
+		const auto hitbox = main_utils::hitbox_to_string(debug.safest_hitbox);
+		return tfm::format("h%d/v%d box=%s bt=%dt dmg=%d safe=%d/5",
+			debug.safest_history, debug.safest_valid, hitbox.c_str(), safest_bt, debug.safest_damage, debug.safest_safety);
+	}
+
+	std::string shot_enemy_state(const anim_record_t& record)
+	{
+		std::string state = record.on_ground ? "ground" : "air";
+		if (record.walking)
+			state += ",walk";
+		if (record.strafing)
+			state += ",strafe";
+		if (record.fakewalking)
+			state += ",fakewalk";
+		if (record.shooting)
+			state += ",shoot";
+		if (record.dormant)
+			state += ",dormant";
+		return state;
+	}
+
+	void log_shot_fire(const aim_shot_record_t& shot)
+	{
+		if (!shot_debug_enabled())
+			return;
+
+		const auto& record = shot.record;
+		const auto& debug = shot.backtrack;
+		const auto hitbox = main_utils::hitbox_to_string(shot.hitbox);
+		const auto resolver_now = shot.resolver.mode.empty() ? std::string("none") : shot.resolver.mode;
+		const auto desync_config = shot.desync_config == 0 ? std::string("auto") : std::to_string(shot.desync_config);
+		const auto flick = shot_flick_state(shot);
+		const auto safest = shot_safest_state(shot);
+		const auto state = shot_enemy_state(record);
+
+		EVENT_LOGS->push_message(tfm::format(
+			"AIM FIRE #%d %s | box=%s point=%s eye=%s | hc=%.1f%% req=%.1f%% | dmg=%d min=%d hp=%d | safe=%d/5 spread=%.5f inacc=%.5f",
+			shot.command_number, shot.target_name.c_str(), hitbox.c_str(),
+			shot.center_point ? "center" : "multipoint", shot.predicted_eye ? "predicted" : "current",
+			shot.hitchance * 100.f, shot.required_hitchance * 100.f,
+			shot.expected_damage, shot.min_damage, shot.target_health, shot.safety,
+			shot.spread, shot.inaccuracy), {}, true);
+
+		EVENT_LOGS->push_message(tfm::format(
+			"AIM BT #%d | bt=%dt h%d/v%d | history=%d valid=%d scanned=%d | sim=%.3f target=%.3f record_tick=%d cmd_tick=%d | ping=%.1fms lerp=%.1fms | selected[dmg=%d total=%d safe=%d/5] safest[%s]",
+			shot.command_number, shot.backtrack_ticks, debug.selected_history, debug.selected_valid,
+			debug.history_records, debug.valid_records, debug.scanned_records,
+			record.sim_time, shot.target_sim_time, TIME_TO_TICKS(record.sim_time), shot.command_tick,
+			shot.latency * 1000.f, shot.lerp * 1000.f,
+			debug.selected_damage, debug.selected_total_damage, debug.selected_safety, safest.c_str()), {}, true);
+
+		EVENT_LOGS->push_message(tfm::format(
+			"AIM RES #%d | matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d | now=%s/%s misses=%d legit/fake=%d/%d brute=%d/%d fs=%d/%d | state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
+			shot.command_number, shot_matrix_name(record), shot_matrix_desync(record), desync_config.c_str(),
+			record.eye_angles.y, record.lby, math::normalize_yaw(record.eye_angles.y - record.lby),
+			shot_record_resolver_mode(record), shot_side_name(record.resolver_side), record.resolver_side, record.resolver_resolved ? 1 : 0,
+			resolver_now.c_str(), shot_side_name(shot.resolver.side),
+			shot.resolver_misses, shot.resolver.legit_ticks, shot.resolver.fake_ticks,
+			shot.resolver.m_was_first_bruteforce ? 1 : 0, shot.resolver.m_was_second_bruteforce ? 1 : 0,
+			shot.resolver.freestanding.updated ? 1 : 0, shot.resolver.freestanding.side,
+			state.c_str(), record.velocity.length_2d(), record.duck_amt, record.choke,
+			flick.c_str(), debug.shifted_records, record.tickbase_shift ? 1 : 0, record.break_lc ? 1 : 0), {}, true);
+	}
+
+	void log_shot_outcome(const aim_shot_record_t& shot, const char* result, const std::string& reason = {})
+	{
+		if (!shot_debug_enabled())
+			return;
+
+		const auto hit = shot.damage >= 0;
+		const auto timeout = std::string(result) == "TIMEOUT";
+		const auto actual_damage = hit ? std::to_string(shot.damage) : timeout ? std::string("?") : std::string("0");
+		const auto remaining_health = hit ? std::to_string(shot.remaining_health) : std::string("?");
+		const auto wanted_hitbox = main_utils::hitbox_to_string(shot.hitbox);
+		const auto actual_hitgroup = hit ? main_utils::hitgroup_to_string(shot.hitgroup)
+			: timeout ? std::string("unknown") : std::string("none");
+		const auto flick = shot_flick_state(shot);
+		const auto impact = shot.impact_fire
+			? tfm::format("error=%.1fu aim=%.1fu impact=%.1fu", shot.impact.dist_to(shot.point),
+				shot.start.dist_to(shot.point), shot.start.dist_to(shot.impact))
+			: std::string("none");
+
+		EVENT_LOGS->push_message(tfm::format(
+			"AIM %s #%d %s | reason=%s actual=%s expected=%d min=%d | wanted=%s hitgroup=%s hp=%s | hc=%.1f%% bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s flick=%s | impact=%s spread=%.5f inacc=%.5f",
+			result, shot.command_number, shot.target_name.c_str(), reason.empty() ? "-" : reason.c_str(),
+			actual_damage.c_str(), shot.expected_damage, shot.min_damage,
+			wanted_hitbox.c_str(), actual_hitgroup.c_str(), remaining_health.c_str(),
+			shot.hitchance * 100.f, shot.backtrack_ticks, shot.backtrack.selected_history, shot.backtrack.selected_valid,
+			shot_matrix_name(shot.record), shot_matrix_desync(shot.record), shot_record_resolver_mode(shot.record),
+			shot_side_name(shot.record.resolver_side), flick.c_str(), impact.c_str(), shot.spread, shot.inaccuracy), {}, true);
+	}
 }
 
 void draw_hitbox__(c_cs_player* player, matrix3x4_t* bones, int idx, int idx2, bool dur = false)
@@ -646,7 +815,7 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 	auto best_damage = -1;
 	auto best_total_damage = -1;
 
-	auto consider_record = [&](anim_record_t* record)
+	auto consider_record = [&](anim_record_t* record, int history_index, int valid_index)
 	{
 		auto points = scan_record(record);
 		if (points.empty())
@@ -654,10 +823,32 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 
 		auto highest_damage = 0;
 		auto total_damage = 0;
+		auto record_safety = -1;
+		auto record_safety_damage = -1;
+		auto record_safety_hitbox = 0;
 		for (const auto& point : points)
 		{
 			highest_damage = std::max(highest_damage, point.damage);
 			total_damage += point.damage;
+			if (point.damage > record_safety_damage
+				|| (point.damage == record_safety_damage && point.safety > record_safety))
+			{
+				record_safety = point.safety;
+				record_safety_damage = point.damage;
+				record_safety_hitbox = point.hitbox;
+			}
+		}
+
+		auto& debug = rage->backtrack;
+		if (record_safety > debug.safest_safety
+			|| (record_safety == debug.safest_safety && record_safety_damage > debug.safest_damage))
+		{
+			debug.safest_history = history_index;
+			debug.safest_valid = valid_index;
+			debug.safest_damage = record_safety_damage;
+			debug.safest_safety = record_safety;
+			debug.safest_hitbox = record_safety_hitbox;
+			debug.safest_sim_time = record->sim_time;
 		}
 
 		// Records are visited newest to oldest, so equal scores keep fresher data.
@@ -667,17 +858,38 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 			best_damage = highest_damage;
 			best_total_damage = total_damage;
 			best_points = std::move(points);
+
+			debug.selected_history = history_index;
+			debug.selected_valid = valid_index;
+			debug.selected_damage = highest_damage;
+			debug.selected_total_damage = total_damage;
+			debug.selected_safety = record_safety;
 		}
 	};
 
 	std::vector<anim_record_t*> valid_records{};
+	std::vector<int> valid_history_indices{};
 	valid_records.reserve(lagcomp->records.size());
+	valid_history_indices.reserve(lagcomp->records.size());
+
+	rage->backtrack.history_records = static_cast<int>(lagcomp->records.size());
+	auto history_index = 0;
 	for (auto& record : lagcomp->records)
 	{
+		if (record.tickbase_shift)
+			++rage->backtrack.shifted_records;
+		if (record.visible_flick)
+			++rage->backtrack.flick_records;
+
 		if (record.filled && !record.dormant && !record.tickbase_shift
 			&& LAGCOMP->is_tick_valid(record.break_lc, record.sim_time))
+		{
 			valid_records.emplace_back(&record);
+			valid_history_indices.emplace_back(history_index);
+		}
+		++history_index;
 	}
+	rage->backtrack.valid_records = static_cast<int>(valid_records.size());
 
 	constexpr size_t max_record_scans = 4;
 	std::vector<size_t> candidate_indices{};
@@ -714,8 +926,9 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 		candidate_indices.erase(std::unique(candidate_indices.begin(), candidate_indices.end()), candidate_indices.end());
 	}
 
+	rage->backtrack.scanned_records = static_cast<int>(candidate_indices.size());
 	for (const auto index : candidate_indices)
-		consider_record(valid_records[index]);
+		consider_record(valid_records[index], valid_history_indices[index], static_cast<int>(index));
 
 	rage->restore.restore(rage->player);
 
@@ -1452,7 +1665,6 @@ void c_ragebot::run()
 			auto record_time = best_record->sim_time;
 
 			HACKS->cmd->tickcount = TIME_TO_TICKS(record_time + HACKS->lerp_time);
-			auto backtrack_ticks = std::abs(TIME_TO_TICKS(best_rage_player.player->sim_time() - record_time));
 
 			if (g_cfg.visuals.chams[c_onshot].enable)
 				CHAMS->add_shot_record(best_rage_player.player, best_record->matrix_orig.matrix);
@@ -1461,25 +1673,9 @@ void c_ragebot::run()
 			HACKS->cmd->viewangles -= HACKS->local->aim_punch_angle() * (HACKS->convars.weapon_recoil_scale->get_float());
 			HACKS->cmd->viewangles = HACKS->cmd->viewangles.normalized_angle();
 
-			add_shot_record(best_rage_player.player, best_point, best_record, ideal_start);
-
-			if (g_cfg.visuals.eventlog.logs & 4)
-			{
-				static auto log_str = ("Fire to %s, %s, %d%%, %dhp, %dt, %dsp%s");
-
-				std::string log = tfm::format(
-					log_str,
-					best_rage_player.player->get_name(),
-					main_utils::hitbox_to_string(best_point.hitbox),
-					(int)(out_chance * 100.f),
-					best_point.damage,
-					backtrack_ticks,
-					best_point.safety,
-					shots.back().resolver.resolved ? (", ") + shots.back().resolver.mode + (" ") + std::to_string(shots.back().resolver.side) : "" ""
-				);
-
-				EVENT_LOGS->push_message(log, {}, true);
-			}
+			add_shot_record(best_rage_player.player, best_point, best_record, ideal_start,
+				out_chance, max_hitchance, damage, best_rage_player.backtrack);
+			log_shot_fire(shots.back());
 
 			if ((g_cfg.binds[hs_b].toggled || !ANTI_AIM->is_fake_ducking()) && !*HACKS->send_packet)
 				*HACKS->send_packet = true;
@@ -1489,10 +1685,9 @@ void c_ragebot::run()
 	best_rage_player.reset();
 }
 
-void c_ragebot::add_shot_record(c_cs_player* player, const rage_point_t& best, anim_record_t* record, vec3_t eye_pos)
+void c_ragebot::add_shot_record(c_cs_player* player, const rage_point_t& best, anim_record_t* record, vec3_t eye_pos,
+	float hitchance, float required_hitchance, int min_damage, const backtrack_debug_t& backtrack)
 {
-	auto anims = ANIMFIX->get_local_anims();
-
 	auto& new_shot = shots.emplace_back();
 	new_shot.time = HACKS->predicted_time;
 	new_shot.init_time = 0.f;
@@ -1502,13 +1697,33 @@ void c_ragebot::add_shot_record(c_cs_player* player, const rage_point_t& best, a
 	new_shot.safety = best.safety;
 	new_shot.start = eye_pos;
 	new_shot.hitgroup = -1;
-	new_shot.hitchance = best.accuracy;
+	new_shot.hitchance = hitchance;
+	new_shot.required_hitchance = required_hitchance;
+	new_shot.expected_damage = best.damage;
+	new_shot.min_damage = min_damage;
+	new_shot.target_health = player->health();
+	new_shot.predicted_eye = best.predicted_eye_pos;
+	new_shot.center_point = best.center;
 	new_shot.hitbox = best.hitbox;
 	new_shot.pointer = player;
+	new_shot.target_name = player->get_name();
 	new_shot.record = *record;
 	new_shot.index = player->index();
 	new_shot.resolver = resolver_info[new_shot.index];
+	new_shot.resolver_misses = missed_shots[new_shot.index];
 	new_shot.point = best.aim_point;
+	new_shot.backtrack = backtrack;
+	new_shot.target_sim_time = player->sim_time();
+	new_shot.backtrack_ticks = std::abs(TIME_TO_TICKS(new_shot.target_sim_time - record->sim_time));
+	new_shot.command_tick = HACKS->cmd->tickcount;
+	new_shot.command_number = HACKS->cmd->command_number;
+	new_shot.desync_config = std::clamp(g_cfg.rage.desync_degree, -58, 58);
+	new_shot.latency = HACKS->ping;
+	new_shot.lerp = HACKS->lerp_time;
+
+	const auto predicted = ENGINE_PREDICTION->get_networked_vars(new_shot.command_number);
+	new_shot.inaccuracy = predicted->inaccuracy;
+	new_shot.spread = predicted->spread;
 }
 
 void c_ragebot::weapon_fire(c_game_event* event)
@@ -1578,6 +1793,8 @@ void c_ragebot::player_hurt(c_game_event* event)
 
 	shot->damage = event->get_int(CXOR("dmg_health"));
 	shot->hitgroup = event->get_int(CXOR("hitgroup"));
+	shot->remaining_health = event->get_int(CXOR("health"));
+	log_shot_outcome(*shot, "HIT", "confirmed");
 	shots.erase(shot);
 }
 
@@ -1624,16 +1841,21 @@ void c_ragebot::proceed_misses()
 	auto& shot = shots.front();
 	if (std::abs(HACKS->predicted_time - shot.time) > 1.f)
 	{
+		const auto reason = !shot.fire ? "timeout/no weapon_fire"
+			: !shot.impact_fire ? "timeout/no bullet_impact" : "timeout/no result";
+		log_shot_outcome(shot, "TIMEOUT", reason);
 		shots.erase(shots.begin());
 		return;
 	}
 
 	if (shot.init_time != -1.f && shot.index && shot.damage == -1 && shot.fire && shot.impact_fire)
 	{
+		std::string miss_reason = "invalid target";
 		auto new_player = (c_cs_player*)HACKS->entity_list->get_client_entity(shot.index);
 		if (new_player && new_player->is_player() && shot.pointer == new_player)
 		{
 			const auto studio_model = HACKS->model_info->get_studio_model(new_player->get_model());
+			miss_reason = studio_model ? "unclassified" : "no studio model";
 
 			if (studio_model)
 			{
@@ -1654,9 +1876,15 @@ void c_ragebot::proceed_misses()
 					float dist2 = shot.start.dist_to(shot.point);
 
 					if (dist2 > dist)
+					{
+						miss_reason = "occlusion";
 						EVENT_LOGS->push_message(XOR("Missed shot due to occlusion"));
+					}
 					else
+					{
+						miss_reason = "spread";
 						EVENT_LOGS->push_message(XOR("Missed shot due to spread"));
+					}
 				}
 				else
 				{
@@ -1687,6 +1915,7 @@ void c_ragebot::proceed_misses()
 #endif
 							if (every_side_intersects)
 							{
+								miss_reason = "prediction";
 								EVENT_LOGS->push_message(XOR("Missed shot due to prediction"));
 							}
 							else
@@ -1694,20 +1923,28 @@ void c_ragebot::proceed_misses()
 								missed_shots[shot.index]++;
 								m_missed_prev_side[shot.index] = m_missed_anim_side[shot.index];
 								m_missed_anim_side[shot.index] = resolver_info.side;
+								miss_reason = "resolver";
 								EVENT_LOGS->push_message(XOR("Missed shot due to resolver"));
 							}
 						}
 						else
+						{
+							miss_reason = "unresolved";
 							EVENT_LOGS->push_message(XOR("Missed shot due to ?"));
+						}
 					}
 					else
+					{
+						miss_reason = "death";
 						EVENT_LOGS->push_message(XOR("Missed shot due to death"));
+					}
 				}
 
 				rage_player.restore.restore(new_player);
 			}
 		}
 
+		log_shot_outcome(shot, "MISS", miss_reason);
 		shots.erase(shots.begin());
 	}
 }

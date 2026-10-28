@@ -26,19 +26,60 @@ inline std::vector<spread_seed_t> precomputed_seeds{};
 
 struct restore_record_t;
 
+struct backtrack_debug_t
+{
+	int history_records{};
+	int valid_records{};
+	int scanned_records{};
+	int shifted_records{};
+	int flick_records{};
+
+	int selected_history{ -1 };
+	int selected_valid{ -1 };
+	int selected_damage{ -1 };
+	int selected_total_damage{ -1 };
+	int selected_safety{ -1 };
+
+	// Safest compares each scanned record's highest-damage center point by
+	// matrix safety, then damage and freshness. It does not affect selection.
+	int safest_history{ -1 };
+	int safest_valid{ -1 };
+	int safest_damage{ -1 };
+	int safest_safety{ -1 };
+	int safest_hitbox{};
+	float safest_sim_time{};
+};
+
 struct aim_shot_record_t
 {
 	bool fire{};
 	bool impact_fire{};
+	bool predicted_eye{};
+	bool center_point{};
 
 	int safety{};
 	int damage{};
+	int expected_damage{};
+	int min_damage{};
+	int target_health{};
+	int remaining_health{ -1 };
 	int hitgroup{};
 	int hitbox{};
+	int backtrack_ticks{};
+	int command_tick{};
+	int command_number{};
+	int desync_config{};
+	int resolver_misses{};
 
 	float time{};
 	float init_time{};
 	float hitchance{};
+	float required_hitchance{};
+	float target_sim_time{};
+	float inaccuracy{};
+	float spread{};
+	float latency{};
+	float lerp{};
 
 	int index{};
 
@@ -48,8 +89,10 @@ struct aim_shot_record_t
 
 	c_cs_player* pointer{};
 
+	std::string target_name{};
 	anim_record_t record{};
 	resolver_info_t resolver{};
+	backtrack_debug_t backtrack{};
 };
 
 struct rage_point_t
@@ -100,6 +143,7 @@ struct rage_player_t
 	anim_record_t* best_record{};
 
 	rage_point_t best_point{};
+	backtrack_debug_t backtrack{};
 
 	std::vector<rage_point_t> points_to_scan{};
 
@@ -115,6 +159,7 @@ struct rage_player_t
 		best_record = nullptr;
 
 		best_point = {};
+		backtrack = {};
 
 		points_to_scan.clear();
 		points_to_scan.reserve(MAX_SCANNED_POINTS);
@@ -134,6 +179,7 @@ struct rage_player_t
 		best_record = nullptr;
 
 		best_point.reset();
+		backtrack = {};
 
 		points_to_scan.clear();
 	}
@@ -209,7 +255,8 @@ private:
 	void do_hitscan(rage_player_t* rage);
 	void scan_players();
 	void choose_best_point();
-	void add_shot_record(c_cs_player* player, const rage_point_t& best, anim_record_t* record, vec3_t eye_pos);
+	void add_shot_record(c_cs_player* player, const rage_point_t& best, anim_record_t* record, vec3_t eye_pos,
+		float hitchance, float required_hitchance, int min_damage, const backtrack_debug_t& backtrack);
 
 	void weapon_fire(c_game_event* event);
 	void bullet_impact(c_game_event* event);
