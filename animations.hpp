@@ -255,6 +255,10 @@ struct anims_t
 	c_cs_player* ptr{};
 	c_animation_state old_animstate{};
 
+#ifdef LEGACY
+	matrix_t visual_matrix{};
+#endif
+
 	std::deque<anim_record_t> records{};
 
 	INLINE void reset()
@@ -277,6 +281,10 @@ struct anims_t
 
 		ptr = nullptr;
 		old_animstate = {};
+
+#ifdef LEGACY
+		visual_matrix.reset();
+#endif
 		records.clear();
 	}
 };

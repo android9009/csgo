@@ -246,7 +246,7 @@ INLINE matrix_t* get_matrix_side(anim_record_t* new_record, int side)
 	return &new_record->matrix_orig;
 }
 
-static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t* anim, anim_record_t* new_record, anim_record_t* last_record, int side, c_studio_hdr* hdr, int* flags_base, int parent_count)
+static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t* anim, anim_record_t* new_record, anim_record_t* last_record, int side, c_studio_hdr* hdr, int* flags_base, int parent_count, matrix_t* visual_matrix = nullptr)
 {
 	auto state = player->animstate();
 	if (!state)
@@ -290,7 +290,8 @@ static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t
 		if (!last_record || new_record->choke < 2)
 		{
 #ifdef LEGACY
-			resolver::apply_side(player, new_record, new_record->choke);
+			if (!visual_matrix)
+				resolver::apply_side(player, new_record, new_record->choke);
 			player->eye_angles() = new_record->eye_angles;
 
 			player->set_abs_origin(player->origin());
@@ -342,7 +343,8 @@ static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t
 			player->abs_velocity() = player->velocity() = new_record->velocity;
 			player->set_abs_origin(player->origin());
 
-			resolver::apply_side(player, new_record, new_record->choke);
+			if (!visual_matrix)
+				resolver::apply_side(player, new_record, new_record->choke);
 			player->eye_angles() = new_record->eye_angles;
 
 			auto anim_time = new_record->old_sim_time + HACKS->global_vars->interval_per_tick;
@@ -487,7 +489,7 @@ static INLINE void update_sides(bool should_update, c_cs_player* player, anims_t
 
 		anim->setup_bones = false;
 
-		auto matrix_side = get_matrix_side(new_record, side);
+		auto matrix_side = visual_matrix ? visual_matrix : get_matrix_side(new_record, side);
 
 		// store simulated layers
 		player->store_layers(matrix_side->layers);
@@ -631,6 +633,23 @@ void thread_collect_info(c_cs_player* player)
 
 	backup->store(player);
 	{
+#ifdef LEGACY
+		// Preserve the actual network/LBY desync for rendering while keeping
+		// the resolved matrix independent for rage and backtrack.
+		float visual_poses[24]{};
+		player->store_poses(visual_poses);
+		math::memcpy_sse(&anim->old_animstate, state, sizeof(anim->old_animstate));
+		update_sides(should_update, player, anim, &new_record, last_record, 1337, hdr, bone_flags_base, bone_parent_count, &anim->visual_matrix);
+
+		math::memcpy_sse(state, &anim->old_animstate, sizeof(anim->old_animstate));
+		backup->restore(player);
+		player->eye_angles() = backup->eye_angles;
+		player->lower_body_yaw() = backup->lby;
+		player->thirdperson_recoil() = backup->thirdperson_recoil;
+		player->set_abs_angles(backup->abs_angles);
+		math::memcpy_sse(player->pose_parameter(), visual_poses, sizeof(visual_poses));
+#endif
+
 		resolver::prepare_side(player, &new_record, last_record);
 
 #ifndef LEGACY
@@ -1071,7 +1090,12 @@ void c_animation_fix::render_matrices(c_cs_player* player)
 		auto record = &anim->records.front();
 
 		// copy matrix for render
-		math::memcpy_sse(render_matrix, record->matrix_orig.matrix, sizeof(render_matrix));
+#ifdef LEGACY
+		if (anim->visual_matrix.bone_builder.filled)
+			math::memcpy_sse(render_matrix, anim->visual_matrix.matrix, sizeof(render_matrix));
+		else
+#endif
+			math::memcpy_sse(render_matrix, record->matrix_orig.matrix, sizeof(render_matrix));
 
 		// adjust render matrix pos
 		math::change_bones_position(render_matrix, 128, record->origin, player->get_render_origin());
