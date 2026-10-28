@@ -41,13 +41,13 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -115,13 +115,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>D:\diretx-sdk\Include;$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\diretx-sdk\Lib\x86;$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Debug;$(SolutionDir)\Libs\PolyHook\build32\zydis\Debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath>D:\diretx-sdk\Lib\x86;$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;$(LibraryPath)</LibraryPath>
     <TargetName>csgo_debug</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;$(IncludePath)</IncludePath>
-    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Debug;$(SolutionDir)\Libs\PolyHook\build32\zydis\Debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;$(LibraryPath)</LibraryPath>
     <TargetName>csgo-legacy_debug</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
@@ -159,13 +159,15 @@
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>globals.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
@@ -174,27 +176,29 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_debug.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LEGACY;_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;_DEBUG;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LEGACY;_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>globals.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_debug.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Live|Win32'">
