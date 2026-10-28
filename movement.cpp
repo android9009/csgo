@@ -65,9 +65,6 @@ void c_movement::auto_strafe()
 
 	auto pressing_move = holding_w || holding_a || holding_s || holding_d;
 
-	if (!pressing_move)
-		return;
-
 	vec3_t velocity = HACKS->local->velocity();
 	velocity.z = 0.f;
 
@@ -177,15 +174,12 @@ bool c_movement::can_use_auto_peek()
 	if (!g_cfg.binds[ap_b].toggled)
 		return false;
 
-	auto moving = HACKS->cmd->buttons.has(IN_MOVELEFT)
-		|| HACKS->cmd->buttons.has(IN_MOVERIGHT)
-		|| HACKS->cmd->buttons.has(IN_BACK)
-		|| HACKS->cmd->buttons.has(IN_FORWARD);
-
+	auto moving = HACKS->cmd->buttons.has(IN_MOVELEFT) || HACKS->cmd->buttons.has(IN_MOVERIGHT) || HACKS->cmd->buttons.has(IN_BACK) || HACKS->cmd->buttons.has(IN_FORWARD);
 	auto origin = HACKS->local->get_abs_origin();
-
 	auto& info = peek_info;
-	if ( !info.start_pos.valid( ) ) {
+
+	if ( !info.start_pos.valid( ) ) 
+	{
 		if ( !( HACKS->local->flags( ).has( FL_ONGROUND ) ) )
 		{
 			c_game_trace trace {};
@@ -200,14 +194,11 @@ bool c_movement::can_use_auto_peek()
 	else
 	{
 		info.peek_init = true;
-
 		auto cant_stop = RAGEBOT->working || RAGEBOT->best_rage_player.valid;
 
 		if (on_ground())
 		{
-			auto misc_weapon = HACKS->weapon->is_misc_weapon()
-				&& !HACKS->weapon->is_knife()
-				&& !HACKS->weapon->is_taser();
+			auto misc_weapon = HACKS->weapon->is_misc_weapon() && !HACKS->weapon->is_knife() && !HACKS->weapon->is_taser();
 
 			bool cmd_attack = HACKS->cmd->buttons.has(IN_ATTACK);
 			bool is_firing = HACKS->weapon->item_definition_index() == WEAPON_REVOLVER ? cmd_attack && RAGEBOT->revolver_fire : cmd_attack;

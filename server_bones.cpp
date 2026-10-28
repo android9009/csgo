@@ -303,11 +303,7 @@ void c_bone_builder::store(c_cs_player* player, matrix3x4_t* matrix, int mask, c
 	this->matrix = matrix;
 	this->mask = mask;
 
-#ifdef LEGACY
-	time = player->sim_time();
-#else
 	time = player == HACKS->local ? HACKS->predicted_time : player->sim_time();
-#endif
 	attachments = false;
 	ik_ctx = false;
 	dispatch = true;
@@ -315,12 +311,20 @@ void c_bone_builder::store(c_cs_player* player, matrix3x4_t* matrix, int mask, c
 	bone_parent_count = parent_count;
 
 	player->store_poses(poses.data());
-
 	eye_angles = player->eye_angles();
 
-	auto weapon = (c_base_combat_weapon*)(HACKS->entity_list->get_client_entity_handle(player->active_weapon()));
+	if (g_cfg.misc.local_breaker & 1)
+		poses.data()[6] = 1;
 
+	if (g_cfg.misc.local_breaker & 2)
+		poses.data()[0] = 1;
+
+	if (g_cfg.misc.local_breaker & 4)
+		poses.data()[7] = 1;
+
+	auto weapon = (c_base_combat_weapon*)(HACKS->entity_list->get_client_entity_handle(player->active_weapon()));
 	c_cs_player* world_weapon = nullptr;
+
 	if (weapon)
 		world_weapon = (c_cs_player*)(HACKS->entity_list->get_client_entity_handle(weapon->weapon_world_model()));
 

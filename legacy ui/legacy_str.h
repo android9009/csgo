@@ -91,7 +91,9 @@ namespace xor_strs
 
 	extern std::string sky_custom;
 
+	extern std::string tracer_laser;
 	extern std::string tracer_beam;
+	extern std::string tracer_white;
 	extern std::string tracer_line;
 	extern std::string tracer_glow;
 

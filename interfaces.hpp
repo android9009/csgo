@@ -501,6 +501,10 @@ public:
     };
 
     c_utl_vector< glow_box_definition_t > glow_boxes;
+
+    void add_glow_box(const vec3_t& origin, const vec3_t& orient, const vec3_t& mins, const vec3_t& maxs, const c_color& clr, float birth_time, float life_time) {
+        glow_boxes.add_to_tail({ origin, orient, mins, maxs, birth_time, birth_time + life_time, clr.u32() });
+    }
 };
 
 class c_global_vars

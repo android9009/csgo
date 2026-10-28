@@ -12,11 +12,36 @@ std::unordered_map<std::uint8_t*, std::pair<std::vector<std::uint8_t>, float>> s
 
 INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 {
-	const auto name = XOR("sprites/purplelaser1.vmt");
+	
+	std::string model_name = XOR("sprites/");
+
+	switch (g_cfg.misc.tracer_type)
+	{
+	case 0:
+		model_name += XOR("purplelaser1.vmt");
+		break;
+	case 1:
+		model_name += XOR("physbeam.vmt");
+		break;
+	case 2:
+		model_name += XOR("White.vmt");
+		break;
+	case 3:
+		HACKS->debug_overlay->add_line_overlay(start, end, clr.r(), clr.g(), clr.b(), false, 3.f);
+		break;
+	case 4:
+		const auto thickness = g_cfg.misc.bullet_size / 100.f;
+		vec3_t trajectory{};
+		vec3_t delta_pos(start - end);
+		math::vector_angles(delta_pos, trajectory);
+
+		HACKS->glow_object_manager->add_glow_box(end, trajectory, vec3_t{ 0.f, -thickness, -thickness }, vec3_t{ (end - start).length_z(false), thickness, thickness }, clr, HACKS->global_vars->curtime, 3.f);
+		break;
+	}
 
 	beam_info_t beam_info;
 	beam_info.type = BEAM_NORMAL;
-	beam_info.model_name = name.c_str();
+	beam_info.model_name = model_name.c_str();
 	beam_info.model_index = -1;
 	beam_info.start = start;
 	beam_info.end = end;
@@ -33,8 +58,8 @@ INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 	beam_info.speed = 1.f;
 	beam_info.start_frame = 0;
 	beam_info.frame_rate = 0.f;
-	beam_info.width = 3;
-	beam_info.end_width = 3;
+	beam_info.width = g_cfg.misc.bullet_size;
+	beam_info.end_width = g_cfg.misc.bullet_size;
 	beam_info.flags = BEAM_ONLY_NO_IS_ONCE | BEAM_FADE_IN | BEAM_NOTILE;
 
 	beam_t* final_beam = HACKS->view_render_beams->create_beam_points(beam_info);
@@ -240,9 +265,7 @@ void c_bullet_tracers::on_bullet_impact(c_game_event* event)
 	bool is_local = player == HACKS->local;
 	bool is_enemy = !is_local && !player->is_teammate();
 
-	if (g_cfg.misc.tracers & 1 && is_enemy
-		|| g_cfg.misc.tracers & 2 && !is_enemy && !is_local
-		|| g_cfg.misc.tracers & 4 && is_local)
+	if (g_cfg.misc.tracers & 1 && is_enemy || g_cfg.misc.tracers & 2 && !is_enemy && !is_local || g_cfg.misc.tracers & 4 && is_local)
 		bullets[player->index()].emplace_back(bullet_tracer_t{ player->origin() + player->view_offset(), {x, y, z} });
 }
 
@@ -257,11 +280,7 @@ void c_bullet_tracers::render_tracers()
 	if (!HACKS->local || !HACKS->in_game)
 		return;
 
-#ifdef LEGACY
-	auto& impact_list = *(c_utl_vector<client_verify_t>*)((std::uintptr_t)HACKS->local + 0xBA84);
-#else
 	auto& impact_list = *(c_utl_vector<client_verify_t>*)((std::uintptr_t)HACKS->local + 0x11C50);
-#endif
 
 	if (g_cfg.misc.impacts)
 	{
@@ -297,6 +316,7 @@ void c_bullet_tracers::render_tracers()
 					bool is_enemy = !is_local && !player->is_teammate();
 
 					c_float_color trace_clr = c_float_color{ 255, 255, 255 };
+
 					if (is_local)
 						trace_clr = g_cfg.misc.trace_clr[2];
 					else if (!is_enemy && !is_local)
@@ -304,16 +324,8 @@ void c_bullet_tracers::render_tracers()
 					else
 						trace_clr = g_cfg.misc.trace_clr[0];
 
-					auto base = trace_clr.base();
-					switch (g_cfg.misc.tracer_type)
-					{
-					case 0:
-						draw_beam(a.back().eye_position, a.back().impact_position, base);
-						break;
-					case 1:
-						HACKS->debug_overlay->add_line_overlay(a.back().eye_position, a.back().impact_position, base.r(), base.g(), base.b(), false, 3.f);
-						break;
-					}
+					auto base = trace_clr.base();		
+					draw_beam(a.back().eye_position, a.back().impact_position, base);			
 				}
 
 				a.clear();

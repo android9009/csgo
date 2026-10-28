@@ -108,6 +108,8 @@ namespace offsets
 
 		process_packet = memory::get_pattern(engine_dll, CXOR("55 8B EC 83 E4 C0 81 EC ? ? ? ? 53 56 57 8B 7D 08 8B D9"));
 
+		direct_present = memory::get_pattern(gameoverlayrenderer_dll, CXOR("FF 15 ? ? ? ? 8B F0 85 FF")).add(XORN(2));
+		direct_reset = memory::get_pattern(gameoverlayrenderer_dll, CXOR("C7 45 ? ? ? ? ? FF 15 ? ? ? ? 8B D8")).add(XORN(9));
 		direct_device = memory::get_pattern(shaderapidx9_dll, CXOR("A1 ? ? ? ? 50 8B 08 FF 51 0C")).add(XORN(1));
 
 		local = memory::get_pattern(client_dll, CXOR("8B 0D ? ? ? ? 83 FF FF 74 07")).add(XORN(2));
@@ -176,7 +178,7 @@ namespace offsets
 		notify_on_layer_change_sequence = memory::get_pattern(client_dll, CXOR("55 8B EC 8B 45 ? 85 C0 74 ? 80 B9 ? ? ? ? ? 74 ? 8B 89"));
 		accumulate_layers = memory::get_pattern(client_dll, CXOR("55 8B EC 57 8B F9 8B 0D ? ? ? ? 8B 01 8B 80"));
 		on_latch_interpolated_variables = memory::get_pattern(client_dll, CXOR("55 8B EC 83 EC ? 53 56 8B F1 57 80 BE ? ? ? ? ? 75 ? 8B 06"));
-		interpolate = memory::get_pattern(client_dll, CXOR("55 8B EC 83 E4 F8 83 EC 0C 53 56 8B F1 57 83 BE"));
+		interpolate = memory::get_pattern(client_dll, CXOR("55 8B EC 83 E4 ? 83 EC ? 53 56 8B F1 57 83 BE ? ? ? ? ? 75 ? 8B 46 ? 8D 4E ? FF 50 ? 85 C0 74 ? 8B CE E8 ? ? ? ? 8B 9E"));
 		interpolate_player = memory::get_pattern(client_dll, CXOR("55 8B EC 83 EC ? 56 8B F1 83 BE ? ? ? ? ? 0F 85"));
 		reset_latched = memory::get_pattern(client_dll, CXOR("56 8B F1 57 8B BE ? ? ? ? 85 FF 74 ? 8B CF E8 ? ? ? ? 68"));
 

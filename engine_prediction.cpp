@@ -74,14 +74,9 @@ void c_engine_prediction::start()
 
 	auto old_tickbase = HACKS->local->tickbase();
 
-#ifndef LEGACY
 	std::memset(&move_data, 0, sizeof(c_move_data));
 	HACKS->cmd->buttons.force(HACKS->local->button_forced());
 	HACKS->cmd->buttons.remove(HACKS->local->button_disabled());
-#else
-	static c_movedata movedata{};
-	std::memset(&movedata, 0, sizeof(c_movedata));
-#endif
 
 	auto& net_vars = networked_vars[HACKS->cmd->command_number % 150];
 	net_vars.ground_entity = HACKS->local->ground_entity();
@@ -89,22 +84,10 @@ void c_engine_prediction::start()
 	HACKS->game_movement->start_track_prediction_errors(HACKS->local);
 	HACKS->move_helper->set_host(HACKS->local);
 
-#ifdef LEGACY
-	*(c_user_cmd**)((std::uintptr_t)HACKS->local + XORN(0x3314)) = HACKS->cmd;
-	*(c_user_cmd*)((std::uintptr_t)HACKS->local + XORN(0x326C)) = *HACKS->cmd;
-#else
 	*(c_user_cmd**)((std::uintptr_t)HACKS->local + XORN(0x3348)) = HACKS->cmd;
 	*(c_user_cmd*)((std::uintptr_t)HACKS->local + XORN(0x3298)) = *HACKS->cmd;
-#endif
 
-#ifdef LEGACY
-	const auto buttons = HACKS->cmd->buttons.bits;
-	int buttonsChanged = buttons ^ *reinterpret_cast<int*>(uintptr_t(HACKS->local) + 0x31E8);
-	*reinterpret_cast<int*>(uintptr_t(HACKS->local) + 0x31DC) = (uintptr_t(HACKS->local) + 0x31E8);
-	*reinterpret_cast<int*>(uintptr_t(HACKS->local) + 0x31E8) = buttons;
-	*reinterpret_cast<int*>(uintptr_t(HACKS->local) + 0x31E0) = buttons & buttonsChanged;  // m_afButtonPressed ~ The changed ones still down are "pressed"
-	*reinterpret_cast<int*>(uintptr_t(HACKS->local) + 0x31E4) = buttonsChanged & ~buttons; // m_afButtonReleased ~ The ones not down are "released"
-#else
+
 	HACKS->cmd->buttons.force(HACKS->local->button_forced());
 	HACKS->cmd->buttons.remove(HACKS->local->button_disabled());
 
@@ -116,7 +99,6 @@ void c_engine_prediction::start()
 	*HACKS->local->buttons() = buttons;
 	HACKS->local->button_pressed() = buttons_changed & buttons;
 	HACKS->local->button_released() = buttons_changed & (~buttons);
-#endif
 
 	HACKS->prediction->check_moving_ground(HACKS->local, HACKS->global_vars->frametime);
 	HACKS->prediction->set_local_view_angles(HACKS->cmd->viewangles);
@@ -124,17 +106,9 @@ void c_engine_prediction::start()
 	HACKS->local->run_pre_think();
 	HACKS->local->run_think();
 
-#ifdef LEGACY
-	HACKS->move_helper->set_host(HACKS->local);
-	HACKS->prediction->setup_move(HACKS->local, HACKS->cmd, HACKS->move_helper, &movedata);
-	HACKS->game_movement->process_movement(HACKS->local, (c_move_data*)& movedata);
-	HACKS->prediction->finish_move(HACKS->local, HACKS->cmd, &movedata);
-#else
-
 	HACKS->prediction->setup_move(HACKS->local, HACKS->cmd, HACKS->move_helper, &move_data);
 	HACKS->game_movement->process_movement(HACKS->local, &move_data);
 	HACKS->prediction->finish_move(HACKS->local, HACKS->cmd, &move_data);
-#endif
 
 	HACKS->move_helper->process_impacts();
 
@@ -229,16 +203,11 @@ void c_engine_prediction::fix_viewmodel(int stage)
 	auto anim_time = viewmodel->anim_time();
 	auto old_anim_time = viewmodel->old_anim_time();
 
-	if (anim_time != old_anim_time
-		&& cycle != old_cycle
-		&& cycle == 0.f && anim_time == HACKS->global_vars->curtime)
+	if (anim_time != old_anim_time && cycle != old_cycle && cycle == 0.f && anim_time == HACKS->global_vars->curtime)
 	{
-		if (current_viewmodel->active_weapon == HACKS->weapon
-			&& current_viewmodel->sequence == viewmodel->sequence()
-			&& current_viewmodel->animation_parity == viewmodel->animation_parity()
-			&& current_viewmodel->new_sequence_parity == viewmodel->new_sequence_parity()
-			&& current_viewmodel->model_index == viewmodel->model_index()
-			|| current_viewmodel->looking_at_weapon == HACKS->local->looking_at_weapon())
+		if (current_viewmodel->active_weapon == HACKS->weapon && current_viewmodel->sequence == viewmodel->sequence()
+			&& current_viewmodel->animation_parity == viewmodel->animation_parity() && current_viewmodel->new_sequence_parity == viewmodel->new_sequence_parity()
+			&& current_viewmodel->model_index == viewmodel->model_index() || current_viewmodel->looking_at_weapon == HACKS->local->looking_at_weapon())
 		{
 			viewmodel->anim_time() = viewmodel->old_anim_time();
 			viewmodel->cycle() = viewmodel->old_cycle();
@@ -278,11 +247,7 @@ void c_engine_prediction::end()
 {
 	in_prediction = false;
 
-#ifdef LEGACY
-	* (c_user_cmd**)((std::uintptr_t)HACKS->local + XORN(0x3314)) = nullptr;
-#else
 	* (c_user_cmd**)((std::uintptr_t)HACKS->local + XORN(0x3348)) = nullptr;
-#endif
 
 	* prediction_random_seed = -1;
 	*prediction_player = 0;

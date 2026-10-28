@@ -1,5 +1,6 @@
 #pragma once
 #include "animations.hpp"
+#include "anti_aim.hpp"
 
 struct restore_record_t
 {
@@ -54,11 +55,8 @@ class c_lag_comp
 private:
 
 public:
-	INLINE bool is_tick_valid(bool shifting, bool break_lc, float sim_time)
+	INLINE bool is_tick_valid(bool break_lc, float sim_time)
 	{
-		if (shifting || break_lc)
-			return false;
-
 		auto netchan = HACKS->engine->get_net_channel();
 		if (!netchan)
 			return false;
@@ -66,18 +64,47 @@ public:
 		if (HACKS->cl_lagcomp0)
 			return true;
 
-		float correct = std::clamp(HACKS->lerp_time + HACKS->ping, 0.f, HACKS->max_unlag);
+		if (break_lc)
+			return false;
 
-		const auto server_tickcount = HACKS->global_vars->tickcount + TIME_TO_TICKS(HACKS->ping);
-		const auto dead_time = static_cast<int>(TICKS_TO_TIME(server_tickcount) - HACKS->max_unlag);
+		// correct is the amount of time we have to correct game time
+		float correct = 0.f;
 
-		float delta_time = std::fabs(correct - (HACKS->predicted_time - sim_time));
+		// add network latency
+		correct += HACKS->ping;
 
-#ifdef LEGACY
-		return delta_time < 0.19f;
-#else
-		return delta_time < 0.2f && (sim_time >= static_cast<float>(dead_time));
-#endif
+		// NOTE:  do these computations in float time, not ticks, to avoid big roundoff error accumulations in the math
+		// add view interpolation latency see C_BaseEntity::GetInterpolationAmount()
+		correct += HACKS->lerp_time;
+
+		// check bounds [0, sv_maxunlag]
+		correct = std::clamp(correct, 0.f, HACKS->max_unlag);
+
+		// use prediction curtime for this
+		float curtime = HACKS->local->is_alive() ? HACKS->predicted_time : HACKS->global_vars->curtime;
+
+		// calculate difference between tick sent by player and our latency based tick
+		float delta_time = correct - (curtime - sim_time);
+
+		// difference between cmd time and latency is too big > 200ms, use time correction based on latency
+		if (fabs(delta_time) > 0.2f)
+			return false;
+
+		// get server tickcount with local latancy
+		int server_tick = HACKS->global_vars->tickcount + TIME_TO_TICKS(HACKS->ping);
+
+		// correct fakeduck
+		if (ANTI_AIM->is_fake_ducking())
+			server_tick += 14 - HACKS->client_state->choked_commands;
+
+		// remove all records before that time
+		int dead_time = TICKS_TO_TIME(server_tick) - HACKS->max_unlag;
+
+		// if tail is within limits, stop
+		if (sim_time < dead_time)
+			return false;
+
+		return true;
 	}
 
 	INLINE float get_lerp_time()
@@ -91,9 +118,8 @@ public:
 		if (!anim)
 			return;
 
-		auto origin = record->extrapolated ? record->prediction.origin : record->origin;
-		player->origin() = origin;
-		player->set_abs_origin(origin);
+		player->origin() = record->origin;
+		player->set_abs_origin(record->origin);
 
 		player->bb_maxs() = record->maxs;
 		player->bb_mins() = record->mins;
@@ -107,11 +133,4 @@ public:
 	void update_tick_validation();
 };
 
-#ifdef _DEBUG
 inline auto LAGCOMP = std::make_unique<c_lag_comp>();
-#else
-CREATE_DUMMY_PTR(c_lag_comp);
-DECLARE_XORED_PTR(c_lag_comp, GET_XOR_KEYUI32);
-
-#define LAGCOMP XORED_PTR(c_lag_comp)
-#endif

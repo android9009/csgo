@@ -2,6 +2,14 @@
 #include "server_bones.hpp"
 #include "engine_prediction.hpp"
 
+enum simulate_side_t
+{
+	side_left = -1,
+	side_zero,
+	side_right,
+	side_original,
+};
+
 struct matrix_t
 {
 	c_bone_builder bone_builder{};
@@ -29,15 +37,11 @@ struct anim_record_t
 	bool dormant{};
 	bool walking{};
 	bool strafing{};
-	bool valid_lc{};
-	bool shifting{};
 	bool break_lc{};
 	bool shooting{};
-	bool extrapolated{};
 	bool fakewalking{};
 
 	int server_tick_estimation{};
-	int extrapolate_ticks{};
 	int choke{};
 	memory::bits_t flags{};
 
@@ -46,6 +50,10 @@ struct anim_record_t
 	float sim_time{};
 	float old_sim_time{};
 	float last_shot_time{};
+	float last_eyeang_diff{};
+	float last_eyeang_diff_time{};
+	float last_eyeang{};
+	float old_diff{};
 	float anim_speed{};
 	float jitter_diff{};
 	float old_jitter_diff{};
@@ -70,41 +78,13 @@ struct anim_record_t
 	std::uint32_t ground_entity{};
 	c_animation_layers layers[13]{};
 
-#ifndef LEGACY
 	matrix_t matrix_left{};
 	matrix_t matrix_right{};
 	matrix_t matrix_zero{};
-#endif
 
 	matrix_t matrix_orig{};
 
-	struct prediction_t
-	{
-		vec3_t origin{};
-		vec3_t velocity{};
-
-		float time{};
-		memory::bits_t flags{};
-
-		INLINE void reset()
-		{
-			origin.reset();
-			velocity.reset();
-
-			time = 0.f;
-			flags.bits = 0;
-		}
-	} prediction;
-
-	INLINE void predict()
-	{
-		prediction.origin = origin;
-		prediction.velocity = velocity;
-		prediction.time = sim_time;
-		prediction.flags = flags;
-	}
-
-	matrix3x4_t predicted_matrix[128]{};
+	//matrix3x4_t predicted_matrix[128]{};
 
 	INLINE void store(c_cs_player* player)
 	{
@@ -119,10 +99,8 @@ struct anim_record_t
 		eye_angles = player->eye_angles();
 		walking = player->is_walking();
 		strafing = player->strafing();
-#ifndef LEGACY
 		collision_change_time = player->collision_change_time();
 		collision_change_origin = player->collision_change_origin();
-#endif
 		lby = player->lower_body_yaw();
 		thirdperson_recoil = player->thirdperson_recoil();
 		view_offset = player->view_offset();
@@ -142,7 +120,7 @@ struct anim_record_t
 		if (weapon)
 			last_shot_time = weapon->last_shot_time();
 
-		choke = std::clamp(simulation_tick - old_simulation_tick, 0, 16);
+		choke = std::clamp(simulation_tick - old_simulation_tick, 1, 17);
 		on_ground = player->flags().has(FL_ONGROUND);
 
 		landed = false;
@@ -152,7 +130,6 @@ struct anim_record_t
 		player->store_layers(layers);
 
 		server_tick_estimation = HACKS->client_state->clock_drift_mgr.server_tick;
-
 		filled = true;
 	}
 
@@ -177,19 +154,16 @@ struct anim_record_t
 	INLINE void reset()
 	{
 		filled = false;
-		valid_lc = false;
 		landing = false;
 		landed = false;
 		on_ground = false;
 		real_on_ground = false;
 		dormant = false;
-		shifting = false;
 		break_lc = false;
 		shooting = false;
 		fakewalking = false;
 
 		choke = 0;
-		extrapolate_ticks = 0;
 		flags = {};
 
 		duck_amt = 0.f;
@@ -203,6 +177,10 @@ struct anim_record_t
 		collision_change_time = 0.f;
 		collision_change_origin = 0.f;
 		last_shot_time = 0.f;
+		last_eyeang_diff = 0.f;
+		old_diff = 0.f;
+		last_eyeang = 0.f;
+		last_eyeang_diff_time = 0.f;
 		lby = 0.f;
 		thirdperson_recoil = 0.f;
 
@@ -221,15 +199,10 @@ struct anim_record_t
 
 		std::memset(layers, 0, sizeof(layers));
 
-#ifndef LEGACY
 		matrix_left.reset();
 		matrix_right.reset();
 		matrix_zero.reset();
-#endif
 		matrix_orig.reset();
-
-		std::memset(predicted_matrix, 0, sizeof(predicted_matrix));
-		prediction.reset();
 	}
 };
 
@@ -248,7 +221,6 @@ struct anims_t
 	float old_aliveloop_cycle{};
 	float old_aliveloop_rate{};
 	float old_simulation_time{};
-	float old_simulation_time2{};
 	float dt_interpolation_fraction{};
 	float last_valid_time{};
 
@@ -271,7 +243,6 @@ struct anims_t
 		old_aliveloop_cycle = 0.f;
 		old_aliveloop_rate = 0.f;
 		old_simulation_time = 0.f;
-		old_simulation_time2 = 0.f;
 		dt_interpolation_fraction = 0.f;
 		last_valid_time = 0.f;
 
@@ -412,6 +383,21 @@ public:
 		return &local_anims;
 	}
 
+	INLINE matrix_t* get_matrix_side(anim_record_t* new_record, int side)
+	{
+		switch (side)
+		{
+		case side_left:
+			return &new_record->matrix_left;
+		case side_right:
+			return &new_record->matrix_right;
+		case side_zero:
+			return &new_record->matrix_zero;
+		case side_original:
+			return &new_record->matrix_orig;
+		}
+	}
+
 	void update_enemies();
 	void handle_jump_animations(c_animation_state* state, c_animation_layers* layers, c_user_cmd* cmd);
 	void handle_strafing(c_animation_state* state, c_user_cmd* cmd);
@@ -421,11 +407,4 @@ public:
 	void restore_all();
 };
 
-#ifdef _DEBUG
 inline auto ANIMFIX = std::make_unique<c_animation_fix>();
-#else
-CREATE_DUMMY_PTR(c_animation_fix);
-DECLARE_XORED_PTR(c_animation_fix, GET_XOR_KEYUI32);
-
-#define ANIMFIX XORED_PTR(c_animation_fix)
-#endif

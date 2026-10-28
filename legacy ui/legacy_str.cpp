@@ -87,7 +87,9 @@ namespace xor_strs
 
 	std::string sky_custom{};
 
+	std::string tracer_laser{};
 	std::string tracer_beam{};
+	std::string tracer_white{};
 	std::string tracer_line{};
 	std::string tracer_glow{};
 
@@ -437,7 +439,9 @@ namespace xor_strs
 
 		sky_custom = XOR("Custom");
 
+		tracer_laser= XOR("Laser");
 		tracer_beam = XOR("Beam");
+		tracer_white = XOR("White");
 		tracer_line = XOR("Line");
 		tracer_glow = XOR("Glow");
 

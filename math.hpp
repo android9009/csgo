@@ -361,6 +361,14 @@ struct vec3_t
         return std::sqrtf(length_sqr());
     }
 
+    __forceinline float length_z(bool ignore_z) const
+    {
+        if (ignore_z)
+            return std::sqrt(this->x * this->x + this->y * this->y);
+
+        return std::sqrt(this->x * this->x + this->y * this->y + this->z * this->z);
+    }
+
     INLINE float dist_to(const vec3_t& other) const
     {
         return std::sqrtf(std::powf(other.x - this->x, 2) + std::powf(other.y - this->y, 2) + std::powf(other.z - this->z, 2));

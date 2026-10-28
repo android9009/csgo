@@ -2,21 +2,19 @@
 #include "legacy ui/legacy_str.h"
 #include "features.hpp"
 
-/*
 #ifndef _DEBUG
 #include <VirtualizerSDK.h>
 #endif
-*/
 
 #ifdef _DEBUG
 FILE* stream = NULL;
 
 void create_console()
 {
-	AllocConsole();
-	freopen_s(&stream, ("CONIN$"), ("r"), stdin);
-	freopen_s(&stream, ("CONOUT$"), ("w"), stdout);
-	freopen_s(&stream, ("CONOUT$"), ("w"), stderr);
+	//AllocConsole();
+	//freopen_s(&stream, ("CONIN$"), ("r"), stdin);
+	//freopen_s(&stream, ("CONOUT$"), ("w"), stdout);
+	//freopen_s(&stream, ("CONOUT$"), ("w"), stderr);
 }
 
 void destroy_console()
@@ -63,12 +61,12 @@ void c_hacks::init_main(LPVOID reserved)
 
 void c_hacks::init(LPVOID reserved)
 {
-#ifdef _DEBUG
-	create_console();
-
-	DEBUG_LOG("Welcome to debug mode \n");
-	DEBUG_LOG("Build date: %s \n\n", __DATE__);
-#endif
+//#ifdef _DEBUG
+//	create_console();
+//
+//	DEBUG_LOG("Welcome to debug mode \n");
+//	DEBUG_LOG("Build date: %s \n\n", __DATE__);
+//#endif
 
 	while (!(window = WINCALL(FindWindowA)(CXOR("Valve001"), NULL)))
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -153,7 +151,7 @@ void c_hacks::init(LPVOID reserved)
 	THREAD_POOL->remove();
 	remove_listeners();
 	hooks::remove();
-	destroy_console();
+	//destroy_console();
 	FreeLibraryAndExitThread(modules.dllmain, 0);
 #endif
 }

@@ -571,18 +571,12 @@ const char* glove_skins[]
 
 const char* tracers[]
 {
+	xor_strs::tracer_laser.c_str(),
 	xor_strs::tracer_beam.c_str(),
+	xor_strs::tracer_white.c_str(),
 	xor_strs::tracer_line.c_str(),
-//	xor_strs::tracer_glow.c_str(),
+	xor_strs::tracer_glow.c_str(),
 };
-
-#if ALPHA || _DEBUG || BETA
-const char* jitterfix_method[]
-{
-	"Old angle",
-	"Angle diff"
-};
-#endif
 
 void c_menu::draw_ui_items()
 {
@@ -1390,11 +1384,12 @@ void c_menu::draw_ui_items()
 						checkbox(CXOR("Bullet impacts"), &g_cfg.misc.impacts);
 						color_picker(CXOR("Server color"), g_cfg.misc.server_clr);
 						color_picker(CXOR("Client color"), g_cfg.misc.client_clr);
-						slider_int(CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);
+						slider_int(CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);				
 
 						multi_combo(CXOR("Bullet tracers"), g_cfg.misc.tracers, { XOR("Enemy"), XOR("Team"), XOR("Local") });
 
 						combo(CXOR("Tracer type"), &g_cfg.misc.tracer_type, tracers, IM_ARRAYSIZE(tracers));
+						slider_int(CXOR("Bullet size"), &g_cfg.misc.bullet_size, 0, 10);
 
 						if (g_cfg.misc.tracers & 1)
 							color_picker(CXOR("Enemy tracer"), g_cfg.misc.trace_clr[0]);
@@ -1471,6 +1466,7 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Changers"))
 					{
+						multi_combo(CXOR("Breaker animation"), g_cfg.misc.local_breaker, { XOR("static legs air"), XOR("reverse legs"), XOR("allah legs") });
 						combo(CXOR("Ragdoll gravity"), &g_cfg.misc.ragdoll_gravity, ragdoll_gravities, IM_ARRAYSIZE(ragdoll_gravities));
 						checkbox(CXOR("Clantag changer"), &g_cfg.misc.clantag);
 					}
@@ -1481,9 +1477,9 @@ void c_menu::draw_ui_items()
 						checkbox(CXOR("Unlock hidden cvars"), &g_cfg.misc.unlock_hidden_cvars);
 						checkbox(CXOR("Bypass sv_pure"), &g_cfg.misc.bypass_sv_pure);
 
-#if ALPHA || _DEBUG
-						checkbox(CXOR("Force crash"), &g_cfg.misc.force_crash);
-#endif
+//#if ALPHA || _DEBUG
+//						checkbox(CXOR("Force crash"), &g_cfg.misc.force_crash);
+//#endif
 					}
 					end_child;
 				}

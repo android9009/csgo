@@ -100,6 +100,8 @@ namespace offsets
 	inline memory::address_t set_collision_bounds;
 	inline memory::address_t find_hud_element;
 	inline memory::address_t process_packet;
+	inline memory::address_t direct_present;
+	inline memory::address_t direct_reset;
 	inline memory::address_t direct_device;
 	inline memory::address_t local;
 	inline memory::address_t screen_matrix;

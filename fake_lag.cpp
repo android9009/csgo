@@ -11,29 +11,14 @@
 
 inline bool disable_custom_overrides()
 {
-	auto state = HACKS->local->animstate();
-	if (!state)
-		return false;
-
 	auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
 	if (shifting)
 		return true;
 
-#ifdef LEGACY
-	if (ANTI_AIM->is_fake_ducking() || g_cfg.binds[sw_b].toggled)
-#else
 	if (ANTI_AIM->is_fake_ducking())
-#endif
 		return true;
 
-	if (state->landing)
-		return true;
-
-#ifdef LEGACY
-	if (EXPLOITS->enabled())
-#else
 	if (EXPLOITS->enabled() && !EXPLOITS->reset_dt)
-#endif
 		return true;
 
 	if (g_cfg.antihit.fakelag)
@@ -44,31 +29,16 @@ inline bool disable_custom_overrides()
 
 int c_fake_lag::get_max_choke()
 {
-	auto state = HACKS->local->animstate();
-	if (!state)
-		return 0;
-
 	auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
 	if (shifting)
 		return 0;
 
 	auto add_ticks = (int)g_cfg.antihit.desync;
 
-#ifdef LEGACY
-	if (ANTI_AIM->is_fake_ducking() || g_cfg.binds[sw_b].toggled)
-#else
 	if (ANTI_AIM->is_fake_ducking())
-#endif
 		return std::clamp(HACKS->max_choke, 0, 14);
 
-	if (state->landing)
-		return add_ticks;
-
-#ifdef LEGACY
-	if (EXPLOITS->enabled())
-#else
 	if (EXPLOITS->enabled() && !EXPLOITS->reset_dt)
-#endif
 		return add_ticks;
 
 	if (g_cfg.antihit.fakelag)
@@ -140,40 +110,36 @@ void c_fake_lag::update_shot_cmd()
 
 void c_fake_lag::run()
 {
-	if (EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting)
-		return;
-
 	bypass_choke_limit();
 
-	auto shooting = RAGEBOT->is_shooting();
-	auto finished_shift = !shooting && EXPLOITS->cl_move.complete
-		&& std::abs(EXPLOITS->cl_move.finish_tick - HACKS->cmd->command_number) < 2;
-
-	if (HACKS->game_rules->is_freeze_time() || HACKS->local->flags().has(FL_FROZEN) || finished_shift)
+	if (HACKS->game_rules->is_freeze_time() || HACKS->local->flags().has(FL_FROZEN))
 	{
-		EXPLOITS->cl_move.finish_tick = 0;
-
 		if (!*HACKS->send_packet)
 			*HACKS->send_packet = true;
+
 		return;
 	}
 
+	auto shooting = RAGEBOT->is_shooting();
+	auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
 	int choke_amount = get_choke_amount();
 
-#ifdef LEGACY
-	auto shift = cmd_shift::shifting || EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
-
-	if (EXPLOITS->recharge.start || choke_amount == 0 || shift && HACKS->shooting)
-#else
-	if (EXPLOITS->recharge.start || choke_amount == 0 || (shooting || !(HACKS->local->tickbase() % 100)) && !ANTI_AIM->is_fake_ducking())
-#endif
+	if (EXPLOITS->recharge.start || choke_amount == 0 || !shifting && shooting && !ANTI_AIM->is_fake_ducking())
 	{
 		if (!*HACKS->send_packet)
 			*HACKS->send_packet = true;
+
 		return;
 	}
 
-	*HACKS->send_packet = HACKS->client_state->choked_commands >= choke_amount;
+	*HACKS->send_packet = false;
+	int choke = HACKS->client_state->choked_commands;
+
+	if (choke >= choke_amount)
+	{
+		*HACKS->send_packet = true;
+		return;
+	}
 }
 
 void c_ping_spike::on_procces_packet()

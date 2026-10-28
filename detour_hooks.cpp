@@ -29,11 +29,8 @@ namespace hooks::detour
 		static auto original = hooker::get_original(&physics_simulate);
 		int& simulation_tick = *(int*)((std::uintptr_t)ecx + 0x2AC);
 
-		if (!ecx || !ecx->is_alive()
-			|| HACKS->global_vars->tickcount == simulation_tick
-			|| ecx != HACKS->local
-			|| HACKS->engine->is_hltv()
-			|| ecx->flags().has(FL_ATCONTROLS))
+		if (!ecx || !ecx->is_alive() || HACKS->global_vars->tickcount == simulation_tick
+			|| ecx != HACKS->local || HACKS->engine->is_hltv() || ecx->flags().has(FL_ATCONTROLS))
 		{
 			original(ecx, edx);
 			return;
@@ -190,15 +187,8 @@ namespace hooks::detour
 		static auto original = hooker::get_original(&process_packet);
 		original(ecx, edx, packet, header);
 		
-		// remove event delay and execute it after it recieved
-		// prevent delays or other issues
-
-		// TO-DO: remove hardcoded offset
-#ifdef LEGACY
-		auto events = *reinterpret_cast<c_event_info**>(reinterpret_cast<std::uintptr_t>(HACKS->client_state) + XORN(0x4DEC));
-#else
 		auto events = *reinterpret_cast<c_event_info**>(reinterpret_cast<std::uintptr_t>(HACKS->client_state) + XORN(0x4E6C));
-#endif
+
 		if (events) 
 		{
 			auto iter = events;
@@ -614,7 +604,8 @@ namespace hooks::detour
 	void __fastcall estimate_abs_velocity(c_base_entity* ecx, void* edx, vec3_t& vel) {
 		static auto original = hooker::get_original(&estimate_abs_velocity);
 
-		if (ecx && ecx->is_player()) {
+		if (ecx && ecx->is_player()) 
+		{
 			auto player = reinterpret_cast<c_cs_player*>(ecx);
 			if (player->is_teammate())
 				return original(ecx, edx, vel);
@@ -625,24 +616,16 @@ namespace hooks::detour
 			return original(ecx, edx, vel);
 	}
 
-	// server simulation time recieves wrong and not rounded to 100 ticks (as it should)
-	// the best fix will be compare if networked animations were updated, wrong simtime recieved & you try to update at the same server tick
-	void __fastcall post_data_update(c_networkable* ecx, void* edx, int update_type) {
+	void __fastcall post_data_update(c_networkable* ecx, void* edx, int update_type) 
+	{
 		static auto original = hooker::get_original(&post_data_update);
 
-		if (!ecx)
-			return original(ecx, edx, update_type);
-
-		auto unknown_entity = ecx->get_n_unknown_entity();
-		if (!unknown_entity)
-			return original(ecx, edx, update_type);
-
-		auto entity = unknown_entity->get_base_entity();
+		auto entity = ecx->get_n_unknown_entity()->get_base_entity();
 		if (!entity || !entity->is_player())
 			return original(ecx, edx, update_type);
 
 		auto player = reinterpret_cast<c_cs_player*>(entity);
-		if (!player || !player->is_alive() || player->dormant() || player->is_teammate())
+		if (!player || !player->is_alive() || player->is_teammate() || player->dormant())
 			return original(ecx, edx, update_type);
 
 		auto index = ecx->index();
@@ -651,7 +634,7 @@ namespace hooks::detour
 		if (animation_info) {
 			auto& alive_loop = player->animlayers()[ANIMATION_LAYER_ALIVELOOP];
 
-			if (player->sim_time() == animation_info->old_simulation_time2) {
+			if (player->sim_time() == animation_info->old_simulation_time) {
 				if (alive_loop.cycle == animation_info->old_aliveloop_cycle)
 					player->sim_time() = player->old_sim_time();
 			}
@@ -667,7 +650,7 @@ namespace hooks::detour
 				if (save_server_tick)
 					animation_info->server_tick = server_tick;
 				else {
-					animation_info->old_simulation_time2 = player->sim_time();
+					animation_info->old_simulation_time = player->sim_time();
 					player->sim_time() = player->old_sim_time();
 				}
 			}
@@ -862,12 +845,12 @@ namespace hooks::detour
 		ADD_DETOUR(calc_chase_cam_view);
 		ADD_DETOUR(start_sound_immediate);
 		ADD_DETOUR(estimate_abs_velocity);
-		ADD_DETOUR(post_data_update);
-		ADD_DETOUR(notify_on_layer_change_weight);
-		ADD_DETOUR(notify_on_layer_change_cycle);
-		ADD_DETOUR(notify_on_layer_change_sequence);
+		//ADD_DETOUR(post_data_update);
+		//ADD_DETOUR(notify_on_layer_change_weight);
+		//ADD_DETOUR(notify_on_layer_change_cycle);
+		//ADD_DETOUR(notify_on_layer_change_sequence);
 		ADD_DETOUR(accumulate_layers);
-		ADD_DETOUR(on_latch_interpolated_variables);
+		//ADD_DETOUR(on_latch_interpolated_variables);
 		ADD_DETOUR(interpolate);
 		ADD_DETOUR(interpolate_player);
 		//ADD_DETOUR(reset_latched);

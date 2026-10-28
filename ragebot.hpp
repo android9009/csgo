@@ -211,6 +211,8 @@ public:
 	bool working{};
 	bool revolver_fire{};
 	int missed_shots[65]{};
+	int m_missed_anim_side[65]{};
+	int m_missed_prev_side[65]{};
 	rage_player_t best_rage_player{};
 	rage_weapon_t rage_config{};
 
@@ -277,6 +279,9 @@ public:
 			i.reset();
 
 		for (auto& i : missed_shots)
+			i = 0;
+
+		for (auto& i : m_missed_anim_side)
 			i = 0;
 
 		rage_config = {};

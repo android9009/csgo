@@ -411,6 +411,7 @@ struct configs_t
 		c_float_color client_clr = c_float_color(255, 0, 0, 127);
 
 		int impact_size = 10;
+		int bullet_size = 1;
 
 		unsigned int tracers{};
 		int tracer_type{};
@@ -472,6 +473,7 @@ struct configs_t
 		bool force_radar{};
 
 		int ragdoll_gravity{};
+		unsigned int local_breaker{};
 
 		bool clantag{};
 		bool bypass_sv_pure{};

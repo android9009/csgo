@@ -147,7 +147,6 @@ namespace hooks::vmt
 			if (stage == XORN(FRAME_NET_UPDATE_END))
 			{
 				RAGEBOT->proceed_misses();
-
 				ANIMFIX->update_enemies();
 			}
 		}
@@ -572,16 +571,6 @@ namespace hooks::vmt
 			{
 				should_reset = true;
 
-				if (HACKS->client_state->choked_commands >= HACKS->max_choke)
-					*HACKS->send_packet = true;
-
-				if (EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting)
-				{
-					*HACKS->send_packet = HACKS->client_state->choked_commands >= EXPLOITS->limits.double_tap;
-
-				//	HACKS->cmd->buttons.remove(IN_ATTACK | IN_ATTACK2);
-				}
-
 				HACKS->tickbase = [&]()
 				{
 					static int tickbase = 0;
@@ -855,8 +844,8 @@ namespace hooks::vmt
 	void __fastcall packet_start(c_client_state* ecx, void* edx, int incoming, int outgoing)
 	{
 		static auto original = hooker::get_original(&packet_start);
-
 		auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
+
 		if (!HACKS->local || !HACKS->local->is_alive() || shifting)
 			return original(ecx, edx, incoming, outgoing);
 
@@ -867,9 +856,7 @@ namespace hooks::vmt
 			original(ecx, edx, incoming, outgoing);
 
 		std::erase_if(HACKS->last_outgoing_commands, [&](int command)
-			{
-				return std::abs(command - outgoing) >= 150 || command < outgoing;
-			});
+		{return std::abs(command - outgoing) >= 150 || command < outgoing;});
 	}
 
 	void __fastcall packet_end(c_client_state* ecx, void* edx)
@@ -904,11 +891,6 @@ namespace hooks::vmt
 		original(ecx, edx, player, cmd, move_helper);
 		ENGINE_PREDICTION->update_viewmodel_info(cmd);
 		PREDFIX->store(cmd->command_number);
-
-#ifdef LEGACY
-		static auto collision_state = netvars::get_offset(HASH("DT_CSPlayer"), HASH("m_vphysicsCollisionState"));
-		*(int*)((std::uintptr_t)player + collision_state) = 0;
-#endif
 	}
 
 	void __fastcall emit_sound(void* thisptr, void* edx, void* filter, int ent_index, int channel, const char* sound_entry, unsigned int sound_entry_hash,

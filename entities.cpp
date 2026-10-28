@@ -129,12 +129,7 @@ void c_cs_player::run_pre_think()
 
 void c_cs_player::run_think()
 {
-#ifdef LEGACY
-	const auto next_think = (int*)((std::uintptr_t)this + XORN(0xF8));
-#else
 	const auto next_think = (int*)((std::uintptr_t)this + XORN(0xFC));
-#endif
-
 	static auto think = offsets::think.cast<void(__thiscall*)(void*, int)>();
 
 	if (*next_think > 0 && *next_think <= this->tickbase())
@@ -207,6 +202,16 @@ void c_cs_player::force_update_animations(anims_t* anim)
 	if (!state)
 		return;
 
+	if (state->last_update_time >= HACKS->global_vars->curtime)
+		state->last_update_time = HACKS->global_vars->curtime;
+
+	if (state->last_update_frame >= HACKS->global_vars->framecount)
+		state->last_update_frame = HACKS->global_vars->framecount - 1;
+
+	auto weapon = (c_base_combat_weapon*)(HACKS->entity_list->get_client_entity_handle(this->active_weapon()));
+	if (weapon)
+		state->weapon_last = weapon;
+
 	for (int i = 0; i < 13; i++)
 	{
 		auto layer = &animlayers()[i];
@@ -214,44 +219,15 @@ void c_cs_player::force_update_animations(anims_t* anim)
 		layer->studio_hdr = get_studio_hdr();
 	}
 
-	if (state->last_update_time == HACKS->global_vars->curtime)
-		state->last_update_time = HACKS->global_vars->curtime + HACKS->global_vars->interval_per_tick;
+	bool old_update = this->client_side_animation();
 
-	if (state->last_update_frame == HACKS->global_vars->framecount)
-		state->last_update_frame = HACKS->global_vars->framecount - 1;
+	anim->update_anims = true;
 
-	{
-		RESTORE(client_side_animation());
-		client_side_animation() = true;
+	this->client_side_animation() = true;
+	this->update_client_side_animation();
+	this->client_side_animation() = old_update;
 
-		{
-			RESTORE(client_side_animation());
-			client_side_animation() = true;
-
-			anim->update_anims = false;
-
-#ifdef LEGACY
-			auto animation_time = this == HACKS->local ? TICKS_TO_TIME(HACKS->tickbase) : this->old_sim_time() + HACKS->global_vars->interval_per_tick;
-#else
-			auto animation_time = this == HACKS->local ? TICKS_TO_TIME(HACKS->tickbase) : this->sim_time();
-#endif
-			auto animation_ticks = this == HACKS->local ? HACKS->tickbase : TIME_TO_TICKS(animation_time);
-
-			state->player = this;
-
-			auto& angles = this == HACKS->local ? this->render_angles() : this->eye_angles();
-			THREADED_STATE->update(this, state, angles.y, angles.x, animation_time, animation_ticks);
-
-			// update latch interpolated variables & sequence
-#ifdef LEGACY
-			if (*reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(this) + XORN(0x28AC)) != -1)
-				memory::get_virtual(this, XORN(107)).cast<void(__thiscall*)(void*, int)>()(this, 1);
-#else
-			if (*reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(this) + XORN(0x28C0)) != -1)
-				memory::get_virtual(this, XORN(108)).cast<void(__thiscall*)(void*, int)>()(this, 1);
-#endif
-		}
-	}
+	anim->update_anims = false;
 }
 
 float c_cs_player::studio_set_pose_parameter(int index, float value, float& ctl_value)
