@@ -1569,6 +1569,12 @@ void c_ragebot::player_hurt(c_game_event* event)
 	if (shot == shots.end())
 		return;
 
+	// A confirmed hit validates the current resolve. Do not keep forcing the
+	// bruteforce branch on every later record after a successful shot.
+	missed_shots[victim] = 0;
+	m_missed_anim_side[victim] = 0;
+	m_missed_prev_side[victim] = 0;
+
 	shot->damage = event->get_int(CXOR("dmg_health"));
 	shot->hitgroup = event->get_int(CXOR("hitgroup"));
 	shots.erase(shot);
@@ -1580,6 +1586,9 @@ void c_ragebot::round_start(c_game_event* event)
 		i = 0;
 
 	for (auto& i : m_missed_anim_side)
+		i = 0;
+
+	for (auto& i : m_missed_prev_side)
 		i = 0;
 
 	shots.clear();

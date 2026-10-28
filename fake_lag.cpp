@@ -11,11 +11,21 @@
 
 inline bool disable_custom_overrides()
 {
+	auto state = HACKS->local->animstate();
+	if (!state)
+		return false;
+
 	auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
 	if (shifting)
 		return true;
 
 	if (ANTI_AIM->is_fake_ducking())
+		return true;
+
+	if (state->landing)
+		return true;
+
+	if (EXPLOITS->reset_dt)
 		return true;
 
 	if (EXPLOITS->enabled() && !EXPLOITS->reset_dt)
@@ -29,6 +39,10 @@ inline bool disable_custom_overrides()
 
 int c_fake_lag::get_max_choke()
 {
+	auto state = HACKS->local->animstate();
+	if (!state)
+		return 0;
+
 	auto shifting = EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting;
 	if (shifting)
 		return 0;
@@ -37,6 +51,12 @@ int c_fake_lag::get_max_choke()
 
 	if (ANTI_AIM->is_fake_ducking())
 		return std::clamp(HACKS->max_choke, 0, 14);
+
+	if (state->landing)
+		return add_ticks;
+
+	if (EXPLOITS->reset_dt)
+		return add_ticks;
 
 	if (EXPLOITS->enabled() && !EXPLOITS->reset_dt)
 	{
@@ -128,6 +148,9 @@ void c_fake_lag::update_shot_cmd()
 
 void c_fake_lag::run()
 {
+	if (cmd_shift::shifting || (EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting))
+		return;
+
 	bypass_choke_limit();
 
 	if (HACKS->game_rules->is_freeze_time() || HACKS->local->flags().has(FL_FROZEN))
@@ -135,6 +158,13 @@ void c_fake_lag::run()
 		if (!*HACKS->send_packet)
 			*HACKS->send_packet = true;
 
+		return;
+	}
+
+	// Never add another choked command after reaching the server budget.
+	if (HACKS->client_state->choked_commands >= HACKS->max_choke)
+	{
+		*HACKS->send_packet = true;
 		return;
 	}
 

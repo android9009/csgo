@@ -295,6 +295,9 @@ public:
 		for (auto& i : m_missed_anim_side)
 			i = 0;
 
+		for (auto& i : m_missed_prev_side)
+			i = 0;
+
 		rage_config = {};
 		best_rage_player.reset();
 		predicted_eye_pos.reset();

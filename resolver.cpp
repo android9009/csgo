@@ -60,7 +60,7 @@ namespace resolver
 
 		auto direction = get_point_direction(player);
 
-		static matrix3x4_t predicted_matrix[128]{};
+		matrix3x4_t predicted_matrix[128]{};
 		std::memcpy(predicted_matrix, cache.base(), sizeof(predicted_matrix));
 
 		auto store_changed_matrix_data = [&](const vec3_t& new_position, bullet_t& out)
@@ -69,7 +69,7 @@ namespace resolver
 
 			math::change_bones_position(predicted_matrix, 128, player->origin(), new_position);
 			{
-				static matrix3x4_t old_cache[128]{};
+				matrix3x4_t old_cache[128]{};
 				player->store_bone_cache(old_cache);
 				{
 					player->set_abs_origin(new_position);
@@ -78,6 +78,7 @@ namespace resolver
 					auto head_pos = cache.base()[8].get_origin();
 					out = penetration::simulate(HACKS->local, player, ANIMFIX->get_local_anims()->eye_pos, head_pos);
 				}
+				player->set_abs_origin(old_abs_origin);
 				player->set_bone_cache(old_cache);
 			}
 			math::change_bones_position(predicted_matrix, 128, new_position, player->origin());
@@ -157,8 +158,12 @@ namespace resolver
 
 		if (previous)
 		{
-			auto accelerating = current->matrix_orig.layers[6].weight >= previous->matrix_orig.layers[6].weight &&
-				current->matrix_orig.layers[6].playback_rate >= previous->matrix_orig.layers[6].playback_rate;
+			// matrix_orig is built after prepare_side(); use the freshly stored
+			// network layers as the current reference instead of an empty matrix.
+			const auto& current_layer = current->layers[ANIMATION_LAYER_MOVEMENT_MOVE];
+			const auto& previous_layer = previous->matrix_orig.layers[ANIMATION_LAYER_MOVEMENT_MOVE];
+			auto accelerating = current_layer.weight >= previous_layer.weight &&
+				current_layer.playback_rate >= previous_layer.playback_rate;
 
 			if (!(current->flags.has(FL_ONGROUND)) || !(previous->flags.has(FL_ONGROUND)))
 				accelerating = false;
@@ -171,18 +176,19 @@ namespace resolver
 				{
 					auto current_side = ANIMFIX->get_matrix_side(current, i);
 
-					if (current_side->layers[6].sequence != current->matrix_orig.layers[6].sequence)
+					const auto& side_layer = current_side->layers[ANIMATION_LAYER_MOVEMENT_MOVE];
+					if (side_layer.sequence != current_layer.sequence)
 						continue;
 
-					const auto delta_weight = fabsf(current_side->layers[6].weight - current->matrix_orig.layers[6].weight);
-					const auto delta_cycle = fabsf(current_side->layers[6].cycle - current->matrix_orig.layers[6].cycle);
-					const auto delta_rate = fabsf(current_side->layers[6].playback_rate - current->matrix_orig.layers[6].playback_rate);
+					const auto delta_weight = fabsf(side_layer.weight - current_layer.weight);
+					const auto delta_cycle = fabsf(side_layer.cycle - current_layer.cycle);
+					const auto delta_rate = fabsf(side_layer.playback_rate - current_layer.playback_rate);
 					const auto delta_total = delta_weight + delta_cycle + delta_rate;
 
 					if (delta_total < best_match.second)
 						best_match = { static_cast<simulate_side_t>(i), delta_total };
 
-					if (delta_weight < 0.000001f || delta_cycle < 0.000001f || delta_rate < 0.000001f)
+					if (delta_weight < 0.000001f && delta_cycle < 0.000001f && delta_rate < 0.000001f)
 						best_match = { static_cast<simulate_side_t>(i), 0.f };
 				}
 
