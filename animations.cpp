@@ -738,8 +738,30 @@ void c_animation_fix::update_local()
 
 		if (*HACKS->send_packet)
 		{
+			const bool neutralize_torso = g_cfg.antihit.enable && g_cfg.antihit.desync;
+			auto& body_yaw = state->pose_param_mappings[PLAYER_POSE_PARAM_BODY_YAW];
+			const int body_yaw_index = neutralize_torso ? body_yaw.index : -1;
+			const bool valid_body_yaw = body_yaw_index >= 0 && body_yaw_index < 24;
+
+			float body_yaw_backup{};
+			if (valid_body_yaw)
+			{
+				body_yaw_backup = HACKS->local->pose_parameter()[body_yaw_index];
+				body_yaw.set_value(HACKS->local, 0.f);
+			}
+
+			auto lean_backup = real_layers[ANIMATION_LAYER_LEAN];
+			if (neutralize_torso)
+				real_layers[ANIMATION_LAYER_LEAN].weight = real_layers[ANIMATION_LAYER_LEAN].cycle = 0.f;
+
 			local_anims.bone_builder.store(HACKS->local, local_anims.matrix, 0x7FF00, hdr, bone_flags_base, bone_parent_count);
 			local_anims.bone_builder.setup();
+
+			if (valid_body_yaw)
+				HACKS->local->pose_parameter()[body_yaw_index] = body_yaw_backup;
+
+			if (neutralize_torso)
+				real_layers[ANIMATION_LAYER_LEAN] = lean_backup;
 
 			auto speed_portion_walk = state->speed_as_portion_of_walk_top_speed;
 			auto speed_portion_duck = state->speed_as_portion_of_crouch_top_speed;

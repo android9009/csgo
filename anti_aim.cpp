@@ -745,7 +745,7 @@ void c_anti_aim::run()
 		else
 		{
 #ifndef LEGACY
-			if (g_cfg.antihit.distortion_pitch > 0.f && choke_amount >= 14)
+			if (!g_cfg.antihit.desync && g_cfg.antihit.distortion_pitch > 0.f && choke_amount >= 14)
 			{
 				const auto choke = HACKS->client_state->choked_commands + 1;
 				for (int i = 1; i <= choke; i++)
@@ -862,6 +862,9 @@ void c_anti_aim::run()
 
 void c_anti_aim::cleanup()
 {
+	if (g_cfg.antihit.enable && g_cfg.antihit.desync)
+		HACKS->cmd->viewangles.z = 0.f;
+
 	HACKS->cmd->viewangles = HACKS->cmd->viewangles.normalized_angle();
 	HACKS->cmd->sidemove = std::clamp(HACKS->cmd->sidemove, -450.f, 450.f);
 	HACKS->cmd->forwardmove = std::clamp(HACKS->cmd->forwardmove, -450.f, 450.f);
