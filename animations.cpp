@@ -324,6 +324,37 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 	}
 }
 
+#ifndef LEGACY
+static void update_visible_flick(anims_t* anim)
+{
+	if (anim->records.size() < 3)
+		return;
+
+	auto& current = anim->records[0];
+	auto& excursion = anim->records[1];
+	auto& previous = anim->records[2];
+
+	if (!current.filled || !excursion.filled || !previous.filled
+		|| current.dormant || excursion.dormant || previous.dormant)
+		return;
+
+	// Only an observed one-tick excursion followed by a return is a flick.
+	// Do not fabricate hidden defensive angles or rebuild animation state.
+	if (TIME_TO_TICKS(current.sim_time - excursion.sim_time) != 1
+		|| TIME_TO_TICKS(excursion.sim_time - previous.sim_time) != 1)
+		return;
+
+	const auto yaw_in = std::fabs(math::normalize_yaw(excursion.eye_angles.y - previous.eye_angles.y));
+	const auto yaw_out = std::fabs(math::normalize_yaw(current.eye_angles.y - excursion.eye_angles.y));
+	const auto yaw_return = std::fabs(math::normalize_yaw(current.eye_angles.y - previous.eye_angles.y));
+
+	constexpr float min_excursion = 45.f;
+	constexpr float max_return_error = 20.f;
+	if (yaw_in >= min_excursion && yaw_out >= min_excursion && yaw_return <= max_return_error)
+		excursion.visible_flick = true;
+}
+#endif
+
 void thread_collect_info(c_cs_player* player)
 {
 	auto state = player->animstate();
@@ -374,8 +405,8 @@ void thread_collect_info(c_cs_player* player)
 		return;
 	}
 
-	if (anim->dormant_ticks < 1)
-		anim->dormant_ticks++;
+	if (anim->dormant_ticks < 3)
+		++anim->dormant_ticks;
 
 	if (anim->old_spawn_time != player->spawn_time())
 	{
@@ -425,7 +456,7 @@ void thread_collect_info(c_cs_player* player)
 		if (layer_delta <= 17)
 			record.choke = std::max(layer_delta, 1);
 
-		record.shooting = record.last_shot_time > previous->sim_time && record.last_shot_time <= previous->sim_time;
+		record.shooting = record.last_shot_time > previous->sim_time && record.last_shot_time <= record.sim_time;
 		if (!record.shooting)
 			record.last_reliable_angle = player->eye_angles();
 
@@ -488,6 +519,10 @@ void thread_collect_info(c_cs_player* player)
 		// update orig matrix
 		LAGCOMP->clamp_matrix(player, &record.matrix_orig, fresh_tick, angles, clamp_info);
 	}
+
+#ifndef LEGACY
+	update_visible_flick(anim);
+#endif
 
 	backup->restore(player);
 

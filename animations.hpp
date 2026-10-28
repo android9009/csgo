@@ -39,6 +39,8 @@ struct anim_record_t
 	bool strafing{};
 	bool break_lc{};
 	bool shooting{};
+	// Set only from an observed visible out-and-back yaw sequence.
+	bool visible_flick{};
 	bool fakewalking{};
 
 	int server_tick_estimation{};
@@ -85,6 +87,15 @@ struct anim_record_t
 	matrix_t matrix_orig{};
 
 	//matrix3x4_t predicted_matrix[128]{};
+
+	INLINE matrix3x4_t* get_aim_matrix()
+	{
+#ifndef LEGACY
+		if (visible_flick)
+			return matrix_zero.matrix;
+#endif
+		return matrix_orig.matrix;
+	}
 
 	INLINE void store(c_cs_player* player)
 	{
@@ -163,6 +174,7 @@ struct anim_record_t
 		dormant = false;
 		break_lc = false;
 		shooting = false;
+		visible_flick = false;
 		fakewalking = false;
 
 		choke = 0;
