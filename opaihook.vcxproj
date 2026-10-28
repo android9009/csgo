@@ -115,13 +115,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;$(SolutionDir)\Libs\curl_v2\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Debug;$(SolutionDir)\Libs\curl_v2\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;$(SolutionDir)\Libs\curl_v2\lib;$(LibraryPath)</LibraryPath>
     <TargetName>csgo_debug</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;$(IncludePath)</IncludePath>
-    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;$(LibraryPath)</LibraryPath>
     <TargetName>csgo-legacy_debug</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
@@ -159,13 +159,14 @@
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>globals.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
@@ -174,27 +175,28 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_debug.lib;PolyHook_2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LEGACY;_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;_DEBUG;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LEGACY;_USE_MATH_DEFINES;NOMINMAX;WIN32_LEAN_AND_MEAN;WIN32;_DEBUG;_ITERATOR_DEBUG_LEVEL=0;SDK_EXPORTS;_WINDOWS;_USRDLL;IMGUI_USE_BGRA_PACKED_COLOR;IMGUI_DEFINE_MATH_OPERATORS;_CRT_SECURE_NO_WARNINGS;EVO_CLIENT_XOR;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>false</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>globals.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <AdditionalOptions>/Zc:threadSafeInit- %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_debug.lib;PolyHook_2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Live|Win32'">
@@ -529,13 +531,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="world_modulation.hpp" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32' Or '$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
-    <ProjectReference Include="Libs\PolyHook\PolyHook_2.Debug.vcxproj">
-      <Project>{A4D9A4DC-4BB4-4E0E-9A4F-91AB5C62D001}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

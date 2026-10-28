@@ -13,9 +13,11 @@
 
 ## Debug Win32
 
-Для `Debug` и `Legacy Debug` добавлен проект `Libs/PolyHook/PolyHook_2.Debug.vcxproj`. Он без CMake и абсолютных путей собирает из уже имеющихся исходников одну библиотеку `Libs/PolyHook/build32/Debug/PolyHook_2.lib` с `/MTd`: необходимые Win32-хуки PolyHook, Zydis и Zycore. Отдельная Debug-библиотека `zydis.lib` больше не требуется. Release-подобные конфигурации продолжают использовать прежние предсобранные библиотеки.
+Отдельная Debug-сборка PolyHook не используется. Все конфигурации, включая `Debug` и `Legacy Debug`, подключают уже имеющиеся `Libs/PolyHook/build32/Release/PolyHook_2.lib` и `Libs/PolyHook/build32/zydis/Release/Zydis.lib`, как `Legacy Live`.
 
-Откройте `opaihook.sln`, выберите `Debug|x86` и выполните Build Solution. Новый проект подключён через ProjectReference, поэтому зависимость должна собраться перед основным DLL-проектом.
+В `Debug` и `Legacy Debug` оптимизация основного проекта явно отключена (`Optimization=Disabled`), а отладочная информация оставлена включённой. Для совместимости с готовыми Release-библиотеками эти две конфигурации используют `/MT`, `_ITERATOR_DEBUG_LEVEL=0` и `freetype_release.lib`. Собирать PolyHook перед основным проектом не требуется.
+
+Откройте `opaihook.sln`, выберите `Debug|x86` и выполните Build Solution.
 
 ## Изменения логики
 
