@@ -665,31 +665,48 @@ void c_anti_aim::run()
 	auto update_tickbase_state = [&]()
 	{
 #ifndef LEGACY
-		static int old_tickbase = 0;
+		const auto current_tickbase = HACKS->local->tickbase();
+		const auto shifting = (EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting) || cmd_shift::shifting;
 
-		if (!EXPLOITS->enabled() || (EXPLOITS->get_exploit_mode() != EXPLOITS_DT) || EXPLOITS->cl_move.trigger && EXPLOITS->cl_move.shifting || cmd_shift::shifting)
+		if (!EXPLOITS->enabled() || EXPLOITS->get_exploit_mode() != EXPLOITS_DT || EXPLOITS->reset_dt || shifting)
 		{
-			//	g_ctx.cmd->viewangles.x = g_ctx.orig_angle.x;
-
 			defensive_aa = false;
-			old_tickbase = 0;
+			previous_tickbase = 0;
+			tickbase_initialized = false;
 			return;
 		}
 
-		auto tickbase_diff = HACKS->local->tickbase() - old_tickbase;
+		// A newly enabled exploit has no previous tickbase to compare against.
+		// Comparing with zero used to manufacture a defensive tick on the first
+		// command and made ordinary DT look like defensive AA.
+		if (!tickbase_initialized)
+		{
+			previous_tickbase = current_tickbase;
+			tickbase_initialized = true;
+			defensive_aa = false;
+			return;
+		}
+
+		const auto tickbase_diff = current_tickbase - previous_tickbase;
+		const auto defensive_active = EXPLOITS->defensive.tickbase_choke != 100;
 
 		switch (g_cfg.antihit.def_aa_mode)
 		{
 		case 0:
-			defensive_aa = tickbase_diff < 0 || tickbase_diff > 1;
+			// Only a tickbase discontinuity while the defensive state machine is
+			// active is relevant here; ordinary DT shifts must not trigger AA.
+			defensive_aa = defensive_active && (tickbase_diff < 0 || tickbase_diff > 1);
 			break;
 		case 1:
-			defensive_aa = EXPLOITS->defensive.tickbase_choke != 100
-				&& EXPLOITS->defensive.tickbase_choke > 0 && HACKS->client_state->choked_commands;
+			defensive_aa = defensive_active
+				&& EXPLOITS->defensive.tickbase_choke > 0 && HACKS->client_state->choked_commands > 0;
+			break;
+		default:
+			defensive_aa = false;
 			break;
 		}
 
-		old_tickbase = HACKS->local->tickbase();
+		previous_tickbase = current_tickbase;
 #endif
 	};
 
@@ -737,33 +754,33 @@ void c_anti_aim::run()
 	{
 	case 1:
 	{
-		if (g_cfg.antihit.def_pitch && defensive_aa)
+#ifndef LEGACY
+		if (g_cfg.antihit.distortion_pitch > 0.f && choke_amount >= 14)
 		{
-			math::random_seed(HACKS->global_vars->tickcount);
-			HACKS->cmd->viewangles.x = g_cfg.antihit.def_aa_mode == 1 ? 0.f : -89.f;
+			const auto choke = HACKS->client_state->choked_commands + 1;
+			for (int i = 1; i <= choke; i++)
+			{
+				auto cmds = HACKS->input->get_user_cmd(HACKS->cmd->command_number - choke + i);
+
+				cmds->viewangles.x = 89.f + add_roll;
+			}
 		}
 		else
-		{
-#ifndef LEGACY
-			if (g_cfg.antihit.distortion_pitch > 0.f && choke_amount >= 14)
-			{
-				const auto choke = HACKS->client_state->choked_commands + 1;
-				for (int i = 1; i <= choke; i++)
-				{
-					auto cmds = HACKS->input->get_user_cmd(HACKS->cmd->command_number - choke + i);
-
-					cmds->viewangles.x = 89.f + add_roll;
-				}
-			}
-			else
 #endif
-				HACKS->cmd->viewangles.x = 89.f;
-		}
+			HACKS->cmd->viewangles.x = 89.f;
 	}
 	break;
 	case 2:
 		HACKS->cmd->viewangles.x = -89.f;
 		break;
+	}
+
+	// Defensive pitch is an override, not a special case of the "down" mode.
+	// Apply it after the regular pitch selection so both base modes work.
+	if (g_cfg.antihit.def_pitch && defensive_aa)
+	{
+		math::random_seed(HACKS->global_vars->tickcount);
+		HACKS->cmd->viewangles.x = g_cfg.antihit.def_aa_mode == 1 ? 0.f : -89.f;
 	}
 
 	start_yaw = HACKS->cmd->viewangles.y;
@@ -854,7 +871,7 @@ void c_anti_aim::run()
 	if (g_cfg.antihit.def_yaw && defensive_aa)
 	{
 		math::random_seed(HACKS->global_vars->tickcount);
-		best_yaw += HACKS->global_vars->tickcount % 16 * (360 / 16) - 180;
+		best_yaw += HACKS->global_vars->tickcount % 16 * (360.f / 16.f) - 180.f;
 	}
 
 	HACKS->cmd->viewangles.y = math::normalize_yaw(best_yaw);

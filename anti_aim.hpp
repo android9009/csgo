@@ -34,6 +34,9 @@ private:
 	bool flip_jitter{};
 	bool flip_move{};
 
+	int previous_tickbase{};
+	bool tickbase_initialized{};
+
 	int fake_side{};
 	int shot_cmd{};
 	float fake_angle{};
@@ -68,6 +71,9 @@ public:
 		flip_side = false;
 		flip_jitter = false;
 		flip_move = false;
+
+		previous_tickbase = 0;
+		tickbase_initialized = false;
 
 		fake_side = 0;
 		shot_cmd = 0;

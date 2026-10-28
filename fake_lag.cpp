@@ -68,12 +68,14 @@ int c_fake_lag::get_max_choke()
 		if (defensive_peek && g_cfg.antihit.fakelag)
 		{
 			// Keep enough command budget for the defensive shift while allowing
-			// the configured fakelag during a peek. Never reduce desync choke.
+			// the configured fakelag during a peek.
 			const auto available_choke = std::clamp(
 				HACKS->max_choke - EXPLOITS->limits.double_tap + 1,
 				0, HACKS->max_choke);
 			const auto peek_choke = std::min(g_cfg.antihit.fakelag_limit, available_choke);
-			return std::clamp(std::max(add_ticks, peek_choke), 0, HACKS->max_choke);
+			// The desync minimum must not consume the commands reserved for the
+			// defensive shift either (Fatality applies the same budget idea).
+			return std::clamp(std::max(add_ticks, peek_choke), 0, available_choke);
 		}
 #endif
 		return add_ticks;

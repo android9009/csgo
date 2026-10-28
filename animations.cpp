@@ -265,14 +265,18 @@ static INLINE void update_sides(c_cs_player* player, anims_t* anim, anim_record_
 			auto lerp_origin = math::lerp(lerp_step, previous->origin, record->origin);
 			auto lerp_velocity = math::lerp(lerp_step, previous->velocity, record->velocity);
 			auto lerp_duck_amount = math::lerp(lerp_step, previous->duck_amt, record->duck_amt);
-			auto lerp_eye_pose = math::lerp(lerp_step, previous->eye_angles, record->eye_angles);
 
 			player->eflags().remove(EFL_DIRTY_ABSVELOCITY);
 
 			player->origin() = lerp_origin;
 			player->abs_velocity() = player->velocity() = lerp_velocity;
 			player->duck_amount() = lerp_duck_amount;
-			player->eye_angles() = lerp_eye_pose;
+
+			// Reconstruct movement over choked commands, but do not invent a
+			// smooth yaw transition through commands that were never networked.
+			// The newest command carries the observed eye angles, as in Havoc's
+			// animation path; shot handling below still takes precedence.
+			player->eye_angles() = i == record->choke ? record->eye_angles : previous->eye_angles;
 
 			if (record->shooting)
 			{
