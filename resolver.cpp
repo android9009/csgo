@@ -75,7 +75,10 @@ namespace resolver
 					player->set_abs_origin(new_position);
 					player->set_bone_cache(predicted_matrix);
 
-					auto head_pos = cache.base()[8].get_origin();
+					// Compare the two translated poses, not the unchanged cached head.
+					// Using cache.base() here made both freestanding traces sample
+					// effectively the same point and could select the wrong side.
+					auto head_pos = predicted_matrix[8].get_origin();
 					out = penetration::simulate(HACKS->local, player, ANIMFIX->get_local_anims()->eye_pos, head_pos);
 				}
 				player->set_abs_origin(old_abs_origin);
@@ -155,6 +158,18 @@ namespace resolver
 			return;
 		}
 
+		const auto player_index = player->index();
+		const auto last_resolver_miss = RAGEBOT->resolver_miss_tick[player_index];
+		const auto brute_window = std::max(16, HACKS->tick_rate / 2);
+		const auto brute_active = RAGEBOT->missed_shots[player_index] && last_resolver_miss
+			&& std::abs(HACKS->global_vars->tickcount - last_resolver_miss) <= brute_window;
+
+		// A resolver-labelled miss is only a short-lived hint. Do not let one
+		// doubtful event override fresh animation evidence for the whole round.
+		if (!brute_active && info.mode == XOR("brute"))
+			info.anim_resolve_ticks = 0;
+
+		auto layer_resolved = false;
 		prepare_freestanding(player);
 		auto& freestanding = info.freestanding;
 
@@ -218,11 +233,12 @@ namespace resolver
 					info.anim_resolve_ticks = HACKS->global_vars->tickcount;
 					info.resolved = true;
 					info.debug_status = resolver_status_resolved;
+					layer_resolved = true;
 				}
 			}
 		}
 
-		if (RAGEBOT->missed_shots[player->index()])
+		if (brute_active && !layer_resolved)
 		{
 			switch (RAGEBOT->m_missed_anim_side[player->index()])
 			{

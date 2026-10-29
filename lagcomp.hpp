@@ -70,8 +70,9 @@ public:
 		// correct is the amount of time we have to correct game time
 		float correct = 0.f;
 
-		// add network latency
-		correct += HACKS->ping;
+		// Server lag compensation is driven by command arrival time. Incoming
+		// latency belongs to snapshot age, not to the outgoing command correction.
+		correct += HACKS->outgoing;
 
 		// NOTE:  do these computations in float time, not ticks, to avoid big roundoff error accumulations in the math
 		// add view interpolation latency see C_BaseEntity::GetInterpolationAmount()
@@ -90,15 +91,16 @@ public:
 		if (fabs(delta_time) > 0.2f)
 			return false;
 
-		// get server tickcount with local latancy
-		int server_tick = HACKS->global_vars->tickcount + TIME_TO_TICKS(HACKS->ping);
+		// get server tickcount with local latency
+		int server_tick = HACKS->global_vars->tickcount + TIME_TO_TICKS(HACKS->outgoing);
 
 		// correct fakeduck
 		if (ANTI_AIM->is_fake_ducking())
 			server_tick += 14 - HACKS->client_state->choked_commands;
 
-		// remove all records before that time
-		int dead_time = TICKS_TO_TIME(server_tick) - HACKS->max_unlag;
+		// Keep sub-second precision. Truncating this to int accepted up to almost
+		// a full second of stale history and made old records look shootable.
+		const float dead_time = TICKS_TO_TIME(server_tick) - HACKS->max_unlag;
 
 		// if tail is within limits, stop
 		if (sim_time < dead_time)

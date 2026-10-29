@@ -34,6 +34,12 @@ enum shot_hitchance_source_t
 	hitchance_source_low_spread,
 };
 
+enum rage_aim_matrix_t
+{
+	rage_matrix_resolved,
+	rage_matrix_zero,
+};
+
 struct backtrack_debug_t
 {
 	int history_records{};
@@ -73,6 +79,7 @@ struct aim_shot_record_t
 	int remaining_health{ -1 };
 	int hitgroup{};
 	int hitbox{};
+	rage_aim_matrix_t aim_matrix{ rage_matrix_resolved };
 	int backtrack_ticks{};
 	int command_tick{};
 	int command_number{};
@@ -114,6 +121,7 @@ struct rage_point_t
 	int hitbox = 0;
 	int damage = -1;
 	int safety = 0;
+	rage_aim_matrix_t aim_matrix = rage_matrix_resolved;
 
 	float accuracy = 0.f;
 	float priority = 0.f;
@@ -130,6 +138,7 @@ struct rage_point_t
 		hitbox = 0;
 		damage = 0;
 		safety = 0;
+		aim_matrix = rage_matrix_resolved;
 
 		accuracy = 0.f;
 		priority = 0.f;
@@ -150,6 +159,7 @@ struct rage_player_t
 
 	anim_record_t* hitscan_record{};
 	anim_record_t* best_record{};
+	rage_aim_matrix_t hitscan_matrix{ rage_matrix_resolved };
 
 	rage_point_t best_point{};
 	backtrack_debug_t backtrack{};
@@ -166,6 +176,7 @@ struct rage_player_t
 		start_scans = false;
 		hitscan_record = nullptr;
 		best_record = nullptr;
+		hitscan_matrix = rage_matrix_resolved;
 
 		best_point = {};
 		backtrack = {};
@@ -186,6 +197,7 @@ struct rage_player_t
 
 		hitscan_record = nullptr;
 		best_record = nullptr;
+		hitscan_matrix = rage_matrix_resolved;
 
 		best_point.reset();
 		backtrack = {};
@@ -278,6 +290,7 @@ public:
 	bool working{};
 	bool revolver_fire{};
 	int missed_shots[65]{};
+	int resolver_miss_tick[65]{};
 	int m_missed_anim_side[65]{};
 	int m_missed_prev_side[65]{};
 	rage_player_t best_rage_player{};
@@ -346,6 +359,9 @@ public:
 			i.reset();
 
 		for (auto& i : missed_shots)
+			i = 0;
+
+		for (auto& i : resolver_miss_tick)
 			i = 0;
 
 		for (auto& i : m_missed_anim_side)
