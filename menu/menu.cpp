@@ -103,75 +103,6 @@ void draw_top_bar(ImGuiWindow* window) {
 
     ImGui::SetCursorPos(ImVec2(190.f, 15.f));
     const ImVec2 button_pos = ImGui::GetCursorScreenPos();
-    const float save_w = 35.f;
-    const float drop_w = 145.f;
-    const float total_w = save_w + drop_w;
-
-    ImGui::SetCursorScreenPos(button_pos);
-    const bool save_clicked = ImGui::InvisibleButton("##top_save", ImVec2(save_w, 30.f));
-    const bool save_hovered = ImGui::IsItemHovered();
-
-    ImGui::SetCursorScreenPos(button_pos + ImVec2(save_w, 0.f));
-    const bool config_clicked = ImGui::InvisibleButton("##top_config", ImVec2(drop_w, 30.f));
-    const bool config_hovered = ImGui::IsItemHovered();
-
-    static float hover = 0.f;
-    hover = ImLerp(hover, save_hovered || config_hovered ? 1.f : 0.f,
-                   ImClamp(ImGui::GetIO().DeltaTime * 15.f, 0.f, 1.f));
-
-    draw->AddRectFilled(button_pos, button_pos + ImVec2(total_w, 30.f),
-                        gui.frame_inactive.to_im_color(0.5f + hover * 0.3f), 6.f);
-    draw->AddLine(button_pos + ImVec2(save_w, 0.f), button_pos + ImVec2(save_w, 30.f),
-                  gui.divider.to_im_color(1.f, false));
-
-    const ImVec2 save_size = ImGui::CalcTextSize(ICON_FA_SAVE);
-    draw->AddText(button_pos + ImVec2((save_w - save_size.x) * 0.5f, (30.f - save_size.y) * 0.5f),
-                  save_hovered ? gui.accent_color.to_im_color() : gui.text.to_im_color(), ICON_FA_SAVE);
-
-    const char* current_name = menu_shared::selected_config.empty() ? "None" : menu_shared::selected_config.c_str();
-    const ImVec2 name_size = ImGui::CalcTextSize(current_name);
-    draw->AddText(button_pos + ImVec2(save_w + 12.f, (30.f - name_size.y) * 0.5f),
-                  gui.text.to_im_color(), current_name);
-
-    const ImVec2 arrow_size = ImGui::CalcTextSize(ICON_FA_CHEVRON_DOWN);
-    draw->AddText(button_pos + ImVec2(total_w - arrow_size.x - 12.f, (30.f - arrow_size.y) * 0.5f),
-                  gui.text_disabled.to_im_color(), ICON_FA_CHEVRON_DOWN);
-
-    if (save_clicked && !menu_shared::selected_config.empty()) {
-        menu_shared::save_config(menu_shared::selected_config);
-        PushNotification(gui.tr("Config Saved"), gui.trf("Saved changes to %s", menu_shared::selected_config.c_str()));
-    }
-    if (config_clicked)
-        menu_shared::refresh_config_selection();
-
-    // Config dropdown - made taller
-    bool config_open = false;
-    const float config_anim = gui.popup_animation("##top_config_dropdown", config_clicked, config_open);
-    const ImVec2 config_anchor(button_pos.x + save_w, button_pos.y + 36.f * s);
-    if (gui.begin_popup_card_at("##top_config_dropdown", config_open, config_anim,
-                                config_anchor, ImVec2(0.f, 0.f), 220.f)) {
-        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.Size > 4 ? ImGui::GetIO().Fonts->Fonts[4] : ImGui::GetFont());
-        ImGui::TextUnformatted(gui.tr("Config"));
-        ImGui::PopFont();
-        ImGui::Separator();
-        
-        // Scrollable area for configs - compact height
-        ImGui::BeginChild("##config_list", ImVec2(0, 110.f * s), false);
-        if (g_config_system->config_files.empty()) {
-            ImGui::TextDisabled("%s", gui.tr("No presets found"));
-        } else {
-            for (const auto& file : g_config_system->config_files) {
-                if (ImGui::Selectable(file.c_str(), file == menu_shared::selected_config)) {
-                    menu_shared::selected_config = file;
-                    menu_shared::load_config(file);
-                    PushNotification(gui.tr("Config Loaded"), gui.trf("Loaded config: %s", file.c_str()));
-                    ImGui::CloseCurrentPopup();
-                }
-            }
-        }
-        ImGui::EndChild();
-        gui.end_popup_card();
-    }
 
     // Weapon-group selector - Rage tab only. It opens a popup card (begin_popup_card_at), which
     // is a top-level popup window and so draws above the menu's "##content" child instead of
@@ -182,7 +113,7 @@ void draw_top_bar(ImGuiWindow* window) {
         rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
 
         const float wg_w = 150.f;
-        const ImVec2 wg_pos = button_pos + ImVec2(total_w + 10.f, 0.f);
+        const ImVec2 wg_pos = button_pos;
 
         ImGui::SetCursorScreenPos(wg_pos);
         const bool wg_clicked = ImGui::InvisibleButton("##top_weapon_group", ImVec2(wg_w, 30.f));
