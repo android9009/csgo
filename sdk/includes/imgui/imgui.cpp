@@ -984,6 +984,7 @@ CODE
 
 #include "../../../menu/blur.hpp"
 ImU32 menu_panel_color(int panel); // gui.cpp: menu chrome colors from the theme palette (0 side, 1 top, 2 body)
+bool menu_uses_backdrop_blur();     // opaque Dark skips the game-frame capture entirely
 void menu_shader_background(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding); // shader_bg.cpp
 
 // Debug options
@@ -5986,7 +5987,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                 window->Pos + window->Size
             );
 
-            draw_blur(window->DrawList);
+            if (menu_uses_backdrop_blur())
+                draw_blur(window->DrawList);
 
             // panel colors come from the gui palette (Dark / Light theme) - see menu_panel_color()
             window->DrawList->AddRectFilled(
@@ -5998,9 +6000,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             );
 
             // The content plate is rounded on all four corners now, so the side panel has to fill
-            // the two slivers its left corners leave behind. Drawn as wedges rather than by simply
-            // widening the side panel: both plates are translucent, and an overlapping strip would
-            // composite twice and read as a darker band running down the whole seam.
+            // the two slivers its left corners leave behind. Wedges avoid an overlapping strip,
+            // which would composite twice whenever the selected theme uses translucent plates.
             {
                 ImDrawList* dl = window->DrawList;
                 const float seam = window->Pos.x + 170.0f;
@@ -6042,8 +6043,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             );
 
             // Animated background (Visuals -> Shader). Over the panel fills and under every widget,
-            // so its own opacity is what decides how strong it reads - under them it would have been
-            // limited to whatever the panels' 10-20% of translucency let through.
+            // so its own opacity is what decides how strong it reads - under them it would also be
+            // limited by the selected theme's panel translucency.
             menu_shader_background(
                 window->DrawList,
                 window->Pos,

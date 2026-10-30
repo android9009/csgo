@@ -75,34 +75,34 @@ public:
     color_t accent_color = { 0.318f, 0.486f, 0.992f, 1.f }; // old one
     //color_t accent_color = { 0.604f, 0.596f, 0.788f, 1.f }; // neverlose v4
 
-    color_t text = { 0.922f, 0.922f, 0.941f, 1.f };
-    color_t text_disabled = { 0.51f, 0.52f, 0.56f, 1.f };
+    color_t text = { 0.922f, 0.922f, 0.922f, 1.f };
+    color_t text_disabled = { 0.52f, 0.52f, 0.52f, 1.f };
 
-    color_t border = { 0.118f, 0.129f, 0.173f, 1.f };
-    color_t popup_border = { 0.165f, 0.180f, 0.235f, 1.f };
+    color_t border = { 0.129f, 0.129f, 0.129f, 1.f };
+    color_t popup_border = { 0.180f, 0.180f, 0.180f, 1.f };
 
-    color_t frame_inactive = { 0.098f, 0.110f, 0.149f, 1.000f };
-    color_t frame_active = { 0.043f, 0.07f, 0.137f, 1.f };
+    color_t frame_inactive = { 0.110f, 0.110f, 0.110f, 1.f };
+    color_t frame_active = { 0.070f, 0.070f, 0.070f, 1.f };
 
-    color_t tab_active = { 0.153f, 0.169f, 0.212f, 1.f };
+    color_t tab_active = { 0.153f, 0.153f, 0.153f, 1.f };
 
-    color_t button = { 0.102f, 0.102f, 0.133f, 1.f };
-    color_t button_hovered = { 0.050f, 0.054f, 0.078f, 1.f };
-    color_t button_active = { 0.07f, 0.074f, 0.098f, 1.f };
+    color_t button = { 0.102f, 0.102f, 0.102f, 1.f };
+    color_t button_hovered = { 0.054f, 0.054f, 0.054f, 1.f };
+    color_t button_active = { 0.074f, 0.074f, 0.074f, 1.f };
 
-    color_t group_box_bg = { 0.071f, 0.078f, 0.114f, 1.f };
+    color_t group_box_bg = { 0.078f, 0.078f, 0.078f, 1.f };
 
     // Surfaces the menu draws itself - kept in the palette so the Dark / Light theme swaps them
-    // together with everything above.
-    color_t panel_side = { 0.071f, 0.078f, 0.114f, 0.97f };   // menu chrome (imgui.cpp)
-    color_t panel_top  = { 0.043f, 0.059f, 0.090f, 0.98f };
-    color_t panel_body = { 0.043f, 0.055f, 0.086f, 0.98f };
-    color_t popup_bg   = { 0.071f, 0.078f, 0.114f, 1.f };    // opaque popup/card surface
-    color_t field_bg   = { 25.f / 255.f, 27.f / 255.f, 36.f / 255.f, 1.f }; // combo / slider / input boxes
-    color_t switch_off = { 0.055f, 0.071f, 0.098f, 1.f };     // toggle track in both states
+    // together with everything above. Dark is opaque neutral graphite; Light keeps its frost.
+    color_t panel_side = { 0.078f, 0.078f, 0.078f, 1.f };    // menu chrome (imgui.cpp)
+    color_t panel_top  = { 0.055f, 0.055f, 0.055f, 1.f };
+    color_t panel_body = { 0.051f, 0.051f, 0.051f, 1.f };
+    color_t popup_bg   = { 0.078f, 0.078f, 0.078f, 1.f };    // opaque popup/card surface
+    color_t field_bg   = { 27.f / 255.f, 27.f / 255.f, 27.f / 255.f, 1.f }; // combo / slider / input boxes
+    color_t switch_off = { 0.071f, 0.071f, 0.071f, 1.f };     // toggle track in both states
     color_t switch_rim = { 1.f, 1.f, 1.f, 0.07f };            // hairline round the track
-    color_t knob_off   = { 0.498f, 0.529f, 0.557f, 1.f };     // knob color in both states
-    color_t text_soft  = { 0.76f, 0.77f, 0.81f, 1.f };        // secondary copy (tooltip body)
+    color_t knob_off   = { 0.529f, 0.529f, 0.529f, 1.f };     // knob color in both states
+    color_t text_soft  = { 0.77f, 0.77f, 0.77f, 1.f };        // secondary copy (tooltip body)
     color_t divider    = { 1.f, 1.f, 1.f, 30.f / 255.f };     // hairline splitters
     color_t label_off  = { 150.f / 255.f, 150.f / 255.f, 150.f / 255.f, 1.f }; // checkbox label, off / on
     color_t label_on   = { 1.f, 1.f, 1.f, 1.f };

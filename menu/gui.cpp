@@ -2133,29 +2133,33 @@ ImU32 menu_panel_color( int panel ) {
     return ImGui::ColorConvertFloat4ToU32( ImVec4( c.r, c.g, c.b, c.a ) );
 }
 
+bool menu_uses_backdrop_blur() {
+    return gui.panel_body.a < 1.f;
+}
+
 void c_gui::apply_theme( int new_theme ) {
     theme = new_theme;
-    if ( theme == 0 ) { // Dark - the menu's original values
-        text           = { 0.922f, 0.922f, 0.941f, 1.f };
-        text_disabled  = { 0.51f, 0.52f, 0.56f, 1.f };
-        text_soft      = { 0.76f, 0.77f, 0.81f, 1.f };
-        border         = { 0.118f, 0.129f, 0.173f, 1.f };
-        popup_border   = { 0.165f, 0.180f, 0.235f, 1.f };
-        frame_inactive = { 0.098f, 0.110f, 0.149f, 1.f };
-        frame_active   = { 0.043f, 0.07f, 0.137f, 1.f };
-        tab_active     = { 0.153f, 0.169f, 0.212f, 1.f };
-        button         = { 0.102f, 0.102f, 0.133f, 1.f };
-        button_hovered = { 0.050f, 0.054f, 0.078f, 1.f };
-        button_active  = { 0.07f, 0.074f, 0.098f, 1.f };
-        group_box_bg   = { 0.071f, 0.078f, 0.114f, 1.f };
-        panel_side     = { 0.071f, 0.078f, 0.114f, 0.97f };
-        panel_top      = { 0.043f, 0.059f, 0.090f, 0.98f };
-        panel_body     = { 0.043f, 0.055f, 0.086f, 0.98f };
-        popup_bg       = { 0.071f, 0.078f, 0.114f, 1.f };
-        field_bg       = { 25.f / 255.f, 27.f / 255.f, 36.f / 255.f, 1.f };
-        switch_off     = { 0.055f, 0.071f, 0.098f, 1.f };
+    if ( theme == 0 ) { // Dark - neutral graphite, with no game-frame tint
+        text           = { 0.922f, 0.922f, 0.922f, 1.f };
+        text_disabled  = { 0.52f, 0.52f, 0.52f, 1.f };
+        text_soft      = { 0.77f, 0.77f, 0.77f, 1.f };
+        border         = { 0.129f, 0.129f, 0.129f, 1.f };
+        popup_border   = { 0.180f, 0.180f, 0.180f, 1.f };
+        frame_inactive = { 0.110f, 0.110f, 0.110f, 1.f };
+        frame_active   = { 0.070f, 0.070f, 0.070f, 1.f };
+        tab_active     = { 0.153f, 0.153f, 0.153f, 1.f };
+        button         = { 0.102f, 0.102f, 0.102f, 1.f };
+        button_hovered = { 0.054f, 0.054f, 0.054f, 1.f };
+        button_active  = { 0.074f, 0.074f, 0.074f, 1.f };
+        group_box_bg   = { 0.078f, 0.078f, 0.078f, 1.f };
+        panel_side     = { 0.078f, 0.078f, 0.078f, 1.f };
+        panel_top      = { 0.055f, 0.055f, 0.055f, 1.f };
+        panel_body     = { 0.051f, 0.051f, 0.051f, 1.f };
+        popup_bg       = { 0.078f, 0.078f, 0.078f, 1.f };
+        field_bg       = { 27.f / 255.f, 27.f / 255.f, 27.f / 255.f, 1.f };
+        switch_off     = { 0.071f, 0.071f, 0.071f, 1.f };
         switch_rim     = { 1.f, 1.f, 1.f, 0.07f };
-        knob_off       = { 0.498f, 0.529f, 0.557f, 1.f };
+        knob_off       = { 0.529f, 0.529f, 0.529f, 1.f };
         divider        = { 1.f, 1.f, 1.f, 30.f / 255.f };
         label_off      = { 150.f / 255.f, 150.f / 255.f, 150.f / 255.f, 1.f };
         label_on       = { 1.f, 1.f, 1.f, 1.f };
