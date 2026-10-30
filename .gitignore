@@ -1,5 +1,8 @@
 .vs/
 Bins/
+build/
+out/
 packages/
 *.sdf
 *.opensdf
+*.user

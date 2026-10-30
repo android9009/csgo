@@ -1,38 +1,22 @@
-# Airflow Recode
+# Airflow Shell
 
-Основной проект репозитория — **Airflow**, Win32 DLL для CS:GO. Старый Skeet loader/overlay больше не входит в проект.
+Минимальная пустая Win32 DLL-оболочка. Эта ветка намеренно содержит только базу для дальнейшего развития: без меню, игровых функций, хуков, offsets, конфигов и сторонних библиотек.
 
-## Что изменено
+`DllMain` возвращает `TRUE` при загрузке и выгрузке. При `DLL_PROCESS_ATTACH` вызывается только `DisableThreadLibraryCalls`; поток инициализации и обращения к CS:GO отсутствуют. DLL может быть загружена обычным `LoadLibrary`-инжектором.
 
-- Новый тёмный интерфейс Airflow Recode с accent-подсветкой и обновлённой навигацией.
-- Ragebot: выбор стратегии цели (`Crosshair`, `Distance`, `Health`, `Hybrid`) и ограничение FOV. Hybrid учитывает летальный урон, безопасность точки, дистанцию и положение относительно прицела.
-- Полностью отдельный Legitbot (`legitbot.cpp/.hpp`):
-  - отдельные настройки для каждого оружия;
-  - head/chest/stomach/pelvis hitboxes;
-  - видимость, smoke/flash checks и penetration damage;
-  - current bones и до 12 валидных history records для backtrack;
-  - target lock и четыре режима выбора цели;
-  - tick-rate-independent smoothing, shot delay и quick stop;
-  - standalone RCS;
-  - Triggerbot с собственным bind и задержкой;
-  - FOV circle и индикатор выбранной точки.
-- Старые конфиги продолжают читаться; новые параметры сериализуются в тех же JSON-конфигах.
-- Исправлен `c_float_color::base()`: больше не возвращается ссылка на временный объект.
+## Visual Studio 2022
 
-## Сборка
+1. Откройте `opaihook.sln`.
+2. Установите toolset **v143** и Windows SDK.
+3. Выберите `Release | x86` или `Debug | x86` и соберите проект.
 
-1. Откройте `opaihook.sln` в Visual Studio 2022.
-2. Нужен toolset **v143**, Windows SDK и DirectX SDK June 2010 (D3DX9).
-3. Выберите `Debug | x86` для разработки или нужную release-конфигурацию проекта.
+Результат: `Bins/airflow_shell.dll`. DirectX SDK и остальные внешние зависимости не требуются.
 
-Главный build-файл — `opaihook.vcxproj`. Корневой `CMakeLists.txt` относится к bundled AsmJit и не собирает Airflow DLL.
+## CMake (Windows)
 
-GitHub Actions workflow `.github/workflows/msbuild.yml` устанавливает D3DX development files через NuGet, собирает `Debug|Win32` и прикладывает `csgo_debug.dll` как artifact.
+```bat
+cmake -S . -B build -A Win32
+cmake --build build --config Release
+```
 
-## Управление
-
-- `Insert` — открыть/закрыть меню.
-- Aim и Trigger имеют независимые binds во вкладке `Legit`.
-- Rage и Legit являются взаимоисключающими режимами; одновременное выполнение двух aim-контуров заблокировано.
-
-Игровая проверка offsets/hooks должна выполняться на конкретной поддерживаемой сборке CS:GO отдельно от компиляции.
+Результат CMake-сборки: `build/bin/Release/airflow_shell.dll`.

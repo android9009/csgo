@@ -1,4 +1,4 @@
-name: Airflow Win32 build
+name: Airflow shell Win32 build
 
 on:
   push:
@@ -9,42 +9,14 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-
       - uses: microsoft/setup-msbuild@v2
 
-      - uses: nuget/setup-nuget@v2
+      - name: Build empty DLL shell
+        run: msbuild opaihook.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal
 
-      - name: Install D3DX development files
-        shell: pwsh
-        run: |
-          nuget install Microsoft.DXSDK.D3DX -Version 9.29.952.8 -OutputDirectory packages
-          $dx = Resolve-Path "packages/Microsoft.DXSDK.D3DX.9.29.952.8/build/native"
-          $d3dx9 = Get-ChildItem -Path $dx -Recurse -Filter d3dx9.lib |
-            Where-Object { $_.FullName -match 'x86|win32' } | Select-Object -First 1
-          if (-not $d3dx9) { throw "Win32 d3dx9.lib was not found in the D3DX package" }
-          $dxLib = New-Item -ItemType Directory -Force -Path (Join-Path $dx "Lib/x86")
-          $dxLibTarget = Join-Path $dxLib "d3dx9.lib"
-          if ($d3dx9.FullName -ne $dxLibTarget) { Copy-Item $d3dx9.FullName -Destination $dxLibTarget -Force }
-          "DXSDK_Dir=$dx\" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Build Airflow Debug Win32
-        shell: pwsh
-        run: |
-          msbuild opaihook.vcxproj /m /p:Configuration=Debug /p:Platform=Win32 /v:minimal /fl "/flp:logfile=msbuild.log;verbosity=normal"
-          $buildExit = $LASTEXITCODE
-          if ($buildExit -ne 0) {
-            $errors = Select-String -Path msbuild.log -Pattern '(?:fatal )?error [A-Z]+[0-9]+:'
-            if ($errors) {
-              $errors | Select-Object -First 80 | ForEach-Object { Write-Host "::error::$($_.Line)" }
-            } else {
-              Get-Content msbuild.log -Tail 40 | ForEach-Object { Write-Host "::error::$_" }
-            }
-          }
-          exit $buildExit
-
-      - name: Upload Airflow DLL
+      - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
-          name: airflow-recode-win32
-          path: Bins/csgo_debug.dll
+          name: airflow-shell-win32
+          path: Bins/airflow_shell.dll
           if-no-files-found: error
