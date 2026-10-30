@@ -188,6 +188,89 @@ static bool PatchFiringExtrapolation(std::uint8_t* image, size_t imageSize) {
 #endif
 }
 
+static bool PatchRagebotTargetPolicy(std::uint8_t* image, size_t imageSize) {
+#if !defined(_M_IX86)
+    (void)image;
+    (void)imageSize;
+    return false;
+#else
+    // Keep the stock safe bit 16, but add the otherwise unused bit 23. A
+    // configured-safe candidate then outranks every stock field in bits 0..22.
+    // This changes priority only: the native geometry-safe producer is intact.
+    static constexpr std::uint8_t stockSafeScore[] = {
+        0x81, 0xCE, 0x00, 0x00, 0x01, 0x00
+    };
+    static constexpr std::uint8_t dominantSafeScore[] = {
+        0x81, 0xCE, 0x00, 0x00, 0x81, 0x00
+    };
+
+    // Preserve every hitbox and the stock relative order after head. This is
+    // only a scan-order optimization, not a forced final-hitbox policy.
+    static constexpr std::uint8_t stockHitboxOrder[] = {
+        0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+        0x08, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
+        0x0A, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+        0x11, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+        0x12, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+        0x0B, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00
+    };
+    static constexpr std::uint8_t headFirstHitboxOrder[] = {
+        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00,
+        0x04, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+        0x08, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
+        0x0A, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00,
+        0x11, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+        0x12, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+        0x0B, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00
+    };
+
+    struct Patch {
+        size_t offset;
+        const std::uint8_t* original;
+        const std::uint8_t* replacement;
+        size_t size;
+        bool code;
+    };
+    const Patch patches[] = {
+        { 0x43354A1D - 0x43310000, stockSafeScore, dominantSafeScore,
+          sizeof(stockSafeScore), true },
+        { 0x433646E9 - 0x43310000, stockSafeScore, dominantSafeScore,
+          sizeof(stockSafeScore), true },
+        { 0x433C61EB - 0x43310000, stockSafeScore, dominantSafeScore,
+          sizeof(stockSafeScore), true },
+        { 0x434749F0 - 0x43310000, stockHitboxOrder, headFirstHitboxOrder,
+          sizeof(stockHitboxOrder), false }
+    };
+
+    // Validate the complete transaction before publishing any changed byte.
+    for (const auto& patch : patches) {
+        if (!ImageBytesEqual(image, imageSize, patch.offset, patch.original, patch.size)) {
+            return false;
+        }
+    }
+    for (const auto& patch : patches) {
+        memcpy(image + patch.offset, patch.replacement, patch.size);
+    }
+    for (const auto& patch : patches) {
+        if (patch.code && !FlushInstructionCache(
+                GetCurrentProcess(), image + patch.offset, patch.size)) {
+            for (const auto& rollback : patches) {
+                memcpy(image + rollback.offset, rollback.original, rollback.size);
+            }
+            for (const auto& rollback : patches) {
+                if (rollback.code) {
+                    FlushInstructionCache(GetCurrentProcess(),
+                        image + rollback.offset, rollback.size);
+                }
+            }
+            return false;
+        }
+    }
+    return true;
+#endif
+}
+
 static bool handle_int3(CONTEXT* ctx, ctx_t* dump_ctx) {
     auto skeet = skeet_t::getInstance();
 
@@ -845,7 +928,8 @@ bool skeet_t::extra()
     }
     if (!PatchOverlayCallSlots((std::uint8_t*)(uintptr_t)_base, _size)) return false;
     if (!PatchFiringExtrapolation((std::uint8_t*)(uintptr_t)_base, _size)) return false;
-    // Publish neither address until both have passed validation.
+    if (!PatchRagebotTargetPolicy((std::uint8_t*)(uintptr_t)_base, _size)) return false;
+    // Publish neither overlay address until all patches have passed validation.
     *(uint32_t*)0x43468D94 = (uint32_t)overlayReturn;
     *(uint32_t*)0x43468350 = overlayGlobal;
 
