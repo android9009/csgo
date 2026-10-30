@@ -607,7 +607,7 @@ namespace penetration
 			if (current_distance > 3000.f || enter_penetration_modifier < 0.1f)
 				break;
 
-			if (target && enter_trace.entity)
+			if (enter_trace.entity)
 			{
 				auto player_entity = (c_cs_player*)enter_trace.entity;
 				auto is_player = player_entity->is_player();

@@ -423,6 +423,7 @@
     <ClCompile Include="penetration.cpp" />
     <ClCompile Include="post_processing.cpp" />
     <ClCompile Include="predfix.cpp" />
+    <ClCompile Include="legitbot.cpp" />
     <ClCompile Include="ragebot.cpp" />
     <ClCompile Include="remove_projectiles.cpp" />
     <ClCompile Include="render.cpp" />
@@ -511,6 +512,7 @@
     <ClInclude Include="penetration.hpp" />
     <ClInclude Include="post_processing.hpp" />
     <ClInclude Include="predfix.hpp" />
+    <ClInclude Include="legitbot.hpp" />
     <ClInclude Include="ragebot.hpp" />
     <ClInclude Include="remove_projectiles.hpp" />
     <ClInclude Include="render.hpp" />

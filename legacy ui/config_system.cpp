@@ -166,6 +166,8 @@ namespace config
 			save_int(rage, CXOR("roll_amt"), default_config.rage.roll_amt);
 			save_int(rage, CXOR("roll_amt_pitch"), default_config.rage.roll_amt_pitch);
 			save_int(rage, CXOR("desync_degree"), default_config.rage.desync_degree);
+			save_int(rage, CXOR("target_selection"), default_config.rage.target_selection);
+			save_int(rage, CXOR("max_fov"), default_config.rage.max_fov);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), default_config.rage.round_lagcomp);
@@ -205,6 +207,10 @@ namespace config
 			save_bool(legit, CXOR("smoke_check"), default_config.legit.smoke_check);
 
 			save_int(legit, CXOR("min_damage"), default_config.legit.min_damage);
+			save_bool(legit, CXOR("target_lock"), default_config.legit.target_lock);
+			save_int(legit, CXOR("target_selection"), default_config.legit.target_selection);
+			save_bool(legit[CXOR("trigger")], CXOR("enable"), default_config.legit.trigger.enable);
+			save_int(legit[CXOR("trigger")], CXOR("delay"), default_config.legit.trigger.delay);
 
 			auto& rcs_legit = legit[CXOR("rcs")];
 			{
@@ -496,6 +502,8 @@ namespace config
 			save_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
 			save_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
 			save_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
+			save_int(rage, CXOR("target_selection"), g_cfg.rage.target_selection);
+			save_int(rage, CXOR("max_fov"), g_cfg.rage.max_fov);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);
@@ -535,6 +543,10 @@ namespace config
 			save_bool(legit, CXOR("smoke_check"), g_cfg.legit.smoke_check);
 
 			save_int(legit, CXOR("min_damage"), g_cfg.legit.min_damage);
+			save_bool(legit, CXOR("target_lock"), g_cfg.legit.target_lock);
+			save_int(legit, CXOR("target_selection"), g_cfg.legit.target_selection);
+			save_bool(legit[CXOR("trigger")], CXOR("enable"), g_cfg.legit.trigger.enable);
+			save_int(legit[CXOR("trigger")], CXOR("delay"), g_cfg.legit.trigger.delay);
 
 			auto& rcs_legit = legit[CXOR("rcs")];
 			{
@@ -837,6 +849,8 @@ namespace config
 			load_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
 			load_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
 			load_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
+			load_int(rage, CXOR("target_selection"), g_cfg.rage.target_selection);
+			load_int(rage, CXOR("max_fov"), g_cfg.rage.max_fov);
 
 #if ALPHA || _DEBUG || BETA
 			load_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);
@@ -876,6 +890,10 @@ namespace config
 			load_bool(legit, CXOR("smoke_check"), g_cfg.legit.smoke_check);
 
 			load_int(legit, CXOR("min_damage"), g_cfg.legit.min_damage);
+			load_bool(legit, CXOR("target_lock"), g_cfg.legit.target_lock);
+			load_int(legit, CXOR("target_selection"), g_cfg.legit.target_selection);
+			load_bool(legit[CXOR("trigger")], CXOR("enable"), g_cfg.legit.trigger.enable);
+			load_int(legit[CXOR("trigger")], CXOR("delay"), g_cfg.legit.trigger.delay);
 
 			auto& rcs_legit = legit[CXOR("rcs")];
 			{

@@ -33,6 +33,7 @@
 #include "lagcomp.hpp"
 #include "resolver.hpp"
 #include "ragebot.hpp"
+#include "legitbot.hpp"
 #include "cmd_shift.hpp"
 #include "exploits.hpp"
 #include "fake_lag.hpp"

@@ -1,69 +1,38 @@
-AsmJit
-------
+# Airflow Recode
 
-AsmJit is a lightweight library for machine code generation written in C++ language.
+Основной проект репозитория — **Airflow**, Win32 DLL для CS:GO. Старый Skeet loader/overlay больше не входит в проект.
 
-  * [Official Home Page (asmjit.com)](https://asmjit.com)
-  * [Official Repository (asmjit/asmjit)](https://github.com/asmjit/asmjit)
-  * [Public Chat Channel](https://gitter.im/asmjit/asmjit)
-  * [Zlib License](./LICENSE.md)
+## Что изменено
 
-See [asmjit.com](https://asmjit.com) page for more details, examples, and documentation.
+- Новый тёмный интерфейс Airflow Recode с accent-подсветкой и обновлённой навигацией.
+- Ragebot: выбор стратегии цели (`Crosshair`, `Distance`, `Health`, `Hybrid`) и ограничение FOV. Hybrid учитывает летальный урон, безопасность точки, дистанцию и положение относительно прицела.
+- Полностью отдельный Legitbot (`legitbot.cpp/.hpp`):
+  - отдельные настройки для каждого оружия;
+  - head/chest/stomach/pelvis hitboxes;
+  - видимость, smoke/flash checks и penetration damage;
+  - current bones и до 12 валидных history records для backtrack;
+  - target lock и четыре режима выбора цели;
+  - tick-rate-independent smoothing, shot delay и quick stop;
+  - standalone RCS;
+  - Triggerbot с собственным bind и задержкой;
+  - FOV circle и индикатор выбранной точки.
+- Старые конфиги продолжают читаться; новые параметры сериализуются в тех же JSON-конфигах.
+- Исправлен `c_float_color::base()`: больше не возвращается ссылка на временный объект.
 
-Documentation
--------------
+## Сборка
 
-  * [Documentation Index](https://asmjit.com/doc/index.html)
-  * [Build Instructions](https://asmjit.com/doc/group__asmjit__build.html)
+1. Откройте `opaihook.sln` в Visual Studio 2022.
+2. Нужен toolset **v143**, Windows SDK и DirectX SDK June 2010 (D3DX9).
+3. Выберите `Debug | x86` для разработки или нужную release-конфигурацию проекта.
 
-Breaking Changes
-----------------
+Главный build-файл — `opaihook.vcxproj`. Корневой `CMakeLists.txt` относится к bundled AsmJit и не собирает Airflow DLL.
 
-Breaking the API is sometimes inevitable, what to do?
+GitHub Actions workflow `.github/workflows/msbuild.yml` устанавливает D3DX development files через NuGet, собирает `Debug|Win32` и прикладывает `csgo_debug.dll` как artifact.
 
-  * See [Breaking Changes Guide](https://asmjit.com/doc/group__asmjit__breaking__changes.html), which is now part of AsmJit documentation.
-  * See asmjit tests, they always compile and provide implementation of many use-cases:
-    * [asmjit_test_emitters.cpp](./test/asmjit_test_emitters.cpp) - Tests that demonstrate the purpose of emitters.
-    * [asmjit_test_assembler_x86.cpp](./test/asmjit_test_assembler_x86.cpp) - Tests targeting AsmJit's Assembler (x86/x64).
-    * [asmjit_test_compiler_x86.cpp](./test/asmjit_test_compiler_x86.cpp) - Tests targeting AsmJit's Compiler (x86/x64).
-    * [asmjit_test_instinfo.cpp](./test/asmjit_test_instinfo.cpp) - Tests that query instruction information.
-    * [asmjit_test_x86_sections.cpp](./test/asmjit_test_x86_sections.cpp) - Multiple sections test.
-  * Visit our [Official Chat](https://gitter.im/asmjit/asmjit) if you need a quick help.
+## Управление
 
-Project Organization
---------------------
+- `Insert` — открыть/закрыть меню.
+- Aim и Trigger имеют независимые binds во вкладке `Legit`.
+- Rage и Legit являются взаимоисключающими режимами; одновременное выполнение двух aim-контуров заблокировано.
 
-  * **`/`**        - Project root.
-    * **src**      - Source code.
-      * **asmjit** - Source code and headers (always point include path in here).
-        * **core** - Core API, backend independent except relocations.
-        * **arm**  - ARM specific API, used only by ARM and AArch64 backends.
-        * **x86**  - X86 specific API, used only by X86 and X64 backends.
-    * **test**     - Unit and integration tests (don't embed in your project).
-    * **tools**    - Tools used for configuring, documenting, and generating files.
-
-TODO
-----
-
-  * [ ] Core:
-    * [ ] Add support for user external buffers in CodeBuffer / CodeHolder.
-  * [ ] Ports:
-    * [ ] 32-bit ARM/Thumb port.
-    * [ ] 64-bit ARM (AArch64) port.
-    * [ ] RISC-V port.
-
-Support
--------
-
-  * AsmJit project has both community and commercial support, see [AsmJit's Support Page](https://asmjit.com/support.html)
-  * You can help the development and maintenance through Petr Kobalicek's [GitHub sponsors Profile](https://github.com/sponsors/kobalicek)
-
-Notable Donors List:
-
-  * [ZehMatt](https://github.com/ZehMatt)
-
-
-Authors & Maintainers
----------------------
-
-  * Petr Kobalicek <kobalicek.petr@gmail.com>
+Игровая проверка offsets/hooks должна выполняться на конкретной поддерживаемой сборке CS:GO отдельно от компиляции.

@@ -455,6 +455,7 @@ public:
 
 	NETVAR_OFFSET(render_angles, vec3_t&, "DT_BasePlayer", "deadflag", 4);
 	NETVAR(aim_punch_angle_vel, vec3_t&, "DT_BasePlayer", "m_aimPunchAngleVel");
+	NETVAR(flash_duration, float, "DT_CSPlayer", "m_flFlashDuration");
 	NETVAR(view_punch_angle, vec3_t&, "DT_BasePlayer", "m_viewPunchAngle");
 	NETVAR(aim_punch_angle, vec3_t&, "DT_BasePlayer", "m_aimPunchAngle");
 	NETVAR(base_velocity, vec3_t&, "DT_BasePlayer", "m_vecBaseVelocity");

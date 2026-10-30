@@ -198,9 +198,8 @@ public:
 		return color_base[idx];
 	}
 
-	__forceinline c_color& base()
+	__forceinline c_color base() const
 	{
-		c_color out = c_color(color_base[0] * 255.f, color_base[1] * 255.f, color_base[2] * 255.f, color_base[3] * 255.f);
-		return out;
+		return c_color(color_base[0] * 255.f, color_base[1] * 255.f, color_base[2] * 255.f, color_base[3] * 255.f);
 	}
 };

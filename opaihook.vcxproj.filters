@@ -216,6 +216,9 @@
     <ClCompile Include="server_bones.cpp">
       <Filter>helpers</Filter>
     </ClCompile>
+    <ClCompile Include="legitbot.cpp">
+      <Filter>features\legitbot</Filter>
+    </ClCompile>
     <ClCompile Include="ragebot.cpp">
       <Filter>features\ragebot</Filter>
     </ClCompile>
@@ -466,6 +469,9 @@
     <ClInclude Include="ik_solver.hpp">
       <Filter>helpers</Filter>
     </ClInclude>
+    <ClInclude Include="legitbot.hpp">
+      <Filter>features\legitbot</Filter>
+    </ClInclude>
     <ClInclude Include="ragebot.hpp">
       <Filter>features\ragebot</Filter>
     </ClInclude>
@@ -575,6 +581,9 @@
     </Filter>
     <Filter Include="features\ragebot">
       <UniqueIdentifier>{23de7d15-ef64-4fa6-8a65-fbc714f11b44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features\legitbot">
+      <UniqueIdentifier>{9d537d2c-76f1-4bd2-b049-d3f4b72a2c38}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

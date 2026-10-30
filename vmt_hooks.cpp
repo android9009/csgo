@@ -172,6 +172,7 @@ namespace hooks::vmt
 						GRENADE_PREDICTION->draw_world_path();
 						BULLET_TRACERS->render_hitmarkers();
 						ESP->render_local();
+						LEGITBOT->render();
 					}
 
 					EVENT_LOGS->render_logs();
@@ -268,6 +269,7 @@ namespace hooks::vmt
 		PREDFIX->reset();
 		ANIMFIX->reset();
 		RAGEBOT->reset();
+		LEGITBOT->reset();
 		THREADED_STATE->reset();
 		PING_SPIKE->reset();
 		EXPLOITS->reset();
@@ -303,6 +305,7 @@ namespace hooks::vmt
 		ENGINE_PREDICTION->reset();
 		ANIMFIX->reset();
 		RAGEBOT->reset();
+		LEGITBOT->reset();
 		THREADED_STATE->reset();
 		ANTI_AIM->reset();
 		FAKE_LAG->reset();
@@ -617,6 +620,7 @@ namespace hooks::vmt
 
 					auto old_abs = HACKS->local->get_abs_origin();
 					RAGEBOT->run();
+					LEGITBOT->run();
 					HACKS->local->set_abs_origin(old_abs);
 
 					MOVEMENT->run_predicted();
@@ -641,6 +645,7 @@ namespace hooks::vmt
 					ENGINE_PREDICTION->reset();
 					MOVEMENT->reset();
 					RAGEBOT->reset();
+					LEGITBOT->reset();
 					ANTI_AIM->reset();
 					FAKE_LAG->reset();
 					EXPLOITS->reset();

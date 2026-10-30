@@ -84,6 +84,7 @@ enum binds_idx_t
 	force_body_b,
 	force_sp_b,
 	ej_b,
+	toggle_trigger_b,
 	binds_max
 };
 
@@ -206,13 +207,13 @@ struct legit_weapon_t
 	bool enable{};
 	bool backtrack{};
 	bool quick_stop{};
-	bool fov_cicle{};
-	int fov{};
-	int smooth{};
+	bool fov_cicle{ true };
+	int fov{ 5 };
+	int smooth{ 8 };
 	int aim_delay{};
-	unsigned int hitboxes{};
+	unsigned int hitboxes{ head | chest | stomach | pelvis };
 
-	c_float_color circle_color = c_float_color(255, 255, 255, 255);
+	c_float_color circle_color = c_float_color(168, 168, 255, 180);
 };
 
 struct skin_weapon_t
@@ -249,6 +250,8 @@ struct configs_t
 		int roll_amt_pitch = 0;
 		int desync_degree{};
 
+		int target_selection{ 3 };
+		int max_fov{ 180 };
 		int group_type{};
 
 		std::array< rage_weapon_t, 6 > weapon{};
@@ -257,17 +260,25 @@ struct configs_t
 	struct legitbot_t
 	{
 		bool enable{};
-		bool smoke_check{};
-		bool flash_check{};
+		bool smoke_check{ true };
+		bool flash_check{ true };
 		bool autowall{};
-		int min_damage{};
+		bool target_lock{ true };
+		int min_damage{ 1 };
+		int target_selection{ 3 };
 		int group_type{};
 
 		struct
 		{
 			bool enable{};
-			int amount{};
+			int amount{ 100 };
 		} rcs;
+
+		struct
+		{
+			bool enable{};
+			int delay{};
+		} trigger;
 
 		std::array< legit_weapon_t, weapon_cfg_max > legit_weapon{};
 	} legit;
@@ -542,7 +553,8 @@ struct configs_t
 		  key_binds_t{ -1, 1, false, CXOR("Freestanding") },
 		  key_binds_t{ -1, 1, false, CXOR("Force body") },
 		  key_binds_t{ -1, 1, false, CXOR("Force safe") },
-		  key_binds_t{ -1, 1, false, CXOR("Edge jump") }
+		  key_binds_t{ -1, 1, false, CXOR("Edge jump") },
+		  key_binds_t{ -1, 1, false, CXOR("Trigger (legit)") }
 	};
 
 	INLINE void reset_init()

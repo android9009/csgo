@@ -141,7 +141,7 @@ void c_menu::window_begin()
 
 	static auto opened = true;
 
-	const auto window_size = ImVec2(800, 550.f);
+	const auto window_size = ImVec2(720, 520.f);
 	ImGui::SetNextWindowPos(ImVec2((RENDER->screen.x / 2.f - window_size.x / 2.f), RENDER->screen.y / 2.f - window_size.y / 2.f), ImGuiCond_Once);
 
 	ImGui::SetNextWindowSize(window_size, ImGuiCond_Once);
@@ -184,46 +184,47 @@ void c_menu::window_end()
 void c_menu::draw_ui_background()
 {
 	auto list = this->get_draw_list();
+	const float alpha = this->get_alpha();
+	const auto window_pos = this->get_window_pos();
+	const auto window_max = window_pos + ImVec2(720, 520);
+	const auto accent = g_cfg.misc.ui_color.base();
 
-	auto alpha = this->get_alpha();
-	auto window_alpha = 255.f * this->get_alpha();
+	// Airflow recode: a dark, restrained shell instead of the old white blur.
+	imgui_blur::create_blur(list, window_pos, window_max,
+		c_color(12, 16, 26, 238.f * alpha).as_imcolor(), 8.f, ImDrawCornerFlags_All);
+	list->AddRectFilled(window_pos, window_max, c_color(8, 11, 18, 205.f * alpha).as_imcolor(), 8.f);
 
-	auto window_pos = this->get_window_pos();
+	// Header and sidebar are separate surfaces so the navigation reads clearly.
+	list->AddRectFilled(window_pos + ImVec2(1, 1), window_pos + ImVec2(719, 47),
+		c_color(20, 25, 38, 220.f * alpha).as_imcolor(), 7.f, ImDrawCornerFlags_Top);
+	list->AddRectFilled(window_pos + ImVec2(1, 47), window_pos + ImVec2(160, 519),
+		c_color(13, 17, 27, 225.f * alpha).as_imcolor());
+	list->AddRectFilled(window_pos + ImVec2(160, 47), window_pos + ImVec2(719, 519),
+		c_color(15, 19, 29, 170.f * alpha).as_imcolor());
 
-	auto header_size = ImVec2(720, 47);
-	// header
-	imgui_blur::create_blur(list, window_pos, ImVec2(window_pos.x + header_size.x, window_pos.y + header_size.y), c_color(255, 255, 255, window_alpha).as_imcolor(), 6.f, ImDrawCornerFlags_Top);
+	list->AddLine(window_pos + ImVec2(12, 1), window_pos + ImVec2(708, 1),
+		accent.new_alpha(210.f * alpha).as_imcolor(), 1.f);
+	list->AddLine(window_pos + ImVec2(0, 47), window_pos + ImVec2(720, 47),
+		c_color(125, 138, 166, 32.f * alpha).as_imcolor());
+	list->AddLine(window_pos + ImVec2(160, 47), window_pos + ImVec2(160, 520),
+		c_color(125, 138, 166, 28.f * alpha).as_imcolor());
 
-	// image
-	auto image_size = ImVec2(14, 14);
-	auto image_pos_min = ImVec2((header_size.x / 2) - (image_size.x - 2), (header_size.y / 2) - (image_size.y - 2));
-	auto image_pos_max = ImVec2((header_size.x / 2) + (image_size.x - 2), (header_size.y / 2) + (image_size.y - 2));
-
-	auto clr = g_cfg.misc.ui_color.base();
-	
-	auto letter = XOR("airflow");
+	if (logo_texture)
+		list->AddImage((void*)logo_texture, window_pos + ImVec2(19, 16), window_pos + ImVec2(36, 33),
+			ImVec2(0, 0), ImVec2(1, 1), accent.new_alpha(255.f * alpha).as_imcolor());
 
 	ImGui::PushFont(RENDER->fonts.dmg.get());
-	auto text_size = ImGui::CalcTextSize(letter.c_str());
-
-	list->AddImage(
-		(void*)logo_texture, window_pos + image_pos_min - ImVec2(text_size.x - 18, 0.f), window_pos + image_pos_max - ImVec2(text_size.x - 18, 0.f), ImVec2(0, 0), ImVec2(1, 1), clr.new_alpha(window_alpha).as_imcolor());
-
-	auto base_x = window_pos.x + image_pos_min.x - text_size.x + 18.f;
-	list->AddText(ImVec2(base_x + 30.f, window_pos.y + 13), c_color(255, 255, 255, 150.f * alpha).as_imcolor(), letter.c_str());
+	list->AddText(window_pos + ImVec2(45, 11), c_color(240, 243, 250, 245.f * alpha).as_imcolor(), CXOR("airflow"));
 	ImGui::PopFont();
+	list->AddText(window_pos + ImVec2(46, 29), accent.new_alpha(190.f * alpha).as_imcolor(), CXOR("RECODE"));
 
-	// body
-	imgui_blur::create_blur(list, window_pos + ImVec2(0, 47), ImVec2(window_pos.x + 720, window_pos.y + 520), ImColor(80, 80, 80, (int)(window_alpha)), 6.f, ImDrawCornerFlags_Bot);
+	const auto status = XOR("BUILD  /  2.0");
+	const auto status_size = ImGui::CalcTextSize(status.c_str());
+	list->AddText(window_pos + ImVec2(699 - status_size.x, 18),
+		c_color(142, 153, 177, 180.f * alpha).as_imcolor(), status.c_str());
 
-	// header end (separator)
-	list->AddLine(window_pos + ImVec2(0, 46), window_pos + ImVec2(720, 46), c_color(255, 255, 255, 12.75f * alpha).as_imcolor());
-
-	// tab separator
-	list->AddLine(window_pos + ImVec2(160, 47), window_pos + ImVec2(160, 520), c_color(255, 255, 255, 12.75f * alpha).as_imcolor(), 1.f);
-
-	// border
-	list->AddRect(window_pos, ImVec2(window_pos.x + 720, window_pos.y + 520), c_color(100, 100, 100, 100.f * alpha).as_imcolor(), 6.f);
+	list->AddText(window_pos + ImVec2(18, 496), c_color(112, 124, 148, 150.f * alpha).as_imcolor(), CXOR("7 MODULES"));
+	list->AddRect(window_pos, window_max, c_color(103, 117, 147, 95.f * alpha).as_imcolor(), 8.f);
 }
 
 void c_menu::draw_tabs()
@@ -262,13 +263,18 @@ void c_menu::draw_tabs()
 		auto tab_pos_min = child_pos + tab_min;
 		auto tab_pos_max = child_pos + tab_max;
 
-		float rgb_val = tab_selector == i ? 255 : 150 + 105 * info.hovered_alpha;
+		float rgb_val = tab_selector == i ? 245 : 128 + 100 * info.hovered_alpha;
 		c_color text_clr = c_color(rgb_val, rgb_val, rgb_val, rgb_val * this->get_alpha());
 
-		// tab background
+		if (tab_selector != i && info.hovered_alpha > 0.01f)
+			list->AddRectFilled(tab_pos_min, tab_pos_max - ImVec2(2, 0),
+				c_color(255, 255, 255, 5.f * info.hovered_alpha * this->get_alpha()).as_imcolor(), 4.f, ImDrawCornerFlags_Left);
+
+		// Active module uses the configured accent, not a generic white selection.
 		if (tab_selector == i)
 		{
-			list->AddRectFilled(tab_pos_min, tab_pos_max - ImVec2(2, 0), c_color(255, 255, 255, 10 * info.alpha * this->get_alpha()).as_imcolor(), 4.f, ImDrawCornerFlags_Left);
+			list->AddRectFilled(tab_pos_min, tab_pos_max - ImVec2(2, 0),
+				c_color(clr.r(), clr.g(), clr.b(), 22.f * info.alpha * this->get_alpha()).as_imcolor(), 4.f, ImDrawCornerFlags_Left);
 
 			// i can't draw rounded rect for 2 pixels
 			// so i decided to limit render range and draw rect for 4 pixels

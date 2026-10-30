@@ -22,6 +22,7 @@ void c_event_listener::fire_game_event(c_game_event* event)
         ENGINE_PREDICTION->reset();
         ANIMFIX->reset();
         RAGEBOT->reset();
+        LEGITBOT->reset();
         THREADED_STATE->reset();
         ANTI_AIM->reset();
         FAKE_LAG->reset();

@@ -27,6 +27,13 @@ std::vector< std::string > misc_tabs = {
   XOR("Other"),
 };
 
+const char* target_selections[] = {
+	"Crosshair",
+	"Distance",
+	"Health",
+	"Hybrid",
+};
+
 #define begin_child( text )                                                                                                                                                                                                          \
   ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.f, 1.f, 1.f,  get_alpha( ) ) );                                                                                                                                               \
   ImGui::Text( ( text ) );                                                                                                                                                                                                           \
@@ -666,9 +673,11 @@ void c_menu::draw_ui_items()
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 270);
 				{
-					begin_child(CXOR("Choose your weapon"))
+					begin_child(CXOR("Weapon & targeting"))
 					{
 						combo(CXOR("Setting up..."), &g_cfg.rage.group_type, weapon_configs, IM_ARRAYSIZE(weapon_configs));
+						combo(CXOR("Target selection##rage"), &g_cfg.rage.target_selection, target_selections, IM_ARRAYSIZE(target_selections));
+						slider_int(CXOR("Maximum FOV##rage"), &g_cfg.rage.max_fov, 1, 180, CXOR("%d deg"));
 						if (g_cfg.rage.group_type > 0)
 						{
 							auto name = XOR("Enable config##group_") + std::to_string(g_cfg.rage.group_type);
@@ -777,66 +786,65 @@ void c_menu::draw_ui_items()
 		break;
 		case 1:
 		{
-			// please turn off rage before configuring legit!
-		//	if (g_cfg.rage.enable)
-				render_warning_message(XOR("rage"), XOR("legit"));
-			/*else
+			ImGui::Columns(2, 0, false);
+			ImGui::SetColumnOffset(1, 270);
 			{
-				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				begin_child(CXOR("Choose your weapon##legit"))
 				{
-					begin_child(CXOR("Choose your weapon    "))
-					{
-						combo(CXOR("Setting up...##legit"), &g_cfg.legit.group_type, legit_weapon_configs, IM_ARRAYSIZE(legit_weapon_configs));
-					}
-					end_child;
-
-					begin_child(CXOR("General     "))
-					{
-						checkbox(CXOR("Enable##legit_cfg"), &g_cfg.legit.enable);
-
-						key_bind(CXOR("Aim##legit_cfg"), g_cfg.binds[toggle_legit_b]);
-						checkbox(CXOR("Autowall##legit_cfg"), &g_cfg.legit.autowall);
-
-						auto dmg_str = g_cfg.legit.min_damage == 100 ? CXOR("HP") : g_cfg.legit.min_damage > 100 ? CXOR("HP + ") + std::to_string(g_cfg.legit.min_damage - 100) : CXOR("%dHP");
-
-						slider_int(CXOR("Min damage"), &g_cfg.legit.min_damage, 1, 120, dmg_str.c_str());
-
-						checkbox(CXOR("Disable on flash"), &g_cfg.legit.flash_check);
-						checkbox(CXOR("Disable on smoke"), &g_cfg.legit.smoke_check);
-					}
-					end_child;
-
-					begin_child(CXOR("RCS settings "))
-					{
-						auto& rcs_cfg = g_cfg.legit.rcs;
-						checkbox(CXOR("Enable##legit_aimbot_rcs"), &rcs_cfg.enable);
-
-						slider_int(CXOR("Amount##legit_aimbot_rcs"), &rcs_cfg.amount, 1, 100, CXOR("%d%%"));
-					}
-					end_child;
+					combo(CXOR("Setting up...##legit"), &g_cfg.legit.group_type, legit_weapon_configs, IM_ARRAYSIZE(legit_weapon_configs));
 				}
-				ImGui::NextColumn();
+				end_child;
+
+				begin_child(CXOR("General##legit"))
 				{
-					begin_child(CXOR("Weapon settings "))
-					{
-						auto& legit_cfg = g_cfg.legit.legit_weapon[g_cfg.legit.group_type];
-						checkbox(CXOR("Enable##legit_aimbot"), &legit_cfg.enable);
-						checkbox(CXOR("Draw FOV##legit_aimbot"), &legit_cfg.fov_cicle);
-						color_picker(CXOR("FOV color##legit_aimbot"), legit_cfg.circle_color);
-						checkbox(CXOR("Backtrack##legit_aimbot"), &legit_cfg.backtrack);
-						checkbox(CXOR("Quick stop##legit_aimbot"), &legit_cfg.quick_stop);
+					checkbox(CXOR("Enable##legit_cfg"), &g_cfg.legit.enable);
+					key_bind(CXOR("Aim##legit_cfg"), g_cfg.binds[toggle_legit_b]);
+					combo(CXOR("Target selection##legit"), &g_cfg.legit.target_selection, target_selections, IM_ARRAYSIZE(target_selections));
+					checkbox(CXOR("Target lock##legit_cfg"), &g_cfg.legit.target_lock);
+					checkbox(CXOR("Autowall##legit_cfg"), &g_cfg.legit.autowall);
 
-						multi_combo(CXOR("Hitboxes"), legit_cfg.hitboxes, { XOR("Head"), XOR("Chest"), XOR("Stomach"), XOR("Pelvis") });
+					auto dmg_str = g_cfg.legit.min_damage == 100 ? CXOR("HP") : g_cfg.legit.min_damage > 100 ? CXOR("HP + ") + std::to_string(g_cfg.legit.min_damage - 100) : CXOR("%dHP");
+					slider_int(CXOR("Min damage##legit"), &g_cfg.legit.min_damage, 1, 120, dmg_str.c_str());
 
-						slider_int(CXOR("FOV"), &legit_cfg.fov, 1, 100);
-						slider_int(CXOR("Smooth"), &legit_cfg.smooth, 1, 100);
-
-						slider_int(CXOR("Shot delay"), &legit_cfg.aim_delay, 0, 1000, CXOR("%d% ms"));
-					}
-					end_child;
+					checkbox(CXOR("Disable on flash"), &g_cfg.legit.flash_check);
+					checkbox(CXOR("Disable on smoke"), &g_cfg.legit.smoke_check);
 				}
-			}*/
+				end_child;
+
+				begin_child(CXOR("RCS settings"))
+				{
+					auto& rcs_cfg = g_cfg.legit.rcs;
+					checkbox(CXOR("Enable##legit_aimbot_rcs"), &rcs_cfg.enable);
+					slider_int(CXOR("Amount##legit_aimbot_rcs"), &rcs_cfg.amount, 0, 100, CXOR("%d%%"));
+				}
+				end_child;
+			}
+			ImGui::NextColumn();
+			{
+				begin_child(CXOR("Weapon settings"))
+				{
+					auto& legit_cfg = g_cfg.legit.legit_weapon[g_cfg.legit.group_type];
+					checkbox(CXOR("Enable##legit_aimbot"), &legit_cfg.enable);
+					checkbox(CXOR("Draw FOV##legit_aimbot"), &legit_cfg.fov_cicle);
+					color_picker(CXOR("FOV color##legit_aimbot"), legit_cfg.circle_color);
+					checkbox(CXOR("Backtrack##legit_aimbot"), &legit_cfg.backtrack);
+					checkbox(CXOR("Quick stop##legit_aimbot"), &legit_cfg.quick_stop);
+
+					multi_combo(CXOR("Hitboxes##legit"), legit_cfg.hitboxes, { XOR("Head"), XOR("Chest"), XOR("Stomach"), XOR("Pelvis") });
+					slider_int(CXOR("FOV##legit"), &legit_cfg.fov, 1, 30, CXOR("%d deg"));
+					slider_int(CXOR("Smooth##legit"), &legit_cfg.smooth, 1, 100);
+					slider_int(CXOR("Shot delay##legit"), &legit_cfg.aim_delay, 0, 1000, CXOR("%d ms"));
+				}
+				end_child;
+
+				begin_child(CXOR("Triggerbot"))
+				{
+					checkbox(CXOR("Enable##legit_trigger"), &g_cfg.legit.trigger.enable);
+					key_bind(CXOR("Trigger##legit_cfg"), g_cfg.binds[toggle_trigger_b]);
+					slider_int(CXOR("Delay##legit_trigger"), &g_cfg.legit.trigger.delay, 0, 500, CXOR("%d ms"));
+				}
+				end_child;
+			}
 		}
 		break;
 		case 2:

@@ -1775,11 +1775,9 @@ void c_ragebot::run()
 	scan_players();
 	choose_best_point();
 
-	float lowest_distance = FLT_MAX;
-
-	firing = false;
-	working = false;
-	best_rage_player.reset();
+	float best_score = -FLT_MAX;
+	const auto selection_eye = ANIMFIX->get_local_anims()->eye_pos;
+	const float max_fov = static_cast<float>(std::clamp(g_cfg.rage.max_fov, 1, 180));
 
 	LISTENER_ENTITY->for_each_player([&](c_cs_player* player)
 	{
@@ -1790,15 +1788,34 @@ void c_ragebot::run()
 		if (!rage || !rage->player || rage->player != player)
 			return;
 
-		if (!rage->start_scans)
+		if (!rage->start_scans || !rage->best_point.found)
 			return;
 
-		if (!rage->best_point.found)
+		const auto angle_delta = (math::calc_angle(selection_eye, rage->best_point.aim_point) - HACKS->cmd->viewangles).normalized_angle();
+		const float fov = std::sqrt(angle_delta.x * angle_delta.x + angle_delta.y * angle_delta.y);
+		if (fov > max_fov)
 			return;
 
-		if (lowest_distance > rage->distance)
+		float score = -fov;
+		switch (g_cfg.rage.target_selection)
 		{
-			lowest_distance = rage->distance;
+		case 0: // Crosshair
+			break;
+		case 1: // Distance
+			score = -rage->distance;
+			break;
+		case 2: // Health
+			score = -static_cast<float>(player->health());
+			break;
+		default: // Hybrid: lethal damage, safety and crosshair distance.
+			score = static_cast<float>(std::min(rage->best_point.damage, player->health())) * 3.f
+				- rage->distance * 0.006f - fov * 1.5f + static_cast<float>(rage->best_point.safety) * 1.5f;
+			break;
+		}
+
+		if (score > best_score)
+		{
+			best_score = score;
 			best_rage_player = *rage;
 		}
 	});
