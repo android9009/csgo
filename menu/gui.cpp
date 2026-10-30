@@ -537,7 +537,10 @@ void c_gui::popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float roundi
     popup_shadow(draw, min, max, radius, alpha);
     const ImVec2 aa_padding(2.f * m_scale, 2.f * m_scale);
     draw->PushClipRect(min - aa_padding, max + aa_padding, false);
-    draw_blur_rounded(draw, min, max, alpha, radius, ImColor(popup_bg.r, popup_bg.g, popup_bg.b, popup_bg.a));
+    // A popup is an occluding surface, not another frosted panel: once its fade-in finishes it
+    // must completely cover the rows underneath instead of letting their text show through.
+    draw->AddRectFilled(min, max,
+        ImColor(popup_bg.r, popup_bg.g, popup_bg.b, popup_bg.a * alpha), radius);
     // Same animated background the menu carries, over this card's own fill and under its contents,
     // continuing the menu's image rather than starting its own - every card, tooltip and option
     // list comes through here, so they all pick it up.
@@ -1169,8 +1172,10 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
 
     bool wants_open = false;
     const float anim = popup_animation( popup_name.c_str( ), clicked, wants_open );
-    const ImVec2 click_pos = popup_click_pos( popup_name.c_str( ), clicked, ImVec2( bb.Max.x, bb.GetCenter( ).y ) );
-    if ( begin_popup_card( popup_name.c_str( ), wants_open, anim, click_pos, width, true ) ) {
+    // Open beside the gear itself, vertically centred on its row. The old generic popup path
+    // added another 45px here, which detached the card from the control that opened it.
+    const ImVec2 anchor( bb.Max.x + 6.f * s, bb.GetCenter( ).y );
+    if ( begin_popup_card_at( popup_name.c_str( ), wants_open, anim, anchor, ImVec2( 0.f, 0.5f ), width ) ) {
         // The card forces ItemSpacing to 0 (the config list / colour picker lay themselves out).
         // A gear card is just stacked rows, so give them a vertical gap - otherwise several
         // controls pile up with no breathing room. Popped in row_options_end().
@@ -2143,10 +2148,10 @@ void c_gui::apply_theme( int new_theme ) {
         button_hovered = { 0.050f, 0.054f, 0.078f, 1.f };
         button_active  = { 0.07f, 0.074f, 0.098f, 1.f };
         group_box_bg   = { 0.071f, 0.078f, 0.114f, 1.f };
-        panel_side     = { 0.071f, 0.078f, 0.114f, 0.80f };
-        panel_top      = { 0.043f, 0.059f, 0.090f, 0.90f };
-        panel_body     = { 0.043f, 0.055f, 0.086f, 0.90f };
-        popup_bg       = { 0.071f, 0.078f, 0.114f, 0.70f };
+        panel_side     = { 0.071f, 0.078f, 0.114f, 0.97f };
+        panel_top      = { 0.043f, 0.059f, 0.090f, 0.98f };
+        panel_body     = { 0.043f, 0.055f, 0.086f, 0.98f };
+        popup_bg       = { 0.071f, 0.078f, 0.114f, 1.f };
         field_bg       = { 25.f / 255.f, 27.f / 255.f, 36.f / 255.f, 1.f };
         switch_off     = { 0.055f, 0.071f, 0.098f, 1.f };
         switch_rim     = { 1.f, 1.f, 1.f, 0.07f };
@@ -2171,7 +2176,7 @@ void c_gui::apply_theme( int new_theme ) {
         panel_side     = { 0.918f, 0.925f, 0.945f, 0.62f };
         panel_top      = { 0.957f, 0.961f, 0.973f, 0.70f };
         panel_body     = { 0.945f, 0.949f, 0.965f, 0.70f };
-        popup_bg       = { 0.965f, 0.969f, 0.980f, 0.66f };
+        popup_bg       = { 0.965f, 0.969f, 0.980f, 1.f };
         field_bg       = { 0.898f, 0.906f, 0.933f, 0.85f };
         switch_off     = { 0.792f, 0.808f, 0.847f, 1.f };
         switch_rim     = { 0.f, 0.f, 0.f, 0.06f };
@@ -2672,15 +2677,17 @@ static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, 
 void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
     t = ImSaturate(t);
     const float rounding = bb.GetHeight() * 0.5f;
-    draw->AddRectFilled(bb.Min, bb.Max, ImGui::GetColorU32(ImLerp(
-        switch_off.to_vec4(1.f, false), accent_color.to_vec4(1.f, false), t)), rounding);
+    // Only the knob position communicates the state. Its colors and the track stay identical
+    // in both positions instead of flashing the accent color when a checkbox is enabled.
+    draw->AddRectFilled(bb.Min, bb.Max,
+        ImGui::GetColorU32(switch_off.to_vec4(1.f, false)), rounding);
     draw->AddRect(bb.Min + ImVec2(0.5f, 0.5f), bb.Max - ImVec2(0.5f, 0.5f),
-        switch_rim.to_im_color(1.f - t), rounding - 0.5f, 0, 1.f);
+        switch_rim.to_im_color(), rounding - 0.5f, 0, 1.f);
     const float inset = 2.f * m_scale;
     const float radius = ImMax(0.f, rounding - inset);
     const float x = ImLerp(bb.Min.x + rounding, bb.Max.x - rounding, t);
-    draw->AddCircleFilled(ImVec2(x, bb.GetCenter().y), radius, ImGui::GetColorU32(ImLerp(
-        knob_off.to_vec4(1.f, false), ImVec4(1.f, 1.f, 1.f, 1.f), t)), 32);
+    draw->AddCircleFilled(ImVec2(x, bb.GetCenter().y), radius,
+        ImGui::GetColorU32(knob_off.to_vec4(1.f, false)), 32);
 }
 
 static void draw_switch(ImDrawList* draw, const ImRect& bb, float t) {

@@ -94,14 +94,14 @@ public:
 
     // Surfaces the menu draws itself - kept in the palette so the Dark / Light theme swaps them
     // together with everything above.
-    color_t panel_side = { 0.071f, 0.078f, 0.114f, 0.80f };   // menu chrome (imgui.cpp)
-    color_t panel_top  = { 0.043f, 0.059f, 0.090f, 0.90f };
-    color_t panel_body = { 0.043f, 0.055f, 0.086f, 0.90f };
-    color_t popup_bg   = { 0.071f, 0.078f, 0.114f, 0.70f };   // tint over every popup's blur
+    color_t panel_side = { 0.071f, 0.078f, 0.114f, 0.97f };   // menu chrome (imgui.cpp)
+    color_t panel_top  = { 0.043f, 0.059f, 0.090f, 0.98f };
+    color_t panel_body = { 0.043f, 0.055f, 0.086f, 0.98f };
+    color_t popup_bg   = { 0.071f, 0.078f, 0.114f, 1.f };    // opaque popup/card surface
     color_t field_bg   = { 25.f / 255.f, 27.f / 255.f, 36.f / 255.f, 1.f }; // combo / slider / input boxes
-    color_t switch_off = { 0.055f, 0.071f, 0.098f, 1.f };     // toggle track and knob when off
-    color_t switch_rim = { 1.f, 1.f, 1.f, 0.07f };            // hairline round the off track
-    color_t knob_off   = { 0.498f, 0.529f, 0.557f, 1.f };
+    color_t switch_off = { 0.055f, 0.071f, 0.098f, 1.f };     // toggle track in both states
+    color_t switch_rim = { 1.f, 1.f, 1.f, 0.07f };            // hairline round the track
+    color_t knob_off   = { 0.498f, 0.529f, 0.557f, 1.f };     // knob color in both states
     color_t text_soft  = { 0.76f, 0.77f, 0.81f, 1.f };        // secondary copy (tooltip body)
     color_t divider    = { 1.f, 1.f, 1.f, 30.f / 255.f };     // hairline splitters
     color_t label_off  = { 150.f / 255.f, 150.f / 255.f, 150.f / 255.f, 1.f }; // checkbox label, off / on
