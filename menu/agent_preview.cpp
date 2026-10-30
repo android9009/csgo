@@ -205,6 +205,19 @@ bool valid_panel(void* engine, void* panel) {
     return valid;
 }
 
+bool panel_laid_out(void* panel) {
+    // CS:GO Windows x86 IUIPanel ordinal. The corresponding Linux declaration is 316 because
+    // Itanium has an additional destructor slot; do not use the Linux index here.
+    using has_been_laid_out_t = bool(__thiscall*)(const void*);
+    const auto has_been_laid_out = virtual_function<has_been_laid_out_t>(panel, 315);
+    if (!panel || !has_been_laid_out)
+        return false;
+    AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.BHasBeenLayedOut");
+    const bool laid_out = has_been_laid_out(panel);
+    AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.BHasBeenLayedOut returned");
+    return laid_out;
+}
+
 void* find_root(void* engine) {
     if (!engine)
         return nullptr;
@@ -239,7 +252,7 @@ void* find_root(void* engine) {
 
 bool run_script(void* root, const std::string& script) {
     void* engine = ui_engine();
-    if (!engine || !valid_panel(engine, root))
+    if (!engine || !valid_panel(engine, root) || !panel_laid_out(root))
         return false;
 
     // CS:GO x86 IUIPanel/UIEngine layout. These are not the Source 2 / CS2 vtable indices.
@@ -309,7 +322,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     const int width = rect.right - rect.left;
     const int height = rect.bottom - rect.top;
     const char* team = side == 0 ? "t" : "ct";
-    const char* sequence = side == 0 ? "t_loadout_pistol_idle" : "ct_loadout_pistol01_idle";
+    const char* sequence = side == 0 ? "t_loadout_pistol_idle" : "ct_loadout_pistol_idle_alt_loop01";
     const int camera = side == 0 ? 2 : 0;
 
     char color[16];
@@ -340,7 +353,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
 
     script += "if(made||";
     script += reload ? "true" : "false";
-    script += "){p.SetScene('";
+    script += "){p.ResetAnimation(false);p.SetScene('";
     script += k_manifest;
     script += "','";
     script += agent_model(side, agent);
@@ -360,7 +373,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
 void synchronize_panel(const RECT& rect, int side, ULONGLONG now) {
     auto& s = state();
     refresh_root(now);
-    if (!s.root)
+    if (!s.root || (!s.panel_created && now < s.next_panel_check))
         return;
 
     const int agent = selected_agent(side);
@@ -376,8 +389,10 @@ void synchronize_panel(const RECT& rect, int side, ULONGLONG now) {
         side, agent, rect.left, rect.top, rect.right, rect.bottom, reload ? 1 : 0);
     AIRFLOW_DEBUG_STAGE("agent_preview.panel_script");
     const std::string script = panel_script(rect, side, agent, background, reload);
-    if (!run_script(s.root, script))
+    if (!run_script(s.root, script)) {
+        s.next_panel_check = now + k_panel_check_ms;
         return;
+    }
 
     s.panel_created = true;
     s.panel_visible = true;
