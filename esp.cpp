@@ -690,6 +690,11 @@ void c_esp::draw_player_esp()
 							add_flag(XOR("PLANTING"));
 						if ((entity_visuals.flags & esp_flag_pin_pulled) && esp.pin_pulled)
 							add_flag(XOR("PIN"));
+						if (entity_visuals.flags & esp_flag_money)
+						{
+							auto money = CXOR("$") + std::to_string(player->account());
+							add_flag(money.c_str());
+						}
 					}
 
 #if _DEBUG || ALPHA || BETA

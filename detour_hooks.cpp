@@ -21,6 +21,9 @@ namespace hooks::detour
 	//	CHECKMEM;
 
 		static auto original = hooker::get_original(&calc_view_model_bob);
+		if ((g_cfg.misc.removals & landing_bob) && ecx == HACKS->local && HACKS->local && HACKS->local->is_alive())
+			return;
+
 		original(ecx, edx, position);
 	}
 

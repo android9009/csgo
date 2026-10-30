@@ -485,6 +485,7 @@ public:
 	NETVAR(collision_group, int, "DT_BaseEntity", "m_CollisionGroup");
 	NETVAR(player_state, int, "DT_CSPlayer", "m_iPlayerState");
 	NETVAR(armor_value, int, "DT_CSPlayer", "m_ArmorValue");
+	NETVAR(account, int, "DT_CSPlayer", "m_iAccount");
 	NETVAR(hitbox_set, int, "DT_BaseAnimating", "m_nHitboxSet");
 	NETVAR(health, int, "DT_CSPlayer", "m_iHealth");
 	NETVAR(team, int, "DT_BaseEntity", "m_iTeamNum");

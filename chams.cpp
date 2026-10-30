@@ -332,7 +332,7 @@ bool c_chams::should_draw()
 			if (!HACKS->input->camera_in_third_person)
 				return false;
 
-			auto alpha = 1.f;
+			auto alpha = g_cfg.misc.local_model_transparency * 0.01f;
 			if (HACKS->local->is_scoped() || HACKS->weapon && HACKS->weapon->is_grenade())
 				alpha *= MODEL_BLEND_FACTOR;
 

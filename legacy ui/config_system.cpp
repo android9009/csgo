@@ -413,6 +413,10 @@ namespace config
 		{
 			save_bool(misc, CXOR("auto_jump"), default_config.misc.auto_jump);
 			save_bool(misc, CXOR("auto_strafe"), default_config.misc.auto_strafe);
+			save_bool(misc, CXOR("quick_switch"), default_config.misc.quick_switch);
+			save_bool(misc, CXOR("prevent_afk"), default_config.misc.prevent_afk);
+			save_bool(misc, CXOR("automatic_grenade_release"), default_config.misc.automatic_grenade_release);
+			save_int(misc, CXOR("grenade_release_delay"), default_config.misc.grenade_release_delay);
 			save_bool(misc, CXOR("fast_stop"), default_config.misc.fast_stop);
 			save_bool(misc, CXOR("slide_walk"), default_config.misc.slide_walk);
 			save_bool(misc, CXOR("pen_xhair"), default_config.misc.pen_xhair);
@@ -489,6 +493,7 @@ namespace config
 			save_bool(misc, CXOR("blend_scope"), default_config.misc.blend_scope);
 			save_int(misc, CXOR("scope_amt"), default_config.misc.scope_amt);
 			save_int(misc, CXOR("attachments_amt"), default_config.misc.attachments_amt);
+			save_int(misc, CXOR("local_model_transparency"), default_config.misc.local_model_transparency);
 
 			save_int(misc, CXOR("bloom_scale"), default_config.misc.bloom_scale);
 			save_bool(misc, CXOR("custom_bloom"), default_config.misc.custom_bloom);
@@ -525,7 +530,7 @@ namespace config
 
 			save_int(misc[CXOR("sunset_angle")], CXOR("x"), default_config.misc.sunset_angle.x);
 			save_int(misc[CXOR("sunset_angle")], CXOR("y"), default_config.misc.sunset_angle.y);
-			save_int(misc[CXOR("sunset_angle")], CXOR("z"), default_config.misc.sunset_angle.y);
+			save_int(misc[CXOR("sunset_angle")], CXOR("z"), default_config.misc.sunset_angle.z);
 
 			save_clr(misc, CXOR("autopeek_clr"), &default_config.misc.autopeek_clr);
 			save_clr(misc, CXOR("autopeek_clr_back"), &default_config.misc.autopeek_clr_back);
@@ -548,6 +553,23 @@ namespace config
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
 				auto& skins_cfg = default_config.skins.skin_weapon[i];
+				auto& skins_cfg_json = skins[sub];
+				{
+					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
+					save_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
+					save_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					save_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					save_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					save_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					save_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
+				}
+			}
+
+			for (int i = 0; i < weapon_cfg_max; ++i)
+			{
+				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
+
+				auto& skins_cfg = default_config.skins.team_skin_weapon[i];
 				auto& skins_cfg_json = skins[sub];
 				{
 					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
@@ -780,6 +802,10 @@ namespace config
 		{
 			save_bool(misc, CXOR("auto_jump"), g_cfg.misc.auto_jump);
 			save_bool(misc, CXOR("auto_strafe"), g_cfg.misc.auto_strafe);
+			save_bool(misc, CXOR("quick_switch"), g_cfg.misc.quick_switch);
+			save_bool(misc, CXOR("prevent_afk"), g_cfg.misc.prevent_afk);
+			save_bool(misc, CXOR("automatic_grenade_release"), g_cfg.misc.automatic_grenade_release);
+			save_int(misc, CXOR("grenade_release_delay"), g_cfg.misc.grenade_release_delay);
 			save_bool(misc, CXOR("fast_stop"), g_cfg.misc.fast_stop);
 			save_bool(misc, CXOR("slide_walk"), g_cfg.misc.slide_walk);
 			save_bool(misc, CXOR("pen_xhair"), g_cfg.misc.pen_xhair);
@@ -856,6 +882,7 @@ namespace config
 			save_bool(misc, CXOR("blend_scope"), g_cfg.misc.blend_scope);
 			save_int(misc, CXOR("scope_amt"), g_cfg.misc.scope_amt);
 			save_int(misc, CXOR("attachments_amt"), g_cfg.misc.attachments_amt);
+			save_int(misc, CXOR("local_model_transparency"), g_cfg.misc.local_model_transparency);
 
 			save_int(misc, CXOR("bloom_scale"), g_cfg.misc.bloom_scale);
 			save_bool(misc, CXOR("custom_bloom"), g_cfg.misc.custom_bloom);
@@ -892,7 +919,7 @@ namespace config
 
 			save_int(misc[CXOR("sunset_angle")], CXOR("x"), g_cfg.misc.sunset_angle.x);
 			save_int(misc[CXOR("sunset_angle")], CXOR("y"), g_cfg.misc.sunset_angle.y);
-			save_int(misc[CXOR("sunset_angle")], CXOR("z"), g_cfg.misc.sunset_angle.y);
+			save_int(misc[CXOR("sunset_angle")], CXOR("z"), g_cfg.misc.sunset_angle.z);
 
 			save_clr(misc, CXOR("autopeek_clr"), &g_cfg.misc.autopeek_clr);
 			save_clr(misc, CXOR("autopeek_clr_back"), &g_cfg.misc.autopeek_clr_back);
@@ -916,6 +943,23 @@ namespace config
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
 				auto& skins_cfg = g_cfg.skins.skin_weapon[i];
+				auto& skins_cfg_json = skins[sub];
+				{
+					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
+					save_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
+					save_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					save_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					save_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					save_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					save_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
+				}
+			}
+
+			for (int i = 0; i < weapon_cfg_max; ++i)
+			{
+				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
+
+				auto& skins_cfg = g_cfg.skins.team_skin_weapon[i];
 				auto& skins_cfg_json = skins[sub];
 				{
 					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
@@ -1158,6 +1202,10 @@ namespace config
 		{
 			load_bool(misc, CXOR("auto_jump"), g_cfg.misc.auto_jump);
 			load_bool(misc, CXOR("auto_strafe"), g_cfg.misc.auto_strafe);
+			load_bool(misc, CXOR("quick_switch"), g_cfg.misc.quick_switch);
+			load_bool(misc, CXOR("prevent_afk"), g_cfg.misc.prevent_afk);
+			load_bool(misc, CXOR("automatic_grenade_release"), g_cfg.misc.automatic_grenade_release);
+			load_int(misc, CXOR("grenade_release_delay"), g_cfg.misc.grenade_release_delay);
 			load_bool(misc, CXOR("fast_stop"), g_cfg.misc.fast_stop);
 			load_bool(misc, CXOR("slide_walk"), g_cfg.misc.slide_walk);
 			load_bool(misc, CXOR("pen_xhair"), g_cfg.misc.pen_xhair);
@@ -1234,6 +1282,7 @@ namespace config
 			load_bool(misc, CXOR("blend_scope"), g_cfg.misc.blend_scope);
 			load_int(misc, CXOR("scope_amt"), g_cfg.misc.scope_amt);
 			load_int(misc, CXOR("attachments_amt"), g_cfg.misc.attachments_amt);
+			load_int(misc, CXOR("local_model_transparency"), g_cfg.misc.local_model_transparency);
 
 			load_int(misc, CXOR("bloom_scale"), g_cfg.misc.bloom_scale);
 			load_bool(misc, CXOR("custom_bloom"), g_cfg.misc.custom_bloom);
@@ -1267,7 +1316,7 @@ namespace config
 
 			load_int(misc[CXOR("sunset_angle")], CXOR("x"), g_cfg.misc.sunset_angle.x);
 			load_int(misc[CXOR("sunset_angle")], CXOR("y"), g_cfg.misc.sunset_angle.y);
-			load_int(misc[CXOR("sunset_angle")], CXOR("z"), g_cfg.misc.sunset_angle.y);
+			load_int(misc[CXOR("sunset_angle")], CXOR("z"), g_cfg.misc.sunset_angle.z);
 
 			load_float(misc[CXOR("bomb_pos")], CXOR("x"), g_cfg.misc.bomb_position.x);
 			load_float(misc[CXOR("bomb_pos")], CXOR("y"), g_cfg.misc.bomb_position.y);
@@ -1294,6 +1343,23 @@ namespace config
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
 				auto& skins_cfg = g_cfg.skins.skin_weapon[i];
+				auto& skins_cfg_json = skins[sub];
+				{
+					load_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
+					load_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
+					load_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					load_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					load_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					load_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					load_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
+				}
+			}
+
+			for (int i = 0; i < weapon_cfg_max; ++i)
+			{
+				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
+
+				auto& skins_cfg = g_cfg.skins.team_skin_weapon[i];
 				auto& skins_cfg_json = skins[sub];
 				{
 					load_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);

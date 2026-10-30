@@ -49,7 +49,7 @@ namespace hooks
 
 	void __cdecl viewmodel_sequence(c_recv_proxy_data* data, void* entity, void* out)
 	{
-		if (HACKS->local && HACKS->local->is_alive() && HACKS->client_state->delta_tick != -1 && g_cfg.skins.skin_weapon[weapon_cfg_knife].enable)
+		if (HACKS->local && HACKS->local->is_alive() && HACKS->client_state->delta_tick != -1 && skin_changer::get_weapon_config(weapon_cfg_knife, HACKS->local->team()).enable)
 		{
 			auto base_entity = (c_base_entity*)entity;
 			if (!base_entity)

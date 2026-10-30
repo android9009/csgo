@@ -11,6 +11,7 @@ namespace skin_changer
 
 	extern void init_parser();
 	extern std::string get_model_name(int team);
+	extern skin_weapon_t& get_weapon_config(int slot, int team);
 	extern int glove_skins_id();
 	extern int correct_sequence(const short& index, const int seq);
 	extern void on_postdataupdate_start(int stage);

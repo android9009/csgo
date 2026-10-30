@@ -1,4 +1,5 @@
 #include "globals.hpp"
+#include "skins.hpp"
 
 namespace main_utils
 {
@@ -159,7 +160,7 @@ namespace main_utils
 			return {};
 
 		int tab = get_legit_tab();
-		return g_cfg.skins.skin_weapon[tab];
+		return skin_changer::get_weapon_config(tab, HACKS->local->team());
 	}
 
 	legit_weapon_t get_legit_weapon_config()

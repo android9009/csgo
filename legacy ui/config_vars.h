@@ -111,7 +111,8 @@ enum esp_flag_t : unsigned int
 	esp_flag_defusing = 1 << 8,
 	esp_flag_bomb = 1 << 9,
 	esp_flag_planting = 1 << 10,
-	esp_flag_pin_pulled = 1 << 11
+	esp_flag_pin_pulled = 1 << 11,
+	esp_flag_money = 1 << 12
 };
 
 enum chams_type_t
@@ -467,6 +468,10 @@ struct configs_t
 
 		bool auto_jump{};
 		bool auto_strafe{};
+		bool quick_switch{};
+		bool prevent_afk{};
+		bool automatic_grenade_release{};
+		int grenade_release_delay = 500;
 
 		bool fast_stop{};
 		bool slide_walk{};
@@ -500,6 +505,7 @@ struct configs_t
 		bool blend_scope{};
 		int scope_amt = 50;
 		int attachments_amt = 100;
+		int local_model_transparency = 100;
 
 		bool impacts{};
 
@@ -589,6 +595,7 @@ struct configs_t
 		char custom_model_ct[128]{};
 
 		std::array< skin_weapon_t, weapon_cfg_max > skin_weapon{};
+		std::array< skin_weapon_t, weapon_cfg_max > team_skin_weapon{};
 	} skins;
 
 	std::array< key_binds_t, binds_max > binds = {

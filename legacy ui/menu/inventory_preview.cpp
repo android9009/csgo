@@ -164,12 +164,12 @@ namespace inventory_preview
 			return names[std::clamp(slot, 0, weapon_cfg_max - 1)];
 		}
 
-		IDirect3DTexture9* weapon_texture(int slot, bool force_skin = false)
+		IDirect3DTexture9* weapon_texture(int slot, bool force_skin = false, int team = 3)
 		{
 			if (slot < 0 || slot >= weapon_cfg_max)
 				return nullptr;
 
-			const auto& config = g_cfg.skins.skin_weapon[slot];
+			const auto& config = skin_changer::get_weapon_config(slot, team);
 			const std::string weapon_name = weapon_econ_name(slot, config);
 			const std::string base_path = CXOR("resource/flash/econ/weapons/base_weapons/") + weapon_name + CXOR(".png");
 
@@ -285,7 +285,7 @@ namespace inventory_preview
 		}
 	}
 
-	bool weapon_card(int slot, const char* label, bool selected, float alpha)
+	bool weapon_card(int slot, const char* label, bool selected, float alpha, int team)
 	{
 		const float width = std::max(90.f, ImGui::GetContentRegionAvail().x);
 		const ImVec2 size(width, 76.f);
@@ -299,7 +299,7 @@ namespace inventory_preview
 		auto draw_list = ImGui::GetWindowDrawList();
 		const int opacity = static_cast<int>(std::clamp(alpha, 0.f, 1.f) * 255.f);
 		draw_list->AddRectFilled(min, max, IM_COL32(hovered ? 29 : 20, hovered ? 32 : 23, hovered ? 44 : 33, opacity), 7.f);
-		draw_image_in_rect(weapon_texture(slot), min + ImVec2(4, 3), max - ImVec2(4, 20), alpha);
+		draw_image_in_rect(weapon_texture(slot, false, team), min + ImVec2(4, 3), max - ImVec2(4, 20), alpha);
 
 		const ImVec2 text_size = ImGui::CalcTextSize(label);
 		draw_list->AddText(ImVec2(min.x + (size.x - text_size.x) * 0.5f, max.y - 17.f), IM_COL32(220, 222, 230, opacity), label);
@@ -308,9 +308,9 @@ namespace inventory_preview
 		return pressed;
 	}
 
-	void draw_weapon(int slot, const ImVec2& size, float alpha, bool force_skin)
+	void draw_weapon(int slot, const ImVec2& size, float alpha, bool force_skin, int team)
 	{
-		draw_preview(weapon_texture(slot, force_skin), size, alpha);
+		draw_preview(weapon_texture(slot, force_skin, team), size, alpha);
 	}
 
 	void draw_gloves(const ImVec2& size, float alpha)

@@ -330,10 +330,112 @@ void c_movement::rotate_movement(c_user_cmd* cmd, vec3_t& ang)
 	}
 }
 
+void c_movement::quick_switch()
+{
+	auto cmd = HACKS->cmd;
+	if (quick_switch_stage == 2)
+	{
+		cmd->weapon_select = quick_switch_weapon;
+		cmd->weapon_sub_type = 0;
+		cmd->buttons.remove(IN_ATTACK | IN_ATTACK2);
+		quick_switch_stage = 0;
+		shot_time_initialized = false;
+		shot_weapon = 0;
+		return;
+	}
+
+	if (!g_cfg.misc.quick_switch || !HACKS->weapon || cmd->weapon_select)
+	{
+		quick_switch_stage = 0;
+		shot_time_initialized = false;
+		shot_weapon = 0;
+		return;
+	}
+
+	auto weapon = HACKS->weapon;
+	if (weapon->is_knife() || weapon->is_grenade() || weapon->is_taser() || weapon->item_definition_index() == WEAPON_C4)
+	{
+		quick_switch_stage = 0;
+		shot_time_initialized = false;
+		shot_weapon = 0;
+		return;
+	}
+
+	const float shot_time = weapon->last_shot_time();
+	if (!shot_time_initialized || shot_weapon != weapon->index())
+	{
+		shot_time_initialized = true;
+		shot_weapon = weapon->index();
+		last_shot_time = shot_time;
+		return;
+	}
+
+	if (shot_time > last_shot_time)
+	{
+		for (auto inventory_weapon : HACKS->local->get_weapons())
+		{
+			if (inventory_weapon && inventory_weapon->is_knife())
+			{
+				quick_switch_weapon = weapon->index();
+				quick_switch_knife = inventory_weapon->index();
+				quick_switch_stage = 1;
+				break;
+			}
+		}
+	}
+	last_shot_time = shot_time;
+
+	if (quick_switch_stage == 1)
+	{
+		cmd->weapon_select = quick_switch_knife;
+		cmd->weapon_sub_type = 0;
+		cmd->buttons.remove(IN_ATTACK | IN_ATTACK2);
+		quick_switch_stage = 2;
+	}
+}
+
+void c_movement::automatic_grenade_release()
+{
+	if (!g_cfg.misc.automatic_grenade_release || !HACKS->weapon || !HACKS->weapon->is_grenade() || !HACKS->weapon->pin_pulled())
+	{
+		grenade_pin_start = -1.f;
+		return;
+	}
+
+	const float now = HACKS->global_vars->curtime;
+	if (grenade_pin_start < 0.f)
+		grenade_pin_start = now;
+
+	if (now - grenade_pin_start >= g_cfg.misc.grenade_release_delay * 0.001f)
+		HACKS->cmd->buttons.remove(IN_ATTACK | IN_ATTACK2);
+}
+
+void c_movement::prevent_afk()
+{
+	if (!g_cfg.misc.prevent_afk)
+	{
+		next_afk_tick = 0;
+		return;
+	}
+
+	const int tick = HACKS->global_vars->tickcount;
+	if (!next_afk_tick)
+		next_afk_tick = tick + TIME_TO_TICKS(15.f);
+
+	if (tick >= next_afk_tick)
+	{
+		HACKS->cmd->buttons.force(IN_LOOKSPIN);
+		next_afk_tick = tick + TIME_TO_TICKS(15.f);
+	}
+}
+
 void c_movement::run()
 {
 	HACKS->engine->get_view_angles(base_view_angle);
 
+	prevent_afk();
+	quick_switch();
+	automatic_grenade_release();
 	update_ground_ticks();
 	auto_jump();
 }

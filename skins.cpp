@@ -35,6 +35,12 @@ namespace string_convert
 
 namespace skin_changer
 {
+	skin_weapon_t& get_weapon_config(int slot, int team)
+	{
+		auto& profiles = team == TEAM_TT ? g_cfg.skins.team_skin_weapon : g_cfg.skins.skin_weapon;
+		return profiles[std::clamp(slot, 0, weapon_cfg_max - 1)];
+	}
+
 	bool call_force_update = false;
 	bool in_force_update = false;
 	bool update_hud = false;
@@ -1232,7 +1238,7 @@ namespace skin_changer
 			if (!weapon)
 				continue;
 
-			auto& skin_cfg = g_cfg.skins.skin_weapon[main_utils::get_legit_tab(weapon)];
+			auto& skin_cfg = get_weapon_config(main_utils::get_legit_tab(weapon), HACKS->local->team());
 			if (!skin_cfg.enable)
 			{
 				if (skin_cfg.old_skin != -1)

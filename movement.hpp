@@ -43,9 +43,17 @@ private:
 	bool should_fake = false;
 	bool complete_fast_stop = false;
 	bool edge_was_on_ground = false;
+	bool shot_time_initialized = false;
 
 	int ground_ticks{};
+	int quick_switch_stage{};
+	int quick_switch_weapon{};
+	int quick_switch_knife{};
+	int shot_weapon{};
+	int next_afk_tick{};
 
+	float last_shot_time{};
+	float grenade_pin_start = -1.f;
 	float switch_key = 1.f;
 	float circle_yaw = 0.f;
 	float old_yaw = 0.f;
@@ -62,6 +70,9 @@ private:
 	void fast_stop();
 
 	void edge_jump();
+	void quick_switch();
+	void automatic_grenade_release();
+	void prevent_afk();
 
 	bool can_use_auto_peek();
 	void auto_peek();
@@ -79,9 +90,17 @@ public:
 		should_fake = false;
 		complete_fast_stop = false;
 		edge_was_on_ground = false;
+		shot_time_initialized = false;
 
 		ground_ticks = 0;
+		quick_switch_stage = 0;
+		quick_switch_weapon = 0;
+		quick_switch_knife = 0;
+		shot_weapon = 0;
+		next_afk_tick = 0;
 
+		last_shot_time = 0.f;
+		grenade_pin_start = -1.f;
 		switch_key = 1.f;
 		circle_yaw = 0.f;
 		old_yaw = 0.f;

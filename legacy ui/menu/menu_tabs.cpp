@@ -1014,7 +1014,7 @@ void c_menu::draw_ui_items()
 
 						if (enemy_esp.elements & 64)
 							multi_combo(CXOR("Flags##esp_enemy_flags"), enemy_esp.flags,
-								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled") });
+								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled"), XOR("Money") });
 						if (enemy_esp.elements & 1)
 							color_picker(CXOR("Box color##esp_enemy"), enemy_esp.colors.box);
 
@@ -1106,7 +1106,7 @@ void c_menu::draw_ui_items()
 							{ XOR("Bounding box"), XOR("Name"), XOR("Health bar"), XOR("Weapon icon"), XOR("Weapon text"), XOR("Ammo bar"), XOR("Flags"), XOR("Offscreen arrow"), XOR("Glow") });
 						if (team_esp.elements & 64)
 							multi_combo(CXOR("Flags##esp_teammate_flags"), team_esp.flags,
-								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled") });
+								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled"), XOR("Money") });
 						checkbox(CXOR("Disable Model Rendering##teammates"), &team_esp.disable_model);
 						if (team_esp.elements & 1)
 							color_picker(CXOR("Box color##esp_teammate"), team_esp.colors.box);
@@ -1168,7 +1168,8 @@ void c_menu::draw_ui_items()
 						if (g_cfg.visuals.local_glow)
 							color_picker(CXOR("Glow color##local_esp_glow"), g_cfg.visuals.local_glow_color);
 
-						slider_int(CXOR("Attachments blend"), &g_cfg.misc.attachments_amt, 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Local Model transparency"), &g_cfg.misc.local_model_transparency, 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Local Weapon transparency"), &g_cfg.misc.attachments_amt, 0, 100, CXOR("%d%%"));
 					}
 					end_child;
 
@@ -1383,6 +1384,7 @@ void c_menu::draw_ui_items()
 								XOR("Flash"),
 								XOR("Fog"),
 								XOR("Shadows"),
+								XOR("Landing bob"),
 							});
 					}
 					end_child;
@@ -1566,6 +1568,11 @@ void c_menu::draw_ui_items()
 						color_picker(CXOR("Move color##peek"), g_cfg.misc.autopeek_clr_back);
 						checkbox(CXOR("Return on key release"), &g_cfg.misc.retrack_peek);
 						checkbox(CXOR("Knife bot"), &g_cfg.misc.knife_bot);
+						checkbox(CXOR("Quick Switch"), &g_cfg.misc.quick_switch);
+						checkbox(CXOR("Automatic Grenade Release"), &g_cfg.misc.automatic_grenade_release);
+						if (g_cfg.misc.automatic_grenade_release)
+							slider_int(CXOR("Release delay"), &g_cfg.misc.grenade_release_delay, 0, 3000, CXOR("%d ms"));
+						checkbox(CXOR("Prevent AFK"), &g_cfg.misc.prevent_afk);
 					}
 					end_child;
 				}
@@ -1696,6 +1703,8 @@ void c_menu::draw_ui_items()
 		case 5:
 		{
 			static int selector = 0;
+			static int inventory_team = 0;
+			const char* inventory_teams[] = { CXOR("CT Loadout"), CXOR("T Loadout") };
 			draw_sub_tabs(selector, inventory_tabs);
 
 			static int prev_sub_sel = 0;
@@ -1715,13 +1724,12 @@ void c_menu::draw_ui_items()
 			{
 			case 0:
 			{
+				combo(CXOR("Team##inventory_loadout"), &inventory_team, inventory_teams, IM_ARRAYSIZE(inventory_teams));
 				begin_child(CXOR("Current loadout"))
 				{
-					inventory_preview::draw_agent(3, ImVec2(120, 140), alpha);
+					inventory_preview::draw_agent(inventory_team == 0 ? 3 : 2, ImVec2(120, 140), alpha);
 					ImGui::SameLine();
-					inventory_preview::draw_agent(2, ImVec2(120, 140), alpha);
-					ImGui::SameLine();
-					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(150, 140), alpha);
+					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(150, 140), alpha, false, inventory_team == 0 ? 3 : 2);
 					ImGui::SameLine();
 					inventory_preview::draw_gloves(ImVec2(150, 140), alpha);
 				}
@@ -1744,7 +1752,7 @@ void c_menu::draw_ui_items()
 					{
 						for (const int index : categories[column])
 						{
-							if (inventory_preview::weapon_card(index, skin_weapon_configs[index], g_cfg.skins.group_type == index, alpha))
+							if (inventory_preview::weapon_card(index, skin_weapon_configs[index], g_cfg.skins.group_type == index, alpha, inventory_team == 0 ? 3 : 2))
 							{
 								g_cfg.skins.group_type = index;
 								selector = 1;
@@ -1763,8 +1771,9 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Weapon"))
 					{
+						combo(CXOR("Team##inventory_editor"), &inventory_team, inventory_teams, IM_ARRAYSIZE(inventory_teams));
 						combo(CXOR("Loadout slot##skins"), &g_cfg.skins.group_type, skin_weapon_configs, IM_ARRAYSIZE(skin_weapon_configs));
-						auto& config = g_cfg.skins.skin_weapon[g_cfg.skins.group_type];
+						auto& config = skin_changer::get_weapon_config(g_cfg.skins.group_type, inventory_team == 0 ? 3 : 2);
 						checkbox(CXOR("Enable skin##inventory"), &config.enable);
 						slider_int(CXOR("Wear##inventory"), &config.wear, 0, 100, CXOR("%d%%"));
 						slider_int(CXOR("Pattern seed##inventory"), &config.seed, 0, 1000);
@@ -1778,7 +1787,7 @@ void c_menu::draw_ui_items()
 
 					begin_child(CXOR("Selected skin preview"))
 					{
-						inventory_preview::draw_weapon(g_cfg.skins.group_type, ImVec2(260, 125), alpha, true);
+						inventory_preview::draw_weapon(g_cfg.skins.group_type, ImVec2(260, 125), alpha, true, inventory_team == 0 ? 3 : 2);
 					}
 					end_child;
 				}
@@ -1788,7 +1797,7 @@ void c_menu::draw_ui_items()
 						for (auto& skin : skin_changer::paint_kits)
 							skin_names.emplace_back(skin.first);
 
-					auto& config = g_cfg.skins.skin_weapon[g_cfg.skins.group_type];
+					auto& config = skin_changer::get_weapon_config(g_cfg.skins.group_type, inventory_team == 0 ? 3 : 2);
 					auto skin_list = skin_changer::paint_kits.empty() ? empty_list : skin_names;
 					const std::string title = XOR("Paint kits | ") + std::to_string(skin_list.size());
 					begin_child(title.c_str())
