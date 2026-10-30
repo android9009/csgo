@@ -31,6 +31,7 @@ void c_config_system::setup_values( )
 		for (auto hitbox = 0; hitbox < 6; hitbox++) {
 			push_item(&cfg.m_hitboxes[hitbox], "rage_bot", std::format("{}_{}_hitbox_{}", prefix, group, hitbox), cfg.m_hitboxes[hitbox]);
 			push_item(&cfg.m_multi_points[hitbox], "rage_bot", std::format("{}_{}_multipoint_{}", prefix, group, hitbox), cfg.m_multi_points[hitbox]);
+			push_item(&cfg.m_hitbox_safety[hitbox], "rage_bot", std::format("{}_{}_hitbox_safety_{}", prefix, group, hitbox), cfg.m_hitbox_safety[hitbox]);
 		}
 		
 		push_item(&cfg.m_head_scale, "rage_bot", prefix + "_head_scale", cfg.m_head_scale);
@@ -49,6 +50,8 @@ void c_config_system::setup_values( )
 		push_item(&cfg.m_auto_stop_duck, "rage_bot", prefix + "_auto_stop_duck", cfg.m_auto_stop_duck);
 		push_item(&cfg.m_auto_scope, "rage_bot", prefix + "_auto_scope", cfg.m_auto_scope);
 		push_item(&cfg.m_penetration, "rage_bot", prefix + "_penetration", cfg.m_penetration);
+		push_item(&cfg.m_body_aim, "rage_bot", prefix + "_body_aim", cfg.m_body_aim);
+		push_item(&cfg.m_safe_points, "rage_bot", prefix + "_safe_points", cfg.m_safe_points);
 	}
 
 	push_item( &g_cfg->rage_bot.m_override_damage_key_bind, "rage_bot", "override_damage_keybind", g_cfg->rage_bot.m_override_damage_key_bind );

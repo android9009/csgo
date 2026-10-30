@@ -5,13 +5,14 @@
 void c_menu::draw_rage() {
     static const char* hitbox_names[] = { "Head", "Chest", "Stomach", "Arms", "Legs", "Feet" };
     static const char* auto_stop_names[] = { "Early", "Full Stop", "Between Shots", "Air", "Duck" };
+    static const char* safety_modes[] = { "Off", "Prefer", "Force" };
 
     auto& rage = g_cfg->rage_bot;
     rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
     auto& cfg = rage.m_weapon_config[rage.m_selected_group];
 
-    // Neverlose layout: left column MAIN + ACCURACY, right column SELECTION. Anti-Aim has its
-    // own tab. The options gear sits in the slot left of the control it belongs to; its card holds the
+    // Neverlose layout: MAIN + ACCURACY on the left, SELECTION + SAFETY on the right. Anti-Aim
+    // has its own tab. The options gear sits in the slot left of the control it belongs to; its card holds the
     // settings that have no row of their own. The group being edited is chosen from the
     // weapon-group selector in the top bar.
     gui.begin_grid(2);
@@ -46,8 +47,15 @@ void c_menu::draw_rage() {
     }
     gui.row_checkbox("Peek Assist", &rage.m_peek_assist);
 
-    // Hide Shots / Double Tap - no gear
+    // New gears are intentionally empty for now.
+    gui.row_begin();
+    if (gui.row_options_begin("##hide_shots_opts", 72.f, c_gui::row_control::toggle))
+        gui.row_options_end();
     gui.row_checkbox("Hide Shots", &rage.m_hide_shots);
+
+    gui.row_begin();
+    if (gui.row_options_begin("##double_tap_opts", 72.f, c_gui::row_control::toggle))
+        gui.row_options_end();
     gui.row_checkbox("Double Tap", &rage.m_double_tap);
 
     gui.row_begin(); ImGui::SliderInt("Field of View", &rage.m_fov, 0, 180, "%d\xc2\xb0");
@@ -78,13 +86,6 @@ void c_menu::draw_rage() {
 
     gui.grid_box("SELECTION", k_auto_height);
 
-    // Hitboxes (gear: Prefer Body Aim)
-    gui.row_begin();
-    if (gui.row_options_begin("##hitbox_opts", 216.f, c_gui::row_control::box)) {
-        gui.row_checkbox("Prefer Body Aim", &cfg.m_prefer_body_aim,
-                         "Prefer body hitboxes over head hitboxes when selecting a target.");
-        gui.row_options_end();
-    }
     gui.row_multibox("Hitboxes", hitbox_names, cfg.m_hitboxes, 6, "Select target hitboxes.");
 
     // Multipoint (gear: Head Scale / Body Scale)
@@ -117,6 +118,22 @@ void c_menu::draw_rage() {
         cfg.m_minimum_damage == -1 ? "Auto" : "%d");
 
     gui.row_checkbox("Penetrate Walls", &cfg.m_penetration);
+    gui.end_group_box();
+
+    gui.grid_box("SAFETY", k_auto_height);
+
+    gui.row_begin();
+    if (gui.row_options_begin("##body_aim_opts", 72.f, c_gui::row_control::box))
+        gui.row_options_end();
+    gui.row_begin(); ImGui::Combo("Body Aim", &cfg.m_body_aim, safety_modes, IM_ARRAYSIZE(safety_modes));
+
+    gui.row_begin();
+    if (gui.row_options_begin("##safe_points_opts", 72.f, c_gui::row_control::box))
+        gui.row_options_end();
+    gui.row_begin(); ImGui::Combo("Safe Points", &cfg.m_safe_points, safety_modes, IM_ARRAYSIZE(safety_modes));
+
+    gui.row_multibox("Ensure Hitbox Safety", hitbox_names, cfg.m_hitbox_safety, 6,
+                     "Select hitboxes that require safe points.");
     gui.end_group_box();
 
     gui.end_grid();

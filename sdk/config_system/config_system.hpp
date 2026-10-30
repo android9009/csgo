@@ -112,7 +112,11 @@ public:
         // Other
         bool m_auto_scope = false;
         bool m_penetration = false;
-        bool m_prefer_body_aim = false;  // Hitboxes gear
+
+        // Safety (UI only: 0 = Off, 1 = Prefer, 2 = Force)
+        int m_body_aim = 1;
+        int m_safe_points = 1;
+        bool m_hitbox_safety[6] = {true, true, true, false, false, false};
     };
     
     struct rage_bot_t {
