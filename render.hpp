@@ -45,7 +45,10 @@ public:
 
     INLINE bool init_resource(const ImGuiIO& io, int resource_id, float font_size, ImFontConfig* cfg, const ImWchar* ranges)
     {
-        const HMODULE module = HACKS->modules.dllmain;
+        static const unsigned char module_anchor = 0;
+        HMODULE module = nullptr;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCSTR>(&module_anchor), &module);
         const HRSRC resource = module ? FindResourceW(module, MAKEINTRESOURCEW(resource_id), MAKEINTRESOURCEW(10)) : nullptr;
         const HGLOBAL loaded = resource ? LoadResource(module, resource) : nullptr;
         void* data = loaded ? LockResource(loaded) : nullptr;
