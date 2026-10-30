@@ -845,9 +845,11 @@ bool c_gui::begin_animated_popup(ImGuiID id, const char* window_name, ImGuiWindo
     }
     // The popup's content is its own window: its rows start a fresh separator run, so the first
     // one doesn't inherit the "already drew a row" state of the group box the popup opened over
-    // (which would draw a stray divider at the top of the card). Restored in end_animated_popup().
-    m_popup_scopes.push_back({ id, open, m_row_started });
+    // (which would draw a stray divider at the top of the card). Keep the outer gear/swatches
+    // claim too: popup controls must not consume it and change the outer row's separator logic.
+    m_popup_scopes.push_back({ id, open, m_row_started, m_row_slot_claims });
     m_row_started = false;
+    m_row_slot_claims = 0;
     if (!visible) {
         end_animated_popup();
         return false;
@@ -866,6 +868,7 @@ void c_gui::end_animated_popup() {
     ImGui::EndDisabled();
     ImGui::PopStyleVar();
     m_row_started = scope.saved_row_started; // resume the outer window's row-separator run
+    m_row_slot_claims = scope.saved_row_slot_claims;
 }
 
 bool c_gui::begin_popup_card(const char* popup_name, bool& wants_open, float anim, ImVec2 click_pos, float width, bool allow_outside, bool exact_pos) {
@@ -969,11 +972,6 @@ bool c_gui::begin_popup_card_body(const char* popup_name, ImGuiID id, float anim
         ImGuiWindow* window = ImGui::GetCurrentWindow();
         popup_surface(window->DrawList, window->Pos, window->Pos + window->Size,
             15.f * m_scale, surface_alpha, std::strcmp(popup_name, "UserPopupAnim") != 0);
-        // A card's rows are their own run: left inheriting the tab's "a row was already drawn"
-        // state, the first row_begin() inside the card drops a separator on the card's title.
-        // Restored in end_popup_card(), so the row the card belongs to keeps its own rhythm.
-        m_row_started_stack.push_back(m_row_started);
-        m_row_started = false;
     }
 
     if (!open) {
@@ -994,10 +992,6 @@ void c_gui::end_popup_card() {
         state.drag = state.drag_target = ImVec2(0.f, 0.f);
     }
     end_animated_popup();
-    if (!m_row_started_stack.empty()) {
-        m_row_started = m_row_started_stack.back();
-        m_row_started_stack.pop_back();
-    }
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(4);
 }

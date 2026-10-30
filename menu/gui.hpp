@@ -426,6 +426,7 @@ private:
         ImGuiID id;
         bool open;
         bool saved_row_started = false; // row-separator run of the window the popup opened over
+        int saved_row_slot_claims = 0;  // gear/swatches belonging to that outer row
     };
     ImGuiContext* m_popup_context = nullptr;
     int m_popup_context_frame = -1;
@@ -450,7 +451,6 @@ private:
     bool    m_cur_box_auto = false;
     bool    m_force_measure = false; // grid_box(): re-measure content even though a concrete (clamped) height was passed
     bool    m_row_started = false;   // row_checkbox()/row_sub_menu(): false until the first row in this box is drawn
-    std::vector<bool> m_row_started_stack; // saved across begin/end_popup_card(): a card's rows are their own run
     int     m_no_separator_depth = 0; // >0 inside an options-gear card: row_begin() draws no dividers there
 
     // popup_section_begin()/end() state for the currently open section
