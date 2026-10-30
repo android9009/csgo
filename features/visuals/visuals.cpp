@@ -256,7 +256,10 @@ void draw_visuals_players() {
     // side, not a CT/T settings panel. The standalone GUI has no agent renderer, so leave it clear.
     gui.end_grid();
 
-    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked, content_origin, content_width);
+    const ImVec2 right_column_origin = content_origin + ImVec2(
+        column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
+    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
+                         right_column_origin, column_width);
     if (ui.active_side == 0) {
         esp.m_bounding_box = enemy_items.main_items[0];
         esp.m_name = enemy_items.main_items[1];
