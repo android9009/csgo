@@ -75,7 +75,7 @@ void AddSquircle(ImDrawList* draw, ImVec2 p_min, ImVec2 p_max, ImColor col, floa
 void c_gui::render_circle_for_horizontal_bar( ImVec2 pos, ImColor color, float alpha ) {
 
     auto draw = GetWindowDrawList( );
-    draw->AddCircleFilled( pos, 6, ImColor( color.Value.x, color.Value.y, color.Value.z, alpha * GetStyle( ).Alpha ) );
+    draw->AddCircleFilled( pos, 6.f * m_scale, ImColor( color.Value.x, color.Value.y, color.Value.z, alpha * GetStyle( ).Alpha ) );
 }
 
 bool c_gui::tab( const char* icon, const char* label, bool selected, float indent ) {
@@ -90,7 +90,7 @@ bool c_gui::tab( const char* icon, const char* label, bool selected, float inden
     auto pos = window->DC.CursorPos;
     auto draw = window->DrawList;
 
-    ImRect bb( pos, pos + ImVec2( GetWindowWidth( ), 30 ) );
+    ImRect bb( pos, pos + ImVec2( GetWindowWidth( ), 30.f * m_scale ) );
     ItemAdd( bb, id );
     ItemSize( bb, GetStyle( ).FramePadding.y );
 
@@ -115,7 +115,7 @@ bool c_gui::tab( const char* icon, const char* label, bool selected, float inden
 
     float bg_alpha = ImClamp(value->second.active + (value->second.hover * 0.4f), 0.f, 1.f);
     if (bg_alpha > 0.01f) {
-        draw->AddRectFilled( bg_bb.Min, bg_bb.Max, gui.tab_active.to_im_color( bg_alpha ), 6 );
+        draw->AddRectFilled( bg_bb.Min, bg_bb.Max, gui.tab_active.to_im_color( bg_alpha ), 6.f * m_scale );
     }
 
     ImVec4 icon_color = gui.text_disabled.to_im_color().Value;
@@ -178,7 +178,7 @@ bool c_gui::subtab( const char* label, bool selected, int size, ImDrawFlags flag
 
     value->second = ImLerp( value->second, ( selected ? 1.f : 0.f ), 0.05f );
 
-    draw->AddRectFilled( bb.Min, bb.Max, gui.frame_active.to_im_color( 0.8f * value->second ), 4, flags );
+    draw->AddRectFilled( bb.Min, bb.Max, gui.frame_active.to_im_color( 0.8f * value->second ), 4.f * m_scale, flags );
 
     draw->AddText( bb.GetCenter( ) - label_size / 2, selected ? gui.text.to_im_color( ) : gui.text_disabled.to_im_color( ), label );
 
@@ -210,14 +210,16 @@ void c_gui::group_box( const char* name, ImVec2 size_arg, bool scrollable ) {
     const float header_h = box_header_h( );
 
     AddSquircleFilled( GetWindowDrawList( ), pos + ImVec2( 0, header_h ), pos + size_arg, gui.group_box_bg.to_im_color( ), 20 * gui.m_scale );
-    AddSquircle( GetWindowDrawList( ), pos + ImVec2( 0, header_h ), pos + size_arg, gui.border.to_im_color( ), 20 * gui.m_scale, 1.0f );
+    AddSquircle( GetWindowDrawList( ), pos + ImVec2( 0, header_h ), pos + size_arg, gui.border.to_im_color( ), 20 * gui.m_scale, 1.0f * m_scale );
 
     // Title centred on its own ink inside the header strip, so the gap above and below it match.
     ImFont* header_font = ImGui::GetIO().Fonts->Fonts[is_popup ? 4 : 6];
     ImU32 header_col = is_popup ? ImU32(gui.text.to_im_color()) : ImU32(GetColorU32( ImGuiCol_Text, 0.5f ));
     const char* header_text = tr( name );
-    const float header_text_y = IM_ROUND( header_h * 0.5f - TextLineCenterY( header_font, header_font->FontSize ) );
-    GetWindowDrawList( )->AddText( header_font, header_font->FontSize, pos + ImVec2( 10 * gui.m_scale, header_text_y - 3 ), header_col, header_text );
+    const float header_fs = scaled_font_size( header_font );
+    const float header_text_y = IM_ROUND( header_h * 0.5f - TextLineCenterY( header_font, header_fs ) );
+    GetWindowDrawList( )->AddText( header_font, header_fs,
+        pos + ImVec2( 10.f * m_scale, header_text_y - 3.f * m_scale ), header_col, header_text );
 
     SetCursorPos( ImVec2( 0, header_h ) );
     PushStyleVar( ImGuiStyleVar_WindowPadding, { 12 * gui.m_scale, gui.box_pad_y * gui.m_scale } ); // Indent contents
@@ -351,8 +353,9 @@ void c_gui::column_title(const char* name) {
     const ImVec2 pos = window->DC.CursorPos;
     const float  header_h = box_header_h( );
     ImFont* font = ImGui::GetIO( ).Fonts->Fonts[ 6 ];
-    const float text_y = IM_ROUND( header_h * 0.5f - TextLineCenterY( font, font->FontSize ) );
-    window->DrawList->AddText( font, font->FontSize, pos + ImVec2( 10 * m_scale, text_y - 3 ),
+    const float font_size = scaled_font_size( font );
+    const float text_y = IM_ROUND( header_h * 0.5f - TextLineCenterY( font, font_size ) );
+    window->DrawList->AddText( font, font_size, pos + ImVec2( 10.f * m_scale, text_y - 3.f * m_scale ),
         ImGui::GetColorU32( ImGuiCol_Text, 0.5f ), tr( name ) );
     // Claim the strip without ItemSpacing on top of it - the next row has to land on header_h.
     ImGui::SetCursorScreenPos( ImVec2( pos.x, pos.y + header_h ) );
@@ -379,12 +382,14 @@ void c_gui::popup_group_box( const char* name, ImVec2 size_arg ) {
     BeginChild( std::string( name ).append( ".popup_main" ).c_str( ), size_arg, false, ImGuiWindowFlags_NoScrollbar );
 
     AddSquircleFilled( GetWindowDrawList( ), pos, pos + size_arg, gui.group_box_bg.to_im_color( ), 6 * gui.m_scale );
-    AddSquircle( GetWindowDrawList( ), pos, pos + size_arg, gui.border.to_im_color( ), 6 * gui.m_scale, 1.0f );
+    AddSquircle( GetWindowDrawList( ), pos, pos + size_arg, gui.border.to_im_color( ), 6 * gui.m_scale, 1.0f * m_scale );
 
     ImFont* header_font = ImGui::GetIO().Fonts->Fonts[4];
-    GetWindowDrawList( )->AddText( header_font, header_font->FontSize, pos + ImVec2( 15 * gui.m_scale, 12 * gui.m_scale ), gui.text.to_im_color(), name );
+    GetWindowDrawList( )->AddText( header_font, scaled_font_size( header_font ),
+        pos + ImVec2( 15.f * m_scale, 12.f * m_scale ), gui.text.to_im_color(), name );
     
-    GetWindowDrawList( )->AddLine( pos + ImVec2( 10 * gui.m_scale, 38 * gui.m_scale ), pos + ImVec2( size_arg.x - (10 * gui.m_scale), 38 * gui.m_scale ), gui.border.to_im_color(), 1.0f );
+    GetWindowDrawList( )->AddLine( pos + ImVec2( 10.f * m_scale, 38.f * m_scale ),
+        pos + ImVec2( size_arg.x - 10.f * m_scale, 38.f * m_scale ), gui.border.to_im_color(), 1.f * m_scale );
 
     SetCursorPos( ImVec2( 0, 45 * gui.m_scale ) );
     PushStyleVar( ImGuiStyleVar_WindowPadding, { 12 * gui.m_scale, 4 * gui.m_scale } );
@@ -404,7 +409,7 @@ bool c_gui::sub_menu(const char* label) {
     const ImGuiStyle& style = g.Style;
     const ImGuiID id = window->GetID(label);
     
-    float w = ImGui::GetContentRegionAvail().x;
+    const float w = row_content_width();
     ImVec2 pos = window->DC.CursorPos;
     // match Checkbox's row height exactly so every row in a group_box is the same thickness
     float row_h = ImMax(19.f * gui.m_scale, ImGui::CalcTextSize(label).y) + style.FramePadding.y * 2.f;
@@ -519,7 +524,7 @@ void c_gui::popup_shadow(ImDrawList* draw, ImVec2 min, ImVec2 max, float roundin
     constexpr int points = 4 * (corner_segments + 1);
     const float spread = 20.f * m_scale;
     const float radius = ImClamp(rounding, 0.f, ImMin(max.x - min.x, max.y - min.y) * 0.5f);
-    const ImVec2 clip_pad(spread + 1.f, spread * 1.25f + 1.f);
+    const ImVec2 clip_pad(spread + 1.f * m_scale, spread * 1.25f + 1.f * m_scale);
     draw->PushClipRect(min - clip_pad, max + clip_pad, false);
     draw->PrimReserve(rings * points * 6, (rings + 1) * points);
     const unsigned int base = draw->_VtxCurrentIdx;
@@ -892,19 +897,24 @@ bool c_gui::begin_popup_card(const char* popup_name, bool& wants_open, float ani
 
         if (ImGuiWindow* main_win = ImGui::FindWindowByName("DARKSIDE##neverlose")) {
             const float top = main_win->Pos.y, bottom = main_win->Pos.y + main_win->Size.y;
+            const float margin = 10.f * m_scale, vertical_margin = 16.f * m_scale;
             if (exact_pos) {
                 // click_pos is an anchor the caller picked (e.g. just under its button), not the
                 // cursor - place the card there verbatim, only kept inside the menu.
-                target.x = ImClamp(target.x, main_win->Pos.x + 10.f, ImMax(main_win->Pos.x + 10.f, main_win->Pos.x + main_win->Size.x - my_size.x - 10.f));
-                target.y = ImClamp(target.y, top + 10.f, ImMax(top + 10.f, bottom - my_size.y - 10.f));
+                target.x = ImClamp(target.x, main_win->Pos.x + margin,
+                    ImMax(main_win->Pos.x + margin, main_win->Pos.x + main_win->Size.x - my_size.x - margin));
+                target.y = ImClamp(target.y, top + margin, ImMax(top + margin, bottom - my_size.y - margin));
             } else if (allow_outside) {
                 target.x += 45.f * m_scale;
                 pivot.y = 0.5f; // centred on the row it belongs to
-                target.y = ImClamp(target.y, top + 16.f + my_size.y * 0.5f, ImMax(top + 16.f + my_size.y * 0.5f, bottom - 16.f - my_size.y * 0.5f));
+                target.y = ImClamp(target.y, top + vertical_margin + my_size.y * 0.5f,
+                    ImMax(top + vertical_margin + my_size.y * 0.5f, bottom - vertical_margin - my_size.y * 0.5f));
             } else {
-                target.x = ImClamp(target.x, main_win->Pos.x + 10.f, main_win->Pos.x + main_win->Size.x - my_size.x - 10.f);
+                target.x = ImClamp(target.x, main_win->Pos.x + margin,
+                    ImMax(main_win->Pos.x + margin, main_win->Pos.x + main_win->Size.x - my_size.x - margin));
                 pivot.y = 0.1f;
-                target.y = ImClamp(target.y, top + 16.f + my_size.y * 0.1f, ImMax(top + 16.f + my_size.y * 0.1f, bottom - 16.f - my_size.y * 0.9f));
+                target.y = ImClamp(target.y, top + vertical_margin + my_size.y * 0.1f,
+                    ImMax(top + vertical_margin + my_size.y * 0.1f, bottom - vertical_margin - my_size.y * 0.9f));
             }
         }
 
@@ -1021,20 +1031,24 @@ void c_gui::popup_position( const char* name, ImVec2 click_pos, ImVec2 default_s
     if ( click_pos.x == -1.f && click_pos.y == -1.f ) // never clicked: fall back to the menu's center
         target = main_win ? ( main_win->Pos + main_win->Size * 0.5f - my_size * 0.5f ) : ImVec2( 0.f, 0.f );
     else if ( main_win ) {
+        const float margin = 10.f * m_scale;
         if ( beside ) {
             target.x += 45.f * m_scale;
-            target.y = ImClamp( target.y - 20.f, main_win->Pos.y + 10.f, main_win->Pos.y + main_win->Size.y - my_size.y - 10.f );
+            target.y = ImClamp( target.y - 20.f * m_scale, main_win->Pos.y + margin,
+                ImMax( main_win->Pos.y + margin, main_win->Pos.y + main_win->Size.y - my_size.y - margin ) );
         } else {
-            target.x = ImClamp( target.x, main_win->Pos.x + 10.f, main_win->Pos.x + main_win->Size.x - my_size.x - 10.f );
-            target.y = ImClamp( target.y, main_win->Pos.y + 10.f, main_win->Pos.y + main_win->Size.y - my_size.y - 10.f );
+            target.x = ImClamp( target.x, main_win->Pos.x + margin,
+                ImMax( main_win->Pos.x + margin, main_win->Pos.x + main_win->Size.x - my_size.x - margin ) );
+            target.y = ImClamp( target.y, main_win->Pos.y + margin,
+                ImMax( main_win->Pos.y + margin, main_win->Pos.y + main_win->Size.y - my_size.y - margin ) );
         }
     }
 
-    target.y += ( 1.f - anim ) * 20.f; // slide down while fading in
+    target.y += ( 1.f - anim ) * 20.f * m_scale; // slide down while fading in
 
     ImVec2& current = m_popup_slide_pos[ id ];
     if ( !win || win->Hidden )
-        current = target + ImVec2( 0.f, 15.f );
+        current = target + ImVec2( 0.f, 15.f * m_scale );
     current = ImLerp( current, target, g.IO.DeltaTime * 12.f );
     ImGui::SetNextWindowPos( current, ImGuiCond_Always );
 }
@@ -1378,10 +1392,8 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
     return clicked_index;
 }
 
-// The wordmark above the sidebar's divider. Every constant here is an unscaled pixel because the
-// strip belongs to the menu chrome (imgui.cpp draws the side panel 170 wide and its divider at
-// y = 60 at every menu scale) while the fonts are baked scaled - so the lockup is measured once
-// against the strip and shrunk to fit instead.
+// The wordmark above the sidebar's divider. Both the chrome strip and its explicit-font text
+// use design pixels multiplied by the menu scale; the fit check still handles long wordmarks.
 void c_gui::name_plate( ImVec2 min, float width ) {
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
     if ( window->SkipItems )
@@ -1391,11 +1403,12 @@ void c_gui::name_plate( ImVec2 min, float width ) {
     ImFontAtlas* atlas = ImGui::GetIO().Fonts;
     ImFont* logo_font = atlas->Fonts.Size > 1 ? atlas->Fonts[1] : ImGui::GetFont();
     static const char* const wordmark = "PASTAWARE";
+    const float s = m_scale;
 
     const ImVec2 strip_min(min.x, min.y);
-    const ImVec2 strip_max(min.x + width, min.y + 60.f);
-    const float available_width = width - 24.f;
-    float font_size = logo_font->FontSize;
+    const ImVec2 strip_max(min.x + width, min.y + 60.f * s);
+    const float available_width = width - 24.f * s;
+    float font_size = scaled_font_size( logo_font );
     ImVec2 text_size = logo_font->CalcTextSizeA(font_size, FLT_MAX, 0.f, wordmark);
     if (text_size.x > available_width) {
         font_size *= available_width / text_size.x;
@@ -1403,12 +1416,12 @@ void c_gui::name_plate( ImVec2 min, float width ) {
     }
 
     const ImVec2 text_pos(
-        IM_ROUND(strip_min.x + 12.f),
+        IM_ROUND(strip_min.x + 12.f * s),
         IM_ROUND((strip_min.y + strip_max.y) * 0.5f - TextLineCenterY(logo_font, font_size)));
 
-    // SST Bold and the one-pixel accent/shadow layer reproduce the compact NEVERLOSE wordmark.
+    // SST Bold and the accent/shadow layer reproduce the compact NEVERLOSE wordmark.
     draw->PushClipRect(strip_min, strip_max, true);
-    draw->AddText(logo_font, font_size, text_pos + ImVec2(1.f, 1.f),
+    draw->AddText(logo_font, font_size, text_pos + ImVec2(1.f * s, 1.f * s),
                   accent_color.to_im_color(0.38f), wordmark);
     draw->AddText(logo_font, font_size, text_pos, text.to_im_color(), wordmark);
     draw->PopClipRect();
@@ -1616,10 +1629,9 @@ bool c_gui::overlay_begin( const char* id, bool* open, bool* dots_clicked ) {
 
     const float s = m_scale;
     const float base_alpha = g.Style.Alpha; // read before the fade is pushed, or it counts twice
-    // 170 and 20, not 170 * s: the menu's own chrome (imgui.cpp, the hijacked NoBackground path)
-    // paints its side panel and its corners at fixed pixel sizes, so scaling these would leave a
-    // strip of the tab showing beside the panel at any menu scale other than 100%.
-    const float side_w = 170.f;                           // the sidebar keeps working underneath
+    // Match the scaled sidebar painted by imgui.cpp; otherwise an overlay leaves a strip of the
+    // underlying tab visible at every scale other than 100%.
+    const float side_w = 170.f * s;                       // the sidebar keeps working underneath
     const ImVec2 min( menu->Pos.x + side_w, menu->Pos.y );
     const ImVec2 max( menu->Pos.x + menu->Size.x, menu->Pos.y + menu->Size.y );
 
@@ -1654,7 +1666,7 @@ bool c_gui::overlay_begin( const char* id, bool* open, bool* dots_clicked ) {
 
     // The scrim: the same blurred surface every popup uses, with the menu's rounding on the right.
     ImDrawList* draw = window->DrawList;
-    const float rounding = 20.f;
+    const float rounding = 20.f * s;
     draw->PushClipRect( min, max, false );
     // The blur samples the back buffer as it stands *now* - the tab underneath has already been
     // drawn, so it is the menu itself that gets blurred. The tint has to stay translucent or it
@@ -1721,7 +1733,7 @@ bool c_gui::framed_row( const char* label, bool selected, const char* action_ico
     const float s = m_scale, h = 36.f * s;
     // Without a box around it the content region is the whole window, so a column hands its own
     // width in (see gui.grid_width()).
-    const float w = width > 0.f ? width : ImGui::GetContentRegionAvail( ).x;
+    const float w = width > 0.f ? width : row_content_width( );
     const ImVec2 p = ImGui::GetCursorScreenPos( );
     ImDrawList* draw = window->DrawList;
     ImFont* font = ImGui::GetFont( );
@@ -1813,12 +1825,13 @@ void c_gui::config_popup( const char* popup_name, bool clicked, std::vector<conf
     const float header_h = 30.f * s;
     {
         const ImVec2 icon_sz  = ImGui::CalcTextSize( ICON_FA_CLOUD );
-        const ImVec2 label_sz = bold->CalcTextSizeA( bold->FontSize, FLT_MAX, 0.f, tr( "Presets" ) );
+        const float bold_fs = scaled_font_size( bold );
+        const ImVec2 label_sz = bold->CalcTextSizeA( bold_fs, FLT_MAX, 0.f, tr( "Presets" ) );
         const float  badge_w  = 12.f * s + icon_sz.x + 7.f * s + label_sz.x + 12.f * s;
 
         draw->AddRectFilled( origin, origin + ImVec2( badge_w, header_h ), accent_color.to_im_color( ), 8.f * s );
         draw->AddText( ImVec2( origin.x + 12.f * s, IM_ROUND( origin.y + ( header_h - icon_sz.y ) * 0.5f ) ), c_white, ICON_FA_CLOUD );
-        draw->AddText( bold, bold->FontSize, ImVec2( origin.x + 12.f * s + icon_sz.x + 7.f * s,
+        draw->AddText( bold, bold_fs, ImVec2( origin.x + 12.f * s + icon_sz.x + 7.f * s,
                        IM_ROUND( origin.y + ( header_h - label_sz.y ) * 0.5f ) ), c_white, tr( "Presets" ) );
 
         const ImVec2 btn( 28.f * s, 28.f * s );
@@ -2268,6 +2281,15 @@ void c_gui::apply_style_colors( ) {
     c[ ImGuiCol_ScrollbarGrab ]        = text_disabled.to_vec4( 0.45f, false );
     c[ ImGuiCol_ScrollbarGrabHovered ] = text.to_vec4( 0.70f, false );
     c[ ImGuiCol_ScrollbarGrabActive ]  = accent_color.to_vec4( 0.90f, false );
+
+    // Reset the stock metrics from design pixels every frame. ScaleAllSizes() is deliberately
+    // not used here: this function runs every frame and cumulative scaling would compound.
+    style.WindowPadding    = ImVec2( 8.f * m_scale, 8.f * m_scale );
+    style.FramePadding     = ImVec2( 4.f * m_scale, 3.f * m_scale );
+    style.ItemSpacing      = ImVec2( 8.f * m_scale, 4.f * m_scale );
+    style.ItemInnerSpacing = ImVec2( 4.f * m_scale, 4.f * m_scale );
+    style.IndentSpacing    = 21.f * m_scale;
+    style.GrabMinSize      = 10.f * m_scale;
     style.ScrollbarSize     = 6.f * m_scale;
     style.ScrollbarRounding = 3.f * m_scale;
 }
@@ -2731,7 +2753,7 @@ static void draw_color_preview( ImDrawList* draw, ImVec2 min, ImVec2 max, const 
         } );
     }
     // hairline so near-black (dark theme) / near-white (light theme) colors don't vanish
-    draw->AddRect( min, max, ImGui::GetColorU32( gui.theme ? ImVec4( 0.f, 0.f, 0.f, 0.12f ) : ImVec4( 1.f, 1.f, 1.f, 0.08f ) ), rounding, 0, 1.f );
+    draw->AddRect( min, max, ImGui::GetColorU32( gui.theme ? ImVec4( 0.f, 0.f, 0.f, 0.12f ) : ImVec4( 1.f, 1.f, 1.f, 0.08f ) ), rounding, 0, 1.f * gui.m_scale );
 }
 
 static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, float s, float alpha = 1.f ) {
@@ -2750,8 +2772,9 @@ void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
         : track_off;
     draw->AddRectFilled(bb.Min, bb.Max,
         ImGui::GetColorU32(ImLerp(track_off, track_on, t)), rounding);
-    draw->AddRect(bb.Min + ImVec2(0.5f, 0.5f), bb.Max - ImVec2(0.5f, 0.5f),
-        switch_rim.to_im_color(), rounding - 0.5f, 0, 1.f);
+    draw->AddRect(bb.Min + ImVec2(0.5f * m_scale, 0.5f * m_scale),
+        bb.Max - ImVec2(0.5f * m_scale, 0.5f * m_scale),
+        switch_rim.to_im_color(), rounding - 0.5f * m_scale, 0, 1.f * m_scale);
     const float inset = 2.f * m_scale;
     const float radius = ImMax(0.f, rounding - inset);
     const float x = ImLerp(bb.Min.x + rounding, bb.Max.x - rounding, t);
@@ -2843,8 +2866,7 @@ ImRect c_gui::row_slot_rect( row_control control ) const {
     // just left of that control instead of on top of it or down by the label.
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
     const ImGuiStyle& style = ImGui::GetStyle( );
-    const float avail = ImGui::GetContentRegionAvail( ).x;
-    const float w = is_popup_window( window ) ? ImMin( ImGui::CalcItemWidth( ), avail ) : avail;
+    const float w = row_content_width( );
     const float row_h = ImMax( 19.f * m_scale, ImGui::GetFontSize( ) ) + style.FramePadding.y * 2.f;
     const float sz = 16.f * m_scale;
     const ImVec2 pos = window->DC.CursorPos;
@@ -3114,11 +3136,10 @@ void c_gui::color_card_body( ImGuiID state_id, ImGuiID mode_id, ImGuiID view_id,
     // ---- input row: [v HEX] [swatch #RRGGBBAA] [82%] [gradient] ----
     const int e = st.stop;
     ImVec4& cur = *stops[ e ];
-    // The whole row (HEX / RGB, the value, the percentage) is drawn with the caption face at its
-    // baked size - asking the 15px body font for 14px text is a scaled bitmap, and that is what
-    // made this line look rough next to the rest of the card.
+    // The whole row (HEX / RGB, the value, the percentage) uses the caption face rather than
+    // asking the body font for a different size. Its design size follows the active menu scale.
     ImFont* row_font = small_font( );
-    const float fs = row_font->FontSize;
+    const float fs = scaled_font_size( row_font );
     const float row_h = 26.f * s;
     const float ry = alp.Max.y + 14.f * s;
     const float ty = IM_ROUND( ry + row_h * 0.5f - TextLineCenterY( row_font, fs ) );
@@ -3382,8 +3403,7 @@ bool c_gui::row_color_begin( const char* label, color_slot* slots, int count, co
     row_begin( );
 
     const ImGuiStyle& style = ImGui::GetStyle( );
-    const float avail = ImGui::GetContentRegionAvail( ).x;
-    const float w = is_popup_window( window ) ? ImMin( ImGui::CalcItemWidth( ), avail ) : avail;
+    const float w = row_content_width( );
     const char* shown = tr( label ); // IDs below stay on the English label
     const ImVec2 lsz = ImGui::CalcTextSize( shown, NULL, true );
     const float row_h = ImMax( switch_h( ), lsz.y ) + style.FramePadding.y * 2.f;
@@ -3469,11 +3489,21 @@ void c_gui::color_picker_end( ) {
 //  Rows for popup cards
 // ---------------------------------------------------------------------------------------
 
-float c_gui::popup_row_width( ) const {
-    // Same rule as Checkbox: inside a popup section the section's item width bounds the row.
-    ImGuiWindow* window = ImGui::GetCurrentWindow( );
+float c_gui::row_content_width( ) const {
     const float avail = ImGui::GetContentRegionAvail( ).x;
-    return is_popup_window( window ) ? ImMin( ImGui::CalcItemWidth( ), avail ) : avail;
+    ImGuiWindow* window = ImGui::GetCurrentWindow( );
+    const ImGuiContext& g = *GImGui;
+    const bool explicit_width = window->DC.ItemWidthStack.Size > 0 ||
+        ( g.NextItemData.Flags & ImGuiNextItemDataFlags_HasWidth ) != 0;
+
+    // CalcItemWidth() is the default font-based width unless the caller pushed a real one. Using
+    // that default as a popup's right anchor leaves controls short of a wide card; an explicit
+    // width, on the other hand, is how popup_section_begin() reserves both of its inner margins.
+    return explicit_width ? ImMin( ImGui::CalcItemWidth( ), avail ) : avail;
+}
+
+float c_gui::popup_row_width( ) const {
+    return row_content_width( );
 }
 
 c_gui::popup_row_state c_gui::popup_row_impl( const char* icon, const char* label, bool lit ) {
@@ -3510,7 +3540,7 @@ void c_gui::popup_row_value( const popup_row_state& r, const char* value ) {
     const float s = m_scale, row_h = 32.f * s, small = 15.f * s;
     const float cy = r.pos.y + row_h * 0.5f;
     ImFont* caption = small_font( );
-    const float chev_fs = caption->FontSize;
+    const float chev_fs = scaled_font_size( caption );
     const ImVec2 csz = caption->CalcTextSizeA( chev_fs, FLT_MAX, 0.f, ICON_FA_CHEVRON_RIGHT );
     const float cx = r.pos.x + r.w - 4.f * s - csz.x;
     const ImU32 col = cfg_mix( text_disabled.to_vec4( 1.f, false ), text.to_vec4( 1.f, false ), r.t * 0.6f );
@@ -3721,7 +3751,7 @@ namespace {
                              IM_COL32( 255, 255, 255, ( int )( 16.f * alpha ) ) );
         draw->PopClipRect( );
 
-        draw->AddRect( min, max, IM_COL32( 255, 255, 255, ( int )( 28.f * alpha ) ), rounding, 0, 1.f );
+        draw->AddRect( min, max, IM_COL32( 255, 255, 255, ( int )( 28.f * alpha ) ), rounding, 0, 1.f * gui.m_scale );
     }
 }
 
@@ -3902,6 +3932,10 @@ void c_gui::spotify_widget_draw( ) {
     ImFont* micro = atlas->Fonts[ 6 ]; // Inter-SemiBold 12.5
     ImFont* small = small_font( );     // Inter-Medium 13 + FA 13
     ImFont* body  = atlas->Fonts[ 0 ]; // Inter-Medium 15 + FA 14 - every icon on this card
+    const float bold_font_size = scaled_font_size( bold );
+    const float micro_font_size = scaled_font_size( micro );
+    const float small_font_size = scaled_font_size( small );
+    const float body_font_size = scaled_font_size( body );
 
     const float ca = ImGui::GetStyle( ).Alpha;
     const float w = content_w;
@@ -3941,9 +3975,9 @@ void c_gui::spotify_widget_draw( ) {
 
     // ---- header -------------------------------------------------------------------------------
     {
-        const float fs = micro->FontSize;
-        const ImVec2 icon_sz = body->CalcTextSizeA( body->FontSize, FLT_MAX, 0.f, ICON_FA_MUSIC );
-        draw->AddText( body, body->FontSize, ImVec2( IM_ROUND( origin.x ), IM_ROUND( y + 2.f * s ) ),
+        const float fs = micro_font_size;
+        const ImVec2 icon_sz = body->CalcTextSizeA( body_font_size, FLT_MAX, 0.f, ICON_FA_MUSIC );
+        draw->AddText( body, body_font_size, ImVec2( IM_ROUND( origin.x ), IM_ROUND( y + 2.f * s ) ),
             accent_color.to_im_color( ), ICON_FA_MUSIC );
         draw->AddText( micro, fs, ImVec2( IM_ROUND( origin.x + icon_sz.x + 7.f * s ), IM_ROUND( y + 4.f * s ) ),
             text.to_im_color( 0.85f ), tr( "Spotify" ) );
@@ -4059,24 +4093,24 @@ void c_gui::spotify_widget_draw( ) {
             draw->AddCircle( gc, ( 13.f + i * 5.f + breath * 2.f ) * s,
                 accent_color.to_im_color( 0.13f / i ), 40, 1.5f * s );
 
-        const float gfs = body->FontSize; // baked size, not 1.5x of a 13px face
+        const float gfs = body_font_size; // body face at the active menu scale
         const ImVec2 gsz = body->CalcTextSizeA( gfs, FLT_MAX, 0.f, ICON_FA_MUSIC );
         draw->AddText( body, gfs, ImVec2( IM_ROUND( gc.x - gsz.x * 0.5f ),
                                           IM_ROUND( gc.y - TextInkCenterY( body, gfs, ICON_FA_MUSIC ) ) ),
             accent_color.to_im_color( 0.85f ), ICON_FA_MUSIC );
 
-        const ImVec2 hsz = bold->CalcTextSizeA( bold->FontSize, FLT_MAX, 0.f, head );
-        draw->AddText( bold, bold->FontSize, ImVec2( IM_ROUND( origin.x + ( w - hsz.x ) * 0.5f ),
+        const ImVec2 hsz = bold->CalcTextSizeA( bold_font_size, FLT_MAX, 0.f, head );
+        draw->AddText( bold, bold_font_size, ImVec2( IM_ROUND( origin.x + ( w - hsz.x ) * 0.5f ),
                                                      IM_ROUND( y + 46.f * s ) ), text.to_im_color( ), head );
 
-        const ImVec2 ssz = micro->CalcTextSizeA( micro->FontSize, FLT_MAX, 0.f, sub );
-        draw->AddText( micro, micro->FontSize, ImVec2( IM_ROUND( origin.x + ( w - ssz.x ) * 0.5f ),
+        const ImVec2 ssz = micro->CalcTextSizeA( micro_font_size, FLT_MAX, 0.f, sub );
+        draw->AddText( micro, micro_font_size, ImVec2( IM_ROUND( origin.x + ( w - ssz.x ) * 0.5f ),
                                                        IM_ROUND( y + 68.f * s ) ), text_disabled.to_im_color( ), sub );
 
         if ( st.status != spotify::status_t::unsupported ) {
             const char* label = st.status == spotify::status_t::idle ? tr( "Open Spotify" ) : tr( "Open Spotify" );
             const float bh = 30.f * s;
-            const float bw = ImMin( w, micro->CalcTextSizeA( micro->FontSize, FLT_MAX, 0.f, label ).x + 52.f * s );
+            const float bw = ImMin( w, micro->CalcTextSizeA( micro_font_size, FLT_MAX, 0.f, label ).x + 52.f * s );
             const ImVec2 bmin( IM_ROUND( origin.x + ( w - bw ) * 0.5f ), IM_ROUND( y + 88.f * s ) );
 
             ImGui::SetCursorScreenPos( bmin );
@@ -4091,16 +4125,16 @@ void c_gui::spotify_widget_draw( ) {
                 draw->AddRect( bmin - grow - ImVec2( 3.f, 3.f ) * s, bmin + ImVec2( bw, bh ) + grow + ImVec2( 3.f, 3.f ) * s,
                     accent_color.to_im_color( 0.30f * t ), bh * 0.5f + 3.f * s, 0, 1.5f * s );
 
-            const ImVec2 lsz = micro->CalcTextSizeA( micro->FontSize, FLT_MAX, 0.f, label );
-            const ImVec2 isz = body->CalcTextSizeA( body->FontSize, FLT_MAX, 0.f, ICON_FA_EXTERNAL_LINK_ALT );
+            const ImVec2 lsz = micro->CalcTextSizeA( micro_font_size, FLT_MAX, 0.f, label );
+            const ImVec2 isz = body->CalcTextSizeA( body_font_size, FLT_MAX, 0.f, ICON_FA_EXTERNAL_LINK_ALT );
             const float block = isz.x + 7.f * s + lsz.x;
             const float bx = bmin.x + ( bw - block ) * 0.5f;
             const float by = bmin.y + bh * 0.5f;
-            draw->AddText( body, body->FontSize, ImVec2( IM_ROUND( bx ),
-                IM_ROUND( by - TextInkCenterY( body, body->FontSize, ICON_FA_EXTERNAL_LINK_ALT ) ) ),
+            draw->AddText( body, body_font_size, ImVec2( IM_ROUND( bx ),
+                IM_ROUND( by - TextInkCenterY( body, body_font_size, ICON_FA_EXTERNAL_LINK_ALT ) ) ),
                 IM_COL32( 255, 255, 255, ( int )( 255.f * ca ) ), ICON_FA_EXTERNAL_LINK_ALT );
-            draw->AddText( micro, micro->FontSize, ImVec2( IM_ROUND( bx + isz.x + 7.f * s ),
-                IM_ROUND( by - TextLineCenterY( micro, micro->FontSize ) ) ),
+            draw->AddText( micro, micro_font_size, ImVec2( IM_ROUND( bx + isz.x + 7.f * s ),
+                IM_ROUND( by - TextLineCenterY( micro, micro_font_size ) ) ),
                 IM_COL32( 255, 255, 255, ( int )( 255.f * ca ) ), label );
 
             if ( pressed )
@@ -4152,7 +4186,7 @@ void c_gui::spotify_widget_draw( ) {
         draw->PushClipRect( ImVec2( tx, y ), ImVec2( tx + tw, y + art_sz ), true );
         {
             // Marquee with a hold at each end, so a long title is readable instead of always moving.
-            const float fs = bold->FontSize;
+            const float fs = bold_font_size;
             const ImVec2 sz = bold->CalcTextSizeA( fs, FLT_MAX, 0.f, title );
             float x = tx;
             if ( sz.x > tw ) {
@@ -4164,15 +4198,15 @@ void c_gui::spotify_widget_draw( ) {
             draw->AddText( bold, fs, ImVec2( IM_ROUND( x ), IM_ROUND( y + 4.f * s + slide ) ),
                 text.to_im_color( ease ), title );
         }
-        draw->AddText( small, small->FontSize, ImVec2( IM_ROUND( tx ), IM_ROUND( y + 26.f * s + slide * 1.4f ) ),
+        draw->AddText( small, small_font_size, ImVec2( IM_ROUND( tx ), IM_ROUND( y + 26.f * s + slide * 1.4f ) ),
             cfg_mix( c_dim, c_text, 0.55f * ease ), artist );
         if ( !st.album.empty( ) )
-            draw->AddText( micro, micro->FontSize, ImVec2( IM_ROUND( tx ), IM_ROUND( y + 44.f * s + slide * 1.8f ) ),
+            draw->AddText( micro, micro_font_size, ImVec2( IM_ROUND( tx ), IM_ROUND( y + 44.f * s + slide * 1.8f ) ),
                 text_disabled.to_im_color( 0.75f * ease ), st.album.c_str( ) );
         draw->PopClipRect( );
 
         if ( icon_button( "##sp_focus", ImVec2( origin.x + w - 10.f * s, y + 12.f * s ), 24.f * s,
-                          ICON_FA_EXTERNAL_LINK_ALT, body, body->FontSize, 0.f, 0.10f, true ) )
+                          ICON_FA_EXTERNAL_LINK_ALT, body, body_font_size, 0.f, 0.10f, true ) )
             spotify::launch( ); // already running, so this brings its window forward
     }
     y += art_sz + 14.f * s;
@@ -4223,7 +4257,7 @@ void c_gui::spotify_widget_draw( ) {
         char a[ 16 ], b[ 16 ];
         sp_format_time( a, IM_ARRAYSIZE( a ), active ? drag_t * st.duration : st.position );
         sp_format_time( b, IM_ARRAYSIZE( b ), st.duration );
-        const float fs = micro->FontSize;
+        const float fs = micro_font_size;
         const ImVec2 bsz = micro->CalcTextSizeA( fs, FLT_MAX, 0.f, b );
         const float ty = IM_ROUND( bmax.y + 7.f * s );
         draw->AddText( micro, fs, ImVec2( IM_ROUND( origin.x ), ty ), text_disabled.to_im_color( ), a );
@@ -4238,11 +4272,11 @@ void c_gui::spotify_widget_draw( ) {
         const float gap = 36.f * s;
 
         if ( icon_button( "##sp_shuffle", ImVec2( cx - gap * 2.f, cy ), 24.f * s, ICON_FA_RANDOM,
-                          body, body->FontSize, st.shuffle ? 1.f : 0.f, 0.12f, st.can_shuffle ) )
+                          body, body_font_size, st.shuffle ? 1.f : 0.f, 0.12f, st.can_shuffle ) )
             spotify::set_shuffle( !st.shuffle );
 
         if ( icon_button( "##sp_prev", ImVec2( cx - gap, cy ), 27.f * s, ICON_FA_STEP_BACKWARD,
-                          body, body->FontSize, 0.f, 0.12f, st.can_previous ) )
+                          body, body_font_size, 0.f, 0.12f, st.can_previous ) )
             spotify::previous( );
 
         // play / pause: the accent disc, with the two glyphs cross-fading through play_t
@@ -4258,7 +4292,7 @@ void c_gui::spotify_widget_draw( ) {
             draw->AddCircleFilled( ImVec2( cx, cy ), r * k * 1.28f, accent_color.to_im_color( 0.16f * t ), 40 );
             draw->AddCircleFilled( ImVec2( cx, cy ), r * k, accent_color.to_im_color( ), 48 );
 
-            const float fs = body->FontSize; // the disc scales on hover, the glyph never does
+            const float fs = body_font_size; // hover animates the disc, not the glyph size
             const auto glyph = [ & ]( const char* g, float a, float dx ) {
                 if ( a <= 0.01f ) return;
                 const ImVec2 sz = body->CalcTextSizeA( fs, FLT_MAX, 0.f, g );
@@ -4274,12 +4308,12 @@ void c_gui::spotify_widget_draw( ) {
         }
 
         if ( icon_button( "##sp_next", ImVec2( cx + gap, cy ), 27.f * s, ICON_FA_STEP_FORWARD,
-                          body, body->FontSize, 0.f, 0.12f, st.can_next ) )
+                          body, body_font_size, 0.f, 0.12f, st.can_next ) )
             spotify::next( );
 
         if ( icon_button( "##sp_repeat", ImVec2( cx + gap * 2.f, cy ), 24.f * s,
                           st.repeat == spotify::repeat_t::one ? ICON_FA_REDO_ALT : ICON_FA_REDO,
-                          body, body->FontSize, st.repeat != spotify::repeat_t::off ? 1.f : 0.f,
+                          body, body_font_size, st.repeat != spotify::repeat_t::off ? 1.f : 0.f,
                           0.12f, st.can_repeat ) )
             spotify::cycle_repeat( );
 
@@ -4336,10 +4370,10 @@ void c_gui::spotify_widget_draw( ) {
             if ( ly.state != spotify::lyrics_state_t::ready || ly.lines.empty( ) ) {
                 const char* note = ly.state == spotify::lyrics_state_t::loading ? tr( "Loading lyrics" )
                                                                                : tr( "No lyrics for this track" );
-                const ImVec2 nsz = lil->CalcTextSizeA( lil->FontSize, FLT_MAX, 0.f, note );
-                draw->AddText( lil, lil->FontSize,
+                const ImVec2 nsz = lil->CalcTextSizeA( scaled_font_size( lil ), FLT_MAX, 0.f, note );
+                draw->AddText( lil, scaled_font_size( lil ),
                     ImVec2( IM_ROUND( pmin.x + ( w - nsz.x ) * 0.5f ),
-                            IM_ROUND( ( pmin.y + pmax.y ) * 0.5f - lil->FontSize * 0.5f ) ),
+                            IM_ROUND( ( pmin.y + pmax.y ) * 0.5f - scaled_font_size( lil ) * 0.5f ) ),
                     text_disabled.to_im_color( ), note );
             }
             else {
@@ -4355,8 +4389,8 @@ void c_gui::spotify_widget_draw( ) {
                 for ( int i = 0; i < count; ++i ) {
                     ImFont* f = ( i == active ) ? big : lil;
                     const float lh = ly.lines[ i ].text.empty( )
-                        ? f->FontSize * 0.55f
-                        : f->CalcTextSizeA( f->FontSize, FLT_MAX, wrap, ly.lines[ i ].text.c_str( ) ).y;
+                        ? scaled_font_size( f ) * 0.55f
+                        : f->CalcTextSizeA( scaled_font_size( f ), FLT_MAX, wrap, ly.lines[ i ].text.c_str( ) ).y;
                     if ( i == active ) { active_y = cursor; active_h = lh; }
                     cursor += lh + 10.f * s;
                 }
@@ -4379,8 +4413,8 @@ void c_gui::spotify_widget_draw( ) {
                     ImFont* f = ( i == active ) ? big : lil;
                     const char* txt = ly.lines[ i ].text.c_str( );
                     const float lh = ly.lines[ i ].text.empty( )
-                        ? f->FontSize * 0.55f
-                        : f->CalcTextSizeA( f->FontSize, FLT_MAX, wrap, txt ).y;
+                        ? scaled_font_size( f ) * 0.55f
+                        : f->CalcTextSizeA( scaled_font_size( f ), FLT_MAX, wrap, txt ).y;
 
                     const float ly_top = pmin.y + 10.f * s + cursor - sp_ui.lyrics_scroll;
                     cursor += lh + 10.f * s;
@@ -4409,7 +4443,7 @@ void c_gui::spotify_widget_draw( ) {
                                                       : text.to_im_color( a * 0.9f );
 
                     const float slide = ( i == active ) ? ( 1.f - sp_ui.lyrics_line_t ) * 5.f * s : 0.f;
-                    draw->AddText( f, f->FontSize, ImVec2( IM_ROUND( pmin.x + inset ), IM_ROUND( ly_top + slide ) ),
+                    draw->AddText( f, scaled_font_size( f ), ImVec2( IM_ROUND( pmin.x + inset ), IM_ROUND( ly_top + slide ) ),
                         col, txt, nullptr, wrap );
                 }
             }
@@ -4442,7 +4476,7 @@ void c_gui::user_profile( ImVec2 min, ImVec2 max, void* avatar_tex ) {
     const bool card_up = ImGui::IsPopupOpen( ImGui::GetID( popup_name ), ImGuiPopupFlags_None );
     const float t = cfg_anim( btn_id, ImGui::IsItemHovered( ) || card_up );
 
-    draw->AddLine( min, max - ImVec2(0, 40), border.to_im_color(), 1.f * s); // same plate as a selected tab
+    draw->AddLine( min, max - ImVec2(0.f, 40.f * s), border.to_im_color(), 1.f * s); // same plate as a selected tab
     //draw->AddRectFilled( min, max, tab_active.to_im_color( 0.55f + 0.45f * t ), 8.f * s ); // same plate as a selected tab
 
     const float h = max.y - min.y;
@@ -4455,10 +4489,10 @@ void c_gui::user_profile( ImVec2 min, ImVec2 max, void* avatar_tex ) {
         draw->AddCircleFilled( av_min + ImVec2( av, av ) * 0.5f, av * 0.5f, frame_active.to_im_color( ), 32 );
 
     const char* status = tr( user_status.c_str( ) );
-    // The sub-line and the chevron come from the caption face at its own baked size - drawn from
-    // the body font they were a scaled bitmap, which read as blurry.
+    // The sub-line and chevron use the caption face; like the body text, they follow menu scale.
     ImFont* small = small_font( );
-    const float name_fs = ImGui::GetFontSize( ), sub_fs = small->FontSize, chev_fs = small->FontSize;
+    const float name_fs = ImGui::GetFontSize();
+    const float sub_fs = scaled_font_size( small ), chev_fs = sub_fs;
     const ImVec2 name_sz = font->CalcTextSizeA( name_fs, FLT_MAX, 0.f, user_name.c_str( ) );
     const ImVec2 sub_sz  = small->CalcTextSizeA( sub_fs, FLT_MAX, 0.f, status );
     const ImVec2 chev_sz = small->CalcTextSizeA( chev_fs, FLT_MAX, 0.f, ICON_FA_CHEVRON_RIGHT );
@@ -4501,7 +4535,7 @@ void c_gui::user_profile_card( bool& wants_open, float anim, ImVec2 anchor, void
         const ImVec2 hp = ImGui::GetCursorScreenPos( );
         const float av = 40.f * s;
         ImFont* caption = small_font( );
-        const float caption_fs = caption->FontSize;
+        const float caption_fs = scaled_font_size( caption );
         const ImVec2 name_sz  = bold->CalcTextSizeA( fs, FLT_MAX, 0.f, user_name.c_str( ) );
         const ImVec2 till_sz  = caption->CalcTextSizeA( caption_fs, FLT_MAX, 0.f, till );
         const ImVec2 renew_sz = caption->CalcTextSizeA( caption_fs, FLT_MAX, 0.f, renew );

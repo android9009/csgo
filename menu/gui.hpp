@@ -64,6 +64,8 @@ public:
     // the room its label has to give up and clears the count again for the next row.
     int m_row_slot_claims = 0;
     float row_slot_step( ) const { return 22.f * m_scale; }
+    // Use the full row unless a caller/section explicitly supplied an item width.
+    float row_content_width( ) const;
     float take_row_slot_reserve( );
 
     // Which control a row is about to draw. The options gear and the colour swatch sit in the gap
@@ -127,7 +129,7 @@ public:
 
     inline void group_title( const char* name ) {
 
-        SetCursorPosX( GetCursorPosX( ) + 10 );
+        SetCursorPosX( GetCursorPosX( ) + 10.f * m_scale );
         ImVec4 title_col = GetStyle( ).Colors[ ImGuiCol_Text ]; // white in Dark, ink in Light
         title_col.w = 0.5f;
         PushStyleColor( ImGuiCol_Text, title_col );
@@ -288,11 +290,15 @@ public:
     bool popup_option( const char* icon, const char* label, const char* const* options, int count, int* index );
     bool popup_toggle( const char* icon, const char* label, bool* v );
 
-    // Small text (captions, chevrons, values): a face baked at its own size, so it stays crisp
-    // instead of being the body font scaled down.
+    // Small text (captions, chevrons, values): use the dedicated face, but scale its baked
+    // design size together with the rest of the menu. Explicit AddText/CalcTextSizeA calls do
+    // not go through ImGui::GetFontSize(), so they need this same scale explicitly.
     ImFont* small_font( ) const {
         ImFontAtlas* atlas = ImGui::GetIO( ).Fonts;
         return atlas->Fonts.Size > 7 ? atlas->Fonts[ 7 ] : ImGui::GetFont( );
+    }
+    float scaled_font_size( const ImFont* font ) const {
+        return font ? font->FontSize * m_scale : 0.f;
     }
 
     // Height of a group box's title strip (the title is centred in it).

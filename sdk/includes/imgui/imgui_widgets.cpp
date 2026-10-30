@@ -1320,9 +1320,8 @@ bool ImGui::Checkbox(const char* label, bool* v)
         true
     );
 
-    const bool is_popup_chk = gui.is_popup_window(window);
-    const float available_w = GetContentRegionAvail().x;
-    const float w = is_popup_chk ? ImMin(CalcItemWidth(), available_w) : available_w;
+    // Follow the scaled card edge, while respecting an explicit width from a popup section.
+    const float w = gui.row_content_width();
 
     const float row_h =
         ImMax(
@@ -2106,9 +2105,9 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
     const float row_h = ImMax(19.f * gui.m_scale, label_size.y) + style.FramePadding.y * 2.f;
     const float combo_h = ImMin(label_size.y + style.FramePadding.y * 2.f, row_h);
     const float combo_y = (row_h - combo_h) * 0.5f;
-    float w = GetContentRegionAvail().x;
-    if (gui.is_popup_window(window))
-        w = ImMin(CalcItemWidth(), w);
+    // Use the complete scaled content row in both group boxes and popup cards. An explicit item
+    // width still wins, so bordered popup sections retain their inner margins.
+    const float w = gui.row_content_width();
     const float combo_w = ImMin(130.f * gui.m_scale, ImMax(70.f * gui.m_scale, w - 72.f * gui.m_scale));
     const ImRect bb(pos + ImVec2(w - combo_w, combo_y), pos + ImVec2(w, combo_y + combo_h));
     const ImRect total_bb(pos, pos + ImVec2(w, row_h));
@@ -2154,7 +2153,7 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
                               bb.Max - ImVec2((show_arrow ? 24.f : 10.f) * gui.m_scale, 0.f));
     if (preview_value && !(flags & ImGuiComboFlags_NoPreview) && preview_rect.GetWidth() > 0.f)
         RenderScrollingText(draw, id, preview_rect, gui.tr(preview_value), text_color, hovered);
-    draw->AddRect(bb.Min, bb.Max, gui.border.to_im_color(), 8.f * gui.m_scale);
+    draw->AddRect(bb.Min, bb.Max, gui.border.to_im_color(), 8.f * gui.m_scale, 0, 1.f * gui.m_scale);
 
     if (show_arrow)
     {
@@ -2167,7 +2166,7 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
             return ImVec2(center.x + x * ca - y * sa, center.y + x * sa + y * ca);
         };
         const ImVec2 chevron[] = { rotate(-3.f, -1.5f), rotate(0.f, 1.5f), rotate(3.f, -1.5f) };
-        draw->AddPolyline(chevron, 3, gui.text.to_im_color(), ImDrawFlags_None, 1.0f);
+        draw->AddPolyline(chevron, 3, gui.text.to_im_color(), ImDrawFlags_None, 1.0f * gui.m_scale);
     }
 
     const char* shown = gui.tr(label); // ID stays on the English label
@@ -2195,7 +2194,7 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
     }
 
     // Shared with the PushStyleVar below so the centering math and the actual padding can't drift.
-    const ImVec2 popup_padding(6.f, 6.f);
+    const ImVec2 popup_padding(6.f * gui.m_scale, 6.f * gui.m_scale);
 
     // Set popup size
     float w = bb.GetWidth();
@@ -2313,7 +2312,7 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
     // Keep the custom left indent, but start at the window's own top padding - forcing y to 0 here
     // zeroed the top gap while auto-fit still reserved WindowPadding.y at the bottom, leaving the
     // list visibly off-center inside its surface.
-    SetCursorPos(ImVec2(8, g.Style.WindowPadding.y));
+    SetCursorPos(ImVec2(8.f * gui.m_scale, g.Style.WindowPadding.y));
     return true;
 }
 
@@ -2441,8 +2440,9 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
         const char* item_text;
         if (!items_getter(data, i, &item_text))
             item_text = "*Unknown item*";
-        PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 8, 4 ) );
-        if ( Selectable( item_text, item_selected, ImGuiSelectableFlags_NoPadWithHalfSpacing | ImGuiSelectableFlags_DontClosePopups, ImVec2( 0, 25 ) ) )
+        PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 8.f, 4.f ) * gui.m_scale );
+        if ( Selectable( item_text, item_selected, ImGuiSelectableFlags_NoPadWithHalfSpacing | ImGuiSelectableFlags_DontClosePopups,
+                         ImVec2( 0.f, 25.f * gui.m_scale ) ) )
         {
             value_changed = true;
             *current_item = i;
@@ -3642,9 +3642,9 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     ImGuiStyle& style = g.Style;
     ImGuiID id = window->GetID( label );
     const bool is_popup_slider = gui.is_popup_window(window);
-    float w = GetContentRegionAvail().x;
-    if (is_popup_slider)
-        w = ImMin(CalcItemWidth(), w);
+    // The scaled card content region is the row's right anchor, including its value box/track;
+    // row_content_width() preserves an explicitly constrained section width.
+    const float w = gui.row_content_width();
 
     ImVec2 label_size = CalcTextSize( label, 0, 1 );
     // Same floor as Checkbox's switch_h so every row type in a group_box shares the same rhythm/
@@ -3790,14 +3790,14 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
                         ImRect(total_bb.Min.x, total_bb.Min.y, frame_bb.Min.x - 8.f * gui.m_scale - slot_reserve, total_bb.Max.y),
                         gui.tr(label), ColorConvertFloat4ToU32(label_vec), row_is_hovered); // ID stays on the English label
 
-    draw->AddRectFilled( frame_bb.Min, frame_bb.Max, gui.field_bg.to_im_color( ), 5 );
+    draw->AddRectFilled( frame_bb.Min, frame_bb.Max, gui.field_bg.to_im_color( ), 5.f * gui.m_scale );
     float fill_x = ImClamp(frame_bb.Min.x + value->second, frame_bb.Min.x, frame_bb.Max.x);
     if (fill_x > frame_bb.Min.x + 0.1f)
     {
         const ImDrawFlags fill_corners = is_popup_slider && fill_x < frame_bb.Max.x
             ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersAll;
         draw->AddRectFilled(frame_bb.Min, ImVec2(fill_x, frame_bb.Max.y),
-                            gui.accent_color.to_im_color(), 5.f, fill_corners);
+                            gui.accent_color.to_im_color(), 5.f * gui.m_scale, fill_corners);
     }
 
     if (is_popup_slider)
@@ -3846,10 +3846,11 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
         return value_changed;
     }
 
-    draw->AddCircleFilled( ImVec2( frame_bb.Min.x + value->second, frame_bb.GetCenter( ).y ), 6, ImColor(255, 255, 255, (int)(255 * style.Alpha)), 30 );
+    draw->AddCircleFilled( ImVec2( frame_bb.Min.x + value->second, frame_bb.GetCenter( ).y ),
+        6.f * gui.m_scale, ImColor(255, 255, 255, (int)(255 * style.Alpha)), 30 );
 
     draw->AddRectFilled( number_bb.Min, number_bb.Max, gui.field_bg.to_im_color( ), 6.f * gui.m_scale );
-    draw->AddRect( number_bb.Min, number_bb.Max, gui.border.to_im_color( ), 6.f * gui.m_scale );
+    draw->AddRect( number_bb.Min, number_bb.Max, gui.border.to_im_color( ), 6.f * gui.m_scale, 0, 1.f * gui.m_scale );
 
     // Centred on the number's own ink, so "180" and "48" sit on the same line as every label.
     const ImVec2 number_size = CalcTextSize( value_buf, value_buf_end );
@@ -6495,7 +6496,8 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
 
         draw_list->AddRectFilledMultiColorRounded(ImVec2(bar0_pos_x + 5 * (sv_picker_size / 6), picker_pos.y + sv_picker_size + style.ItemInnerSpacing.y), ImVec2(bar0_pos_x + (5 + 1) * (sv_picker_size / 6), picker_pos.y + sv_picker_size + style.ItemInnerSpacing.y + bars_width), gui.frame_inactive.to_im_color( ), col_hues[5], col_hues[5 + 1], col_hues[5 + 1], col_hues[5], 4, ImDrawFlags_RoundCornersRight);
         float bar0_line_x = IM_ROUND(picker_pos.x + H * sv_picker_size);
-        gui.render_circle_for_horizontal_bar( ImVec2( bar0_line_x + 1, picker_pos.y + sv_picker_size + style.ItemInnerSpacing.y + 2 ), hue_color32, style.Alpha );
+        gui.render_circle_for_horizontal_bar( ImVec2( bar0_line_x + 1.f * gui.m_scale,
+            picker_pos.y + sv_picker_size + style.ItemInnerSpacing.y + 2.f * gui.m_scale ), hue_color32, style.Alpha );
     }
 
     // Render cursor/preview circle (clamp S/V within 0..1 range because floating points colors may lead HSV values to be out of range)
@@ -6511,7 +6513,8 @@ bool ImGui::ColorPicker4(const char* label, float col[4], ImGuiColorEditFlags fl
         draw_list->AddRectFilled(bar1_bb.Min, bar1_bb.Max, ImColor( 0.f, 0.f, 0.f, style.Alpha ), 3 );
         draw_list->AddRectFilledMultiColorRounded(bar1_bb.Min, bar1_bb.Max, gui.frame_inactive.to_im_color( ), ImColor( col[0], col[1], col[2], style.Alpha ), ImColor( col[0], col[1], col[2], 0.f * style.Alpha ), ImColor( col[0], col[1], col[2], 0.f * style.Alpha ), ImColor( col[0], col[1], col[2], style.Alpha ), 3 );
         float bar1_line_x = IM_ROUND(picker_pos.x + (1.0f - alpha) * sv_picker_size);
-        gui.render_circle_for_horizontal_bar( ImVec2( bar1_line_x + 1, bar1_bb.GetCenter( ).y ), ImColor( col[0], col[1], col[2] ), style.Alpha );
+        gui.render_circle_for_horizontal_bar( ImVec2( bar1_line_x + 1.f * gui.m_scale, bar1_bb.GetCenter( ).y ),
+            ImColor( col[0], col[1], col[2] ), style.Alpha );
     }
 
     EndGroup();
@@ -7356,7 +7359,7 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
         TablePopBackgroundChannel();
 
     bool is_popup = gui.is_popup_window(window);
-    float check_area_w = multi_indent >= 0.f ? 26.f * gui.m_scale : 26.f;
+    const float check_area_w = 26.f * gui.m_scale;
 
     // Animate checkmark
     static std::unordered_map<ImGuiID, float> check_anim;
@@ -7371,7 +7374,8 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
         const ImRect check_bounds = CalcWidgetTextBounds(g.Font, check_font_size, check_icon, check_icon + strlen(check_icon));
         const ImU32 check_col = gui.accent_color.to_im_color(ca);
         const float slide_x = (1.f - ca) * -4.f * gui.m_scale;
-        const float center_x = bb.Min.x + (is_popup ? check_area_w * 0.5f : 5.f + check_bounds.GetWidth() * 0.5f) + slide_x;
+        const float center_x = bb.Min.x +
+            (is_popup ? check_area_w * 0.5f : 5.f * gui.m_scale + check_bounds.GetWidth() * 0.5f) + slide_x;
         window->DrawList->AddText(g.Font, check_font_size,
             ImVec2(IM_ROUND(center_x - check_bounds.GetCenter().x), IM_ROUND(bb.GetCenter().y - check_bounds.GetCenter().y)),
             check_col, check_icon);
@@ -7380,7 +7384,7 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
     // Animate text color based on selection
     ImU32 label_col = ImGui::GetColorU32(ImLerp(gui.text_disabled.to_vec4(1.f, false), gui.text.to_vec4(1.f, false), ca));
     
-    const float text_offset_x = multi_indent >= 0.f ? multi_indent : (is_popup ? check_area_w : 5.f);
+    const float text_offset_x = multi_indent >= 0.f ? multi_indent : (is_popup ? check_area_w : 5.f * gui.m_scale);
     const char* shown = gui.tr(label); // ID stays on the English label
     const char* label_end = FindRenderedTextEnd(shown);
     window->DrawList->AddText(

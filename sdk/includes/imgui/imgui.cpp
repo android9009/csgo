@@ -5941,7 +5941,11 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
 
             const ImVec2 menu_min = window->Pos;
             const ImVec2 menu_max = window->Pos + window->Size;
-            const float rounding = 20.0f;
+            // The main window is 800 design pixels wide; its actual size carries the menu scale.
+            // Keep the custom chrome on the same grid as menu.cpp instead of leaving the sidebar
+            // and top bar at their 100% coordinates.
+            const float menu_scale = window->Size.x / 800.0f;
+            const float rounding = 20.0f * menu_scale;
 
 
             // =====================================
@@ -5949,7 +5953,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             // =====================================
 
             const int   shadow_steps = 30;
-            const float shadow_size = 6.0f;
+            const float shadow_size = 6.0f * menu_scale;
             const float max_alpha = 25.0f;
 
             for (int i = shadow_steps; i >= 0; --i)
@@ -5975,7 +5979,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
                     IM_COL32(0, 0, 0, alpha),
                     rounding + spread,
                     ImDrawFlags_RoundCornersAll,
-                    1.0f
+                    1.0f * menu_scale
                 );
             }
 
@@ -5993,7 +5997,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             // panel colors come from the gui palette (Dark / Light theme) - see menu_panel_color()
             window->DrawList->AddRectFilled(
                 window->Pos,
-                window->Pos + ImVec2(170, window->Size.y),
+                window->Pos + ImVec2(170.0f * menu_scale, window->Size.y),
                 menu_panel_color(0),
                 rounding,
                 ImDrawFlags_RoundCornersLeft
@@ -6004,7 +6008,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             // which would composite twice whenever the selected theme uses translucent plates.
             {
                 ImDrawList* dl = window->DrawList;
-                const float seam = window->Pos.x + 170.0f;
+                const float seam = window->Pos.x + 170.0f * menu_scale;
                 const float top = window->Pos.y;
                 const float bottom = window->Pos.y + window->Size.y;
                 const ImU32 side_col = menu_panel_color(0);
@@ -6021,8 +6025,8 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             }
 
             window->DrawList->AddRectFilled(
-                window->Pos + ImVec2(170, 0),
-                window->Pos + ImVec2(window->Size.x, 61),
+                window->Pos + ImVec2(170.0f * menu_scale, 0),
+                window->Pos + ImVec2(window->Size.x, 61.0f * menu_scale),
                 menu_panel_color(1),
                 rounding,
                 ImDrawFlags_RoundCornersTop
@@ -6035,7 +6039,7 @@ void ImGui::RenderWindowDecorations(ImGuiWindow* window, const ImRect& title_bar
             //);
 
             window->DrawList->AddRectFilled(
-                window->Pos + ImVec2(170, 61),
+                window->Pos + ImVec2(170.0f * menu_scale, 61.0f * menu_scale),
                 window->Pos + window->Size,
                 menu_panel_color(2),
                 rounding,

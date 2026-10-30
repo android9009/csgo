@@ -356,7 +356,7 @@ menu_row bind_menu_row(const char* id, const char* icon, const char* label, bool
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = ImGui::GetContentRegionAvail().x, h = 30.f * s;
+    const float w = gui.row_content_width(), h = 30.f * s;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
 
     ImGui::InvisibleButton(id, ImVec2(w, h));
@@ -374,7 +374,7 @@ menu_row bind_menu_row(const char* id, const char* icon, const char* label, bool
     const ImVec4 base = dim ? gui.text_disabled.to_vec4(1.f, false)
                             : ImVec4(tint.x, tint.y, tint.z, tint.w * 0.82f);
     const ImU32 fg = mix_color(base, tint, t);
-    const float fs = font->FontSize, icon_fs = 13.f * s, cy = pos.y + h * 0.5f;
+    const float fs = gui.scaled_font_size(font), icon_fs = 13.f * s, cy = pos.y + h * 0.5f;
 
     const float lx = pos.x + 8.f * s;
     if (icon) {
@@ -397,7 +397,7 @@ menu_row bind_menu_row(const char* id, const char* icon, const char* label, bool
 }
 
 void bind_menu_separator() {
-    const float s = gui.m_scale, w = ImGui::GetContentRegionAvail().x;
+    const float s = gui.m_scale, w = gui.row_content_width();
     const ImVec2 p = ImGui::GetCursorScreenPos() + ImVec2(0.f, 4.f * s);
     ImGui::GetWindowDrawList()->AddLine(p, p + ImVec2(w, 0.f), gui.popup_border.to_im_color(0.55f), 1.f * s);
     ImGui::Dummy(ImVec2(w, 9.f * s));
@@ -408,11 +408,11 @@ bool bind_key_row(bind_entry& entry, bool is_draft = false) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = ImGui::GetContentRegionAvail().x, h = 30.f * s;
+    const float w = gui.row_content_width(), h = 30.f * s;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##key", ImVec2(w, h));
 
-    const float fs = font->FontSize, cy = pos.y + h * 0.5f;
+    const float fs = gui.scaled_font_size(font), cy = pos.y + h * 0.5f;
     draw->AddText(font, fs, ImVec2(pos.x + 8.f * s, IM_ROUND(cy - TextLineCenterY(font, fs))),
                   gui.text.to_im_color(1.f, false), gui.tr("Key"));
 
@@ -448,11 +448,11 @@ bool bind_mode_row(bind_entry& entry) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = ImGui::GetContentRegionAvail().x, h = 30.f * s;
+    const float w = gui.row_content_width(), h = 30.f * s;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##mode", ImVec2(w, h));
 
-    const float fs = font->FontSize, cy = pos.y + h * 0.5f;
+    const float fs = gui.scaled_font_size(font), cy = pos.y + h * 0.5f;
     draw->AddText(font, fs, ImVec2(pos.x + 8.f * s, IM_ROUND(cy - TextLineCenterY(font, fs))),
                   gui.text.to_im_color(1.f, false), gui.tr("Mode"));
 
@@ -500,11 +500,11 @@ bool bind_value_row(const bind_target& target, bind_entry& entry) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = ImGui::GetContentRegionAvail().x, h = 30.f * s;
+    const float w = gui.row_content_width(), h = 30.f * s;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##value", ImVec2(w, h));
 
-    const float fs = font->FontSize, cy = pos.y + h * 0.5f;
+    const float fs = gui.scaled_font_size(font), cy = pos.y + h * 0.5f;
     draw->AddText(font, fs, ImVec2(pos.x + 8.f * s, IM_ROUND(cy - TextLineCenterY(font, fs))),
                   gui.text.to_im_color(1.f, false), gui.tr("Value"));
 
@@ -528,7 +528,7 @@ card_action bind_card_actions(bind_entry& entry, bool is_draft) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = ImGui::GetContentRegionAvail().x, h = 28.f * s;
+    const float w = gui.row_content_width(), h = 28.f * s;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##actions", ImVec2(w, h));
 
@@ -1028,11 +1028,12 @@ void draw_overlay(bool menu_open) {
     if (rows.empty())
         return;
 
-    ImGui::SetNextWindowPos(ImVec2(20.f, 180.f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(230.f * gui.m_scale, 0.f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.f, 10.f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.f);
+    const float s = gui.m_scale;
+    ImGui::SetNextWindowPos(ImVec2(20.f * s, 180.f * s), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(230.f * s, 0.f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.f * s, 10.f * s));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.f * s);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.f * s);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, gui.panel_body.to_vec4(0.94f, false));
     ImGui::PushStyleColor(ImGuiCol_Border, gui.popup_border.to_vec4(0.9f, false));
 
@@ -1051,7 +1052,7 @@ void draw_overlay(bool menu_open) {
         for (const auto& row : rows) {
             ImGui::TextUnformatted(row.label.c_str());
             const float width = ImGui::CalcTextSize(row.binding.c_str()).x;
-            ImGui::SameLine((std::max)(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - width - 12.f));
+            ImGui::SameLine((std::max)(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - width - 12.f * s));
             ImGui::TextColored(gui.accent_color.to_vec4(), "%s", row.binding.c_str());
         }
     }

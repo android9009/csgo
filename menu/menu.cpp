@@ -102,13 +102,14 @@ void draw_top_bar(ImGuiWindow* window) {
     const ImVec2 pos = window->Pos;
     const ImVec2 size = window->Size;
 
-    ImGui::SetCursorPos(ImVec2(190.f, 15.f));
+    const float s = gui.m_scale;
+    ImGui::SetCursorPos(ImVec2(190.f * s, 15.f * s));
     const ImVec2 button_pos = ImGui::GetCursorScreenPos();
 
     if (gui.m_tab == 0)
         weapon_presets_ui::draw(button_pos);
 
-    const int search_tab = gui.search_bar(pos + ImVec2(size.x - 15.f * gui.m_scale, 15.f));
+    const int search_tab = gui.search_bar(pos + ImVec2(size.x - 15.f * s, 15.f * s));
     if (search_tab >= 0)
         switch_tab(search_tab);
 }
@@ -262,17 +263,20 @@ void c_menu::render() {
         const ImVec2 pos = window->Pos;
         const ImVec2 size = window->Size;
 
+        const float s = gui.m_scale;
         gui.m_anim = ImLerp(gui.m_anim, 1.f, 0.045f);
-        gui.name_plate(pos, 170.f);
+        gui.name_plate(pos, 170.f * s);
         shader_bg::update(size, pos);
 
-        draw->AddLine(pos + ImVec2(185.f, 60.f), pos + ImVec2(size.x - 15.f, 60.f), gui.border.to_im_color());
-        draw->AddLine(pos + ImVec2(10.f, 60.f), pos + ImVec2(160.f, 60.f), gui.border.to_im_color());
-        gui.user_profile(pos + ImVec2(10.f, size.y - 48.f), pos + ImVec2(160.f, size.y - 8.f),
-                         steam_avatar::texture());
+        draw->AddLine(pos + ImVec2(185.f * s, 60.f * s),
+                      pos + ImVec2(size.x - 15.f * s, 60.f * s), gui.border.to_im_color());
+        draw->AddLine(pos + ImVec2(10.f * s, 60.f * s),
+                      pos + ImVec2(160.f * s, 60.f * s), gui.border.to_im_color());
+        gui.user_profile(pos + ImVec2(10.f * s, size.y - 48.f * s),
+                         pos + ImVec2(160.f * s, size.y - 8.f * s), steam_avatar::texture());
 
-        ImGui::SetCursorPos(ImVec2(10.f, 70.f));
-        ImGui::BeginChild("##tabs", ImVec2(150.f, size.y - 120.f), false);
+        ImGui::SetCursorPos(ImVec2(10.f * s, 70.f * s));
+        ImGui::BeginChild("##tabs", ImVec2(150.f * s, size.y - 120.f * s), false);
         gui.group_title("AIMBOT");
         if (gui.tab(ICON_FA_CROSSHAIRS, "Rage", gui.m_tab == 0)) switch_tab(0);
         if (gui.tab(ICON_FA_SHIELD_ALT, "Anti-Aim", gui.m_tab == 1)) switch_tab(1);
@@ -292,9 +296,9 @@ void c_menu::render() {
         draw_top_bar(window);
 
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, gui.m_anim);
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.f, 8.f));
-        ImGui::SetCursorPos(ImVec2(185.f, 81.f - 5.f * gui.m_anim));
-        ImGui::BeginChild("##content", ImVec2(size.x - 200.f, size.y - 91.f), false,
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.f * s, 8.f * s));
+        ImGui::SetCursorPos(ImVec2(185.f * s, (81.f - 5.f * gui.m_anim) * s));
+        ImGui::BeginChild("##content", ImVec2(size.x - 200.f * s, size.y - 91.f * s), false,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
         static const char* tab_names[] = {

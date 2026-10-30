@@ -139,6 +139,9 @@ void render_frame(IDirect3DDevice9* present_device) {
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::GetIO().MouseDrawCursor = g_menu->is_opened();
+    // Set the font scale before NewFrame(): ImGui snapshots FontBaseSize and the default item
+    // width there. Doing it after Begin() leaves popup controls using the previous DPI metrics.
+    ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
     g_menu->draw();
     ImGui::Render();
