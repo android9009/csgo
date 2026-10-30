@@ -1345,23 +1345,28 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const float open_t = cfg_anim( ImHashStr( "##open", 0, seg_id ), *active == i, 14.f );
         const float hot = ImMax( cfg_anim( seg_id, hovered ), i == held ? 1.f : 0.f );
         const ImRect bb( p, p + ImVec2( widths[ i ], h ) );
+        const ImVec2 isz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, icons[ i ] );
+        const ImVec2 lsz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, tr( labels[ i ] ) );
+        // Fixed cells keep every icon stationary; the visible plate still grows from the icon
+        // and collapses back into it, restoring the Enemies/Teammates reveal animation.
+        const float open_width = pad * 2.f + isz.x + open_t * ( 6.f * s + lsz.x );
+        const ImRect plate_bb( bb.Min, ImVec2( bb.Min.x + open_width, bb.Max.y ) );
 
         const float plate = ImMax( open_t, hot * 0.5f );
         if ( plate > 0.01f )
-            draw->AddRectFilled( bb.Min, bb.Max, frame_inactive.to_im_color( 0.9f * plate ), 8.f * s );
+            draw->AddRectFilled( plate_bb.Min, plate_bb.Max, frame_inactive.to_im_color( 0.9f * plate ), 8.f * s );
 
         ImVec4 col = ImLerp( text_disabled.to_vec4( 1.f, false ), text.to_vec4( 1.f, false ), hot );
         col = ImLerp( col, accent_color.to_vec4( 1.f, false ), open_t );
         const ImU32 ink = ImGui::GetColorU32( col );
 
-        const ImVec2 isz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, icons[ i ] );
         const float icon_x = bb.Min.x + pad;
         draw->AddText( font, fs, ImVec2( IM_ROUND( icon_x ),
             IM_ROUND( bb.GetCenter( ).y - TextInkCenterY( font, fs, icons[ i ] ) ) ), ink, icons[ i ] );
 
         if ( open_t > 0.01f ) { // label slides out of the icon as the segment opens
             const char* shown = tr( labels[ i ] );
-            draw->PushClipRect( bb.Min, bb.Max, true );
+            draw->PushClipRect( plate_bb.Min, plate_bb.Max, true );
             draw->AddText( font, fs, ImVec2( IM_ROUND( icon_x + isz.x + 6.f * s ),
                 IM_ROUND( bb.GetCenter( ).y - TextLineCenterY( font, fs ) ) ),
                 ImGui::GetColorU32( ImVec4( col.x, col.y, col.z, col.w * open_t ) ), shown );
