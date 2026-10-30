@@ -20,6 +20,56 @@ void switch_tab(int tab) {
     gui.m_anim = 0.f;
 }
 
+void switch_visuals_tab(int tab) {
+    tab = ImClamp(tab, 0, 2);
+    if (gui.m_tab == 3 && gui.m_visuals_subtab == tab)
+        return;
+    gui.m_tab = 3;
+    gui.m_visuals_subtab = tab;
+    gui.m_anim = 0.f;
+}
+
+// The Visuals entry stays in the main sidebar while its two sibling pages slide
+// out underneath it. Keep the rows mounted during the close animation so the
+// sidebar does not jump when another main tab is selected.
+void draw_visuals_subtabs() {
+    static float amount = 0.f;
+    const bool open = gui.m_tab == 3;
+    const float dt = ImMin(ImGui::GetIO().DeltaTime, 0.05f);
+    amount = ImLerp(amount, open ? 1.f : 0.f, 1.f - expf(-18.f * dt));
+    if (amount < 0.002f) {
+        amount = 0.f;
+        return;
+    }
+    if (amount > 0.998f)
+        amount = 1.f;
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const ImVec2 saved_max = window->DC.CursorMaxPos;
+    const float s = gui.m_scale;
+    const float row_step = 30.f * s + ImGui::GetStyle().ItemSpacing.y;
+    const float height = row_step * 2.f * amount;
+
+    ImGui::PushClipRect(start, start + ImVec2(window->Size.x, height), true);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * amount);
+    ImGui::BeginDisabled(!open);
+    ImGui::SetCursorScreenPos(start - ImVec2(0.f, (1.f - amount) * 10.f * s));
+    if (gui.tab(ICON_FA_USER, "Players", gui.m_visuals_subtab == 1, 8.f * s))
+        switch_visuals_tab(1);
+    if (gui.tab(ICON_FA_GLOBE, "World", gui.m_visuals_subtab == 2, 8.f * s))
+        switch_visuals_tab(2);
+    ImGui::EndDisabled();
+    ImGui::PopStyleVar();
+    ImGui::PopClipRect();
+
+    // The two rows were laid out at their full height for smooth clipping;
+    // expose only the animated height to the following Miscellaneous entry.
+    ImGui::SetCursorScreenPos(start + ImVec2(0.f, height));
+    window->DC.CursorMaxPos = ImVec2(ImMax(saved_max.x, start.x),
+                                     ImMax(saved_max.y, start.y + height));
+}
+
 void register_bind_targets() {
     auto& rage = g_cfg->rage_bot;
     menu_binds::register_bool("rage.enabled", "Enabled", &rage.m_enabled);
@@ -284,7 +334,9 @@ void c_menu::render() {
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         gui.group_title("COMMON");
-        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3)) switch_tab(3);
+        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3 && gui.m_visuals_subtab == 0))
+            switch_visuals_tab(0);
+        draw_visuals_subtabs();
         if (gui.tab(ICON_FA_SLIDERS_H, "Miscellaneous", gui.m_tab == 4)) switch_tab(4);
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();

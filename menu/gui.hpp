@@ -56,6 +56,8 @@ public:
 
     float m_anim = 0.f;
     int m_tab = 0;
+    // Visuals sidebar: 0 = Visuals, 1 = Players, 2 = World.
+    int m_visuals_subtab = 0;
     float m_scale = 1.0f;
 
     // How many widgets already own the slot just left of the row's control (the colour swatch,
