@@ -467,7 +467,9 @@ float c_gui::take_row_slot_reserve() {
 
 bool c_gui::row_checkbox(const char* label, bool* v, const char* description) {
     row_begin();
+    m_defer_widget_tooltip = true;
     const bool changed = Checkbox(label, v);
+    m_defer_widget_tooltip = false;
     info_tooltip(label, description);
     return changed;
 }
@@ -551,7 +553,7 @@ void c_gui::popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float roundi
 }
 
 void c_gui::info_tooltip(const char* title, const char* description) {
-    if (!title || !description || !*description)
+    if (!title || !description || !*description || ImGui::FindRenderedTextEnd(title) == title)
         return;
     ImGuiContext& g = *GImGui;
     ImGuiWindow* owner = ImGui::GetCurrentWindow();
@@ -587,7 +589,29 @@ void c_gui::info_tooltip(const char* title, const char* description) {
     g.NextWindowData.ClearFlags();
     const float alpha = g.Style.Alpha * visibility;
     const float rounding = 10.f * m_scale;
-    ImGui::SetNextWindowPos(ImVec2(item_rect.Max.x + 30.f * m_scale, item_rect.Min.y), ImGuiCond_Always);
+
+    // Stay beside the hovered row rather than detaching the card from it. Estimate the auto-sized
+    // tooltip to pick the side with room; the left pivot keeps its right edge next to the row.
+    const float wrap_width = 320.f * m_scale;
+    const ImVec2 title_size = ImGui::CalcTextSize(title);
+    const ImVec2 description_size = ImGui::CalcTextSize(description, nullptr, false, wrap_width);
+    const ImVec2 padding = ImVec2(14.f, 12.f) * m_scale;
+    const float estimated_w = ImMax(title_size.x, description_size.x) + padding.x * 2.f;
+    const float estimated_h = title_size.y + description_size.y + 8.f * m_scale + padding.y * 2.f;
+    const ImGuiViewport* viewport = owner->Viewport;
+    const ImVec2 viewport_min = viewport->Pos;
+    const ImVec2 viewport_max = viewport->Pos + viewport->Size;
+    const float gap = 8.f * m_scale;
+    const float edge = 6.f * m_scale;
+    const float right_x = item_rect.Max.x + gap;
+    const float left_x = item_rect.Min.x - gap;
+    const float right_space = viewport_max.x - edge - right_x;
+    const float left_space = left_x - viewport_min.x - edge;
+    const bool place_left = estimated_w > right_space && left_space > right_space;
+    const float min_y = viewport_min.y + edge;
+    const float max_y = ImMax(min_y, viewport_max.y - estimated_h - edge);
+    const ImVec2 tooltip_pos(place_left ? left_x : right_x, ImClamp(item_rect.Min.y, min_y, max_y));
+    ImGui::SetNextWindowPos(tooltip_pos, ImGuiCond_Always, ImVec2(place_left ? 1.f : 0.f, 0.f));
     ImGui::SetNextWindowSize(ImVec2(0.f, 0.f));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.f, 12.f) * m_scale);
@@ -604,7 +628,7 @@ void c_gui::info_tooltip(const char* title, const char* description) {
         ImGui::TextUnformatted(title, ImGui::FindRenderedTextEnd(title));
         ImGui::PopStyleColor();
         ImGui::PopFont();
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 320.f * m_scale);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrap_width);
         ImGui::PushStyleColor(ImGuiCol_Text, text_soft.to_vec4(1.f, false));
         ImGui::TextUnformatted(description);
         ImGui::PopStyleColor();
@@ -1205,7 +1229,9 @@ bool c_gui::row_multibox( const char* label, const char* const* items, bool* val
         return false;
     }
 
+    m_defer_widget_tooltip = true;
     const bool changed = ImGui::MultiCombo( label, values, items, count );
+    m_defer_widget_tooltip = false;
     info_tooltip( label, description );
     return changed;
 }
@@ -2410,6 +2436,9 @@ namespace {
         { "Legs",              "Ноги",                "Bacaklar" },
         // tooltips
         { "Click to enable or disable this option.", "Нажмите, чтобы включить или выключить.", "Açmak veya kapatmak için tıklayın." },
+        { "Click to choose an option.", "Нажмите, чтобы выбрать вариант.", "Bir seçenek belirlemek için tıklayın." },
+        { "Drag or use the mouse wheel to adjust the value.", "Перетащите ползунок или используйте колесо мыши.", "Değeri ayarlamak için sürükleyin veya fare tekerleğini kullanın." },
+        { "Prefer body hitboxes over head hitboxes when selecting a target.", "Отдавать приоритет попаданиям в тело, а не в голову, при выборе цели.", "Hedef seçerken kafa yerine vücut isabetlerine öncelik verin." },
         { "Open this section to adjust its settings.", "Откройте раздел, чтобы настроить его.", "Ayarlarını değiştirmek için bu bölümü açın." },
         { "Adjust the field of view in degrees.", "Настройка поля зрения в градусах.", "Görüş alanını derece cinsinden ayarlayın." },
         { "Select one item from the list.", "Выберите один пункт из списка.", "Listeden bir öğe seçin." },
@@ -2681,16 +2710,23 @@ static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, 
 void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
     t = ImSaturate(t);
     const float rounding = bb.GetHeight() * 0.5f;
-    // Only the knob position communicates the state. Its colors and the track stay identical
-    // in both positions instead of flashing the accent color when a checkbox is enabled.
+    // The track and the base knob color stay unchanged; the enabled state grows the knob and
+    // adds a soft accent halo instead of recoloring the whole switch.
     draw->AddRectFilled(bb.Min, bb.Max,
         ImGui::GetColorU32(switch_off.to_vec4(1.f, false)), rounding);
     draw->AddRect(bb.Min + ImVec2(0.5f, 0.5f), bb.Max - ImVec2(0.5f, 0.5f),
         switch_rim.to_im_color(), rounding - 0.5f, 0, 1.f);
     const float inset = 2.f * m_scale;
-    const float radius = ImMax(0.f, rounding - inset);
+    const float radius = ImMax(0.f, rounding - inset) * ImLerp(1.f, 1.18f, t);
     const float x = ImLerp(bb.Min.x + rounding, bb.Max.x - rounding, t);
-    draw->AddCircleFilled(ImVec2(x, bb.GetCenter().y), radius,
+    const ImVec2 center(x, bb.GetCenter().y);
+    if (t > 0.001f) {
+        for (int ring = 6; ring >= 1; --ring) {
+            draw->AddCircleFilled(center, radius + ring * 0.75f * m_scale,
+                accent_color.to_im_color(0.025f * t), 32);
+        }
+    }
+    draw->AddCircleFilled(center, radius,
         ImGui::GetColorU32(knob_off.to_vec4(1.f, false)), 32);
 }
 
@@ -3370,7 +3406,9 @@ bool c_gui::row_color( const char* label, color_value* col, const char* descript
 bool c_gui::row_checkbox( const char* label, bool* v, color_value* col, const char* description ) {
     row_begin( );
     color_picker( label, col );
+    m_defer_widget_tooltip = true;
     const bool changed = Checkbox( label, v );
+    m_defer_widget_tooltip = false;
     info_tooltip( label, description );
     return changed;
 }
@@ -3497,7 +3535,9 @@ void c_gui::popup_separator( ) {
 }
 
 bool c_gui::popup_row( const char* icon, const char* label ) {
-    return popup_row_impl( icon, label, false ).clicked;
+    const popup_row_state r = popup_row_impl( icon, label, false );
+    info_tooltip( label, "Open this section to adjust its settings." );
+    return r.clicked;
 }
 
 bool c_gui::popup_option( const char* icon, const char* label, const char* const* options, int count, int* index ) {
@@ -3508,6 +3548,7 @@ bool c_gui::popup_option( const char* icon, const char* label, const char* const
     const bool up = ImGui::IsPopupOpen( ImGui::GetID( popup_name.c_str( ) ), ImGuiPopupFlags_None );
     const popup_row_state r = popup_row_impl( icon, label, up );
     popup_row_value( r, options[ *index ] );
+    info_tooltip( label, "Click to choose an option." );
     return popup_option_card( popup_name.c_str( ), r.clicked, r.pos.y, options, count, index );
 }
 
@@ -3523,6 +3564,7 @@ bool c_gui::popup_toggle( const char* icon, const char* label, bool* v ) {
     const ImVec2 sz( switch_w( ), switch_h( ) );
     const ImVec2 smin( r.pos.x + r.w - 4.f * s - sz.x, r.pos.y + IM_ROUND( ( 32.f * s - sz.y ) * 0.5f ) );
     draw_switch( ImGui::GetWindowDrawList( ), ImRect( smin, smin + sz ), st );
+    info_tooltip( label, "Click to enable or disable this option." );
     return r.clicked;
 }
 

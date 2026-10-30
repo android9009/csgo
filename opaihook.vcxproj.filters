@@ -129,6 +129,9 @@
     <ClCompile Include="features\misc\misc.cpp">
       <Filter>Source Files\features\misc</Filter>
     </ClCompile>
+    <ClCompile Include="features\rage\anti_aim.cpp">
+      <Filter>Source Files\features\rage</Filter>
+    </ClCompile>
     <ClCompile Include="features\rage\rage.cpp">
       <Filter>Source Files\features\rage</Filter>
     </ClCompile>

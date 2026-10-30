@@ -158,6 +158,9 @@ public:
     void row_begin();                             // call before any non-wrapped row widget (e.g. SliderInt)
     bool row_checkbox( const char* label, bool* v, const char* description = "Click to enable or disable this option." );
     bool row_sub_menu( const char* label, const char* description = "Open this section to adjust its settings." );
+    // Set by row wrappers while a stock widget runs: the wrapper supplies its own description
+    // after the call, so the stock widget must not emit a second generic tooltip.
+    bool m_defer_widget_tooltip = false;
     void info_tooltip(const char* title, const char* description);
     void popup_shadow(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha = 1.f);
     void popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha, bool draw_border = true);

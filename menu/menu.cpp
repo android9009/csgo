@@ -392,16 +392,17 @@ void c_menu::render() {
         gui.group_title("AIMBOT");
         if (gui.tab(ICON_FA_CROSSHAIRS, "Rage", gui.m_tab == 0)) switch_tab(0);
         if (gui.tab(ICON_FA_MOUSE, "Legit", gui.m_tab == 1)) switch_tab(1);
+        if (gui.tab(ICON_FA_SHIELD_ALT, "Anti-Aim", gui.m_tab == 2)) switch_tab(2);
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         gui.group_title("COMMON");
-        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 2)) switch_tab(2);
-        if (gui.tab(ICON_FA_SLIDERS_H, "Miscellaneous", gui.m_tab == 3)) switch_tab(3);
+        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3)) switch_tab(3);
+        if (gui.tab(ICON_FA_SLIDERS_H, "Miscellaneous", gui.m_tab == 4)) switch_tab(4);
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         gui.group_title("CUSTOMIZATION");
-        if (gui.tab(ICON_FA_PAINT_BRUSH, "Skins", gui.m_tab == 4)) switch_tab(4);
-        if (gui.tab(ICON_FA_COG, "Config", gui.m_tab == 5)) switch_tab(5);
+        if (gui.tab(ICON_FA_PAINT_BRUSH, "Skins", gui.m_tab == 5)) switch_tab(5);
+        if (gui.tab(ICON_FA_COG, "Config", gui.m_tab == 6)) switch_tab(6);
         ImGui::EndChild();
 
         draw_top_bar(window);
@@ -413,16 +414,17 @@ void c_menu::render() {
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
         static const char* tab_names[] = {
-            "Rage", "Legit", "Visuals", "Miscellaneous", "Skins", "Config"
+            "Rage", "Legit", "Anti-Aim", "Visuals", "Miscellaneous", "Skins", "Config"
         };
         gui.search_scope_begin(gui.m_tab, tab_names[gui.m_tab]);
         switch (gui.m_tab) {
             case 0: draw_rage(); break;
             case 1: draw_legit(); break;
-            case 2: draw_visuals(); break;
-            case 3: draw_misc(); break;
-            case 4: draw_skins(); break;
-            case 5: draw_configs(); break;
+            case 2: draw_anti_aim(); break;
+            case 3: draw_visuals(); break;
+            case 4: draw_misc(); break;
+            case 5: draw_skins(); break;
+            case 6: draw_configs(); break;
             default: switch_tab(0); break;
         }
         gui.search_scope_end();

@@ -11,6 +11,7 @@ add_library(airflow_shell SHARED
   features/config/config.cpp
   features/legit/legit.cpp
   features/misc/misc.cpp
+  features/rage/anti_aim.cpp
   features/rage/rage.cpp
   features/skins/skins.cpp
   features/visuals/visuals.cpp

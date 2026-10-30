@@ -1499,6 +1499,8 @@ bool ImGui::Checkbox(const char* label, bool* v)
         hovered
     );
 
+    if (!gui.m_defer_widget_tooltip)
+        gui.info_tooltip(label, "Click to enable or disable this option.");
     if (pressed)
         menu_binds::sync_bool(bind_target, *v);
     return pressed;
@@ -2172,6 +2174,8 @@ bool ImGui::BeginCombo(const char* label, const char* preview_value, ImGuiComboF
     RenderScrollingText(draw, ImHashStr("##ComboLabel", 0, id),
                         ImRect(total_bb.Min.x, total_bb.Min.y, bb.Min.x - 8.f * gui.m_scale - slot_reserve, total_bb.Max.y),
                         shown, label_color, row_hovered);
+    if (!gui.m_defer_widget_tooltip)
+        gui.info_tooltip(label, "Click to choose an option.");
     if (!popup_open && !gui.popup_fade_visible(popup_id))
         return false;
     g.NextWindowData.Flags = backup_next_window_data_flags;
@@ -3836,6 +3840,8 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
             tip_draw->PopClipRect();
         }
 
+        if (!gui.m_defer_widget_tooltip)
+            gui.info_tooltip(label, "Drag or use the mouse wheel to adjust the value.");
         return value_changed;
     }
 
@@ -3850,6 +3856,8 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
                            IM_ROUND( number_bb.GetCenter( ).y - WidgetTextCenterY( g.Font, g.FontSize, value_buf, value_buf_end ) ) ),
                    gui.text.to_im_color( ), value_buf, value_buf_end );
 
+    if (!gui.m_defer_widget_tooltip)
+        gui.info_tooltip(label, "Drag or use the mouse wheel to adjust the value.");
     return value_changed;
 }
 

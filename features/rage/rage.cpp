@@ -7,12 +7,11 @@ void c_menu::draw_rage() {
     static const char* auto_stop_names[] = { "Early", "Full Stop", "Between Shots", "Air", "Duck" };
 
     auto& rage = g_cfg->rage_bot;
-    auto& anti = g_cfg->anti_hit;
     rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
     auto& cfg = rage.m_weapon_config[rage.m_selected_group];
 
-    // Neverlose layout: left column MAIN + ACCURACY, right column SELECTION + ANTI-AIM. The
-    // options gear sits in the slot left of the control it belongs to; its card holds the
+    // Neverlose layout: left column MAIN + ACCURACY, right column SELECTION. Anti-Aim has its
+    // own tab. The options gear sits in the slot left of the control it belongs to; its card holds the
     // settings that have no row of their own. The group being edited is chosen from the
     // weapon-group selector in the top bar.
     gui.begin_grid(2);
@@ -82,7 +81,8 @@ void c_menu::draw_rage() {
     // Hitboxes (gear: Prefer Body Aim)
     gui.row_begin();
     if (gui.row_options_begin("##hitbox_opts", 216.f, c_gui::row_control::box)) {
-        gui.row_checkbox("Prefer Body Aim", &cfg.m_prefer_body_aim);
+        gui.row_checkbox("Prefer Body Aim", &cfg.m_prefer_body_aim,
+                         "Prefer body hitboxes over head hitboxes when selecting a target.");
         gui.row_options_end();
     }
     gui.row_multibox("Hitboxes", hitbox_names, cfg.m_hitboxes, 6, "Select target hitboxes.");
@@ -117,45 +117,6 @@ void c_menu::draw_rage() {
         cfg.m_minimum_damage == -1 ? "Auto" : "%d");
 
     gui.row_checkbox("Penetrate Walls", &cfg.m_penetration);
-    gui.end_group_box();
-
-    // ANTI-AIM (moved here from its own tab)
-    gui.grid_box("ANTI-AIM", k_auto_height);
-
-    static const char* pitch_modes[]  = { "Off", "Down", "Up", "Zero", "Custom" };
-    static const char* yaw_modes[]    = { "Off", "Local View", "At Target" };
-    static const char* jitter_modes[] = { "Disabled", "Offset", "Center", "3-Way", "5-Way" };
-
-    gui.row_checkbox("Enabled", &anti.m_enabled);
-
-    gui.row_begin(); ImGui::Combo("Pitch", &anti.m_pitch_mode, pitch_modes, IM_ARRAYSIZE(pitch_modes));
-
-    // Yaw (gear: Yaw Add)
-    gui.row_begin();
-    if (gui.row_options_begin("##yaw_opts", 250.f, c_gui::row_control::box)) {
-        gui.row_begin(); ImGui::SliderInt("Yaw Add", &anti.m_yaw_amount, -180, 180);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::Combo("Yaw", &anti.m_yaw_mode, yaw_modes, IM_ARRAYSIZE(yaw_modes));
-
-    // Yaw Jitter (gear: Jitter Amount для offset/center/3-way/5-way)
-    gui.row_begin();
-    if (gui.row_options_begin("##jitter_opts", 250.f, c_gui::row_control::box)) {
-        gui.row_begin(); ImGui::SliderInt("Jitter Range", &anti.m_jitter_amount, 0, 90);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::Combo("Yaw Jitter", &anti.m_yaw_jitter, jitter_modes, IM_ARRAYSIZE(jitter_modes));
-
-    // Slow Walk с слайдером скорости
-    gui.row_begin();
-    if (gui.row_options_begin("##slowwalk_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::SliderInt("Speed", &anti.m_aa_slow_walk_speed, 1, 100, "%d%%");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Slow Walk", &anti.m_aa_slow_walk);
-    
-    gui.row_checkbox("Leg Jitter", &anti.m_leg_jitter);
-    gui.row_checkbox("Freestanding", &anti.m_freestanding);
     gui.end_group_box();
 
     gui.end_grid();
