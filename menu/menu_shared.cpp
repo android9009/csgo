@@ -16,7 +16,7 @@ void load_menu_theme() {
     std::ifstream reader("c:\\airflow\\menu_theme.cfg");
     if (!(reader >> saved_theme))
         saved_theme = 0;
-    gui.apply_theme(saved_theme == 1 ? 1 : 0);
+    gui.apply_theme(std::clamp(saved_theme, 0, 2));
 }
 
 void save_menu_theme() {
@@ -26,7 +26,7 @@ void save_menu_theme() {
         return;
     std::ofstream writer("c:\\airflow\\menu_theme.cfg", std::ios::trunc);
     if (writer)
-        writer << (gui.theme == 1 ? 1 : 0) << '\n';
+        writer << std::clamp(gui.theme, 0, 2) << '\n';
 }
 
 void refresh_config_selection() {

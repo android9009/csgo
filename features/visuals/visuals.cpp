@@ -10,9 +10,16 @@ color_value make_ui_color(float r, float g, float b) {
     return value;
 }
 
-struct players_ui_state {
-    // These options have no gameplay/config backend in the standalone shell yet.
-    // Keep them in one UI state so the controls remain stable while their page is hidden.
+struct esp_items_ui_state {
+    bool main_items[6] = {};
+    bool flags[15] = {};
+    bool weapon_items[6] = {};
+    bool aimbot_items[2] = {};
+};
+
+struct player_side_ui_state {
+    // Missing backends stay in per-side UI state, so Enemies and Teammates never overwrite
+    // one another while the other page is hidden.
     bool offscreen_arrow = false;
     bool sounds = false;
     int player_model = 0;
@@ -20,6 +27,11 @@ struct players_ui_state {
     int on_shot_model = 0;
     int history_model = 0;
     int ragdolls_model = 0;
+    bool disable_model_rendering = false;
+    bool glow = false;
+    int local_model = 0;
+    int local_weapon = 0;
+    int local_transparency = 100;
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
@@ -30,6 +42,25 @@ struct players_ui_state {
     color_value ragdolls_color = make_ui_color(0.65f, 0.63f, 0.75f);
     color_value kill_effect_color = make_ui_color(1.f, 0.20f, 0.30f);
     color_value glow_color = make_ui_color(0.80f, 0.75f, 1.f);
+    esp_items_ui_state esp_items;
+};
+
+struct players_ui_state {
+    int active_side = 0; // 0 = Enemies, 1 = Teammates
+    player_side_ui_state sides[2];
+
+    players_ui_state() {
+        for (auto& side : sides) {
+            side.esp_items.main_items[0] = true; // Bounding Box
+            side.esp_items.main_items[1] = true; // Name
+            side.esp_items.main_items[3] = true; // Health Bar
+            side.esp_items.main_items[4] = true; // Ammo Bar
+            side.esp_items.weapon_items[0] = true; // Text
+        }
+        sides[1].player_color = make_ui_color(0.78f, 0.77f, 1.f);
+        sides[1].behind_walls_color = make_ui_color(1.f, 0.78f, 0.60f);
+        sides[1].glow_color = make_ui_color(0.70f, 0.70f, 0.72f);
+    }
 };
 
 players_ui_state& player_ui() {
@@ -73,36 +104,152 @@ void draw_visuals_common() {
     gui.end_grid();
 }
 
-void draw_visuals_players() {
+void draw_esp_chip_section(const char* id, const char* title, const char* const* labels,
+                           bool* values, int count) {
+    gui.popup_section_begin(id, true, 12.f);
+    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
+    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
+    ImGui::TextUnformatted(gui.tr(title));
+    ImGui::PopFont();
+    ImGui::Dummy(ImVec2(0.f, 8.f * gui.m_scale));
+    gui.chips(id, labels, values, count);
+    gui.popup_section_end();
+}
+
+void draw_esp_items_popup(player_side_ui_state& side, bool clicked) {
+    static const char* main_items[] = {
+        "Bounding Box", "Name", "Distance", "Health Bar", "Ammo Bar", "Skeleton"
+    };
+    static const char* flags[] = {
+        "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
+        "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Order Priority", "Delay"
+    };
+    static const char* weapon_items[] = {
+        "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"
+    };
+    static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
+
+    // The third header icon opens the same card for the currently selected side.
+    if (!gui.popup_begin("ESP Items", clicked, 320.f, true, false))
+        return;
+    draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
+    draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
+    draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
+    draw_esp_chip_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
+    gui.popup_end();
+}
+
+void draw_enemy_side(player_side_ui_state& side) {
     auto& esp = g_cfg->visuals.m_player_esp;
     auto& effects = g_cfg->visuals.m_effects;
     auto& glow = g_cfg->visuals.m_glow;
-    auto& ui = player_ui();
     static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
-    static const float weights[] = { 0.62f, 0.38f };
-
-    // Deliberately leave the second column empty. The player model/panorama preview
-    // belongs there later; it is not part of the standalone GUI yet.
-    gui.begin_grid(2, weights);
-    gui.grid_col(0);
 
     gui.grid_box("ENEMY", k_auto_height);
     gui.row_checkbox("Enabled", &esp.m_enabled);
-    gui.row_checkbox("Offscreen Arrow", &ui.offscreen_arrow, &ui.offscreen_color);
-    gui.row_checkbox("Sounds", &ui.sounds, &ui.sounds_color);
+    gui.row_checkbox("Offscreen Arrow", &side.offscreen_arrow, &side.offscreen_color);
+    gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color);
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
-    gui.row_combo("Player", &ui.player_color, &ui.player_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("Behind Walls", &ui.behind_walls_color, &ui.behind_walls_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("On Shot", &ui.on_shot_color, &ui.on_shot_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("History", &ui.history_color, &ui.history_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("Ragdolls", &ui.ragdolls_color, &ui.ragdolls_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_checkbox("Kill Effect", &effects.m_kill_effect, &ui.kill_effect_color);
-    gui.row_checkbox("Glow", &glow.m_enabled, &ui.glow_color);
+    gui.row_combo("Player", &side.player_color, &side.player_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("On Shot", &side.on_shot_color, &side.on_shot_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("History", &side.history_color, &side.history_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Ragdolls", &side.ragdolls_color, &side.ragdolls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_checkbox("Kill Effect", &effects.m_kill_effect, &side.kill_effect_color);
+    gui.row_checkbox("Glow", &glow.m_enabled, &side.glow_color);
+    gui.end_group_box();
+}
+
+void draw_teammate_side(player_side_ui_state& side) {
+    static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
+    static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
+    static const char* local_weapons[] = { "Default", "Current Weapon" };
+
+    gui.grid_box("TEAMMATE", k_auto_height);
+    gui.row_checkbox("Enabled", &g_cfg->visuals.m_player_esp.m_teammates);
     gui.end_group_box();
 
+    gui.grid_box("TEAMMATE MODEL", k_auto_height);
+    gui.row_combo("Player", &side.player_color, &side.player_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_checkbox("Disable Model Rendering", &side.disable_model_rendering);
+    gui.row_checkbox("Glow", &side.glow, &side.glow_color);
+    gui.end_group_box();
+
+    gui.grid_box("LOCAL PLAYER MODEL", k_auto_height);
+    if (gui.row_popup("Model")) {
+        gui.row_begin(); ImGui::Combo("Mode", &side.local_model, local_models, IM_ARRAYSIZE(local_models));
+        gui.popup_end();
+    }
+    if (gui.row_popup("Weapon")) {
+        gui.row_begin(); ImGui::Combo("Mode", &side.local_weapon, local_weapons, IM_ARRAYSIZE(local_weapons));
+        gui.popup_end();
+    }
+    if (gui.row_popup("Transparency")) {
+        gui.row_begin(); ImGui::SliderInt("Opacity", &side.local_transparency, 0, 100, "%d%%");
+        gui.popup_end();
+    }
+    gui.end_group_box();
+}
+
+void draw_visuals_players() {
+    auto& esp = g_cfg->visuals.m_player_esp;
+    auto& ui = player_ui();
+    static const char* header_icons[] = { ICON_FA_USER, ICON_FA_USER_MINUS, ICON_FA_LIST_ALT };
+    static const char* header_labels[] = { "Enemies", "Teammates", "ESP Items" };
+    static const float weights[] = { 0.62f, 0.38f };
+
+    ui.active_side = ImClamp(ui.active_side, 0, 1);
+    const int previous_side = ui.active_side;
+    const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
+    const bool customize_visible = ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) ||
+                                   gui.popup_fade_visible(customize_id);
+    const ImVec2 header_right = ImGui::GetCursorScreenPos() +
+        ImVec2(ImGui::GetContentRegionAvail().x, -4.f * gui.m_scale);
+    const int header_clicked = gui.icon_tabs("##players_header", header_icons, header_labels,
+        IM_ARRAYSIZE(header_icons), &ui.active_side, header_right, nullptr, customize_visible ? 2 : -1);
+    const bool customize_clicked = header_clicked == 2;
+    if (customize_clicked)
+        ui.active_side = previous_side; // ESP Items is an action, not a third player side
+    else
+        ui.active_side = ImClamp(ui.active_side, 0, 1);
+
+    // The original config has one enemy ESP set. Keep its existing controls live while the
+    // additional per-side customize options remain UI state in the standalone shell.
+    auto& enemy_items = ui.sides[0].esp_items;
+    if (ui.active_side == 0) {
+        enemy_items.main_items[0] = esp.m_bounding_box;
+        enemy_items.main_items[1] = esp.m_name;
+        enemy_items.main_items[2] = esp.m_distance;
+        enemy_items.main_items[3] = esp.m_health_bar;
+        enemy_items.main_items[4] = esp.m_ammo_bar;
+        enemy_items.main_items[5] = esp.m_skeleton;
+        enemy_items.weapon_items[0] = esp.m_weapon;
+    }
+
+    gui.begin_grid(2, weights);
+    gui.grid_col(0);
+    if (ui.active_side == 0)
+        draw_enemy_side(ui.sides[0]);
+    else
+        draw_teammate_side(ui.sides[1]);
+
+    // The right column is the reference's agent-panorama space for the active Enemies/Teammates
+    // side, not a CT/T settings panel. The standalone GUI has no agent renderer, so leave it clear.
     gui.end_grid();
+
+    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked);
+    if (ui.active_side == 0) {
+        esp.m_bounding_box = enemy_items.main_items[0];
+        esp.m_name = enemy_items.main_items[1];
+        esp.m_distance = enemy_items.main_items[2];
+        esp.m_health_bar = enemy_items.main_items[3];
+        esp.m_ammo_bar = enemy_items.main_items[4];
+        esp.m_skeleton = enemy_items.main_items[5];
+        esp.m_weapon = enemy_items.weapon_items[0];
+    }
 }
 
 void draw_visuals_world() {

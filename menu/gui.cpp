@@ -2204,7 +2204,7 @@ bool menu_uses_backdrop_blur() {
 }
 
 void c_gui::apply_theme( int new_theme ) {
-    theme = new_theme;
+    theme = ImClamp( new_theme, 0, 2 );
     if ( theme == 0 ) { // Dark - neutral graphite, with no game-frame tint
         text           = { 0.922f, 0.922f, 0.922f, 1.f };
         text_disabled  = { 0.52f, 0.52f, 0.52f, 1.f };
@@ -2229,7 +2229,7 @@ void c_gui::apply_theme( int new_theme ) {
         divider        = { 1.f, 1.f, 1.f, 30.f / 255.f };
         label_off      = { 150.f / 255.f, 150.f / 255.f, 150.f / 255.f, 1.f };
         label_on       = { 1.f, 1.f, 1.f, 1.f };
-    } else {            // Light - frosted panels, ink text, same accent
+    } else if ( theme == 1 ) { // Light - frosted panels, ink text, same accent
         text           = { 0.110f, 0.118f, 0.145f, 1.f };
         text_disabled  = { 0.463f, 0.482f, 0.529f, 1.f };
         text_soft      = { 0.310f, 0.325f, 0.369f, 1.f };
@@ -2254,6 +2254,31 @@ void c_gui::apply_theme( int new_theme ) {
         divider        = { 0.f, 0.f, 0.f, 0.10f };
         label_off      = { 0.463f, 0.482f, 0.529f, 1.f };
         label_on       = { 0.110f, 0.118f, 0.145f, 1.f };
+    } else {            // Blue - Neverlose's cool navy surfaces and #96A4FF accent
+        text           = { 0.90f, 0.91f, 0.96f, 1.f };
+        text_disabled  = { 0.50f, 0.52f, 0.61f, 1.f };
+        text_soft      = { 0.72f, 0.75f, 0.85f, 1.f };
+        border         = { 0.13f, 0.14f, 0.20f, 1.f };
+        popup_border   = { 0.19f, 0.21f, 0.30f, 1.f };
+        frame_inactive = { 0.105f, 0.115f, 0.17f, 1.f };
+        frame_active   = { 0.070f, 0.078f, 0.125f, 1.f };
+        tab_active     = { 0.15f, 0.16f, 0.23f, 1.f };
+        button         = { 0.10f, 0.11f, 0.16f, 1.f };
+        button_hovered = { 0.08f, 0.09f, 0.14f, 1.f };
+        button_active  = { 0.12f, 0.13f, 0.20f, 1.f };
+        group_box_bg   = { 21.f / 255.f, 22.f / 255.f, 28.f / 255.f, 1.f };
+        panel_side     = { 18.f / 255.f, 19.f / 255.f, 27.f / 255.f, 1.f };
+        panel_top      = { 13.f / 255.f, 14.f / 255.f, 21.f / 255.f, 1.f };
+        panel_body     = { 20.f / 255.f, 20.f / 255.f, 27.f / 255.f, 1.f };
+        popup_bg       = { 20.f / 255.f, 21.f / 255.f, 30.f / 255.f, 1.f };
+        field_bg       = { 27.f / 255.f, 28.f / 255.f, 39.f / 255.f, 1.f };
+        switch_off     = { 14.f / 255.f, 16.f / 255.f, 21.f / 255.f, 1.f };
+        switch_rim     = { 0.59f, 0.64f, 1.f, 0.12f };
+        knob_off       = { 0.53f, 0.55f, 0.64f, 1.f };
+        divider        = { 0.59f, 0.64f, 1.f, 0.10f };
+        label_off      = { 0.57f, 0.59f, 0.68f, 1.f };
+        label_on       = { 0.94f, 0.95f, 1.f, 1.f };
+        accent_color   = { 150.f / 255.f, 164.f / 255.f, 1.f, 1.f };
     }
 }
 
@@ -2303,6 +2328,17 @@ namespace {
         // Visuals -> Players
         { "ENEMY",             "ВРАГ",                "DÜŞMAN" },
         { "ENEMY MODEL",       "МОДЕЛЬ ВРАГА",        "DÜŞMAN MODELİ" },
+        { "TEAMMATE",          "СОЮЗНИК",             "TAKIM ARKADAŞI" },
+        { "TEAMMATE MODEL",    "МОДЕЛЬ СОЮЗНИКА",     "TAKIM ARKADAŞI MODELİ" },
+        { "LOCAL PLAYER MODEL", "МОДЕЛЬ ЛОКАЛЬНОГО ИГРОКА", "YEREL OYUNCU MODELİ" },
+        { "Teammates",         "Союзники",            "Takım Arkadaşları" },
+        { "Disable Model Rendering", "Отключить рендер модели", "Model Renderını Kapat" },
+        { "Model",             "Модель",              "Model" },
+        { "Transparency",      "Прозрачность",        "Şeffaflık" },
+        { "Opacity",           "Непрозрачность",      "Opaklık" },
+        { "Counter-Terrorist", "Спецназ",             "Anti-Terörist" },
+        { "Terrorist",         "Террорист",           "Terörist" },
+        { "Current Weapon",    "Текущее оружие",      "Mevcut Silah" },
         { "Offscreen Arrow",   "Стрелка за экраном",  "Ekran Dışı Ok" },
         { "Sounds",            "Звуки",               "Sesler" },
         { "Player",            "Игрок",               "Oyuncu" },
@@ -2516,6 +2552,7 @@ namespace {
         { "Turkish",           "Türkçe",              "Türkçe" },
         { "Dark",              "Тёмная",              "Koyu" },
         { "Light",             "Светлая",             "Açık" },
+        { "Blue",              "Синяя",               "Mavi" },
         { "Auto",              "Авто",                "Otomatik" },
         { "Metric",            "Метрические",         "Metrik" },
         { "Imperial",          "Имперские",           "Emperyal" },
@@ -2747,7 +2784,7 @@ static void draw_color_preview( ImDrawList* draw, ImVec2 min, ImVec2 max, const 
         } );
     }
     // hairline so near-black (dark theme) / near-white (light theme) colors don't vanish
-    draw->AddRect( min, max, ImGui::GetColorU32( gui.theme ? ImVec4( 0.f, 0.f, 0.f, 0.12f ) : ImVec4( 1.f, 1.f, 1.f, 0.08f ) ), rounding, 0, 1.f * gui.m_scale );
+    draw->AddRect( min, max, ImGui::GetColorU32( gui.theme == 1 ? ImVec4( 0.f, 0.f, 0.f, 0.12f ) : ImVec4( 1.f, 1.f, 1.f, 0.08f ) ), rounding, 0, 1.f * gui.m_scale );
 }
 
 static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, float s, float alpha = 1.f ) {
@@ -2761,9 +2798,11 @@ void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
     const float rounding = bb.GetHeight() * 0.5f;
     // Keep the switch geometry fixed: state feedback is color, not a larger knob.
     const ImVec4 track_off = switch_off.to_vec4(1.f, false);
-    const ImVec4 track_on = theme == 0
-        ? ImVec4(0.42f, 0.45f, 0.78f, 1.f) // blue-violet track in Dark only
-        : track_off;
+    const ImVec4 track_on = theme == 1
+        ? track_off
+        : theme == 2
+            ? accent_color.to_vec4(1.f, false) // Blue: the same #96A4FF as sliders and tabs
+            : ImVec4(0.42f, 0.45f, 0.78f, 1.f); // Dark keeps its original blue-violet track
     draw->AddRectFilled(bb.Min, bb.Max,
         ImGui::GetColorU32(ImLerp(track_off, track_on, t)), rounding);
     draw->AddRect(bb.Min + ImVec2(0.5f * m_scale, 0.5f * m_scale),
@@ -4558,7 +4597,7 @@ void c_gui::user_profile_card( bool& wants_open, float anim, ImVec2 anchor, void
     const char* scales[]    = { "75%", "100%", "125%", "150%", "175%", "200%" };
     const char* unit_opts[] = { "Auto", "Metric", "Imperial" };
     const char* safe_opts[] = { "Disabled", "Enabled" };
-    const char* themes[]    = { "Dark", "Light" };
+    const char* themes[]    = { "Dark", "Light", "Blue" };
     const float scale_values[] = { 0.75f, 1.f, 1.25f, 1.5f, 1.75f, 2.f };
 
     popup_option( ICON_FA_GLOBE,          "Language",      langs,     IM_ARRAYSIZE( langs ),     &language );
@@ -4568,7 +4607,7 @@ void c_gui::user_profile_card( bool& wants_open, float anim, ImVec2 anchor, void
     popup_option( ICON_FA_CLONE,          "Windows Scale", scales,    IM_ARRAYSIZE( scales ),    &win_scale );
     popup_option( ICON_FA_RULER_TRIANGLE, "Units",         unit_opts, IM_ARRAYSIZE( unit_opts ), &units );
 
-    // Style: the cog opens the Dark / Light card, the swatch edits the accent color (no
+    // Style: the cog opens the Dark / Light / Blue card, the swatch edits the accent color (no
     // gradient - the accent is a flat color everywhere). Both go in before the row so they
     // own their clicks; clicking the rest of the row opens the theme card too.
     {

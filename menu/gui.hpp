@@ -96,8 +96,8 @@ public:
 
     color_t group_box_bg = { 0.078f, 0.078f, 0.078f, 1.f };
 
-    // Surfaces the menu draws itself - kept in the palette so the Dark / Light theme swaps them
-    // together with everything above. Dark is opaque neutral graphite; Light keeps its frost.
+    // Surfaces the menu draws itself - kept in the palette so Dark / Light / Blue swap them
+    // together with everything above. Dark and Blue are opaque; Light keeps its frost.
     color_t panel_side = { 0.078f, 0.078f, 0.078f, 1.f };    // menu chrome (imgui.cpp)
     color_t panel_top  = { 0.055f, 0.055f, 0.055f, 1.f };
     color_t panel_body = { 0.051f, 0.051f, 0.051f, 1.f };
@@ -120,9 +120,9 @@ public:
     const char* tr( const char* label ) const;
     std::string trf( const char* fmt, const char* a, const char* b = nullptr ) const;
 
-    // 0 = Dark, 1 = Light. apply_theme() rewrites the palette (the accent is left alone - it's
-    // the user's pick); apply_style_colors() pushes it into ImGuiStyle and must run every frame
-    // after the style is reset.
+    // 0 = Dark, 1 = Light, 2 = Blue. apply_theme() rewrites the palette; Blue also installs its
+    // reference #96A4FF accent, while Dark/Light leave the user's accent alone. apply_style_colors()
+    // pushes the palette into ImGuiStyle and must run every frame after the style is reset.
     int  theme = 0;
     void apply_theme( int new_theme );
     void apply_style_colors( );
