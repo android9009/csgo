@@ -736,8 +736,8 @@ bool skeet_t::extra()
 
     *(uint32_t*)0x4346A898 = ((uint32_t)GetModuleHandleA("client.dll") + 0xDF98A0);
     HMODULE overlay = GetModuleHandleA("gameoverlayrenderer.dll");
-    auto overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B ?? 3C");
-    auto overlayReference = PatternScan(overlay, "89 1D ? ? ? ? F3 0F 10 83");
+    auto overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B 5F 3C");
+    auto overlayReference = PatternScan(overlay, "89 3D ? ? ? ? F3 0F 10 87");
     if (!overlayReturn || !overlayReference) {
         return false;
     }
