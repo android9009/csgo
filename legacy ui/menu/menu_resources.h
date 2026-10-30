@@ -1,0 +1,5 @@
+#pragma once
+
+#define IDR_FONT_INTER_MEDIUM  201
+#define IDR_FONT_INTER_SEMIBOLD 202
+#define IDR_FONT_SST_BOLD       204

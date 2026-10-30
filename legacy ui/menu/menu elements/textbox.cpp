@@ -37,18 +37,14 @@ bool c_menu::input_text_wrapper(const char* label, const char* hint, char* buf, 
 	const ImGuiID id = window->GetID(label);
 	const ImVec2 label_size = CalcTextSize(label, NULL, true);
 
-	const ImVec2 render_frame_size = size_arg;
-
-	ImVec2 frame_size = (size_arg / ImVec2(2.f, 1.f)) - ImVec2(14.f, 0.f);
-
+	const ImVec2 frame_size(130.f, 20.f);
 	const auto pos = window->DC.CursorPos;
-	auto cursor_pos = pos + ImVec2(size_arg - frame_size);
-
-	const ImRect frame_bb(cursor_pos + ImVec2(0.f, 9.f), cursor_pos + frame_size - ImVec2(9.f, 9.f));
-	const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(0.f, 22.f));
+	const auto cursor_pos = pos + ImVec2(size_arg.x - frame_size.x, 0.f);
+	const ImRect frame_bb(cursor_pos + ImVec2(0.f, 4.f), cursor_pos + frame_size + ImVec2(0.f, 4.f));
+	const ImRect total_bb(pos, pos + size_arg);
 
 	ImGuiWindow* draw_window = window;
-	ImVec2 inner_size = frame_size - ImVec2(9.f, 9.f);
+	ImVec2 inner_size = frame_size - ImVec2(12.f, 4.f);
 	if (is_multiline)
 	{
 		if (!ItemAdd(total_bb, id, &frame_bb))
@@ -71,7 +67,10 @@ bool c_menu::input_text_wrapper(const char* label, const char* hint, char* buf, 
 	{
 		ItemSize(total_bb, style.FramePadding.y);
 		if (!ItemAdd(total_bb, id, &frame_bb))
+		{
+			ImGui::PopStyleColor();
 			return false;
+		}
 	}
 	const bool hovered = ItemHoverable(frame_bb, id);
 	if (hovered)
@@ -592,13 +591,12 @@ bool c_menu::input_text_wrapper(const char* label, const char* hint, char* buf, 
 	// on_directx frame
 	if (!is_multiline)
 	{
-		auto frame_back_alpha = (80 + 30 * mod_frame.hovered_alpha) * alpha;
-		c_color frame_clr = c_color(0, 0, 0).increase(38 * mod_frame.hovered_alpha).new_alpha(frame_back_alpha);
-		draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, frame_clr.as_imcolor(), 4.f);
+		draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, c_color(25, 27, 36, 255.f * alpha).as_imcolor(), 8.f);
+		draw_list->AddRect(frame_bb.Min, frame_bb.Max, c_color(30, 33, 44, 255.f * alpha).as_imcolor(), 8.f);
 	}
 
 	const ImVec4 clip_rect(frame_bb.Min.x, frame_bb.Min.y, frame_bb.Min.x + inner_size.x, frame_bb.Min.y + inner_size.y); // Not using frame_bb.Max because we have adjusted size
-	ImVec2 draw_pos = is_multiline ? draw_window->DC.CursorPos : frame_bb.Min + ImVec2(10.f, 7.f);
+	ImVec2 draw_pos = is_multiline ? draw_window->DC.CursorPos : frame_bb.Min + ImVec2(8.f, 3.f);
 	ImVec2 text_size(0.0f, 0.0f);
 
 	// Set upper limit of single-line InputTextEx() at 2 million characters strings. The current pathological worst case is a long line
@@ -815,17 +813,15 @@ bool c_menu::input_text_wrapper(const char* label, const char* hint, char* buf, 
 	const bool hovered_frame = ItemHoverable(ImRect(pos, pos + size_arg), id);
 	this->create_animation(mod.hovered_alpha, hovered_frame, 1.f, lerp_animation);
 
-	// background
-	auto back_alpha = (20 + (30 * mod.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(pos, pos + size_arg, back_clr.as_imcolor(), 4.f);
+	// Borderless Darkside row; the editable field was drawn before its text.
 
 	// Log as text
 	if (g.LogEnabled && !(is_password && !is_displaying_hint))
 		LogRenderedText(&draw_pos, buf_display, buf_display_end);
 
 	if (label_size.x > 0)
-		RenderText(ImVec2(pos.x + 12, pos.y + 16), label);
+		RenderTextClipped(total_bb.Min, ImVec2(frame_bb.Min.x - 8.f, total_bb.Max.y), label, NULL, &label_size, ImVec2(0.f, 0.5f));
+	draw_list->AddLine(ImVec2(pos.x, total_bb.Max.y), ImVec2(pos.x + size_arg.x, total_bb.Max.y), c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 
 	if (value_changed && !(flags & ImGuiInputTextFlags_NoMarkEdited))
 		MarkItemEdited(id);
@@ -842,5 +838,5 @@ bool c_menu::input_text_wrapper(const char* label, const char* hint, char* buf, 
 bool c_menu::input_text(const char* label, char* buf, size_t buf_size, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data)
 {
 	IM_ASSERT(!(flags & ImGuiInputTextFlags_Multiline)); // call InputTextMultiline()
-	return this->input_text_wrapper(label, NULL, buf, (int)buf_size, ImVec2(256, 48), flags, callback, user_data);
+	return this->input_text_wrapper(label, NULL, buf, (int)buf_size, ImVec2(ImMax(130.f, GetContentRegionAvail().x), 28.f), flags, callback, user_data);
 }

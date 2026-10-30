@@ -244,14 +244,14 @@ void c_menu::draw_ui_background()
 	imgui_blur::create_blur(list, pos, max, c_color(11, 14, 22, 244.f * a).as_imcolor(), 6.f);
 	list->AddRectFilled(pos, pos + ImVec2(170, 600), c_color(18, 20, 29, 216.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Left);
 	list->AddRectFilled(pos + ImVec2(170, 0), pos + ImVec2(800, 61), c_color(11, 15, 23, 232.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Top);
-	list->AddRectFilled(pos + ImVec2(170, 61), max, c_color(11, 14, 22, 226.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Bottom);
+	list->AddRectFilled(pos + ImVec2(170, 61), max, c_color(11, 14, 22, 226.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Bot);
 	list->AddRect(pos, max, c_color(30, 33, 44, 255.f * a).as_imcolor(), 6.f);
 	list->AddLine(pos + ImVec2(185, 60), pos + ImVec2(785, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
 	list->AddLine(pos + ImVec2(10, 60), pos + ImVec2(160, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
 
-	ImGui::PushFont(RENDER->fonts.dmg.get());
-	list->AddText(pos + ImVec2(12, 22) + ImVec2(1, 1), accent.new_alpha(96.f * a).as_imcolor(), CXOR("AIRFLOW"));
-	list->AddText(pos + ImVec2(12, 22), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("AIRFLOW"));
+	ImGui::PushFont(RENDER->fonts.menu_logo.get());
+	list->AddText(pos + ImVec2(12, 15) + ImVec2(1, 1), accent.new_alpha(96.f * a).as_imcolor(), CXOR("AIRFLOW"));
+	list->AddText(pos + ImVec2(12, 15), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("AIRFLOW"));
 	ImGui::PopFont();
 
 	const auto top_title = tabs[tab_selector].c_str();
@@ -331,7 +331,9 @@ void c_menu::begin_group_box(const char* name)
 		c_color(18, 20, 29, 255.f * get_alpha()).as_imcolor(), 20.f);
 	darkside_ui::squircle(ImGui::GetWindowDrawList(), pos + ImVec2(0, header_h), pos + ImVec2(width, height),
 		c_color(30, 33, 44, 255.f * get_alpha()).as_imcolor(), 20.f);
-	ImGui::GetWindowDrawList()->AddText(pos + ImVec2(10, 7), c_color(235, 235, 240, 128.f * get_alpha()).as_imcolor(), name);
+	ImGui::PushFont(RENDER->fonts.menu_header.get());
+	ImGui::GetWindowDrawList()->AddText(pos + ImVec2(10, 9), c_color(235, 235, 240, 128.f * get_alpha()).as_imcolor(), name);
+	ImGui::PopFont();
 	ImGui::SetCursorPos(ImVec2(0, header_h));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
 	ImGui::BeginChild(name, ImVec2(width, height - header_h), false,
@@ -351,8 +353,8 @@ void c_menu::end_group_box()
 	group_box_heights[state.id] = content_h + 32.f;
 	ImGui::PopStyleVar();
 	ImGui::EndGroup();
-	ImGui::EndChild();
-	ImGui::EndChild();
+	ImGui::EndChild(false);
+	ImGui::EndChild(false);
 	ImGui::PopStyleVar();
 	draw_list = state.previous_draw_list;
 }

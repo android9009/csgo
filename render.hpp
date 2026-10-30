@@ -43,6 +43,23 @@ public:
         size = font_size;
     }
 
+    INLINE bool init_resource(const ImGuiIO& io, int resource_id, float font_size, ImFontConfig* cfg, const ImWchar* ranges)
+    {
+        const HMODULE module = HACKS->modules.dllmain;
+        const HRSRC resource = module ? FindResourceW(module, MAKEINTRESOURCEW(resource_id), MAKEINTRESOURCEW(10)) : nullptr;
+        const HGLOBAL loaded = resource ? LoadResource(module, resource) : nullptr;
+        void* data = loaded ? LockResource(loaded) : nullptr;
+        const DWORD data_size = resource ? SizeofResource(module, resource) : 0;
+        if (!data || !data_size)
+            return false;
+
+        ImFontConfig resource_cfg = *cfg;
+        resource_cfg.FontDataOwnedByAtlas = false;
+        ptr = io.Fonts->AddFontFromMemoryTTF(data, static_cast<int>(data_size), font_size, &resource_cfg, ranges);
+        size = font_size;
+        return ptr != nullptr;
+    }
+
     INLINE ImFont* get() 
     {
         return ptr;
@@ -60,6 +77,8 @@ private:
     struct fonts_t
     {
         c_d3dfont main{};
+        c_d3dfont menu_header{};
+        c_d3dfont menu_logo{};
         c_d3dfont misc{};
         c_d3dfont esp{};
         c_d3dfont bold{};

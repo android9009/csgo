@@ -541,4 +541,11 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemGroup>
+    <ResourceCompile Include="airflow_menu.rc" />
+    <ClInclude Include="legacy ui\menu\menu_resources.h" />
+    <None Include="legacy ui\menu\fonts\Inter-Medium.ttf" />
+    <None Include="legacy ui\menu\fonts\Inter-SemiBold.ttf" />
+    <None Include="legacy ui\menu\fonts\SSTBold.TTF" />
+  </ItemGroup>
 </Project>

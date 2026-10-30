@@ -5,7 +5,7 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 {
 	float alpha = this->get_alpha();
 
-	const ImVec2& size_arg = ImVec2(256, 48);
+	const ImVec2 size_arg(ImMax(130.f, GetContentRegionAvail().x), 28.f);
 
 	var.key = std::clamp(var.key, -1, 255);
 
@@ -13,7 +13,10 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 	if (window->SkipItems)
+	{
+		ImGui::PopStyleColor();
 		return false;
+	}
 
 	ImGuiContext& g = *GImGui;
 	ImGuiIO& io = g.IO;
@@ -23,24 +26,20 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 	bool popup_open = IsPopupOpen(id);
 	const ImVec2 label_size = ImGui::CalcTextSize(label, NULL, true);
 
-	const ImVec2 render_frame_size = size_arg;
-
-	ImVec2 frame_size = (size_arg / ImVec2(3.f, 1.f)) - ImVec2(14.f, 0.f);
-
+	const ImVec2 frame_size(80.f, 20.f);
 	const auto pos = window->DC.CursorPos;
-	auto cursor_pos = pos + ImVec2(size_arg - frame_size);
+	const auto cursor_pos = pos + ImVec2(size_arg.x - frame_size.x, 0.f);
+	const ImRect frame_bb(cursor_pos + ImVec2(0.f, 4.f), cursor_pos + frame_size + ImVec2(0.f, 4.f));
+	const ImRect total_bb(pos, pos + size_arg);
 
-	const ImRect frame_bb(cursor_pos + ImVec2(0.f, 9.f), cursor_pos + frame_size - ImVec2(9.f, 9.f));
-	const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(0.f, 22.f));
-
-	ImGuiWindow* draw_window = window;
 	ItemSize(total_bb, style.FramePadding.y);
 	if (!ItemAdd(total_bb, id, &frame_bb))
+	{
+		ImGui::PopStyleColor();
 		return false;
+	}
 
 	const bool focus_requested = ImGui::FocusableItemRegister(window, g.ActiveId == id);
-	const bool focus_requested_by_code = focus_requested && (window->DC.FocusCounterAll == window->DC.FocusCounterTab);
-	const bool focus_requested_by_tab = focus_requested && !focus_requested_by_code;
 
 	const bool hovered = ImGui::ItemHoverable(frame_bb, id);
 
@@ -142,9 +141,9 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 		// 3 bind mods
 		float max_size = calc_max_popup_height(3);
 
-		auto items_size = ImVec2(63.f, max_size * popup_mod.alpha);
+		auto items_size = ImVec2(80.f, max_size * popup_mod.alpha);
 		SetNextWindowSize(items_size);
-		SetNextWindowPos(frame_bb.Min + ImVec2(0.f, 31.f));
+		SetNextWindowPos(frame_bb.Min + ImVec2(0.f, 24.f));
 		SetNextWindowBgAlpha(alpha * popup_mod.alpha);
 
 		// We don't use BeginPopupEx() solely because we have a custom name string, which we could make an argument to BeginPopupEx()
@@ -160,7 +159,7 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 		if (!ret)
 		{
 			EndPopup();
-			IM_ASSERT(0); // This should never happen as we tested for IsPopupOpen() above
+			ImGui::PopStyleColor();
 			return false;
 		}
 
@@ -185,29 +184,9 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 	auto& mod_frame = item_animations[CONST_HASH(label) + HASH("frame")];
 	this->create_animation(mod_frame.hovered_alpha, hovered || g.ActiveId == id, 1.f, lerp_animation);
 
-	// background
-	auto back_alpha = (20 + (30 * mod.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(pos, pos + size_arg, back_clr.as_imcolor(), 4.f);
-
-	// popup
-	if (popup_open)
-	{
-		draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, c_color(5, 5, 5, 150 * alpha * popup_mod.alpha).u32(), 4.f, ImDrawCornerFlags_Top);
-	}
-	else
-	{
-		// frame
-		auto frame_back_alpha = (80 + 30 * mod_frame.hovered_alpha) * alpha;
-		c_color frame_clr = c_color(0, 0, 0).increase(38 * mod_frame.hovered_alpha).new_alpha(frame_back_alpha);
-		draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, frame_clr.as_imcolor(), 4.f);
-	}
-
-	// combo background (separator)
-	if (popup_open)
-	{
-		draw_list->AddLine(ImVec2(frame_bb.Min.x - 1, frame_bb.Max.y), ImVec2(frame_bb.Min.x + 62.f, frame_bb.Max.y), c_color(255, 255, 255, 12.75f * alpha * popup_mod.alpha).u32(), 1.f);
-	}
+	// Darkside field: compact right-aligned 80x20 key button.
+	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, c_color(25, 27, 36, 255.f * alpha).as_imcolor(), 8.f);
+	draw_list->AddRect(frame_bb.Min, frame_bb.Max, c_color(30, 33, 44, 255.f * alpha).as_imcolor(), 8.f);
 
 	if (var.type == 0)
 		buffer = CXOR("Always");
@@ -221,7 +200,8 @@ bool c_menu::key_bind(const char* label, key_binds_t& var)
 	ImGui::PopStyleColor();
 
 	if (label_size.x > 0)
-		RenderText(ImVec2(pos.x + 12, pos.y + 16), label);
+		RenderTextClipped(total_bb.Min, ImVec2(frame_bb.Min.x - 8.f, total_bb.Max.y), label, NULL, &label_size, ImVec2(0.f, 0.5f));
+	draw_list->AddLine(ImVec2(pos.x, total_bb.Max.y), ImVec2(pos.x + size_arg.x, total_bb.Max.y), c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 
 	ImGui::PopStyleColor();
 	return value_changed;

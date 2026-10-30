@@ -2,6 +2,7 @@
 #include <wrl/client.h>
 #include "imgui/shader_blur_x.h"
 #include "imgui/shader_blur_y.h"
+#include "legacy ui/menu/menu_resources.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -369,7 +370,12 @@ bool c_render::init()
 	}
 
 	//	cfg.RasterizerFlags = ImGuiFreeType::RasterizerFlags::ForceAutoHint;
-	fonts.main.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 14.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
+	if (!fonts.main.init_resource(io, IDR_FONT_INTER_MEDIUM, 15.f, &cfg, io.Fonts->GetGlyphRangesCyrillic()))
+		fonts.main.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 14.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
+	if (!fonts.menu_header.init_resource(io, IDR_FONT_INTER_SEMIBOLD, 12.5f, &cfg, io.Fonts->GetGlyphRangesCyrillic()))
+		fonts.menu_header.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 12.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
+	if (!fonts.menu_logo.init_resource(io, IDR_FONT_SST_BOLD, 30.f, &cfg, io.Fonts->GetGlyphRangesCyrillic()))
+		fonts.menu_logo.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 30.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
 	fonts.large.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 30.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
 	fonts.esp.init(io, CXOR("C:\\Windows\\Fonts\\verdana.ttf"), 12.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());
 	fonts.misc.init(io, SFUIDisplay_SemiBold, sizeof(SFUIDisplay_SemiBold), 14.f, &cfg, io.Fonts->GetGlyphRangesCyrillic());

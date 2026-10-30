@@ -1,4 +1,5 @@
 #include "../menu.h"
+#include "../../config_vars.h"
 using namespace ImGui;
 
 bool c_menu::selectable(const char* label, bool selected, float alpha_pass, ImGuiSelectableFlags flags, const ImVec2& size_arg)
@@ -115,6 +116,13 @@ bool c_menu::selectable(const char* label, bool selected, float alpha_pass, ImGu
 	{
 		PopColumnsBackground();
 		bb.Max.x -= (GetContentRegionMax().x - max_x);
+	}
+
+	if (selected || mod.hovered_alpha > 0.01f)
+	{
+		const auto accent = g_cfg.misc.ui_color.base();
+		const float fill_alpha = (selected ? 42.f : 20.f * mod.hovered_alpha) * alpha * alpha_pass;
+		window->DrawList->AddRectFilled(bb.Min, bb.Max, accent.new_alpha((int)fill_alpha).as_imcolor(), 4.f);
 	}
 
 	auto text_clr = selected ? 1.f : 0.58f + 0.42f * mod.hovered_alpha;

@@ -1,0 +1,5 @@
+#include "legacy ui/menu/menu_resources.h"
+
+IDR_FONT_INTER_MEDIUM   RCDATA "legacy ui\\menu\\fonts\\Inter-Medium.ttf"
+IDR_FONT_INTER_SEMIBOLD RCDATA "legacy ui\\menu\\fonts\\Inter-SemiBold.ttf"
+IDR_FONT_SST_BOLD       RCDATA "legacy ui\\menu\\fonts\\SSTBold.TTF"

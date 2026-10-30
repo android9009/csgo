@@ -1,4 +1,5 @@
 #include "../menu.h"
+#include "../../config_vars.h"
 using namespace ImGui;
 
 bool c_menu::button_wrapper(const char* label, const ImVec2& size_arg, ImGuiButtonFlags flags, bool* hovered_ptr, int button_flags)
@@ -42,10 +43,15 @@ bool c_menu::button_wrapper(const char* label, const ImVec2& size_arg, ImGuiButt
 	auto& mod = item_animations[CONST_HASH(label)];
 	this->create_animation(mod.hovered_alpha, hovered, 1.f, lerp_animation);
 
-	// background
-	auto back_alpha = (20 + (30 * mod.hovered_alpha) + (50 * (!wait && hovered && held))) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(button_rect.Min, button_rect.Max, back_clr.as_imcolor(), 4.f);
+	const auto accent = g_cfg.misc.ui_color.base();
+	const float blend = mod.hovered_alpha * 0.35f;
+	const c_color back(
+		(int)std::lerp(25.f, (float)accent.r(), blend),
+		(int)std::lerp(27.f, (float)accent.g(), blend),
+		(int)std::lerp(36.f, (float)accent.b(), blend),
+		(int)(255.f * alpha));
+	draw_list->AddRectFilled(button_rect.Min, button_rect.Max, back.as_imcolor(), 6.f);
+	draw_list->AddRect(button_rect.Min, button_rect.Max, c_color(30, 33, 44, 255.f * alpha).as_imcolor(), 6.f);
 
 	// button name
 	RenderTextClipped(button_rect.Min, button_rect.Max, label, NULL, &label_size, style.ButtonTextAlign, &bb);
@@ -61,7 +67,7 @@ bool c_menu::button_wrapper(const char* label, const ImVec2& size_arg, ImGuiButt
 
 void c_menu::button(const char* label, void (*callback)(), int flags)
 {
-	auto button_ = this->button_wrapper(label, ImVec2(256, 32), 0, nullptr, flags);
+	auto button_ = this->button_wrapper(label, ImVec2(ImMax(80.f, GetContentRegionAvail().x), 28.f), 0, nullptr, flags);
 	if (button_ && !(flags & button_wait))
 		std::thread(callback).detach();
 }

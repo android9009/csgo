@@ -297,15 +297,15 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 		if (flags & ImGuiColorEditFlags_PickerHueBar)
 		{
 			// on_directx SV Square
-			draw_list->AddRectFilledMultiColor(picker_pos, picker_pos + ImVec2(sv_picker_size, sv_picker_size), col_white, hue_color32, hue_color32, col_white);
-			draw_list->AddRectFilledMultiColor(picker_pos, picker_pos + ImVec2(sv_picker_size, sv_picker_size), 0, 0, col_black, col_black);
+			window->DrawList->AddRectFilledMultiColor(picker_pos, picker_pos + ImVec2(sv_picker_size, sv_picker_size), col_white, hue_color32, hue_color32, col_white);
+			window->DrawList->AddRectFilledMultiColor(picker_pos, picker_pos + ImVec2(sv_picker_size, sv_picker_size), 0, 0, col_black, col_black);
 			RenderFrameBorder(picker_pos, picker_pos + ImVec2(sv_picker_size, sv_picker_size), 0.0f);
 			sv_cursor_pos.x = ImClamp(IM_ROUND(picker_pos.x + ImSaturate(S) * sv_picker_size), picker_pos.x + 2, picker_pos.x + sv_picker_size - 2); // Sneakily prevent the circle to stick out too much
 			sv_cursor_pos.y = ImClamp(IM_ROUND(picker_pos.y + ImSaturate(1 - V) * sv_picker_size), picker_pos.y + 2, picker_pos.y + sv_picker_size - 2);
 
 			// on_directx Hue Bar
 			for (int i = 0; i < 6; ++i)
-				draw_list->AddRectFilledMultiColor(ImVec2(bar0_pos_x, picker_pos.y + i * (sv_picker_size / 6)), ImVec2(bar0_pos_x + bars_width, picker_pos.y + (i + 1) * (sv_picker_size / 6)), col_hues[i], col_hues[i],
+				window->DrawList->AddRectFilledMultiColor(ImVec2(bar0_pos_x, picker_pos.y + i * (sv_picker_size / 6)), ImVec2(bar0_pos_x + bars_width, picker_pos.y + (i + 1) * (sv_picker_size / 6)), col_hues[i], col_hues[i],
 					col_hues[i + 1], col_hues[i + 1]);
 			float bar0_line_y = IM_ROUND(picker_pos.y + H * sv_picker_size);
 			RenderFrameBorder(ImVec2(bar0_pos_x, picker_pos.y), ImVec2(bar0_pos_x + bars_width, picker_pos.y + sv_picker_size), 0.0f);
@@ -315,15 +315,15 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 
 		// on_directx cursor/preview circle (clamp S/V within 0..1 range because floating points colors may lead HSV values to be out of range)
 		float sv_cursor_rad = 3.0f;
-		draw_list->AddCircleFilled(sv_cursor_pos, sv_cursor_rad, col_white, 15);
-		draw_list->AddCircle(sv_cursor_pos, sv_cursor_rad + 1.f, col_black, 15);
+		window->DrawList->AddCircleFilled(sv_cursor_pos, sv_cursor_rad, col_white, 15);
+		window->DrawList->AddCircle(sv_cursor_pos, sv_cursor_rad + 1.f, col_black, 15);
 
 		// on_directx alpha bar
 		if (alpha_bar)
 		{
 			float alpha = ImSaturate(col[3]);
 			ImRect bar1_bb(bar1_pos_x, picker_pos.y, bar1_pos_x + bars_width, picker_pos.y + sv_picker_size);
-			draw_list->AddRectFilledMultiColor(bar1_bb.Min, bar1_bb.Max, user_col32_striped_of_alpha, user_col32_striped_of_alpha, user_col32_striped_of_alpha & ~IM_COL32_A_MASK, user_col32_striped_of_alpha & ~IM_COL32_A_MASK);
+			window->DrawList->AddRectFilledMultiColor(bar1_bb.Min, bar1_bb.Max, user_col32_striped_of_alpha, user_col32_striped_of_alpha, user_col32_striped_of_alpha & ~IM_COL32_A_MASK, user_col32_striped_of_alpha & ~IM_COL32_A_MASK);
 			float bar1_line_y = IM_ROUND(picker_pos.y + (1.0f - alpha) * sv_picker_size);
 			RenderFrameBorder(bar1_bb.Min, bar1_bb.Max, 0.0f);
 			render_arrows_for_vertical_bar(draw_list, ImVec2(bar1_pos_x - 1, bar1_line_y), ImVec2(bars_triangles_half_sz + 1, bars_triangles_half_sz), bars_width + 2.0f, style.Alpha * window_alpha * picker_alpha);
@@ -337,9 +337,9 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 		auto& pos = window->Pos;
 		auto& size = window->Size;
 
-		auto old_flags = draw_list->Flags;
+		auto old_flags = window->DrawList->Flags;
 
-		draw_list->Flags |= ImDrawListFlags_AntiAliasedFill | ImDrawListFlags_AntiAliasedLines;
+		window->DrawList->Flags |= ImDrawListFlags_AntiAliasedFill | ImDrawListFlags_AntiAliasedLines;
 
 		auto button_size = ImVec2(76, 24);
 		BeginGroup();
@@ -353,9 +353,9 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 			auto button_clr_alpha = (80 + 30 * copy_mod.hovered_alpha) * this->get_alpha();
 			c_color button_clr = c_color(35, 35, 35).increase(20 * copy_mod.hovered_alpha).new_alpha(button_clr_alpha);
 
-			draw_list->AddRectFilled(ImVec2(pos.x + 11.f, (pos.y + size.y) - button_size.y - 6.f), ImVec2(pos.x + 9.f + button_size.x, (pos.y + size.y) - 6.f), button_clr.as_imcolor(), 2.f);
+			window->DrawList->AddRectFilled(ImVec2(pos.x + 11.f, (pos.y + size.y) - button_size.y - 6.f), ImVec2(pos.x + 9.f + button_size.x, (pos.y + size.y) - 6.f), button_clr.as_imcolor(), 2.f);
 
-			draw_list->AddText(ImVec2(pos.x + button_size.x / 2 - 6.f, (pos.y + size.y) - button_size.y - 3.f), c_color(255, 255, 255, 255 * picker_alpha).as_imcolor(), CXOR("Copy"));
+			window->DrawList->AddText(ImVec2(pos.x + button_size.x / 2 - 6.f, (pos.y + size.y) - button_size.y - 3.f), c_color(255, 255, 255, 255 * picker_alpha).as_imcolor(), CXOR("Copy"));
 
 			if (copy_button)
 			{
@@ -382,9 +382,9 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 
 			auto base_pos = pos.x + button_size.x + 5.f;
 
-			draw_list->AddRectFilled(ImVec2(base_pos + 11.f, (pos.y + size.y) - button_size.y - 6.f), ImVec2(base_pos + 9.f + button_size.x, (pos.y + size.y) - 6.f), button_clr.as_imcolor(), 2.f);
+			window->DrawList->AddRectFilled(ImVec2(base_pos + 11.f, (pos.y + size.y) - button_size.y - 6.f), ImVec2(base_pos + 9.f + button_size.x, (pos.y + size.y) - 6.f), button_clr.as_imcolor(), 2.f);
 
-			draw_list->AddText(ImVec2(base_pos + button_size.x / 2 - 6.f, (pos.y + size.y) - button_size.y - 3.f), c_color(255, 255, 255, 255 * picker_alpha).as_imcolor(), CXOR("Paste"));
+			window->DrawList->AddText(ImVec2(base_pos + button_size.x / 2 - 6.f, (pos.y + size.y) - button_size.y - 3.f), c_color(255, 255, 255, 255 * picker_alpha).as_imcolor(), CXOR("Paste"));
 
 			if (paste_button)
 			{
@@ -401,7 +401,7 @@ bool c_menu::color_picker_wrapper(const char* label, float col[4], ImGuiColorEdi
 		}
 		EndGroup();
 
-		draw_list->Flags = old_flags;
+		window->DrawList->Flags = old_flags;
 	}
 	EndGroup();
 
@@ -422,35 +422,38 @@ bool c_menu::color_button_wrapper(const char* desc_id, const ImVec4& col, ImGuiC
 
 	ImGuiWindow* window = GetCurrentWindow();
 	if (window->SkipItems)
+	{
+		ImGui::PopStyleColor();
 		return false;
+	}
 
 	ImGuiContext& g = *GImGui;
 	const ImGuiID id = window->GetID(desc_id);
-	float default_size = GetFrameHeight();
 
 	const auto picker_size = ImVec2(32, 16);
 
 	const auto pos = window->DC.CursorPos;
-	auto back_size = ImVec2(256, 48);
-	const ImRect bb(pos + ImVec2(209.f, 15.f), pos + ImVec2(209.f, 15.f) + picker_size);
-	const ImRect render_bb(pos, pos + back_size + ImVec2(0.f, 4.f));
+	const float row_w = ImMax(80.f, GetContentRegionAvail().x);
+	const auto back_size = ImVec2(row_w, 28.f);
+	const auto picker_pos = pos + ImVec2(row_w - 38.f, 6.f);
+	const ImRect bb(picker_pos, picker_pos + picker_size);
+	const ImRect render_bb(pos, pos + back_size);
 	ItemSize(render_bb);
 	if (!ItemAdd(render_bb, id))
+	{
+		ImGui::PopStyleColor();
 		return false;
+	}
 
 	bool hovered, held;
 	bool pressed = ButtonBehavior(bb, id, &hovered, &held);
 
-	bool hovered_frame, held_frame;
-	bool pressed_frame = ButtonBehavior(ImRect(pos, pos + back_size), id, &hovered_frame, &held_frame);
+	const bool hovered_frame = IsMouseHoveringRect(render_bb.Min, render_bb.Max);
 
 	auto& mod = item_animations[CONST_HASH(desc_id) + CONST_HASH("color")];
 	this->create_animation(mod.hovered_alpha, hovered_frame, 1.f, lerp_animation);
 
-	// background
-	auto back_alpha = (20 + (30 * mod.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(pos, pos + back_size, back_clr.as_imcolor(), 4.f);
+	// The reference uses a borderless row with a small right-aligned swatch.
 
 	if (flags & ImGuiColorEditFlags_NoAlpha)
 		flags &= ~(ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_AlphaPreviewHalf);
@@ -484,7 +487,9 @@ bool c_menu::color_button_wrapper(const char* desc_id, const ImVec4& col, ImGuiC
 			window->DrawList->AddRectFilled(bb_inner.Min, bb_inner.Max, GetColorU32(col_source), rounding, ImDrawCornerFlags_All);
 	}
 
-	RenderText(ImVec2(pos.x + 12, pos.y + 16), desc_id);
+	const auto label_size = CalcTextSize(desc_id, NULL, true);
+	RenderTextClipped(pos, ImVec2(bb.Min.x - 8.f, pos.y + back_size.y), desc_id, NULL, &label_size, ImVec2(0.f, 0.5f));
+	window->DrawList->AddLine(ImVec2(pos.x, render_bb.Max.y), ImVec2(render_bb.Max.x, render_bb.Max.y), c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 
 	RenderNavHighlight(bb, id);
 
@@ -564,7 +569,7 @@ bool c_menu::color_picker(const char* name, c_float_color& v, ImGuiColorEditFlag
 				g.ColorPickerRef = col_v4;
 				OpenPopup(CXOR("picker"));
 
-				SetNextWindowPos(window->DC.LastItemRect.GetBL() - ImVec2(-35.f, 38.f));
+				SetNextWindowPos(window->DC.LastItemRect.GetBL() + ImVec2(35.f, 4.f));
 			}
 		}
 
@@ -578,7 +583,7 @@ bool c_menu::color_picker(const char* name, c_float_color& v, ImGuiColorEditFlag
 		this->create_animation(picker_mod.alpha, begin_popup, 0.3f, skip_disable | lerp_animation);
 
 		auto base_pos = ImGui::GetWindowPos();
-		ImGui::GetWindowDrawList()->AddRectFilled(base_pos, base_pos + ImGui::GetWindowSize(), c_color(16, 16, 16, 255 * window_alpha * picker_mod.alpha).as_imcolor(), 10.f);
+		ImGui::GetWindowDrawList()->AddRectFilled(base_pos, base_pos + ImGui::GetWindowSize(), c_color(18, 20, 29, 255 * window_alpha * picker_mod.alpha).as_imcolor(), 8.f);
 
 		if (begin_popup)
 		{
