@@ -34,22 +34,22 @@ namespace
 		return (g_cfg.visuals.eventlog.logs & 4) != 0;
 	}
 
-	const char* shot_matrix_name(const anim_record_t& record)
+	matrix3x4_t* get_rage_matrix(anim_record_t& record, rage_aim_matrix_t matrix_type)
 	{
-#ifndef LEGACY
-		if (record.visible_flick)
-			return "zero/flick";
-#endif
+		return matrix_type == rage_matrix_zero ? record.matrix_zero.matrix : record.matrix_orig.matrix;
+	}
+
+	const char* shot_matrix_name(const aim_shot_record_t& shot)
+	{
+		if (shot.aim_matrix == rage_matrix_zero)
+			return shot.record.visible_flick ? "zero/flick" : "zero";
+
 		return "original";
 	}
 
-	float shot_matrix_desync(const anim_record_t& record)
+	float shot_matrix_desync(const aim_shot_record_t& shot)
 	{
-#ifndef LEGACY
-		if (record.visible_flick)
-			return record.zero_desync;
-#endif
-		return record.aim_desync;
+		return shot.aim_matrix == rage_matrix_zero ? shot.record.zero_desync : shot.record.aim_desync;
 	}
 
 	const char* shot_side_name(int side)
@@ -242,7 +242,7 @@ namespace
 		// sixteen values. Build the detailed line from smaller format blocks.
 		const auto record_debug = tfm::format(
 			"matrix=%s desync=%.1f cfg=%s eye=%.1f lby=%.1f lby_delta=%.1f | record_res=%s side=%s(%d) resolved=%d record_status=%s",
-			shot_matrix_name(record), shot_matrix_desync(record), desync_config.c_str(),
+			shot_matrix_name(shot), shot_matrix_desync(shot), desync_config.c_str(),
 			record.eye_angles.y, record.lby, math::normalize_yaw(record.eye_angles.y - record.lby),
 			shot_record_resolver_mode(record), shot_side_name(record.resolver_side), record.resolver_side,
 			record.resolver_resolved ? 1 : 0, shot_resolver_status_name(record.resolver_status));
@@ -253,7 +253,7 @@ namespace
 			shot.resolver.m_was_first_bruteforce ? 1 : 0, shot.resolver.m_was_second_bruteforce ? 1 : 0,
 			shot.resolver.freestanding.updated ? 1 : 0, shot.resolver.freestanding.side);
 		const auto state_debug = tfm::format(
-			"state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shift_filtered=%d shifted=%d break_lc=%d",
+			"state=%s speed=%.1f duck=%.2f choke=%d | flick=%s shifted_history=%d shifted=%d break_lc=%d",
 			state.c_str(), record.velocity.length_2d(), record.duck_amt, record.choke,
 			flick.c_str(), debug.shifted_records, record.tickbase_shift ? 1 : 0, record.break_lc ? 1 : 0);
 
@@ -291,8 +291,8 @@ namespace
 		const auto aim_debug = tfm::format(
 			"hc=%.1f%%(%s) bt=%dt h%d/v%d | matrix=%s desync=%.1f record_res=%s side=%s now_status=%s flick=%s",
 			shot.hitchance * 100.f, shot_hitchance_source_name(shot.hitchance_source), shot.backtrack_ticks,
-			shot.backtrack.selected_history, shot.backtrack.selected_valid, shot_matrix_name(shot.record),
-			shot_matrix_desync(shot.record), shot_record_resolver_mode(shot.record),
+			shot.backtrack.selected_history, shot.backtrack.selected_valid, shot_matrix_name(shot),
+			shot_matrix_desync(shot), shot_record_resolver_mode(shot.record),
 			shot_side_name(shot.record.resolver_side), shot_resolver_status_name(shot.resolver.debug_status), flick.c_str());
 		const auto event_debug = tfm::format(
 			"impact=%s events=%d/%d age=%.1fms spread=%.5f inacc=%.5f",
@@ -788,20 +788,17 @@ void c_ragebot::update_predicted_eye_pos()
 		return;
 	}
 
-	auto last_predicted_velocity = velocity;
+	// Extrapolate the player hull in velocity units, then restore the eye offset.
+	// The old loop scaled velocity into a displacement, passed that displacement
+	// back as velocity and discarded the traced origin.
+	const auto eye_offset = anim->eye_pos - HACKS->local->origin();
+	auto predicted_origin = HACKS->local->origin();
+	auto predicted_velocity = velocity;
+	auto flags = unpredicted_vars->flags;
 	for (int i = 0; i < max_predict_ticks; ++i)
-	{
-		auto pred_velocity = velocity * TICKS_TO_TIME(i + 1);
+		game_movement::extrapolate(HACKS->local, predicted_origin, predicted_velocity, flags, flags.has(FL_ONGROUND));
 
-		auto origin = anim->eye_pos + pred_velocity;
-		auto flags = HACKS->local->flags();
-
-		game_movement::extrapolate(HACKS->local, origin, pred_velocity, flags, flags.has(FL_ONGROUND));
-
-		last_predicted_velocity = pred_velocity;
-	}
-
-	predicted_eye_pos = anim->eye_pos + last_predicted_velocity;
+	predicted_eye_pos = predicted_origin + eye_offset;
 }
 
 void c_ragebot::prepare_players_for_scan()
@@ -832,7 +829,7 @@ void c_ragebot::prepare_players_for_scan()
 	});
 }
 
-std::vector<rage_point_t> get_hitbox_points(int damage, std::vector<int>& hitboxes, vec3_t& eye_pos, vec3_t& predicted_eye_pos, rage_player_t* rage, anim_record_t* record, bool predicted = false)
+std::vector<rage_point_t> get_hitbox_points(int damage, std::vector<int>& hitboxes, vec3_t& eye_pos, vec3_t& predicted_eye_pos, rage_player_t* rage, anim_record_t* record, rage_aim_matrix_t matrix_type, bool predicted = false)
 {
 	if (hitboxes.empty())
 		return {};
@@ -840,7 +837,7 @@ std::vector<rage_point_t> get_hitbox_points(int damage, std::vector<int>& hitbox
 	std::vector<rage_point_t> out{};
 	out.reserve(hitboxes.size());
 
-	auto matrix_to_aim = record->get_aim_matrix();
+	auto matrix_to_aim = get_rage_matrix(*record, matrix_type);
 	LAGCOMP->set_record(rage->player, record, matrix_to_aim);
 
 	auto local_anims = ANIMFIX->get_local_anims();
@@ -863,6 +860,7 @@ std::vector<rage_point_t> get_hitbox_points(int damage, std::vector<int>& hitbox
 		point.damage = bullet.damage;
 		point.aim_point = aim_point;
 		point.predicted_eye_pos = predicted;
+		point.aim_matrix = matrix_type;
 
 #ifndef LEGACY
 		point.safety = [&]()
@@ -903,25 +901,21 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 	if (!lagcomp || lagcomp->records.empty())
 		return;
 
-	auto scan_record = [&](anim_record_t* record)
+	auto scan_record = [&](anim_record_t* record, rage_aim_matrix_t matrix_type, bool predicted)
 	{
-		auto points = get_hitbox_points(damage, hitboxes, predicted_eye_pos, predicted_eye_pos, rage, record, true);
-		if (points.empty())
-			points = get_hitbox_points(damage, hitboxes, anim->eye_pos, predicted_eye_pos, rage, record, false);
-
-		return points;
+		auto& eye_pos = predicted ? predicted_eye_pos : anim->eye_pos;
+		return get_hitbox_points(damage, hitboxes, eye_pos, predicted_eye_pos, rage, record, matrix_type, predicted);
 	};
 
 	rage->restore.store(rage->player);
 
 	anim_record_t* best = nullptr;
 	std::vector<rage_point_t> best_points{};
-	auto best_damage = -1;
-	auto best_total_damage = -1;
+	auto best_matrix = rage_matrix_resolved;
+	auto best_reliability = -1;
 
-	auto consider_record = [&](anim_record_t* record, int history_index, int valid_index)
+	auto consider_record = [&](anim_record_t* record, rage_aim_matrix_t matrix_type, int history_index, int valid_index, std::vector<rage_point_t> points)
 	{
-		auto points = scan_record(record);
 		if (points.empty())
 			return;
 
@@ -955,24 +949,30 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 			debug.safest_sim_time = record->sim_time;
 		}
 
-		// Records are visited newest to oldest, so equal scores keep fresher data.
-		if (highest_damage > best_damage || (highest_damage == best_damage && total_damage > best_total_damage))
-		{
-			best = record;
-			best_damage = highest_damage;
-			best_total_damage = total_damage;
-			best_points = std::move(points);
+		// A real trace from the current eye is more trustworthy than an early-stop
+		// prediction. An ordinary timeline is preferable to a shifted fallback.
+		// Candidates are visited newest first, so ties keep the freshest record
+		// instead of letting an old high-damage head record hijack the shot.
+		const auto predicted = points.front().predicted_eye_pos;
+		const auto reliability = (record->tickbase_shift ? 0 : 1) + (predicted ? 0 : 2);
+		if (best && reliability <= best_reliability)
+			return;
 
-			debug.selected_history = history_index;
-			debug.selected_valid = valid_index;
-			debug.selected_damage = highest_damage;
-			debug.selected_total_damage = total_damage;
-			debug.selected_safety = record_safety;
-		}
+		best = record;
+		best_matrix = matrix_type;
+		best_reliability = reliability;
+		best_points = std::move(points);
+
+		debug.selected_history = history_index;
+		debug.selected_valid = valid_index;
+		debug.selected_damage = highest_damage;
+		debug.selected_total_damage = total_damage;
+		debug.selected_safety = record_safety;
 	};
 
 	std::vector<anim_record_t*> valid_records{};
 	std::vector<int> valid_history_indices{};
+	std::vector<int> history_to_valid(lagcomp->records.size(), -1);
 	valid_records.reserve(lagcomp->records.size());
 	valid_history_indices.reserve(lagcomp->records.size());
 
@@ -985,9 +985,12 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 		if (record.visible_flick)
 			++rage->backtrack.flick_records;
 
-		if (record.filled && !record.dormant && !record.tickbase_shift
+		// A shift is a selection penalty, not proof that the server cannot rewind
+		// to this record. The actual time/LC checks still have to accept it.
+		if (record.filled && !record.dormant
 			&& LAGCOMP->is_tick_valid(record.break_lc, record.sim_time))
 		{
+			history_to_valid[history_index] = static_cast<int>(valid_records.size());
 			valid_records.emplace_back(&record);
 			valid_history_indices.emplace_back(history_index);
 		}
@@ -995,44 +998,126 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 	}
 	rage->backtrack.valid_records = static_cast<int>(valid_records.size());
 
-	constexpr size_t max_record_scans = 4;
+	constexpr size_t max_record_scans = 12;
 	std::vector<size_t> candidate_indices{};
-	candidate_indices.reserve(max_record_scans + 1);
+	candidate_indices.reserve(max_record_scans);
 
-	if (valid_records.size() <= max_record_scans)
+	auto add_candidate = [&](size_t index)
 	{
-		for (size_t i = 0; i < valid_records.size(); ++i)
-			candidate_indices.emplace_back(i);
+		if (index >= valid_records.size())
+			return;
+		if (std::find(candidate_indices.begin(), candidate_indices.end(), index) != candidate_indices.end())
+			return;
+		if (candidate_indices.size() < max_record_scans)
+			candidate_indices.emplace_back(index);
+	};
+
+	auto add_history_candidate = [&](int index)
+	{
+		if (index < 0 || index >= static_cast<int>(history_to_valid.size()))
+			return;
+		const auto valid_index = history_to_valid[index];
+		if (valid_index >= 0)
+			add_candidate(static_cast<size_t>(valid_index));
+	};
+
+	// Always cover fresh history, the oldest rewind and the newest ordinary
+	// record. Then add both sides of LC/tickbase transitions and on-shot/flick
+	// records instead of sampling only four evenly spaced entries.
+	if (!valid_records.empty())
+	{
+		add_candidate(0);
+		add_candidate(1);
+		add_candidate(2);
+		add_candidate(valid_records.size() - 1);
 	}
-	else
+
+	for (size_t i = 0; i < valid_records.size(); ++i)
 	{
-		candidate_indices = {
-			0,
-			valid_records.size() / 3,
-			valid_records.size() * 2 / 3,
-			valid_records.size() - 1
-		};
+		if (!valid_records[i]->tickbase_shift)
+		{
+			add_candidate(i);
+			break;
+		}
+	}
+
+	for (size_t i = 0; i < lagcomp->records.size(); ++i)
+	{
+		const auto& record = lagcomp->records[i];
+		if (!record.break_lc && !record.tickbase_shift)
+			continue;
+
+		const auto history = static_cast<int>(i);
+		add_history_candidate(history - 1);
+		add_history_candidate(history + 1);
+	}
+
+	for (size_t i = 0; i < valid_records.size(); ++i)
+	{
+		if (valid_records[i]->shooting)
+		{
+			add_candidate(i);
+			break;
+		}
+	}
 
 #ifndef LEGACY
-		// A measured flick can sit just behind the front record. Always include
-		// the newest one instead of losing it to the backtrack sampling stride.
-		for (size_t i = 0; i < valid_records.size(); ++i)
+	for (size_t i = 0; i < valid_records.size(); ++i)
+	{
+		if (valid_records[i]->visible_flick)
 		{
-			if (valid_records[i]->visible_flick)
-			{
-				candidate_indices.emplace_back(i);
-				break;
-			}
+			add_candidate(i);
+			break;
 		}
+	}
 #endif
 
-		std::sort(candidate_indices.begin(), candidate_indices.end());
-		candidate_indices.erase(std::unique(candidate_indices.begin(), candidate_indices.end()), candidate_indices.end());
+	if (!valid_records.empty())
+		add_candidate(valid_records.size() / 2);
+
+	std::sort(candidate_indices.begin(), candidate_indices.end());
+
+	for (const auto index : candidate_indices)
+	{
+		auto record = valid_records[index];
+		++rage->backtrack.scanned_records;
+
+		const auto matrix_count = record->visible_flick ? 2 : 1;
+		for (auto matrix_index = 0; matrix_index < matrix_count; ++matrix_index)
+		{
+			const auto matrix_type = matrix_index == 0 ? rage_matrix_resolved : rage_matrix_zero;
+			auto points = scan_record(record, matrix_type, false);
+			consider_record(record, matrix_type, valid_history_indices[index], static_cast<int>(index), std::move(points));
+			if (best_reliability >= 3)
+				break;
+		}
+
+		if (best_reliability >= 3)
+			break;
 	}
 
-	rage->backtrack.scanned_records = static_cast<int>(candidate_indices.size());
-	for (const auto index : candidate_indices)
-		consider_record(valid_records[index], valid_history_indices[index], static_cast<int>(index));
+	// Prediction is strictly an early-stop fallback for a set of records with
+	// no real current-eye center. Do not spend traces on it while a direct shot
+	// exists, and never let it outrank either kind of current-eye record.
+	if (best_reliability < 2)
+	{
+		for (const auto index : candidate_indices)
+		{
+			auto record = valid_records[index];
+			const auto matrix_count = record->visible_flick ? 2 : 1;
+			for (auto matrix_index = 0; matrix_index < matrix_count; ++matrix_index)
+			{
+				const auto matrix_type = matrix_index == 0 ? rage_matrix_resolved : rage_matrix_zero;
+				auto points = scan_record(record, matrix_type, true);
+				consider_record(record, matrix_type, valid_history_indices[index], static_cast<int>(index), std::move(points));
+				if (best_reliability >= 1)
+					break;
+			}
+
+			if (best_reliability >= 1)
+				break;
+		}
+	}
 
 	rage->restore.restore(rage->player);
 
@@ -1042,6 +1127,7 @@ void pre_cache_centers(int damage, std::vector<int>& hitboxes, vec3_t& predicted
 		rage->points_to_scan.reserve(MAX_SCANNED_POINTS);
 		rage->start_scans = true;
 		rage->hitscan_record = best;
+		rage->hitscan_matrix = best_matrix;
 	}
 }
 
@@ -1082,7 +1168,7 @@ bool hitchance(vec3_t eye_pos, rage_player_t& rage, const rage_point_t& point, a
 	if (!networked_vars || precomputed_seeds.size() < MAX_SEEDS)
 		return false;
 
-	auto matrix_to_aim = record->get_aim_matrix();
+	auto matrix_to_aim = get_rage_matrix(*record, rage_matrix_resolved);
 	auto current_bones = matrix ? matrix : matrix_to_aim;
 
 	if ((HACKS->ideal_inaccuracy + 0.0005f) >= networked_vars->inaccuracy && networked_vars->spread <= 0.00001f)
@@ -1191,6 +1277,7 @@ void collect_damage_from_multipoints(int damage, vec3_t& predicted_eye_pos, rage
 		point.damage = bullet.damage;
 		point.aim_point = multipoint.first;
 		point.predicted_eye_pos = points.predicted_eye_pos;
+		point.aim_matrix = points.aim_matrix;
 
 #ifndef LEGACY
 		point.safety = [&]()
@@ -1232,7 +1319,7 @@ void c_ragebot::do_hitscan(rage_player_t* rage)
 
 	rage->restore.store(rage->player);
 	{
-		auto matrix_to_aim = rage->hitscan_record->get_aim_matrix();
+		auto matrix_to_aim = get_rage_matrix(*rage->hitscan_record, rage->hitscan_matrix);
 		LAGCOMP->set_record(rage->player, rage->hitscan_record, matrix_to_aim);
 	
 		int threads_count = 0;
@@ -1313,7 +1400,7 @@ void c_ragebot::choose_best_point()
 			return;
 
 		auto damage = get_min_damage(rage->player);
-		auto get_best_aim_point = [&]() -> rage_point_t
+		auto get_best_aim_point = [&](bool allow_visible_unsafe) -> rage_point_t
 		{
 			rage_point_t best{};
 			std::sort(rage->points_to_scan.begin(), rage->points_to_scan.end(), [](const rage_point_t& a, const rage_point_t& b) {
@@ -1330,7 +1417,7 @@ void c_ragebot::choose_best_point()
 				if (g_cfg.binds[force_body_b].toggled && !is_body)
 					continue;
 
-				if (g_cfg.binds[force_sp_b].toggled && point.safety < 5)
+				if (g_cfg.binds[force_sp_b].toggled && point.safety < 5 && !allow_visible_unsafe)
 					continue;
 
 				if (point.safety == 5 && rage_config.prefer_safe)
@@ -1356,7 +1443,27 @@ void c_ragebot::choose_best_point()
 			return best;
 		};
 
-		auto best_point = get_best_aim_point();
+		auto best_point = get_best_aim_point(false);
+
+		// Force-safe should prefer a safe point, not suppress a confirmed fresh
+		// visible shot forever when jitter makes the five synthetic matrices
+		// disagree. Old BT, shifted and predicted-only targets remain restricted.
+		const auto reliable_visible_record = rage->hitscan_record
+			&& rage->backtrack.selected_history == 0
+			&& !rage->hitscan_record->dormant
+			&& !rage->hitscan_record->break_lc
+			&& !rage->hitscan_record->tickbase_shift
+			&& LAGCOMP->is_tick_valid(rage->hitscan_record->break_lc, rage->hitscan_record->sim_time);
+		if (!best_point.found && g_cfg.binds[force_sp_b].toggled && reliable_visible_record)
+		{
+			const auto has_current_eye_point = std::any_of(rage->points_to_scan.begin(), rage->points_to_scan.end(), [](const rage_point_t& point)
+			{
+				return !point.predicted_eye_pos;
+			});
+			if (has_current_eye_point)
+				best_point = get_best_aim_point(true);
+		}
+
 		if (best_point.found)
 		{
 			rage->best_point = best_point;
@@ -1730,13 +1837,15 @@ void c_ragebot::run()
 		{
 			best_rage_player.restore.store(best_rage_player.player);
 
-			auto matrix_to_aim = best_record->get_aim_matrix();
+			auto matrix_to_aim = get_rage_matrix(*best_record, best_point.aim_matrix);
 			LAGCOMP->set_record(best_rage_player.player, best_record, matrix_to_aim);
 
 			auto final_bullet = penetration::simulate(HACKS->local, best_rage_player.player, ideal_start, best_point.aim_point);
 			best_rage_player.restore.restore(best_rage_player.player);
 
-			if (final_bullet.damage < damage || HACKS->weapon->is_taser() && final_bullet.penetration_count < 4)
+			if (final_bullet.damage < damage
+				|| final_bullet.traced_target != best_rage_player.player
+				|| HACKS->weapon->is_taser() && final_bullet.penetration_count < 4)
 				return;
 		}
 
@@ -1765,7 +1874,8 @@ void c_ragebot::run()
 		auto max_hitchance = rage_config.hitchance * 0.01f;
 		auto hitchance_source = hitchance_source_seeds;
 
-		if (!hitchance(ideal_start, best_rage_player, best_point, best_record, max_hitchance, nullptr, &out_chance, &hitchance_source))
+		if (!hitchance(ideal_start, best_rage_player, best_point, best_record, max_hitchance,
+			get_rage_matrix(*best_record, best_point.aim_matrix), &out_chance, &hitchance_source))
 			return;
 
 		if (g_cfg.rage.auto_fire)
@@ -1819,6 +1929,7 @@ void c_ragebot::add_shot_record(c_cs_player* player, const rage_point_t& best, a
 	new_shot.predicted_eye = best.predicted_eye_pos;
 	new_shot.center_point = best.center;
 	new_shot.hitbox = best.hitbox;
+	new_shot.aim_matrix = best.aim_matrix;
 	new_shot.pointer = player;
 	new_shot.target_name = player->get_name();
 	new_shot.record = *record;
@@ -1902,6 +2013,7 @@ void c_ragebot::player_hurt(c_game_event* event)
 	// A confirmed hit validates the current resolve. Do not keep forcing the
 	// bruteforce branch on every later record after a successful shot.
 	missed_shots[victim] = 0;
+	resolver_miss_tick[victim] = 0;
 	m_missed_anim_side[victim] = 0;
 	m_missed_prev_side[victim] = 0;
 
@@ -1916,6 +2028,9 @@ void c_ragebot::player_hurt(c_game_event* event)
 void c_ragebot::round_start(c_game_event* event)
 {
 	for (auto& i : missed_shots)
+		i = 0;
+
+	for (auto& i : resolver_miss_tick)
 		i = 0;
 
 	for (auto& i : m_missed_anim_side)
@@ -1977,7 +2092,7 @@ void c_ragebot::proceed_misses()
 				auto& resolver_info = shot.resolver;
 				const auto end = shot.impact;
 
-				auto matrix_to_aim = shot.record.get_aim_matrix();
+				auto matrix_to_aim = get_rage_matrix(shot.record, shot.aim_matrix);
 
 				rage_player_t rage_player{};
 				rage_player.player = new_player;
@@ -2028,7 +2143,26 @@ void c_ragebot::proceed_misses()
 								}
 							}
 #endif
-							if (every_side_intersects)
+							const auto resolver_eligible = shot.backtrack_ticks == 0
+								&& !shot.record.tickbase_shift
+								&& !shot.record.break_lc
+								&& !shot.predicted_eye
+								&& shot.aim_matrix == rage_matrix_resolved;
+
+							if (!resolver_eligible)
+							{
+								if (shot.predicted_eye)
+									miss_reason = "prediction/eye";
+								else if (shot.record.tickbase_shift || shot.record.break_lc)
+									miss_reason = "lagcomp";
+								else if (shot.backtrack_ticks > 0)
+									miss_reason = "backtrack";
+								else
+									miss_reason = "flick";
+
+								EVENT_LOGS->push_message(std::string("Missed shot due to ") + miss_reason);
+							}
+							else if (every_side_intersects)
 							{
 								miss_reason = "prediction";
 								EVENT_LOGS->push_message(XOR("Missed shot due to prediction"));
@@ -2036,6 +2170,7 @@ void c_ragebot::proceed_misses()
 							else
 							{
 								missed_shots[shot.index]++;
+								resolver_miss_tick[shot.index] = HACKS->global_vars->tickcount;
 								m_missed_prev_side[shot.index] = m_missed_anim_side[shot.index];
 								m_missed_anim_side[shot.index] = resolver_info.side;
 								miss_reason = "resolver";
