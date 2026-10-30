@@ -293,6 +293,8 @@ public:
     void popup_separator( );
     bool popup_row( const char* icon, const char* label );
     bool popup_option( const char* icon, const char* label, const char* const* options, int count, int* index );
+    // Shared option-card primitive for editors that draw their own row (for example All Hotkeys).
+    bool popup_option_card( const char* popup_name, bool clicked, float row_y, const char* const* options, int count, int* index );
     bool popup_toggle( const char* icon, const char* label, bool* v );
 
     // Small text (captions, chevrons, values): use the dedicated face, but scale its baked
@@ -533,7 +535,6 @@ private:
     struct popup_row_state { bool clicked; ImVec2 pos; float t; float w; float label_end; bool hovered; };
     popup_row_state popup_row_impl( const char* icon, const char* label, bool lit );
     void popup_row_value( const popup_row_state& r, const char* value );
-    bool popup_option_card( const char* popup_name, bool clicked, float row_y, const char* const* options, int count, int* index );
 
     // Spotify player (user profile card -> Spotify). spotify_tick() advances playback and has to be
     // called once a frame from somewhere that always runs; spotify_card() only draws it.
