@@ -60,6 +60,7 @@ void c_config_system::setup_values( )
 		if (group > 0) {
 			push_item(&g_cfg->rage_bot.m_preset_initialized[group], "rage_bot", prefix + "_preset_initialized", g_cfg->rage_bot.m_preset_initialized[group]);
 			push_item(&g_cfg->rage_bot.m_preset_custom[group], "rage_bot", prefix + "_preset_custom", g_cfg->rage_bot.m_preset_custom[group]);
+			push_item(&g_cfg->rage_bot.m_preset_names[group], "rage_bot", prefix + "_preset_name", g_cfg->rage_bot.m_preset_names[group]);
 			push_item(&g_cfg->rage_bot.m_preset_category[group], "rage_bot", prefix + "_preset_category", g_cfg->rage_bot.m_preset_category[group]);
 			for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
 				push_item(&g_cfg->rage_bot.m_preset_weapons[group][weapon], "rage_bot",
@@ -148,6 +149,11 @@ void c_config_system::push_item( c_color* pointer, std::string category, std::st
 	this->colors_rgb.push_back( { pointer, category, name, def_value } );
 }
 
+void c_config_system::push_item( std::string* pointer, std::string category, std::string name, std::string def_value )
+{
+	this->strings.push_back( { pointer, category, name, def_value } );
+}
+
 inline bool FileExists( const std::string& name ) {
 	struct stat buffer;
 	return ( stat( name.c_str( ), &buffer ) == 0 );
@@ -222,6 +228,10 @@ void c_config_system::read( std::string path ) {
 				*f.pointer = number;
 		}
 
+	for ( auto& s : strings )
+		if ( const auto* value = value_of( s.category, s.name ); value && value->is_string() )
+			*s.pointer = value->get<std::string>();
+
 	for ( auto& c : colors_rgb ) {
 		const auto* color = value_of( c.category, c.name );
 		if ( !color || !color->is_object() )
@@ -276,6 +286,11 @@ void c_config_system::save( std::string path ) {
 	for ( auto& f : floats ) {
 		sanity_checks( f.category );
 		ret_data[ f.category ][ f.name ] = *f.pointer;
+	}
+
+	for ( auto& s : strings ) {
+		sanity_checks( s.category );
+		ret_data[ s.category ][ s.name ] = *s.pointer;
 	}
 
 	for ( auto& c : colors_rgb ) {
@@ -335,6 +350,8 @@ void c_config_system::reset( ) {
 		*c.pointer = c.default_value;
 	for ( auto& f : floats )
 		*f.pointer = f.default_value;
+	for ( auto& s : strings )
+		*s.pointer = s.default_value;
 	for ( auto& i : keybinds )
 		*i.pointer = i.default_value;
 }

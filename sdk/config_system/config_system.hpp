@@ -71,6 +71,7 @@ public:
     void push_item(int* pointer, std::string category, std::string name, int def_value);
     void push_item(float* pointer, std::string category, std::string name, float def_value);
     void push_item(c_color* pointer, std::string category, std::string name, c_color def_value);
+    void push_item(std::string* pointer, std::string category, std::string name, std::string def_value);
 
     void setup_values();
     void read(std::string path);
@@ -143,6 +144,7 @@ public:
         // old configs compatible: an enabled legacy group appears with its original category.
         bool m_preset_initialized[RAGE_WEAPON_PRESET_MAX] = {true};
         bool m_preset_custom[RAGE_WEAPON_PRESET_MAX] = {};
+        std::string m_preset_names[RAGE_WEAPON_PRESET_MAX] = {};
         int m_preset_category[RAGE_WEAPON_PRESET_MAX] = {
             0,
             WEAPON_PRESET_PISTOLS, WEAPON_PRESET_HEAVY_PISTOL, WEAPON_PRESET_SMGS,
