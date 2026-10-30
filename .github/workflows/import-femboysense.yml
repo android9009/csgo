@@ -1,0 +1,45 @@
+name: Import FemboySense source archive
+
+on:
+  push:
+    branches:
+      - arena/a2aea2cb-csgo
+
+permissions:
+  contents: write
+
+jobs:
+  cache-source:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/a2aea2cb-csgo
+          fetch-depth: 0
+
+      - name: Download pinned GitLab source and manifests
+        run: |
+          set -euo pipefail
+          mkdir -p .import
+          curl --fail --location --retry 3 \
+            --output .import/FemboySense.tar.gz \
+            'https://gitlab.com/api/v4/projects/84173797/repository/archive.tar.gz?sha=55449f6ac597c18e1c9963d701ddab458f779769'
+          curl --fail --location --retry 3 \
+            --output .import/tree.json \
+            'https://gitlab.com/api/v4/projects/84173797/repository/tree?recursive=true&per_page=100&sha=55449f6ac597c18e1c9963d701ddab458f779769'
+          curl --fail --location --retry 3 \
+            --output .import/commit.json \
+            'https://gitlab.com/api/v4/projects/84173797/repository/commits/55449f6ac597c18e1c9963d701ddab458f779769'
+          test -s .import/FemboySense.tar.gz
+          tar -tzf .import/FemboySense.tar.gz > .import/archive-contents.txt
+          sha256sum .import/FemboySense.tar.gz > .import/archive.sha256
+
+      - name: Cache archive in the working branch
+        run: |
+          set -euo pipefail
+          git config user.name 'arena-agent'
+          git config user.email 'arena-agent@users.noreply.github.com'
+          git add .import
+          git commit -m 'Cache pinned FemboySense source [skip ci]'
+          git push origin HEAD:arena/a2aea2cb-csgo
