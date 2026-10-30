@@ -744,6 +744,15 @@ void c_esp::render_local()
 		RENDER->line(RENDER->screen.x / 2.f, -1, RENDER->screen.x / 2.f, RENDER->screen.y, { 0, 0, 0, 255 });
 	}
 
+	if (g_cfg.misc.inaccuracy_overlay && !HACKS->weapon->is_misc_weapon())
+	{
+		const float inaccuracy = std::clamp(HACKS->weapon->get_inaccuracy(), 0.f, 1.f);
+		const float fov = std::clamp(HACKS->local->fov(), 30.f, 140.f);
+		const float radius = std::clamp(std::tan(inaccuracy) / std::tan(DEG2RAD(fov) * 0.5f) * (RENDER->screen.x * 0.5f), 2.f, 300.f);
+		auto color = g_cfg.misc.inaccuracy_color.base();
+		RENDER->circle(RENDER->screen.x * 0.5f, RENDER->screen.y * 0.5f, radius, color, 64, 1.f);
+	}
+
 	if (g_cfg.misc.pen_xhair && !HACKS->weapon->is_misc_weapon())
 	{
 		constexpr auto box_size = 3.f;

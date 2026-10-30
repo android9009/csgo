@@ -23,6 +23,7 @@ std::vector< std::string > world_tabs = {
 	XOR("Modulation"),
 	XOR("Effects"),
 	XOR("Camera"),
+	XOR("HUD"),
 };
 
 std::vector< std::string > inventory_tabs = {
@@ -1419,6 +1420,42 @@ void c_menu::draw_ui_items()
 						slider_int(CXOR("FOV"), &g_cfg.misc.fovs[world], 0, 60);
 						slider_int(CXOR("Zoom FOV"), &g_cfg.misc.fovs[zoom], 0, 100, CXOR("%d%%"));
 						checkbox(CXOR("Skip second zoom"), &g_cfg.misc.skip_second_zoom);
+					}
+					end_child;
+				}
+			}
+			break;
+			case 4:
+			{
+				ImGui::Columns(2, 0, false);
+				ImGui::SetColumnOffset(1, 300);
+				{
+					begin_child(CXOR("HUD"))
+					{
+						checkbox(CXOR("Radar reveal"), &g_cfg.misc.force_radar);
+						checkbox(CXOR("Inaccuracy Overlay"), &g_cfg.misc.inaccuracy_overlay);
+						color_picker(CXOR("Overlay color##inaccuracy"), g_cfg.misc.inaccuracy_color);
+						checkbox(CXOR("Death Notices"), &g_cfg.misc.preverse_killfeed);
+						if (g_cfg.misc.preverse_killfeed)
+							slider_int(CXOR("Notice duration"), &g_cfg.misc.killfeed_time, 1, 60, CXOR("%d s"));
+						multi_combo(CXOR("Windows##hud"), g_cfg.misc.menu_indicators, { XOR("Keybind list"), XOR("Bomb"), XOR("Watermark"), XOR("Spectators") });
+					}
+					end_child;
+				}
+				ImGui::NextColumn();
+				{
+					begin_child(CXOR("Crosshairs"))
+					{
+						checkbox(CXOR("Penetration crosshair"), &g_cfg.misc.pen_xhair);
+						checkbox(CXOR("Sniper crosshair"), &g_cfg.misc.snip_crosshair);
+						checkbox(CXOR("Fix zoom sensitivity"), &g_cfg.misc.fix_sensitivity);
+					}
+					end_child;
+
+					begin_child(CXOR("Other HUD"))
+					{
+						checkbox(CXOR("Unlock inventory"), &g_cfg.misc.unlock_inventory);
+						checkbox(CXOR("Remove server ads"), &g_cfg.misc.remove_ads);
 					}
 					end_child;
 				}

@@ -198,6 +198,11 @@ public:
 		return color_base[idx];
 	}
 
+	__forceinline const float& operator[](int idx) const
+	{
+		return color_base[idx];
+	}
+
 	__forceinline c_color base() const
 	{
 		return c_color(color_base[0] * 255.f, color_base[1] * 255.f, color_base[2] * 255.f, color_base[3] * 255.f);

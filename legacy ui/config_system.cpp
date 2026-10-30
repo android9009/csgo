@@ -414,6 +414,8 @@ namespace config
 			save_bool(misc, CXOR("fast_stop"), default_config.misc.fast_stop);
 			save_bool(misc, CXOR("slide_walk"), default_config.misc.slide_walk);
 			save_bool(misc, CXOR("pen_xhair"), default_config.misc.pen_xhair);
+			save_bool(misc, CXOR("inaccuracy_overlay"), default_config.misc.inaccuracy_overlay);
+			save_clr(misc, CXOR("inaccuracy_color"), &default_config.misc.inaccuracy_color);
 
 			for (int i = 0; i < 3; i++)
 			{
@@ -768,6 +770,8 @@ namespace config
 			save_bool(misc, CXOR("fast_stop"), g_cfg.misc.fast_stop);
 			save_bool(misc, CXOR("slide_walk"), g_cfg.misc.slide_walk);
 			save_bool(misc, CXOR("pen_xhair"), g_cfg.misc.pen_xhair);
+			save_bool(misc, CXOR("inaccuracy_overlay"), g_cfg.misc.inaccuracy_overlay);
+			save_clr(misc, CXOR("inaccuracy_color"), &g_cfg.misc.inaccuracy_color);
 
 			for (int i = 0; i < 3; i++)
 			{
@@ -1133,6 +1137,8 @@ namespace config
 			load_bool(misc, CXOR("fast_stop"), g_cfg.misc.fast_stop);
 			load_bool(misc, CXOR("slide_walk"), g_cfg.misc.slide_walk);
 			load_bool(misc, CXOR("pen_xhair"), g_cfg.misc.pen_xhair);
+			load_bool(misc, CXOR("inaccuracy_overlay"), g_cfg.misc.inaccuracy_overlay);
+			load_clr(misc, CXOR("inaccuracy_color"), g_cfg.misc.inaccuracy_color);
 
 			for (int i = 0; i < 3; i++)
 			{

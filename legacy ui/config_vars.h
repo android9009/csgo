@@ -488,6 +488,8 @@ struct configs_t
 		std::map<std::string, world_settings_t> world_profiles{};
 
 		bool pen_xhair{};
+		bool inaccuracy_overlay{};
+		c_float_color inaccuracy_color = c_float_color(81, 124, 253, 190);
 		bool retrack_peek{};
 
 		c_float_color texture_reflect_clr = { 255, 255, 255, 255 };
