@@ -7,6 +7,7 @@
 
 #include <ShlObj.h>
 #include <algorithm>
+#include <cctype>
 #include <map>
 #include <d3d9.h>
 #include <d3dx9.h>
@@ -35,6 +36,9 @@ std::vector< std::string > key_strings = { XOR("None"), XOR("M1"), XOR("M2"), XO
   XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" ") };
 
 std::array< std::string, max_tabs > tabs = { XOR("Rage"), XOR("Legit"), XOR("Anti-hit"), XOR("Players"), XOR("World"), XOR("Inventory"), XOR("Miscellaneous"), XOR("Configs") };
+
+extern std::vector< std::string > config_list;
+void refresh_configs();
 
 void c_menu::create_animation(float& mod, bool cond, float speed_multiplier, unsigned int animation_flags)
 {
@@ -127,9 +131,6 @@ void c_menu::init_textures()
 
 void c_menu::set_draw_list(ImDrawList* list)
 {
-	if (draw_list)
-		return;
-
 	draw_list = list;
 }
 
@@ -245,9 +246,9 @@ void c_menu::draw_ui_background()
 	// Darkside geometry: 800x600, 170px side plate, 60px top plate,
 	// content beginning at x=185 and a 150px-wide tab column.
 	imgui_blur::create_blur(list, pos, max, c_color(11, 14, 22, 244.f * a).as_imcolor(), 6.f);
-	list->AddRectFilled(pos, pos + ImVec2(170, 600), c_color(18, 20, 29, 216.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Left);
-	list->AddRectFilled(pos + ImVec2(170, 0), pos + ImVec2(800, 61), c_color(11, 15, 23, 232.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Top);
-	list->AddRectFilled(pos + ImVec2(170, 61), max, c_color(11, 14, 22, 226.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Bot);
+	list->AddRectFilled(pos, pos + ImVec2(170, 600), c_color(18, 20, 29, 204.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Left);
+	list->AddRectFilled(pos + ImVec2(170, 0), pos + ImVec2(800, 61), c_color(11, 15, 23, 230.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Top);
+	list->AddRectFilled(pos + ImVec2(170, 61), max, c_color(11, 14, 22, 230.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Bot);
 	list->AddRect(pos, max, c_color(30, 33, 44, 255.f * a).as_imcolor(), 6.f);
 	list->AddLine(pos + ImVec2(185, 60), pos + ImVec2(785, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
 	list->AddLine(pos + ImVec2(10, 60), pos + ImVec2(160, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
@@ -257,17 +258,11 @@ void c_menu::draw_ui_background()
 	list->AddText(pos + ImVec2(12, 15), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("AIRFLOW"));
 	ImGui::PopFont();
 
-	const auto top_title = tabs[tab_selector].c_str();
-	list->AddText(pos + ImVec2(185, 24), c_color(235, 235, 240, 255.f * a).as_imcolor(), top_title);
-	const auto status = XOR("DARKSIDE UI  /  RECODE");
-	const auto status_size = ImGui::CalcTextSize(status.c_str());
-	list->AddText(pos + ImVec2(785 - status_size.x, 24), c_color(130, 133, 143, 230.f * a).as_imcolor(), status.c_str());
-
 	// Bottom-left user plate from the reference (10, height-48)..(160, height-8).
 	const auto profile_min = pos + ImVec2(10, 552);
 	const auto profile_max = pos + ImVec2(160, 592);
 	list->AddLine(profile_min, ImVec2(profile_max.x, profile_min.y), c_color(30, 33, 44, 255.f * a).as_imcolor());
-	list->AddCircleFilled(profile_min + ImVec2(23, 20), 15.f, c_color(25, 28, 38, 255.f * a).as_imcolor(), 32);
+	list->AddCircleFilled(profile_min + ImVec2(23, 20), 15.f, c_color(11, 18, 35, 255.f * a).as_imcolor(), 32);
 	list->AddText(profile_min + ImVec2(46, 6), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("airflow"));
 	list->AddText(profile_min + ImVec2(46, 22), c_color(130, 133, 143, 255.f * a).as_imcolor(), CXOR("recode"));
 	list->AddText(profile_min + ImVec2(137, 14), c_color(130, 133, 143, 255.f * a).as_imcolor(), CXOR(">"));
@@ -285,24 +280,23 @@ void c_menu::draw_tabs()
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, a));
 
-	list->AddText(base + ImVec2(12, 68), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Aimbot"));
-	list->AddText(base + ImVec2(12, 190), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Visuals"));
-	list->AddText(base + ImVec2(12, 302), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Common"));
+	list->AddText(base + ImVec2(20, 68), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Aimbot"));
+	list->AddText(base + ImVec2(20, 210), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Common"));
 
 	for (int i = 0; i < tabs.size(); ++i)
 	{
 		auto& info = tab_info[i];
-		const float y = 86.f + 34.f * i + (i >= 3 ? 22.f : 0.f) + (i >= 6 ? 12.f : 0.f);
-		ImGui::SetCursorPos(ImVec2(6, y));
+		const float y = 93.f + 39.f * i + (i >= 3 ? 22.f : 0.f);
+		ImGui::SetCursorPos(ImVec2(16, y));
 		const auto id = CXOR("##tab_") + std::to_string(i);
-		info.selected = ImGui::ButtonEx(id.c_str(), ImVec2(144, 30), 0, &info.hovered);
+		info.selected = ImGui::ButtonEx(id.c_str(), ImVec2(138, 30), 0, &info.hovered);
 		if (info.selected)
 			tab_selector = i;
 		create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
 		create_animation(info.alpha, tab_selector == i, 0.8f, lerp_animation);
 
-		const auto min = base + ImVec2(6, y);
-		const auto max = min + ImVec2(148, 30);
+		const auto min = base + ImVec2(16, y);
+		const auto max = min + ImVec2(138, 30);
 		const float fill = std::clamp(info.alpha + info.hovered_alpha * 0.4f, 0.f, 1.f);
 		if (fill > 0.01f)
 			list->AddRectFilled(min, max, c_color(39, 43, 54, 255.f * fill * a).as_imcolor(), 6.f);
@@ -320,6 +314,141 @@ void c_menu::draw_tabs()
 	ImGui::SetCursorPos(prev_pos);
 }
 
+
+void c_menu::draw_top_bar()
+{
+	auto base_draw_list = get_draw_list();
+	const auto base = get_window_pos();
+	const float a = get_alpha();
+	const auto accent = g_cfg.misc.ui_color.base();
+	static int selected_config = -1;
+	static bool refreshed = false;
+	static char search[128]{};
+	static bool search_requested = false;
+
+	if (!refreshed)
+	{
+		refresh_configs();
+		refreshed = true;
+	}
+	if (selected_config < 0 || selected_config >= static_cast<int>(config_list.size()))
+		selected_config = config_list.empty() ? -1 : 0;
+
+	const ImVec2 save_pos(185, 15);
+	const ImVec2 config_pos(220, 15);
+	ImGui::SetCursorPos(save_pos);
+	const bool save_clicked = ImGui::InvisibleButton(CXOR("##top_save"), ImVec2(35, 30));
+	const bool save_hovered = ImGui::IsItemHovered();
+	ImGui::SetCursorPos(config_pos);
+	const bool config_clicked = ImGui::InvisibleButton(CXOR("##top_config"), ImVec2(145, 30));
+	const bool config_hovered = ImGui::IsItemHovered();
+	ImGui::SetCursorPos(ImVec2(755, 15));
+	const bool search_clicked = ImGui::InvisibleButton(CXOR("##top_search"), ImVec2(30, 30));
+	const bool search_hovered = ImGui::IsItemHovered();
+
+	const auto draw_plate = [&](const ImVec2& min, const ImVec2& size, bool hovered)
+	{
+		base_draw_list->AddRectFilled(base + min, base + min + size,
+			c_color(25, 28, 38, (hovered ? 235.f : 190.f) * a).as_imcolor(), 6.f);
+	};
+	draw_plate(save_pos, ImVec2(180, 30), save_hovered || config_hovered);
+	base_draw_list->AddLine(base + ImVec2(220, 15), base + ImVec2(220, 45), c_color(30, 33, 44, 255.f * a).as_imcolor());
+
+	const auto icon_color = c_color(save_hovered ? accent.r() : 235, save_hovered ? accent.g() : 235, save_hovered ? accent.b() : 240, 255.f * a);
+	const auto save_min = base + save_pos + ImVec2(11, 8);
+	base_draw_list->AddRect(save_min, save_min + ImVec2(13, 14), icon_color.as_imcolor(), 2.f);
+	base_draw_list->AddRectFilled(save_min + ImVec2(3, 2), save_min + ImVec2(9, 6), icon_color.as_imcolor());
+	base_draw_list->AddRect(save_min + ImVec2(3, 8), save_min + ImVec2(10, 12), icon_color.as_imcolor());
+
+	const char* current_config = selected_config >= 0 ? config_list[selected_config].c_str() : CXOR("default");
+	const auto config_text_min = base + config_pos + ImVec2(11, 0);
+	const auto config_text_max = base + config_pos + ImVec2(123, 30);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.922f, 0.922f, 0.941f, a));
+	ImGui::RenderTextClipped(config_text_min, config_text_max, current_config, nullptr, nullptr, ImVec2(0.f, 0.5f));
+	ImGui::PopStyleColor();
+	const ImVec2 chevron_center = base + config_pos + ImVec2(132, 15);
+	const ImVec2 chevron[] = { chevron_center + ImVec2(-3, -1.5f), chevron_center + ImVec2(0, 1.5f), chevron_center + ImVec2(3, -1.5f) };
+	base_draw_list->AddPolyline(chevron, 3, c_color(130, 133, 143, 255.f * a).as_imcolor(), false, 1.f);
+
+	const auto search_center = base + ImVec2(769, 29);
+	const auto search_color = c_color(search_hovered ? accent.r() : 130, search_hovered ? accent.g() : 133, search_hovered ? accent.b() : 143, 255.f * a);
+	base_draw_list->AddCircle(search_center, 5.f, search_color.as_imcolor(), 20, 1.4f);
+	base_draw_list->AddLine(search_center + ImVec2(4, 4), search_center + ImVec2(8, 8), search_color.as_imcolor(), 1.4f);
+
+	if (save_clicked)
+	{
+		if (selected_config >= 0)
+			config::save(config_list[selected_config]);
+		else
+			tab_selector = 7;
+	}
+	if (config_clicked)
+		ImGui::OpenPopup(CXOR("##top_config_popup"));
+	if (search_clicked)
+	{
+		search_requested = true;
+		ImGui::OpenPopup(CXOR("##top_search_popup"));
+	}
+
+	ImGui::SetNextWindowPos(base + ImVec2(220, 49));
+	ImGui::SetNextWindowSize(ImVec2(220, std::min(220.f, config_list.size() * 28.f + 12.f)));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.f);
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(18.f / 255.f, 20.f / 255.f, 29.f / 255.f, a));
+	if (ImGui::BeginPopup(CXOR("##top_config_popup")))
+	{
+		set_draw_list(ImGui::GetWindowDrawList());
+		for (int i = 0; i < static_cast<int>(config_list.size()); ++i)
+		{
+			ImGui::PushID(i);
+			if (selectable(config_list[i].c_str(), i == selected_config, a, 0, ImVec2(0, 23)))
+			{
+				selected_config = i;
+				config::load(config_list[i]);
+				HACKS->loading_config = true;
+			}
+			ImGui::PopID();
+		}
+		ImGui::EndPopup();
+	}
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar(2);
+
+	ImGui::SetNextWindowPos(base + ImVec2(535, 49));
+	ImGui::SetNextWindowSize(ImVec2(250, 250));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.f);
+	ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(18.f / 255.f, 20.f / 255.f, 29.f / 255.f, a));
+	if (ImGui::BeginPopup(CXOR("##top_search_popup")))
+	{
+		set_draw_list(ImGui::GetWindowDrawList());
+		if (search_requested)
+		{
+			ImGui::SetKeyboardFocusHere();
+			search_requested = false;
+		}
+		input_text(CXOR("Search tabs##top"), search, sizeof(search));
+		std::string needle = search;
+		std::transform(needle.begin(), needle.end(), needle.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		for (int i = 0; i < static_cast<int>(tabs.size()); ++i)
+		{
+			std::string candidate = tabs[i];
+			std::transform(candidate.begin(), candidate.end(), candidate.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+			if (!needle.empty() && candidate.find(needle) == std::string::npos)
+				continue;
+			if (selectable(tabs[i].c_str(), tab_selector == i, a, 0, ImVec2(0, 23)))
+			{
+				tab_selector = i;
+				ImGui::CloseCurrentPopup();
+			}
+		}
+		ImGui::EndPopup();
+	}
+	ImGui::PopStyleColor();
+	ImGui::PopStyleVar(2);
+	set_draw_list(base_draw_list);
+}
+
 void c_menu::begin_group_box(const char* name)
 {
 	auto window = ImGui::GetCurrentWindow();
@@ -333,13 +462,13 @@ void c_menu::begin_group_box(const char* name)
 	group_box_stack.push_back({ id, width, true, draw_list });
 
 	ImGui::BeginChild((std::string(name) + CXOR(".main")).c_str(), ImVec2(width, height), false, ImGuiWindowFlags_NoScrollbar);
-	constexpr float header_h = 32.f;
+	constexpr float header_h = 18.f;
 	darkside_ui::squircle_filled(ImGui::GetWindowDrawList(), pos + ImVec2(0, header_h), pos + ImVec2(width, height),
 		c_color(18, 20, 29, 255.f * get_alpha()).as_imcolor(), 20.f);
 	darkside_ui::squircle(ImGui::GetWindowDrawList(), pos + ImVec2(0, header_h), pos + ImVec2(width, height),
 		c_color(30, 33, 44, 255.f * get_alpha()).as_imcolor(), 20.f);
 	ImGui::PushFont(RENDER->fonts.menu_header.get());
-	ImGui::GetWindowDrawList()->AddText(pos + ImVec2(10, 9), c_color(235, 235, 240, 128.f * get_alpha()).as_imcolor(), name);
+	ImGui::GetWindowDrawList()->AddText(pos + ImVec2(10, 1), c_color(235, 235, 240, 128.f * get_alpha()).as_imcolor(), name);
 	ImGui::PopFont();
 	ImGui::SetCursorPos(ImVec2(0, header_h));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
@@ -347,7 +476,7 @@ void c_menu::begin_group_box(const char* name)
 		ImGuiWindowFlags_AlwaysUseWindowPadding | ImGuiWindowFlags_NoScrollbar);
 	set_draw_list(ImGui::GetWindowDrawList());
 	ImGui::BeginGroup();
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 0));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 8));
 }
 
 void c_menu::end_group_box()
@@ -356,8 +485,8 @@ void c_menu::end_group_box()
 		return;
 	const auto state = group_box_stack.back();
 	group_box_stack.pop_back();
-	const float content_h = ImGui::GetCursorPosY() + 8.f;
-	group_box_heights[state.id] = content_h + 32.f;
+	const float content_h = ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + 8.f;
+	group_box_heights[state.id] = content_h + 18.f;
 	ImGui::PopStyleVar();
 	ImGui::EndGroup();
 	ImGui::EndChild(false);
@@ -478,6 +607,7 @@ void c_menu::draw()
 	this->window_begin();
 	this->draw_ui_background();
 	this->draw_tabs();
+	this->draw_top_bar();
 	this->draw_ui_items();
 	this->window_end();
 

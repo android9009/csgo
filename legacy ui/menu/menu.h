@@ -188,6 +188,7 @@ public:
 	void init_textures();
 	void draw_ui_background();
 	void draw_tabs();
+	void draw_top_bar();
 	void draw_sub_tabs(int& selector, const std::vector< std::string >& tabs);
 	void draw_ui_items();
 	void update_alpha();
@@ -218,6 +219,7 @@ public:
 		updated_keybinds.clear();
 		subtab_info.clear();
 		item_animations.clear();
+		draw_list = nullptr;
 		combo_items.clear();
 		group_box_heights.clear();
 		group_box_stack.clear();

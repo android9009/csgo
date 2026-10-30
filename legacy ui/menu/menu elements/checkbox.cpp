@@ -44,8 +44,12 @@ bool c_menu::checkbox(const char* label, bool* v)
 	draw_list->AddRect(frame_bb.Min + ImVec2(0.5f, 0.5f), frame_bb.Max - ImVec2(0.5f, 0.5f),
 		c_color(255, 255, 255, 18.f * (1.f - mod.alpha) * alpha).as_imcolor(), 9.f);
 	const float knob_x = std::lerp(frame_bb.Min.x + 9.5f, frame_bb.Max.x - 9.5f, mod.alpha);
-	draw_list->AddCircleFilled(ImVec2(knob_x, frame_bb.GetCenter().y), 7.5f,
-		c_color(255, 255, 255, 255.f * alpha).as_imcolor(), 24);
+	const auto knob = c_color(
+		(std::uint8_t)std::lerp(127.f, 255.f, mod.alpha),
+		(std::uint8_t)std::lerp(135.f, 255.f, mod.alpha),
+		(std::uint8_t)std::lerp(142.f, 255.f, mod.alpha),
+		(std::uint8_t)(255.f * alpha));
+	draw_list->AddCircleFilled(ImVec2(knob_x, frame_bb.GetCenter().y), 7.5f, knob.as_imcolor(), 32);
 	const float text_active = ImMax(mod.alpha, mod.hovered_alpha);
 	const int text_grey = (int)std::lerp(150.f, 255.f, text_active);
 	if (label_size.x > 0.f)

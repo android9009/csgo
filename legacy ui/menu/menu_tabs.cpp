@@ -1726,46 +1726,58 @@ void c_menu::draw_ui_items()
 			case 0:
 			{
 				combo(CXOR("Team##inventory_loadout"), &inventory_team, inventory_teams, IM_ARRAYSIZE(inventory_teams));
-				begin_child(CXOR("Current loadout"))
-				{
-					inventory_preview::draw_agent(inventory_team == 0 ? 3 : 2, ImVec2(120, 140), alpha);
-					ImGui::SameLine();
-					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(150, 140), alpha, false, inventory_team == 0 ? 3 : 2);
-					ImGui::SameLine();
-					inventory_preview::draw_gloves(ImVec2(150, 140), alpha);
-					ImGui::SameLine();
-					inventory_preview::draw_weapon(weapon_cfg_taser, ImVec2(150, 140), alpha, false, inventory_team == 0 ? 3 : 2);
-				}
-				end_child;
+				const int preview_team = inventory_team == 0 ? 3 : 2;
 
 				const std::vector<std::vector<int>> categories = {
-					{ weapon_cfg_deagle, weapon_cfg_duals, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p2000, weapon_cfg_p250, weapon_cfg_usps, weapon_cfg_cz75, weapon_cfg_revolver, weapon_cfg_taser },
+					{ weapon_cfg_usps, weapon_cfg_duals, weapon_cfg_p2000, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p250, weapon_cfg_cz75, weapon_cfg_revolver, weapon_cfg_deagle, weapon_cfg_taser },
 					{ weapon_cfg_famas, weapon_cfg_galil, weapon_cfg_mac10, weapon_cfg_mp5sd, weapon_cfg_ump45, weapon_cfg_xm1014, weapon_cfg_bizon, weapon_cfg_mag7, weapon_cfg_sawedoff, weapon_cfg_mp7, weapon_cfg_mp9, weapon_cfg_nova },
 					{ weapon_cfg_ak47, weapon_cfg_aug, weapon_cfg_awp, weapon_cfg_g3sg1, weapon_cfg_m249, weapon_cfg_m4a1, weapon_cfg_m4a1s, weapon_cfg_p90, weapon_cfg_negev, weapon_cfg_scar20, weapon_cfg_sg556, weapon_cfg_ssg08, weapon_cfg_knife }
 				};
-				const char* category_names[] = { CXOR("Pistols"), CXOR("Mid-Tier"), CXOR("Rifles & Knife") };
-				ImGui::Columns(3, 0, false);
-				ImGui::SetColumnOffset(1, 200);
-				ImGui::SetColumnOffset(2, 400);
-				for (int column = 0; column < 3; ++column)
+				const char* category_names[] = { "Pistols", "Mid-Tier", "Rifles" };
+				const float loadout_height = ImGui::GetContentRegionAvail().y;
+
+				ImGui::BeginChild(CXOR("##inventory_agent_column"), ImVec2(200, loadout_height), false, ImGuiWindowFlags_NoScrollbar);
 				{
-					if (column > 0)
-						ImGui::NextColumn();
-					begin_child(category_names[column])
+					inventory_preview::draw_agent(preview_team, ImVec2(184, 285), alpha);
+					ImGui::ItemSize(ImVec2(0, 6));
+					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(58, 64), alpha, false, preview_team);
+					ImGui::SameLine(0, 5);
+					inventory_preview::draw_gloves(ImVec2(58, 64), alpha);
+					ImGui::SameLine(0, 5);
+					inventory_preview::draw_weapon(weapon_cfg_taser, ImVec2(58, 64), alpha, false, preview_team);
+				}
+				ImGui::EndChild();
+
+				ImGui::SameLine(0, 10);
+				ImGui::BeginChild(CXOR("##inventory_weapon_grid"), ImVec2(0, loadout_height), false, ImGuiWindowFlags_NoScrollbar);
+				{
+					const float grid_height = ImGui::GetContentRegionAvail().y;
+					const float column_width = (ImGui::GetContentRegionAvail().x - 16.f) / 3.f;
+					for (int column = 0; column < 3; ++column)
 					{
+						ImGui::SetCursorPos(ImVec2(column * (column_width + 8.f), 0));
+						const auto column_id = CXOR("##inventory_column_") + std::to_string(column);
+						ImGui::BeginChild(column_id.c_str(), ImVec2(column_width, grid_height), false);
+						const auto label_size = ImGui::CalcTextSize(category_names[column]);
+						ImGui::SetCursorPosX(std::max(0.f, (column_width - label_size.x) * 0.5f));
+						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.76f, 0.77f, 0.81f, alpha));
+						ImGui::TextUnformatted(category_names[column]);
+						ImGui::PopStyleColor();
+						ImGui::ItemSize(ImVec2(0, 4));
+
 						for (const int index : categories[column])
 						{
-							if (inventory_preview::weapon_card(index, skin_weapon_configs[index], g_cfg.skins.group_type == index, alpha, inventory_team == 0 ? 3 : 2))
+							if (inventory_preview::weapon_card(index, nullptr, g_cfg.skins.group_type == index, alpha, preview_team))
 							{
 								g_cfg.skins.group_type = index;
 								selector = 1;
 							}
-							ImGui::ItemSize(ImVec2(0, 3));
+							ImGui::ItemSize(ImVec2(0, 4));
 						}
+						ImGui::EndChild();
 					}
-					end_child;
 				}
-			}
+				ImGui::EndChild();
 			break;
 			case 1:
 			{

@@ -2,11 +2,12 @@
 #include "../config_vars.h"
 #include "../../skins.hpp"
 #include "inventory_preview.h"
+#include "menu_resources.h"
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace inventory_preview
 {
@@ -19,11 +20,76 @@ namespace inventory_preview
 		};
 
 		std::unordered_map<std::string, texture_entry_t> texture_cache{};
-		std::unordered_set<std::string> unavailable_textures{};
+		std::unordered_map<std::string, ULONGLONG> unavailable_textures{};
 		std::uint64_t cache_clock{};
 		IDirect3DDevice9* cache_device{};
 		constexpr std::size_t max_cached_textures = 96;
 		constexpr unsigned int max_image_size = 16 * 1024 * 1024;
+
+		constexpr const char* embedded_paths[] = {
+			"resource/flash/econ/weapons/base_weapons/weapon_knife.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_bayonet.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_flip.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_gut.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_karambit.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_m9_bayonet.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_tactical.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_falchion.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_survival_bowie.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_butterfly.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_push.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_css.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_skeleton.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_outdoor.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_cord.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_canis.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_ursus.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_gypsy_jackknife.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_stiletto.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_knife_widowmaker.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_deagle.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_elite.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_fiveseven.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_glock.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_ak47.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_aug.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_awp.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_famas.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_g3sg1.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_galilar.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_m249.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_m4a1.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_m4a1_silencer.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_mac10.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_p90.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_mp5sd.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_ump45.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_xm1014.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_bizon.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_mag7.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_negev.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_sawedoff.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_tec9.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_hkp2000.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_mp7.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_mp9.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_nova.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_p250.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_scar20.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_sg556.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_ssg08.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_usp_silencer.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_cz75a.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_revolver.png",
+			"resource/flash/econ/weapons/base_weapons/weapon_taser.png",
+			"resource/flash/econ/weapons/base_weapons/ct_gloves.png",
+			"resource/flash/econ/weapons/base_weapons/t_gloves.png",
+			"resource/flash/econ/characters/customplayer_ct_map_based.png",
+			"resource/flash/econ/characters/customplayer_t_map_based.png",
+			"resource/flash/econ/characters/customplayer_ctm_sas.png",
+			"resource/flash/econ/characters/customplayer_tm_phoenix.png",
+		};
+		static_assert(IM_ARRAYSIZE(embedded_paths) == IDR_PREVIEW_LAST - IDR_PREVIEW_FIRST + 1, "Preview resource map is out of sync");
 
 		void evict_oldest_texture()
 		{
@@ -39,13 +105,107 @@ namespace inventory_preview
 			texture_cache.erase(oldest);
 		}
 
+		bool recently_unavailable(const std::string& path)
+		{
+			const auto it = unavailable_textures.find(path);
+			if (it == unavailable_textures.end())
+				return false;
+
+			constexpr ULONGLONG retry_delay_ms = 5000;
+			if (GetTickCount64() - it->second < retry_delay_ms)
+				return true;
+
+			unavailable_textures.erase(it);
+			return false;
+		}
+
+		void mark_unavailable(const std::string& path)
+		{
+			unavailable_textures[path] = GetTickCount64();
+		}
+
+		bool read_image(const std::string& path, std::vector<std::uint8_t>& data)
+		{
+			if (HACKS->file_system)
+			{
+				auto handle = HACKS->file_system->open(path.c_str(), CXOR("rb"), CXOR("GAME"));
+				if (!handle)
+					handle = HACKS->file_system->open(path.c_str(), CXOR("rb"), nullptr);
+
+				if (handle)
+				{
+					const unsigned int size = HACKS->file_system->size(handle);
+					if (size && size <= max_image_size)
+					{
+						data.resize(size);
+						const int bytes_read = HACKS->file_system->read(data.data(), size, handle);
+						HACKS->file_system->close(handle);
+						if (bytes_read == static_cast<int>(size))
+							return true;
+					}
+					else
+					{
+						HACKS->file_system->close(handle);
+					}
+				}
+			}
+
+			data.clear();
+			if (HACKS->exe_path.empty())
+				return false;
+
+			std::string disk_path = HACKS->exe_path + path;
+			std::replace(disk_path.begin(), disk_path.end(), '/', '\\');
+			std::ifstream input(disk_path, std::ios::binary | std::ios::ate);
+			if (!input)
+				return false;
+
+			const std::streamoff size = input.tellg();
+			if (size <= 0 || size > static_cast<std::streamoff>(max_image_size))
+				return false;
+
+			data.resize(static_cast<std::size_t>(size));
+			input.seekg(0, std::ios::beg);
+			input.read(reinterpret_cast<char*>(data.data()), size);
+			return input.good();
+		}
+
+		bool read_embedded_image(const std::string& path, std::vector<std::uint8_t>& data)
+		{
+			int resource_id = 0;
+			for (int i = 0; i < static_cast<int>(IM_ARRAYSIZE(embedded_paths)); ++i)
+			{
+				if (path == embedded_paths[i])
+				{
+					resource_id = IDR_PREVIEW_FIRST + i;
+					break;
+				}
+			}
+			if (!resource_id)
+				return false;
+
+			static const unsigned char module_anchor = 0;
+			HMODULE module = nullptr;
+			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+				reinterpret_cast<LPCSTR>(&module_anchor), &module);
+			const HRSRC resource = module ? FindResourceW(module, MAKEINTRESOURCEW(resource_id), MAKEINTRESOURCEW(10)) : nullptr;
+			const HGLOBAL loaded = resource ? LoadResource(module, resource) : nullptr;
+			const auto* bytes = loaded ? static_cast<const std::uint8_t*>(LockResource(loaded)) : nullptr;
+			const DWORD size = resource ? SizeofResource(module, resource) : 0;
+			if (!bytes || !size || size > max_image_size)
+				return false;
+
+			data.assign(bytes, bytes + size);
+			return true;
+		}
+
 		IDirect3DTexture9* load_texture(const std::string& path)
 		{
 			if (path.empty())
 				return nullptr;
 
 			auto device = RENDER->get_device();
-			if (!device || !HACKS->file_system)
+			if (!device)
 				return nullptr;
 
 			if (cache_device != device)
@@ -61,38 +221,20 @@ namespace inventory_preview
 				return cached->second.texture;
 			}
 
-			if (unavailable_textures.count(path))
+			if (recently_unavailable(path))
 				return nullptr;
 
-			auto handle = HACKS->file_system->open(path.c_str(), CXOR("rb"), CXOR("GAME"));
-			if (!handle)
+			std::vector<std::uint8_t> data;
+			if (!read_image(path, data) && !read_embedded_image(path, data))
 			{
-				unavailable_textures.insert(path);
-				return nullptr;
-			}
-
-			const unsigned int size = HACKS->file_system->size(handle);
-			if (!size || size > max_image_size)
-			{
-				HACKS->file_system->close(handle);
-				unavailable_textures.insert(path);
-				return nullptr;
-			}
-
-			std::vector<std::uint8_t> data(size);
-			const int bytes_read = HACKS->file_system->read(data.data(), size, handle);
-			HACKS->file_system->close(handle);
-
-			if (bytes_read != static_cast<int>(size))
-			{
-				unavailable_textures.insert(path);
+				mark_unavailable(path);
 				return nullptr;
 			}
 
 			D3DXIMAGE_INFO image_info{};
-			if (FAILED(D3DXGetImageInfoFromFileInMemory(data.data(), size, &image_info)) || !image_info.Width || !image_info.Height)
+			if (FAILED(D3DXGetImageInfoFromFileInMemory(data.data(), static_cast<UINT>(data.size()), &image_info)) || !image_info.Width || !image_info.Height)
 			{
-				unavailable_textures.insert(path);
+				mark_unavailable(path);
 				return nullptr;
 			}
 
@@ -102,12 +244,12 @@ namespace inventory_preview
 
 			IDirect3DTexture9* texture = nullptr;
 			const HRESULT result = D3DXCreateTextureFromFileInMemoryEx(
-				device, data.data(), size, width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+				device, data.data(), static_cast<UINT>(data.size()), width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
 				D3DX_DEFAULT, D3DX_DEFAULT, 0, nullptr, nullptr, &texture);
 
 			if (FAILED(result) || !texture)
 			{
-				unavailable_textures.insert(path);
+				mark_unavailable(path);
 				return nullptr;
 			}
 
@@ -218,8 +360,8 @@ namespace inventory_preview
 			if (model.empty())
 			{
 				return load_texture(team == 2
-					? CXOR("resource/flash/econ/characters/customplayer_t_map_based.png")
-					: CXOR("resource/flash/econ/characters/customplayer_ct_map_based.png"));
+					? CXOR("resource/flash/econ/characters/customplayer_tm_phoenix.png")
+					: CXOR("resource/flash/econ/characters/customplayer_ctm_sas.png"));
 			}
 
 			std::replace(model.begin(), model.end(), '\\', '/');
@@ -245,8 +387,8 @@ namespace inventory_preview
 			}
 
 			return load_texture(team == 2
-				? CXOR("resource/flash/econ/characters/customplayer_t_map_based.png")
-				: CXOR("resource/flash/econ/characters/customplayer_ct_map_based.png"));
+				? CXOR("resource/flash/econ/characters/customplayer_tm_phoenix.png")
+				: CXOR("resource/flash/econ/characters/customplayer_ctm_sas.png"));
 		}
 
 		void draw_image_in_rect(IDirect3DTexture9* texture, const ImVec2& min, const ImVec2& max, float alpha)
@@ -298,11 +440,15 @@ namespace inventory_preview
 		const ImVec2 max = ImGui::GetItemRectMax();
 		auto draw_list = ImGui::GetWindowDrawList();
 		const int opacity = static_cast<int>(std::clamp(alpha, 0.f, 1.f) * 255.f);
-		draw_list->AddRectFilled(min, max, IM_COL32(hovered ? 29 : 20, hovered ? 32 : 23, hovered ? 44 : 33, opacity), 7.f);
-		draw_image_in_rect(weapon_texture(slot, false, team), min + ImVec2(4, 3), max - ImVec2(4, 20), alpha);
+		draw_list->AddRectFilled(min, max, IM_COL32(hovered ? 29 : 20, hovered ? 32 : 23, hovered ? 44 : 33, opacity), 5.f);
+		const bool has_label = label && *label;
+		draw_image_in_rect(weapon_texture(slot, false, team), min + ImVec2(4, 3), max - ImVec2(4, has_label ? 20 : 5), alpha);
 
-		const ImVec2 text_size = ImGui::CalcTextSize(label);
-		draw_list->AddText(ImVec2(min.x + (size.x - text_size.x) * 0.5f, max.y - 17.f), IM_COL32(220, 222, 230, opacity), label);
+		if (has_label)
+		{
+			const ImVec2 text_size = ImGui::CalcTextSize(label);
+			draw_list->AddText(ImVec2(min.x + (size.x - text_size.x) * 0.5f, max.y - 17.f), IM_COL32(220, 222, 230, opacity), label);
+		}
 		if (selected)
 			draw_list->AddLine(ImVec2(min.x + 3.f, max.y - 1.f), ImVec2(max.x - 3.f, max.y - 1.f), g_cfg.misc.ui_color.base().as_imcolor(), 2.f);
 		return pressed;
