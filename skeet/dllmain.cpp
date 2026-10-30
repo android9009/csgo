@@ -1,18 +1,43 @@
-﻿#include "pch.h"
+#include "pch.h"
 #include "skCrypter.h"
 
-static void thread(HMODULE base) {
+static DWORD WINAPI SkeetThread(LPVOID parameter) {
+    const HMODULE base = static_cast<HMODULE>(parameter);
+    InitializeCrashReporting(base);
 #ifdef DLOG
     system("cls");
 #endif
     skeet_t* skeet = skeet_t::getInstance(base);
-    if (!skeet->map())
-        std::cout << skCrypt("[INFO] failed to allocate memory, reboot PC\n");
+    ReportCrashStage(skeet_crash::ImageConstructed);
+    if (!skeet->map()) {
+        ReportCrashStage(skeet_crash::MapFailed);
+        std::cout << skCrypt("[INFO] failed to map the Skeet image\n");
+        return 1;
+    }
+    ReportCrashStage(skeet_crash::MapSucceeded);
+
     while (GetModuleHandleA("serverbrowser.dll") == 0);
-    skeet->fix_imports();
+    if (!skeet->fix_imports()) {
+        ReportCrashStage(skeet_crash::ImportsFailed);
+        std::cout << skCrypt("[INFO] failed to resolve Skeet imports\n");
+        return 1;
+    }
+    ReportCrashStage(skeet_crash::ImportsSucceeded);
     std::cout << skCrypt("[INFO] fixed!\n");
-    skeet->extra();
-    skeet->entry();
+
+    if (!skeet->extra()) {
+        ReportCrashStage(skeet_crash::PatchesFailed);
+        std::cout << skCrypt("[INFO] Skeet patch preflight failed\n");
+        return 1;
+    }
+    ReportCrashStage(skeet_crash::PatchesSucceeded);
+    if (!skeet->entry()) {
+        ReportCrashStage(skeet_crash::EntryFailed);
+        std::cout << skCrypt("[INFO] failed to start the Skeet entry thread\n");
+        return 1;
+    }
+    ReportCrashStage(skeet_crash::Ready);
+    return 0;
 }
 
 BOOL APIENTRY DllMain( HMODULE hModule,
@@ -29,9 +54,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         freopen("CONOUT$", "w", stdout);
 #endif
         DisableThreadLibraryCalls(hModule);
-        CloseHandle(CreateThread(0, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(thread), hModule, 0, 0));
+        CloseHandle(CreateThread(0, 0, SkeetThread, hModule, 0, 0));
         break;
     }
     return TRUE;
 }
-

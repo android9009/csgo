@@ -175,6 +175,7 @@
     <ClInclude Include="skeet.h" />
     <ClInclude Include="SkeetSDK\skeetsdk.h" />
     <ClInclude Include="VM\recompilation.h" />
+    <ClInclude Include="..\shared\crash_report.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />

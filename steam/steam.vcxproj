@@ -76,6 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -134,8 +135,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="skCrypter.h" />
+    <ClInclude Include="..\shared\crash_report.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="RequireWin32" BeforeTargets="PrepareForBuild" Condition="'$(Platform)' != 'Win32'">
+    <Error Text="steam mapper supports only Win32 (x86). Select Release|Win32 or Debug|Win32 so its addresses and injection ABI match the 32-bit game." />
+  </Target>
 </Project>

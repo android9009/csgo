@@ -1,4 +1,5 @@
 #include <bit>
+#include <cstdio>
 #include <format>
 #include "pch.h"
 #include "Binary/pattern.h"
@@ -13,6 +14,147 @@
 #include "resource.h"
 
 FILETIME ftime = {};
+
+static skeet_crash::SharedBlock* g_crashBlock = nullptr;
+static HANDLE g_crashEvent = nullptr;
+static LPTOP_LEVEL_EXCEPTION_FILTER g_previousExceptionFilter = nullptr;
+static std::uint32_t g_crashStage = skeet_crash::ThreadStarted;
+static std::uint32_t g_reporterBase = 0;
+static std::uint32_t g_reporterSize = 0;
+
+static skeet_crash::Record MakeCrashRecord() noexcept {
+    skeet_crash::Record record = {};
+    record.magic = skeet_crash::kMagic;
+    record.version = skeet_crash::kVersion;
+    record.size = static_cast<std::uint32_t>(sizeof(record));
+    record.processId = GetCurrentProcessId();
+    record.threadId = GetCurrentThreadId();
+    record.stage = g_crashStage;
+    record.tickCount = GetTickCount();
+    record.reporterBase = g_reporterBase;
+    record.reporterSize = g_reporterSize;
+    record.imageBase = skeet_crash::kImageBase;
+    record.imageSize = skeet_crash::kImageSize;
+    return record;
+}
+
+static void PublishCrashRecord(const skeet_crash::Record& record) noexcept {
+    if (!g_crashBlock) return;
+    // Do not wait in an exception path. One complete latest record is more
+    // useful than risking a second deadlock while the game is already failing.
+    if (InterlockedCompareExchange(&g_crashBlock->writeLock, 1, 0) != 0) return;
+    g_crashBlock->record = record;
+    if (record.kind == skeet_crash::kRecordStatus) {
+        g_crashBlock->lastStage = record.stage;
+    }
+    MemoryBarrier();
+    InterlockedIncrement(&g_crashBlock->sequence);
+    InterlockedExchange(&g_crashBlock->writeLock, 0);
+    if (g_crashEvent) SetEvent(g_crashEvent);
+}
+
+static void ReportUnhandledCrash(EXCEPTION_POINTERS* exceptionInfo) noexcept {
+#if defined(_M_IX86)
+    if (!g_crashBlock || !exceptionInfo || !exceptionInfo->ExceptionRecord
+        || !exceptionInfo->ContextRecord) return;
+    const auto* exception = exceptionInfo->ExceptionRecord;
+    const auto* context = exceptionInfo->ContextRecord;
+    auto record = MakeCrashRecord();
+    record.kind = skeet_crash::kRecordException;
+    record.exceptionCode = exception->ExceptionCode;
+    record.exceptionFlags = exception->ExceptionFlags;
+    record.exceptionAddress = static_cast<std::uint32_t>(
+        reinterpret_cast<std::uintptr_t>(exception->ExceptionAddress));
+    record.instructionPointer = context->Eip;
+    record.stackPointer = context->Esp;
+    record.framePointer = context->Ebp;
+    record.eax = context->Eax;
+    record.ebx = context->Ebx;
+    record.ecx = context->Ecx;
+    record.edx = context->Edx;
+    record.esi = context->Esi;
+    record.edi = context->Edi;
+    record.eflags = context->EFlags;
+    record.numberParameters = exception->NumberParameters < 2
+        ? exception->NumberParameters : 2;
+    for (std::uint32_t i = 0; i < record.numberParameters; ++i) {
+        record.exceptionInformation[i] = static_cast<std::uint32_t>(
+            exception->ExceptionInformation[i]);
+    }
+    PublishCrashRecord(record);
+#else
+    (void)exceptionInfo;
+#endif
+}
+
+static LONG WINAPI CrashUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionInfo) {
+    ReportUnhandledCrash(exceptionInfo);
+    const auto previous = g_previousExceptionFilter;
+    if (previous && previous != &CrashUnhandledExceptionFilter) {
+        return previous(exceptionInfo);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static LPTOP_LEVEL_EXCEPTION_FILTER WINAPI CrashExceptionFilterInstaller(
+    LPTOP_LEVEL_EXCEPTION_FILTER filter) {
+    // The raw image installs its own top-level filter during entry. Preserve
+    // that filter in the chain instead of allowing it to hide the reporter.
+    if (filter != CrashUnhandledExceptionFilter) {
+        g_previousExceptionFilter = filter;
+    }
+    return SetUnhandledExceptionFilter(CrashUnhandledExceptionFilter);
+}
+
+bool InitializeCrashReporting(HMODULE module) noexcept {
+    if (g_crashBlock) return true;
+
+    wchar_t mappingName[64] = {};
+    wchar_t eventName[64] = {};
+    const DWORD pid = GetCurrentProcessId();
+    if (swprintf_s(mappingName, L"Local\\SkeetCrashMemory_%lu", pid) < 0
+        || swprintf_s(eventName, L"Local\\SkeetCrashEvent_%lu", pid) < 0) {
+        return false;
+    }
+
+    HANDLE mapping = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, mappingName);
+    if (!mapping) return false;
+    void* view = MapViewOfFile(mapping, FILE_MAP_READ | FILE_MAP_WRITE,
+        0, 0, sizeof(skeet_crash::SharedBlock));
+    CloseHandle(mapping);
+    if (!view) return false;
+
+    HANDLE event = OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, eventName);
+    if (!event) {
+        UnmapViewOfFile(view);
+        return false;
+    }
+
+    g_crashBlock = static_cast<skeet_crash::SharedBlock*>(view);
+    g_crashEvent = event;
+    if (module) {
+        g_reporterBase = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(module));
+        const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(module);
+        if (dos->e_magic == IMAGE_DOS_SIGNATURE) {
+            const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(
+                reinterpret_cast<const std::uint8_t*>(module) + dos->e_lfanew);
+            if (nt->Signature == IMAGE_NT_SIGNATURE) {
+                g_reporterSize = nt->OptionalHeader.SizeOfImage;
+            }
+        }
+    }
+
+    g_previousExceptionFilter = SetUnhandledExceptionFilter(CrashUnhandledExceptionFilter);
+    ReportCrashStage(skeet_crash::ThreadStarted);
+    return true;
+}
+
+void ReportCrashStage(skeet_crash::Stage stage) noexcept {
+    g_crashStage = static_cast<std::uint32_t>(stage);
+    auto record = MakeCrashRecord();
+    record.kind = skeet_crash::kRecordStatus;
+    PublishCrashRecord(record);
+}
 
 std::uint8_t* PatternScan(void* module, const char* signature)
 {
@@ -630,7 +772,16 @@ bool skeet_t::fix_imports()
 
         auto& export_ = exports[old_addr];
 
-        auto import_addr = (u32)(GetProcAddress(LoadLibraryA(export_.lib.c_str()), export_.name.c_str()));
+        u32 import_addr = 0;
+        if (g_crashBlock && export_.lib == "kernel32.dll"
+            && export_.name == "SetUnhandledExceptionFilter") {
+            import_addr = static_cast<u32>(reinterpret_cast<std::uintptr_t>(
+                &CrashExceptionFilterInstaller));
+        }
+        else {
+            import_addr = static_cast<u32>(reinterpret_cast<std::uintptr_t>(
+                GetProcAddress(LoadLibraryA(export_.lib.c_str()), export_.name.c_str())));
+        }
 
         if (!import_addr) {
             return false;

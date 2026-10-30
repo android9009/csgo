@@ -4,8 +4,12 @@
 #include <fstream>
 #include "VM/recompilation.h"
 #include "Json/json.hpp"
+#include "../shared/crash_report.h"
 
 using u32 = unsigned int;
+
+bool InitializeCrashReporting(HMODULE module) noexcept;
+void ReportCrashStage(skeet_crash::Stage stage) noexcept;
 
 class skeet_t {
 	u32 _base;
