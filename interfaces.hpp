@@ -20,6 +20,17 @@ public:
     virtual void unk_func() = 0;
 };
 
+class c_file_system
+{
+public:
+    using file_handle_t = void*;
+
+    VFUNC(read(void* output, int size, file_handle_t file), int(__thiscall*)(decltype(this), void*, int, file_handle_t), 0, output, size, file);
+    VFUNC(open(const char* file_name, const char* options, const char* path_id = nullptr), file_handle_t(__thiscall*)(decltype(this), const char*, const char*, const char*), 2, file_name, options, path_id);
+    VFUNC(close(file_handle_t file), void(__thiscall*)(decltype(this), file_handle_t), 3, file);
+    VFUNC(size(file_handle_t file), unsigned int(__thiscall*)(decltype(this), file_handle_t), 7, file);
+};
+
 class c_client
 {
 public:

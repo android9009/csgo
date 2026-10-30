@@ -20,7 +20,7 @@ void c_hacks::init_interfaces()
 	phys_surface_props	= GET_INTERFACE(modules.vphysics, "VPhysicsSurfaceProps001", c_phys_surface_props);
 	engine_trace		= GET_INTERFACE(modules.engine, "EngineTraceClient004", c_engine_trace);
 	localize			= GET_INTERFACE(modules.localize, "Localize_001", c_localize);
-	file_system			= GET_INTERFACE(modules.filesystem_stdio, "VFileSystem017", void);
+	file_system		= GET_INTERFACE(modules.filesystem_stdio, "VFileSystem017", c_file_system);
 	surface				= GET_INTERFACE(modules.vguimatsurface, "VGUI_Surface031", c_surface);
 	static_prop_manager = GET_INTERFACE(modules.engine, "StaticPropMgrClient005", c_static_prop_manager);
 	studio_render		= GET_INTERFACE(modules.studiorender, "VStudioRender026", c_studio_render);

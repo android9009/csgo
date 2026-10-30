@@ -417,7 +417,7 @@ namespace skin_changer
 		CXOR("models\\player\\custom_player\\legacy\\tm_pirate_variantD.mdl"),
 	};
 
-	__forceinline std::string get_model_name(int team)
+	std::string get_model_name(int team)
 	{
 		switch (team)
 		{
@@ -565,10 +565,15 @@ namespace skin_changer
 
 	__forceinline void init_parser()
 	{
+		paint_kit_names_by_id.clear();
 		for (int i = 0; i <= HACKS->item_schema->paint_kits.last_element; ++i)
 		{
 			const auto& paint_kit = HACKS->item_schema->paint_kits.memory[i]._value;
-			if (paint_kit->id == 9001 || paint_kit->id >= 10000)
+			if (!paint_kit)
+				continue;
+
+			paint_kit_names_by_id[paint_kit->id] = paint_kit->name.buffer ? paint_kit->name.buffer : "";
+			if (paint_kit->id == 9001 || paint_kit->id >= 10000 || !paint_kit->item_name.buffer)
 				continue;
 
 			auto name = string_convert::to_string(HACKS->localize->find_safe(paint_kit->item_name.buffer + 1));

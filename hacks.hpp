@@ -188,7 +188,7 @@ public:
     c_localize* localize{};
     c_game_rules* game_rules{};
     c_view_render_beams* view_render_beams{};
-    void* file_system{};
+    c_file_system* file_system{};
     c_surface* surface{};
     c_static_prop_manager* static_prop_manager{};
     c_studio_render* studio_render{};

@@ -87,6 +87,9 @@
     <ClCompile Include="legacy ui\config_system.cpp">
       <Filter>legacy ui</Filter>
     </ClCompile>
+    <ClCompile Include="legacy ui\menu\inventory_preview.cpp">
+      <Filter>legacy ui\menu</Filter>
+    </ClCompile>
     <ClCompile Include="legacy ui\menu\menu.cpp">
       <Filter>legacy ui\menu</Filter>
     </ClCompile>
@@ -599,6 +602,9 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="airflow_menu.rc" />
+    <ClInclude Include="legacy ui\menu\inventory_preview.h">
+      <Filter>legacy ui\menu</Filter>
+    </ClInclude>
     <ClInclude Include="legacy ui\menu\menu_resources.h" />
     <None Include="legacy ui\menu\fonts\Inter-Medium.ttf" />
     <None Include="legacy ui\menu\fonts\Inter-SemiBold.ttf" />

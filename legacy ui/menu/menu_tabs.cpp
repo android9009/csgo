@@ -5,6 +5,7 @@
 #include "../legacy_str.h"
 #include "menu.h"
 #include "../../skins.hpp"
+#include "inventory_preview.h"
 
 #include <ShlObj.h>
 #include <algorithm>
@@ -1674,6 +1675,18 @@ void c_menu::draw_ui_items()
 			{
 			case 0:
 			{
+				begin_child(CXOR("Current loadout"))
+				{
+					inventory_preview::draw_agent(3, ImVec2(120, 140), alpha);
+					ImGui::SameLine();
+					inventory_preview::draw_agent(2, ImVec2(120, 140), alpha);
+					ImGui::SameLine();
+					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(150, 140), alpha);
+					ImGui::SameLine();
+					inventory_preview::draw_gloves(ImVec2(150, 140), alpha);
+				}
+				end_child;
+
 				const std::vector<std::vector<int>> categories = {
 					{ weapon_cfg_deagle, weapon_cfg_duals, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p2000, weapon_cfg_p250, weapon_cfg_usps, weapon_cfg_cz75, weapon_cfg_revolver },
 					{ weapon_cfg_famas, weapon_cfg_galil, weapon_cfg_mac10, weapon_cfg_mp5sd, weapon_cfg_ump45, weapon_cfg_xm1014, weapon_cfg_bizon, weapon_cfg_mag7, weapon_cfg_sawedoff, weapon_cfg_mp7, weapon_cfg_mp9, weapon_cfg_nova },
@@ -1691,9 +1704,7 @@ void c_menu::draw_ui_items()
 					{
 						for (const int index : categories[column])
 						{
-							auto& slot = g_cfg.skins.skin_weapon[index];
-							const std::string label = std::string(slot.enable ? "* " : "") + skin_weapon_configs[index] + CXOR("##loadout_") + std::to_string(index);
-							if (selectable(label.c_str(), g_cfg.skins.group_type == index, 1.f, 0, ImVec2(0, 26)))
+							if (inventory_preview::weapon_card(index, skin_weapon_configs[index], g_cfg.skins.group_type == index, alpha))
 							{
 								g_cfg.skins.group_type = index;
 								selector = 1;
@@ -1724,6 +1735,12 @@ void c_menu::draw_ui_items()
 							combo(CXOR("Knife model"), &config.knife_model, knife_models, IM_ARRAYSIZE(knife_models));
 					}
 					end_child;
+
+					begin_child(CXOR("Selected skin preview"))
+					{
+						inventory_preview::draw_weapon(g_cfg.skins.group_type, ImVec2(260, 125), alpha, true);
+					}
+					end_child;
 				}
 				ImGui::NextColumn();
 				{
@@ -1752,6 +1769,7 @@ void c_menu::draw_ui_items()
 					{
 						combo(CXOR("Glove model"), &g_cfg.skins.model_glove, glove_models, IM_ARRAYSIZE(glove_models));
 						combo(CXOR("Glove skin"), &g_cfg.skins.glove_skin, glove_skins, IM_ARRAYSIZE(glove_skins));
+						inventory_preview::draw_gloves(ImVec2(260, 105), alpha);
 					}
 					end_child;
 				}
@@ -1767,6 +1785,9 @@ void c_menu::draw_ui_items()
 						combo(CXOR("Agent T"), &g_cfg.skins.model_t, agents, IM_ARRAYSIZE(agents));
 						if (g_cfg.skins.model_t == 76)
 							input_text(CXOR("Model path##agent_t"), g_cfg.skins.custom_model_t, 128);
+						inventory_preview::draw_agent(3, ImVec2(120, 150), alpha);
+						ImGui::SameLine();
+						inventory_preview::draw_agent(2, ImVec2(120, 150), alpha);
 					}
 					end_child;
 #endif

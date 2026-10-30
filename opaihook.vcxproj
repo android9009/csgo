@@ -407,6 +407,7 @@
     <ClCompile Include="legacy ui\menu\menu elements\listbox.cpp" />
     <ClCompile Include="legacy ui\menu\menu elements\slider.cpp" />
     <ClCompile Include="legacy ui\menu\menu elements\textbox.cpp" />
+    <ClCompile Include="legacy ui\menu\inventory_preview.cpp" />
     <ClCompile Include="legacy ui\menu\menu.cpp" />
     <ClCompile Include="legacy ui\menu\menu_indicators.cpp" />
     <ClCompile Include="legacy ui\menu\menu_tabs.cpp" />
@@ -543,6 +544,7 @@
   </ImportGroup>
   <ItemGroup>
     <ResourceCompile Include="airflow_menu.rc" />
+    <ClInclude Include="legacy ui\menu\inventory_preview.h" />
     <ClInclude Include="legacy ui\menu\menu_resources.h" />
     <None Include="legacy ui\menu\fonts\Inter-Medium.ttf" />
     <None Include="legacy ui\menu\fonts\Inter-SemiBold.ttf" />
