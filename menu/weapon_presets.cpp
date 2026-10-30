@@ -55,13 +55,6 @@ int preset_weapon_count(int slot) {
     return count;
 }
 
-int preset_first_weapon(int slot) {
-    for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon)
-        if (preset_has_weapon(slot, weapon))
-            return weapon;
-    return -1;
-}
-
 void initialize_legacy_preset(int slot) {
     if (!preset_active(slot) || rage_state().m_preset_initialized[slot])
         return;
@@ -514,13 +507,7 @@ void draw(ImVec2 button_pos) {
     draw->AddRectFilled(button_pos, button_pos + ImVec2(button_w, button_h),
                         gui.frame_inactive.to_im_color(0.5f + hover * 0.3f), 6.f * scale);
 
-    const int icon = rage.m_selected_group == 0 ? -1 : preset_first_weapon(rage.m_selected_group);
-    float text_x = button_pos.x + 12.f * scale;
-    if (icon >= 0) {
-        weapon_icons::draw(draw, icon, button_pos + ImVec2(21.f * scale, button_h * 0.5f),
-                           ImVec2(28.f * scale, 17.f * scale), gui.text.to_im_color());
-        text_x = button_pos.x + 39.f * scale;
-    }
+    const float text_x = button_pos.x + 12.f * scale;
     draw->PushClipRect(ImVec2(text_x, button_pos.y),
                        button_pos + ImVec2(button_w - 26.f * scale, button_h), true);
     draw->AddText(ImVec2(IM_ROUND(text_x), IM_ROUND(button_pos.y + (button_h - ImGui::GetFontSize()) * 0.5f)),
