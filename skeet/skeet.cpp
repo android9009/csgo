@@ -149,15 +149,34 @@ bool InitializeCrashReporting(HMODULE module) noexcept {
     return true;
 }
 
-void ReportCrashStage(skeet_crash::Stage stage) noexcept {
+void ReportCrashStageDetails(skeet_crash::Stage stage,
+    std::uint32_t detail0, std::uint32_t detail1,
+    std::uint32_t detail2, std::uint32_t detail3) noexcept {
     g_crashStage = static_cast<std::uint32_t>(stage);
     auto record = MakeCrashRecord();
     record.kind = skeet_crash::kRecordStatus;
+    record.reserved[0] = detail0;
+    record.reserved[1] = detail1;
+    record.reserved[2] = detail2;
+    record.reserved[3] = detail3;
     PublishCrashRecord(record);
 }
 
+void ReportCrashStage(skeet_crash::Stage stage) noexcept {
+    ReportCrashStageDetails(stage, 0, 0, 0, 0);
+}
+
+static std::uint32_t g_patternMatchCount = 0;
+static std::uintptr_t g_patternFirstMatch = 0;
+static std::uintptr_t g_patternSecondMatch = 0;
+
 std::uint8_t* PatternScan(void* module, const char* signature)
 {
+  // Initialization is single-threaded; retain enough diagnostics to distinguish
+  // a missing pattern from an ambiguous one without changing scan behavior.
+  g_patternMatchCount = 0;
+  g_patternFirstMatch = 0;
+  g_patternSecondMatch = 0;
   if (!module || !signature || !*signature) {
     return nullptr;
   }
@@ -211,7 +230,12 @@ std::uint8_t* PatternScan(void* module, const char* signature)
       }
     }
     if (found) {
-      if (result) {
+      ++g_patternMatchCount;
+      if (g_patternMatchCount == 1) {
+        g_patternFirstMatch = reinterpret_cast<std::uintptr_t>(&scanBytes[i]);
+      }
+      else {
+        g_patternSecondMatch = reinterpret_cast<std::uintptr_t>(&scanBytes[i]);
         return nullptr;
       }
       result = &scanBytes[i];
@@ -1064,23 +1088,47 @@ bool skeet_t::extra()
 
     *(uint32_t*)0x4346A898 = ((uint32_t)GetModuleHandleA("client.dll") + 0xDF98A0);
     HMODULE overlay = GetModuleHandleA("gameoverlayrenderer.dll");
+    if (!overlay) {
+        ReportCrashStage(skeet_crash::OverlayModuleMissing);
+        return false;
+    }
+    const uintptr_t overlayBase = (uintptr_t)overlay;
     auto overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B 5F 3C");
+    if (!overlayReturn) {
+        ReportCrashStageDetails(skeet_crash::OverlayReturnPatternFailed,
+            (std::uint32_t)overlayBase, g_patternMatchCount,
+            (std::uint32_t)g_patternFirstMatch, (std::uint32_t)g_patternSecondMatch);
+        return false;
+    }
     auto overlayReference = PatternScan(overlay, "89 3D ? ? ? ? F3 0F 10 87");
-    if (!overlayReturn || !overlayReference) {
+    if (!overlayReference) {
+        ReportCrashStageDetails(skeet_crash::OverlayReferencePatternFailed,
+            (std::uint32_t)overlayBase, g_patternMatchCount,
+            (std::uint32_t)g_patternFirstMatch, (std::uint32_t)g_patternSecondMatch);
         return false;
     }
     uint32_t overlayGlobal = 0;
     memcpy(&overlayGlobal, overlayReference + 2, sizeof(overlayGlobal));
     auto overlayHeaders = (PIMAGE_NT_HEADERS)((uint8_t*)overlay + ((PIMAGE_DOS_HEADER)overlay)->e_lfanew);
-    const uintptr_t overlayBase = (uintptr_t)overlay;
     const size_t overlaySize = overlayHeaders->OptionalHeader.SizeOfImage;
     if (overlaySize < sizeof(overlayGlobal) || overlayGlobal < overlayBase
         || (uintptr_t)overlayGlobal - overlayBase > overlaySize - sizeof(overlayGlobal)) {
+        ReportCrashStageDetails(skeet_crash::OverlayGlobalInvalid,
+            (std::uint32_t)overlayBase, (std::uint32_t)overlaySize, overlayGlobal, 0);
         return false;
     }
-    if (!PatchOverlayCallSlots((std::uint8_t*)(uintptr_t)_base, _size)) return false;
-    if (!PatchFiringExtrapolation((std::uint8_t*)(uintptr_t)_base, _size)) return false;
-    if (!PatchRagebotTargetPolicy((std::uint8_t*)(uintptr_t)_base, _size)) return false;
+    if (!PatchOverlayCallSlots((std::uint8_t*)(uintptr_t)_base, _size)) {
+        ReportCrashStage(skeet_crash::OverlaySlotsFailed);
+        return false;
+    }
+    if (!PatchFiringExtrapolation((std::uint8_t*)(uintptr_t)_base, _size)) {
+        ReportCrashStage(skeet_crash::FiringPatchFailed);
+        return false;
+    }
+    if (!PatchRagebotTargetPolicy((std::uint8_t*)(uintptr_t)_base, _size)) {
+        ReportCrashStage(skeet_crash::TargetPolicyFailed);
+        return false;
+    }
     // Publish neither overlay address until all patches have passed validation.
     *(uint32_t*)0x43468D94 = (uint32_t)overlayReturn;
     *(uint32_t*)0x43468350 = overlayGlobal;

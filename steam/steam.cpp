@@ -193,6 +193,13 @@ const char* StageName(std::uint32_t stage) {
     case skeet_crash::ImportsFailed: return "IMPORT FIX FAILED";
     case skeet_crash::PatchesFailed: return "PATCH PREFLIGHT FAILED";
     case skeet_crash::EntryFailed: return "ENTRY START FAILED";
+    case skeet_crash::OverlayModuleMissing: return "GAMEOVERLAYRENDERER.DLL IS NOT LOADED";
+    case skeet_crash::OverlayReturnPatternFailed: return "OVERLAY RETURN PATTERN FAILED";
+    case skeet_crash::OverlayReferencePatternFailed: return "OVERLAY REFERENCE PATTERN FAILED";
+    case skeet_crash::OverlayGlobalInvalid: return "OVERLAY GLOBAL IS OUTSIDE THE MODULE";
+    case skeet_crash::OverlaySlotsFailed: return "OVERLAY CALL-SLOT PREFLIGHT FAILED";
+    case skeet_crash::FiringPatchFailed: return "FIRING EXTRAPOLATION PREFLIGHT FAILED";
+    case skeet_crash::TargetPolicyFailed: return "TARGET POLICY PREFLIGHT FAILED";
     default: return "unknown stage";
     }
 }
@@ -235,6 +242,12 @@ void PrintRecord(const skeet_crash::Record& record, DWORD processId) {
         std::ostringstream text;
         text << StageName(record.stage) << " (stage " << Hex(record.stage)
              << ", tid " << record.threadId << ')';
+        if (record.reserved[0] || record.reserved[1]
+            || record.reserved[2] || record.reserved[3]) {
+            text << " | details[0..3]: " << Hex(record.reserved[0])
+                 << ' ' << Hex(record.reserved[1]) << ' ' << Hex(record.reserved[2])
+                 << ' ' << Hex(record.reserved[3]);
+        }
         LogLine(text.str());
         return;
     }

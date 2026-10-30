@@ -27,7 +27,14 @@ enum Stage : std::uint32_t {
     MapFailed = 0x1001,
     ImportsFailed = 0x1002,
     PatchesFailed = 0x1003,
-    EntryFailed = 0x1004
+    EntryFailed = 0x1004,
+    OverlayModuleMissing = 0x1005,
+    OverlayReturnPatternFailed = 0x1006,
+    OverlayReferencePatternFailed = 0x1007,
+    OverlayGlobalInvalid = 0x1008,
+    OverlaySlotsFailed = 0x1009,
+    FiringPatchFailed = 0x100A,
+    TargetPolicyFailed = 0x100B
 };
 
 struct Record {

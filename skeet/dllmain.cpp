@@ -26,7 +26,7 @@ static DWORD WINAPI SkeetThread(LPVOID parameter) {
     std::cout << skCrypt("[INFO] fixed!\n");
 
     if (!skeet->extra()) {
-        ReportCrashStage(skeet_crash::PatchesFailed);
+        // extra() publishes the precise failed preflight; do not overwrite it.
         std::cout << skCrypt("[INFO] Skeet patch preflight failed\n");
         return 1;
     }

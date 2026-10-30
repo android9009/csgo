@@ -10,6 +10,9 @@ using u32 = unsigned int;
 
 bool InitializeCrashReporting(HMODULE module) noexcept;
 void ReportCrashStage(skeet_crash::Stage stage) noexcept;
+void ReportCrashStageDetails(skeet_crash::Stage stage,
+    std::uint32_t detail0, std::uint32_t detail1,
+    std::uint32_t detail2, std::uint32_t detail3) noexcept;
 
 class skeet_t {
 	u32 _base;
