@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -79,6 +80,9 @@ static_assert(IM_ARRAYSIZE(k_counter_terrorist_models) == 21);
 struct preview_state {
     void* panorama_engine = nullptr;
     void* root = nullptr;
+    HMODULE root_slot_module = nullptr;
+    void** main_menu_client_slot = nullptr;
+    void** hud_client_slot = nullptr;
     ULONGLONG next_root_check = 0;
     ULONGLONG next_panel_check = 0;
     ULONGLONG next_hide_attempt = 0;
@@ -167,6 +171,121 @@ Fn virtual_function(void* instance, size_t index) {
     return table ? reinterpret_cast<Fn>(table[index]) : nullptr;
 }
 
+template <size_t N>
+const std::uint8_t* find_pattern(const std::uint8_t* bytes, size_t size,
+                                 const int (&pattern)[N]) {
+    if (!bytes || size < N)
+        return nullptr;
+    for (size_t offset = 0; offset <= size - N; ++offset) {
+        size_t index = 0;
+        for (; index < N; ++index) {
+            if (pattern[index] >= 0 &&
+                bytes[offset + index] != static_cast<std::uint8_t>(pattern[index]))
+                break;
+        }
+        if (index == N)
+            return bytes + offset;
+    }
+    return nullptr;
+}
+
+bool module_text(HMODULE module, const std::uint8_t*& text, size_t& size) {
+    if (!module)
+        return false;
+    const auto* base = reinterpret_cast<const std::uint8_t*>(module);
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    const auto* section = IMAGE_FIRST_SECTION(nt);
+    for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (std::memcmp(section->Name, ".text", 5) != 0)
+            continue;
+        const size_t virtual_size = section->Misc.VirtualSize;
+        const size_t raw_size = section->SizeOfRawData;
+        size = virtual_size && raw_size ? std::min(virtual_size, raw_size)
+                                        : std::max(virtual_size, raw_size);
+        text = base + section->VirtualAddress;
+        return text && size;
+    }
+    return false;
+}
+
+void** absolute_pointer_operand(const std::uint8_t* store_instruction) {
+    // Both signatures end at `mov [absolute], edi` (89 3D imm32) in the 32-bit client.
+    std::uint32_t address = 0;
+    std::memcpy(&address, store_instruction + 2, sizeof(address));
+    return reinterpret_cast<void**>(static_cast<std::uintptr_t>(address));
+}
+
+void resolve_root_slots() {
+    auto& s = state();
+    const HMODULE client = GetModuleHandleW(L"client.dll");
+    if (!client || s.root_slot_module == client)
+        return;
+
+    // A loaded module cannot change its code in place. Scan at most once per client.dll instance.
+    s.root_slot_module = client;
+    s.main_menu_client_slot = nullptr;
+    s.hud_client_slot = nullptr;
+
+    const std::uint8_t* text = nullptr;
+    size_t text_size = 0;
+    if (!module_text(client, text, text_size))
+        return;
+
+    // March-2023 CS:GO Windows x86 constructors. Each stores its CPanel2D-derived singleton,
+    // whose +4 member is IUIPanel*. The corresponding destructors clear these globals.
+    // Wildcards cover only vtable/string addresses and the resolved singleton address itself.
+    static constexpr int main_menu_pattern[] = {
+        0x8B, 0x4F, 0x04, 0x6A, 0x00,
+        0xC7, 0x47, 0x58, 0x00, 0x00, 0x00, 0x00,
+        0xC7, 0x47, 0x5C, 0x00, 0x00, 0x00, 0x00,
+        0x8B, 0x01, 0x6A, 0x00, 0x68, -1, -1, -1, -1,
+        0x89, 0x3D, -1, -1, -1, -1, 0xFF, 0x50, 0x34
+    };
+    static constexpr int hud_pattern[] = {
+        0x8B, 0x4F, 0x04, 0x6A, 0x00,
+        0xC7, 0x07, -1, -1, -1, -1,
+        0xC7, 0x47, 0x14, -1, -1, -1, -1,
+        0xC7, 0x06, -1, -1, -1, -1,
+        0x8B, 0x01, 0x6A, 0x00, 0x68, -1, -1, -1, -1,
+        0x89, 0x3D, -1, -1, -1, -1, 0xFF, 0x50, 0x30
+    };
+    constexpr size_t main_menu_store = 28;
+    constexpr size_t hud_store = 33;
+    static_assert(main_menu_pattern[main_menu_store] == 0x89);
+    static_assert(hud_pattern[hud_store] == 0x89);
+
+    if (const auto* match = find_pattern(text, text_size, main_menu_pattern))
+        s.main_menu_client_slot = absolute_pointer_operand(match + main_menu_store);
+    if (const auto* match = find_pattern(text, text_size, hud_pattern))
+        s.hud_client_slot = absolute_pointer_operand(match + hud_store);
+}
+
+void* root_from_slot(void** slot) {
+    if (!slot)
+        return nullptr;
+    void* client_panel = *slot;
+    if (!client_panel)
+        return nullptr;
+    return *reinterpret_cast<void**>(static_cast<std::uint8_t*>(client_panel) + sizeof(void*));
+}
+
+struct root_candidates {
+    void* main_menu = nullptr;
+    void* hud = nullptr;
+};
+
+root_candidates direct_roots() {
+    resolve_root_slots();
+    auto& s = state();
+    return { root_from_slot(s.main_menu_client_slot), root_from_slot(s.hud_client_slot) };
+}
+
 void* ui_engine() {
     auto& s = state();
     if (!s.panorama_engine) {
@@ -222,21 +341,37 @@ void* find_root(void* engine) {
     if (!engine)
         return nullptr;
 
+    const root_candidates roots = direct_roots();
+    const auto usable = [&](void* panel) {
+        return panel && valid_panel(engine, panel) && panel_laid_out(panel);
+    };
+    const bool main_menu_usable = usable(roots.main_menu);
+    const bool hud_usable = usable(roots.hud);
+
+    // A single direct root is unambiguous. When both windows exist, use the event target to
+    // select the active one rather than adding another visibility ABI or guessing a window.
+    if (main_menu_usable != hud_usable)
+        return hud_usable ? roots.hud : roots.main_menu;
+
     using get_last_target_t = void* (__thiscall*)(void*);
     using get_panel_id_t = const char* (__thiscall*)(void*);
     using get_parent_t = void* (__thiscall*)(void*);
     const auto get_last_target = virtual_function<get_last_target_t>(engine, 56);
-    const auto get_panel_id = virtual_function<get_panel_id_t>(engine, 9);
-    const auto get_parent = virtual_function<get_parent_t>(engine, 25);
-    if (!get_last_target || !get_panel_id || !get_parent)
-        return nullptr;
+    void* panel = nullptr;
+    if (get_last_target) {
+        AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel");
+        panel = get_last_target(engine);
+        AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel returned");
+    }
 
-    AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel");
-    void* panel = get_last_target(engine);
-    AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel returned");
-    // The depth cap also makes a malformed parent chain harmless. This runs at most once a second,
-    // never as a full Panorama walk in the render hot path.
+    // GetID/GetParent are IUIPanel methods: both the function table and `this` must come from
+    // the current panel, never from UIEngine. The depth cap bounds a malformed parent chain.
     for (int depth = 0; panel && depth < 32 && valid_panel(engine, panel); ++depth) {
+        const auto get_panel_id = virtual_function<get_panel_id_t>(panel, 9);
+        const auto get_parent = virtual_function<get_parent_t>(panel, 25);
+        if (!get_panel_id || !get_parent)
+            break;
+
         AIRFLOW_DEBUG_LOGF("panorama root walk: depth=%d panel=%p", depth, panel);
         AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetID");
         const char* id = get_panel_id(panel);
@@ -247,6 +382,7 @@ void* find_root(void* engine) {
         panel = get_parent(panel);
         AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetParent returned");
     }
+
     return nullptr;
 }
 
