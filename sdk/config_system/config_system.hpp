@@ -111,13 +111,10 @@ public:
         int m_minimum_damage = 20;  // -1 = Auto
         bool m_delay_shot = false;
         
-        // Auto Stop (multibox - can select multiple)
+        // Auto Stop (multibox - Early / Full Stop / Between Shots / Air / Duck). Keep the actual
+        // array in the config so a multibox bind never points at a temporary UI copy.
         bool m_auto_stop = false;
-        bool m_auto_stop_early = false;
-        bool m_auto_stop_full = true;
-        bool m_auto_stop_between = false;
-        bool m_auto_stop_air = false;
-        bool m_auto_stop_duck = false;
+        bool m_auto_stop_modes[5] = {false, true, false, false, false};
         
         // Other
         bool m_auto_scope = false;

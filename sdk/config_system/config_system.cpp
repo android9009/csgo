@@ -47,11 +47,11 @@ void c_config_system::setup_values( )
 		push_item(&cfg.m_minimum_damage, "rage_bot", prefix + "_min_damage", cfg.m_minimum_damage);
 		push_item(&cfg.m_delay_shot, "rage_bot", prefix + "_delay_shot", cfg.m_delay_shot);
 		push_item(&cfg.m_auto_stop, "rage_bot", prefix + "_auto_stop", cfg.m_auto_stop);
-		push_item(&cfg.m_auto_stop_early, "rage_bot", prefix + "_auto_stop_early", cfg.m_auto_stop_early);
-		push_item(&cfg.m_auto_stop_full, "rage_bot", prefix + "_auto_stop_full", cfg.m_auto_stop_full);
-		push_item(&cfg.m_auto_stop_between, "rage_bot", prefix + "_auto_stop_between", cfg.m_auto_stop_between);
-		push_item(&cfg.m_auto_stop_air, "rage_bot", prefix + "_auto_stop_air", cfg.m_auto_stop_air);
-		push_item(&cfg.m_auto_stop_duck, "rage_bot", prefix + "_auto_stop_duck", cfg.m_auto_stop_duck);
+		push_item(&cfg.m_auto_stop_modes[0], "rage_bot", prefix + "_auto_stop_early", cfg.m_auto_stop_modes[0]);
+		push_item(&cfg.m_auto_stop_modes[1], "rage_bot", prefix + "_auto_stop_full", cfg.m_auto_stop_modes[1]);
+		push_item(&cfg.m_auto_stop_modes[2], "rage_bot", prefix + "_auto_stop_between", cfg.m_auto_stop_modes[2]);
+		push_item(&cfg.m_auto_stop_modes[3], "rage_bot", prefix + "_auto_stop_air", cfg.m_auto_stop_modes[3]);
+		push_item(&cfg.m_auto_stop_modes[4], "rage_bot", prefix + "_auto_stop_duck", cfg.m_auto_stop_modes[4]);
 		push_item(&cfg.m_auto_scope, "rage_bot", prefix + "_auto_scope", cfg.m_auto_scope);
 		push_item(&cfg.m_penetration, "rage_bot", prefix + "_penetration", cfg.m_penetration);
 		push_item(&cfg.m_body_aim, "rage_bot", prefix + "_body_aim", cfg.m_body_aim);

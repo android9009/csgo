@@ -20,19 +20,24 @@ using target_id = std::uint64_t;
 void register_bool(const char* key, const char* label, bool* value);
 void register_int(const char* key, const char* label, int* value, int minimum, int maximum);
 void register_float(const char* key, const char* label, float* value, float minimum, float maximum);
+void register_multibox(const char* key, const char* label, bool* values,
+                       const char* const items[], int count);
 
-// `rect` is the whole row (right-clicking anywhere on it opens the bind menu); `control` is just
-// the widget on the right - the toggle or the slider track - which is what the gear is placed
-// against so it lands in the gap left of the control rather than over the row's value.
+// `rect` is the whole row (right-clicking anywhere on it opens the bind menu); `control` is the
+// widget on the right - toggle, slider track or multibox field - used for the bind indicator.
 target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* value);
 target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                       const ImRect& rect, const ImRect& control, ImGuiDataType type, void* value,
                       const void* minimum, const void* maximum);
+target_id multibox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                        const ImRect& rect, const ImRect& control, bool* values,
+                        const char* const items[], int count);
 
 void sync_bool(target_id id, bool value);
 void sync_int(target_id id, int value);
 void sync_float(target_id id, float value);
+void sync_multibox(target_id id, const bool* values, int count);
 
 void update();
 void flush();

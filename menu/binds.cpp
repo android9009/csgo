@@ -29,8 +29,9 @@
 
 namespace menu_binds {
 namespace {
-enum class value_type { boolean, integer, floating };
+enum class value_type { boolean = 0, integer = 1, floating = 2, multi = 3 };
 enum class bind_mode { always = 0, hold = 1, toggle = 2 };
+constexpr int k_max_multi_items = 32;
 
 struct bind_entry {
     std::uint64_t id = 0;
@@ -39,6 +40,7 @@ struct bind_entry {
     bool bool_value = true;
     int int_value = 0;
     float float_value = 0.f;
+    std::array<bool, k_max_multi_items> multi_value{};
     bool toggled = false;
     bool was_down = false;
     bool active = false;
@@ -55,6 +57,9 @@ struct bind_target {
     bool base_bool = false;
     int base_int = 0;
     float base_float = 0.f;
+    std::array<bool, k_max_multi_items> base_multi{};
+    int multi_count = 0;
+    std::vector<std::string> multi_items;
     int minimum_int = 0;
     int maximum_int = 100;
     float minimum_float = 0.f;
@@ -65,6 +70,9 @@ struct bind_target {
 
 std::unordered_map<target_id, bind_target> g_targets;
 std::unordered_map<void*, target_id> g_pointer_targets;
+// A multibox owns an array, while existing explicit bool binds may own its individual elements.
+// Keep its base-pointer registry separate so those two levels never overwrite one another.
+std::unordered_map<void*, target_id> g_multi_pointer_targets;
 std::uint64_t g_next_entry_id = 1;
 bool g_loaded = false;
 bool g_dirty = false;
@@ -105,7 +113,19 @@ bool belongs_to_main_menu(ImGuiWindow* window) {
     if (!window)
         return false;
     ImGuiWindow* main = ImGui::FindWindowByName("DARKSIDE##neverlose");
-    return main && (window == main || window->RootWindow == main);
+    if (!main)
+        return false;
+    if (window == main || window->RootWindow == main)
+        return true;
+    // Gear cards are popup roots, but their controls are still part of the main menu. Only the
+    // windows explicitly marked by row_options_begin() qualify: bind editors and color-picker
+    // internals must never register themselves recursively just because their ancestor is main.
+    if (!window->StateStorage.GetBool(ImHashStr("##BindOptionsWindow"), false))
+        return false;
+    for (const ImGuiWindow* parent = window; parent; parent = parent->ParentWindow)
+        if (parent == main)
+            return true;
+    return false;
 }
 
 const char* mode_name(bind_mode mode) {
@@ -196,7 +216,9 @@ void load_once() {
         target.id = hash_key(key);
         target.label = saved_target.value("label", key);
         const int saved_type = saved_target.value("type", 0);
-        target.type = saved_type == 1 ? value_type::integer : saved_type == 2 ? value_type::floating : value_type::boolean;
+        target.type = saved_type == 1 ? value_type::integer
+            : saved_type == 2 ? value_type::floating
+            : saved_type == 3 ? value_type::multi : value_type::boolean;
 
         if (saved_target.contains("entries") && saved_target["entries"].is_array()) {
             for (const auto& saved_entry : saved_target["entries"]) {
@@ -210,6 +232,14 @@ void load_once() {
                 entry.bool_value = saved_entry.value("bool_value", true);
                 entry.int_value = saved_entry.value("int_value", 0);
                 entry.float_value = saved_entry.value("float_value", 0.f);
+                if (saved_entry.contains("multi_value") && saved_entry["multi_value"].is_array()) {
+                    int multi_index = 0;
+                    for (const auto& selected : saved_entry["multi_value"]) {
+                        if (multi_index >= k_max_multi_items)
+                            break;
+                        entry.multi_value[multi_index++] = selected.get<bool>();
+                    }
+                }
                 entry.show_in_overlay = saved_entry.value("show_in_overlay", true);
                 if (std::isfinite(entry.float_value))
                     target.entries.push_back(entry);
@@ -242,14 +272,20 @@ void save_if_dirty() {
         nlohmann::json saved_target;
         saved_target["key"] = target.key;
         saved_target["label"] = target.label;
-        saved_target["type"] = target.type == value_type::boolean ? 0 : target.type == value_type::integer ? 1 : 2;
+        saved_target["type"] = static_cast<int>(target.type);
         saved_target["entries"] = nlohmann::json::array();
         for (const auto& entry : target.entries) {
-            saved_target["entries"].push_back({
+            nlohmann::json saved_entry = {
                 {"id", entry.id}, {"key", entry.key}, {"mode", static_cast<int>(entry.mode)},
                 {"bool_value", entry.bool_value}, {"int_value", entry.int_value},
                 {"float_value", entry.float_value}, {"show_in_overlay", entry.show_in_overlay}
-            });
+            };
+            if (target.type == value_type::multi) {
+                saved_entry["multi_value"] = nlohmann::json::array();
+                for (int i = 0; i < target.multi_count; ++i)
+                    saved_entry["multi_value"].push_back(entry.multi_value[i]);
+            }
+            saved_target["entries"].push_back(std::move(saved_entry));
         }
         data["targets"].push_back(std::move(saved_target));
     }
@@ -512,9 +548,16 @@ bool bind_mode_row(bind_entry& entry) {
     return changed;
 }
 
-// "Value [switch]" for a bool target. Ints and floats fall through to the real slider widgets,
-// which already render in the compact in-card style.
+// Value keeps the control's own type: switch for booleans, slider for numbers and a real
+// multibox for an option set. No boolean switch is added to numeric or multi-value binds.
 bool bind_value_row(const bind_target& target, bind_entry& entry) {
+    if (target.type == value_type::multi) {
+        const char* items[k_max_multi_items]{};
+        for (int i = 0; i < target.multi_count; ++i)
+            items[i] = target.multi_items[i].c_str();
+        return gui.row_multibox("Value", items, entry.multi_value.data(), target.multi_count,
+                                "Select the values applied while this bind is active.");
+    }
     if (target.type == value_type::integer)
         return ImGui::SliderInt("Value", &entry.int_value, target.minimum_int, target.maximum_int);
     if (target.type == value_type::floating)
@@ -727,6 +770,7 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
                     g_draft.bool_value = target.type == value_type::boolean ? !target.base_bool : true;
                     g_draft.int_value = std::clamp(target.base_int, target.minimum_int, target.maximum_int);
                     g_draft.float_value = std::clamp(target.base_float, target.minimum_float, target.maximum_float);
+                    g_draft.multi_value = target.base_multi;
                     g_draft_target = target.id;
                     request_submenu(k_draft_entry);
                 }
@@ -819,6 +863,17 @@ bool hotkey_matches(const bind_target& target, const bind_entry& entry, const st
 }
 
 std::string hotkey_value(const bind_target& target, const bind_entry& entry) {
+    if (target.type == value_type::multi) {
+        std::string preview;
+        for (int i = 0; i < target.multi_count; ++i) {
+            if (!entry.multi_value[i])
+                continue;
+            if (!preview.empty())
+                preview += ", ";
+            preview += gui.tr(target.multi_items[i].c_str());
+        }
+        return preview.empty() ? std::string(gui.tr("Select")) : preview;
+    }
     if (target.type == value_type::boolean)
         return gui.tr(entry.bool_value ? "On" : "Off");
     if (target.type == value_type::integer)
@@ -1076,7 +1131,28 @@ bool draw_hotkey_number_editor(bind_target& target, bind_entry& entry, bool clic
     return changed;
 }
 
+bool draw_hotkey_multi_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    const float s = gui.m_scale;
+    bool wants_open = false;
+    const float anim = gui.popup_animation("##hotkey_value", clicked, wants_open);
+    ImGuiWindow* parent = ImGui::GetCurrentWindow();
+    const ImVec2 at(parent->Pos.x + parent->Size.x + 8.f * s, row_y - 10.f * s);
+    if (!gui.begin_popup_card_at("##hotkey_value", wants_open, anim, at,
+                                 ImVec2(0.f, 0.f), 240.f))
+        return false;
+
+    const char* items[k_max_multi_items]{};
+    for (int i = 0; i < target.multi_count; ++i)
+        items[i] = target.multi_items[i].c_str();
+    const bool changed = gui.row_multibox("Value", items, entry.multi_value.data(), target.multi_count,
+                                          "Select the values applied while this bind is active.");
+    gui.end_popup_card();
+    return changed;
+}
+
 bool draw_hotkey_value_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    if (target.type == value_type::multi)
+        return draw_hotkey_multi_editor(target, entry, clicked, row_y);
     if (target.type != value_type::boolean)
         return draw_hotkey_number_editor(target, entry, clicked, row_y);
     static const char* options[] = { "Off", "On" };
@@ -1271,20 +1347,80 @@ bind_target& register_automatic_target(ImGuiWindow* window, ImGuiID item_id, con
     return register_stable_target(key.c_str(), visible_label.c_str(), type, pointer);
 }
 
+bind_target* find_registered_multibox(void* pointer) {
+    const auto pointer_it = g_multi_pointer_targets.find(pointer);
+    if (pointer_it == g_multi_pointer_targets.end())
+        return nullptr;
+    const auto target_it = g_targets.find(pointer_it->second);
+    return target_it == g_targets.end() ? nullptr : &target_it->second;
+}
+
+bind_target& register_multibox_target(const char* stable_key, const char* label, bool* values,
+                                      const char* const items[], int count) {
+    load_once();
+    const std::string key = stable_key ? stable_key : "multibox";
+    const target_id id = hash_key(key);
+    auto [it, inserted] = g_targets.try_emplace(id);
+    bind_target& target = it->second;
+    if (inserted) {
+        target.id = id;
+        target.key = key;
+        target.type = value_type::multi;
+    }
+    const char* begin = label ? label : "Multibox";
+    const char* end = ImGui::FindRenderedTextEnd(begin);
+    target.label.assign(begin, end);
+    target.type = value_type::multi;
+    target.pointer = values;
+    target.multi_count = count;
+    target.multi_items.clear();
+    for (int i = 0; i < count; ++i)
+        target.multi_items.emplace_back(items[i] ? items[i] : "*Unknown item*");
+    g_multi_pointer_targets[values] = id;
+    if (!target.pointer_seen) {
+        for (int i = 0; i < count; ++i)
+            target.base_multi[i] = values[i];
+        target.pointer_seen = true;
+    }
+    return target;
+}
+
+bind_target& register_automatic_multibox(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                                         bool* values, const char* const items[], int count) {
+    const std::string key = "auto." + std::to_string(window->ID) + "." + std::to_string(item_id);
+    return register_multibox_target(key.c_str(), label, values, items, count);
+}
+
 void write_base(bind_target& target) {
     if (!target.pointer)
         return;
-    if (target.type == value_type::boolean) *static_cast<bool*>(target.pointer) = target.base_bool;
-    else if (target.type == value_type::integer) *static_cast<int*>(target.pointer) = target.base_int;
-    else *static_cast<float*>(target.pointer) = target.base_float;
+    if (target.type == value_type::boolean)
+        *static_cast<bool*>(target.pointer) = target.base_bool;
+    else if (target.type == value_type::integer)
+        *static_cast<int*>(target.pointer) = target.base_int;
+    else if (target.type == value_type::floating)
+        *static_cast<float*>(target.pointer) = target.base_float;
+    else {
+        bool* values = static_cast<bool*>(target.pointer);
+        for (int i = 0; i < target.multi_count; ++i)
+            values[i] = target.base_multi[i];
+    }
 }
 
 void write_entry(bind_target& target, const bind_entry& entry) {
     if (!target.pointer)
         return;
-    if (target.type == value_type::boolean) *static_cast<bool*>(target.pointer) = entry.bool_value;
-    else if (target.type == value_type::integer) *static_cast<int*>(target.pointer) = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
-    else *static_cast<float*>(target.pointer) = std::clamp(entry.float_value, target.minimum_float, target.maximum_float);
+    if (target.type == value_type::boolean)
+        *static_cast<bool*>(target.pointer) = entry.bool_value;
+    else if (target.type == value_type::integer)
+        *static_cast<int*>(target.pointer) = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
+    else if (target.type == value_type::floating)
+        *static_cast<float*>(target.pointer) = std::clamp(entry.float_value, target.minimum_float, target.maximum_float);
+    else {
+        bool* values = static_cast<bool*>(target.pointer);
+        for (int i = 0; i < target.multi_count; ++i)
+            values[i] = entry.multi_value[i];
+    }
 }
 }
 
@@ -1315,6 +1451,13 @@ void register_float(const char* key, const char* label, float* value, float mini
     target.maximum_float = maximum;
     for (auto& entry : target.entries)
         entry.float_value = std::clamp(entry.float_value, minimum, maximum);
+}
+
+void register_multibox(const char* key, const char* label, bool* values,
+                       const char* const items[], int count) {
+    if (!key || !values || !items || count <= 0 || count > k_max_multi_items)
+        return;
+    register_multibox_target(key, label, values, items, count);
 }
 
 target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
@@ -1361,6 +1504,21 @@ target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
     return target->id;
 }
 
+target_id multibox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                        const ImRect& rect, const ImRect& control, bool* values,
+                        const char* const items[], int count) {
+    if (!values || !items || count <= 0 || count > k_max_multi_items ||
+        !belongs_to_main_menu(window) || (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
+        return 0;
+    bind_target* target = find_registered_multibox(values);
+    if (!target)
+        target = &register_automatic_multibox(window, item_id, label, values, items, count);
+    if (target->type != value_type::multi)
+        return 0;
+    draw_bind_menu(*target, rect, control);
+    return target->id;
+}
+
 void sync_bool(target_id id, bool value) {
     if (!id) return;
     auto it = g_targets.find(id);
@@ -1379,6 +1537,18 @@ void sync_float(target_id id, float value) {
     if (it != g_targets.end()) it->second.base_float = value;
 }
 
+void sync_multibox(target_id id, const bool* values, int count) {
+    if (!id || !values)
+        return;
+    auto it = g_targets.find(id);
+    if (it == g_targets.end() || it->second.type != value_type::multi)
+        return;
+    bind_target& target = it->second;
+    const int shared = (std::min)(count, target.multi_count);
+    for (int i = 0; i < shared; ++i)
+        target.base_multi[i] = values[i];
+}
+
 void update() {
     load_once();
     for (auto& [id, target] : g_targets) {
@@ -1386,9 +1556,19 @@ void update() {
             continue;
 
         if (!target.was_overridden) {
-            if (target.type == value_type::boolean) target.base_bool = *static_cast<bool*>(target.pointer);
-            else if (target.type == value_type::integer) target.base_int = *static_cast<int*>(target.pointer);
-            else if (std::isfinite(*static_cast<float*>(target.pointer))) target.base_float = *static_cast<float*>(target.pointer);
+            if (target.type == value_type::boolean)
+                target.base_bool = *static_cast<bool*>(target.pointer);
+            else if (target.type == value_type::integer)
+                target.base_int = *static_cast<int*>(target.pointer);
+            else if (target.type == value_type::floating) {
+                if (std::isfinite(*static_cast<float*>(target.pointer)))
+                    target.base_float = *static_cast<float*>(target.pointer);
+            }
+            else {
+                const bool* values = static_cast<const bool*>(target.pointer);
+                for (int i = 0; i < target.multi_count; ++i)
+                    target.base_multi[i] = values[i];
+            }
         }
 
         bind_entry* winner = nullptr;
@@ -1449,9 +1629,19 @@ void on_config_loaded() {
         if (!target.pointer_seen || !target.pointer)
             continue;
         target.was_overridden = false;
-        if (target.type == value_type::boolean) target.base_bool = *static_cast<bool*>(target.pointer);
-        else if (target.type == value_type::integer) target.base_int = *static_cast<int*>(target.pointer);
-        else if (std::isfinite(*static_cast<float*>(target.pointer))) target.base_float = *static_cast<float*>(target.pointer);
+        if (target.type == value_type::boolean)
+            target.base_bool = *static_cast<bool*>(target.pointer);
+        else if (target.type == value_type::integer)
+            target.base_int = *static_cast<int*>(target.pointer);
+        else if (target.type == value_type::floating) {
+            if (std::isfinite(*static_cast<float*>(target.pointer)))
+                target.base_float = *static_cast<float*>(target.pointer);
+        }
+        else {
+            const bool* values = static_cast<const bool*>(target.pointer);
+            for (int i = 0; i < target.multi_count; ++i)
+                target.base_multi[i] = values[i];
+        }
 
         const bind_entry* winner = nullptr;
         for (const auto& entry : target.entries)

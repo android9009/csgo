@@ -2489,8 +2489,21 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
     // Multiple selections must not move the popup underneath the pointer.
     g_combo_item_counter[popup_id] = 0;
     g_combo_is_multi[popup_id] = true;
-    if (!BeginCombo(label, preview.c_str()))
+    const bool combo_open = BeginCombo(label, preview.c_str());
+    const ImGuiLastItemData bind_item_data = g.LastItemData;
+    const auto register_bind = [&]() -> menu_binds::target_id {
+        if (bind_item_data.ID != id)
+            return 0; // clipped before ItemAdd: there is no valid row rectangle to bind to
+        const menu_binds::target_id target = menu_binds::multibox_item(
+            window, id, label, bind_item_data.Rect, bind_item_data.NavRect, selected, items, items_count);
+        g.LastItemData = bind_item_data;
+        return target;
+    };
+    if (!combo_open)
+    {
+        register_bind();
         return false;
+    }
 
     bool any_selected = false;
     for (int i = 0; i < items_count; ++i)
@@ -2527,8 +2540,10 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
     PopStyleVar();
     popup_storage->SetFloat(indent_key, previous_indent);
     EndCombo();
+    const menu_binds::target_id bind_target = register_bind();
     if (value_changed)
     {
+        menu_binds::sync_multibox(bind_target, selected, items_count);
         // Keyboard activation belongs to the selectable; report the parent edit without stealing its active ID.
         g.LastItemData.StatusFlags |= ImGuiItemStatusFlags_Edited;
         if (g.ActiveId == 0 || g.ActiveId == id)

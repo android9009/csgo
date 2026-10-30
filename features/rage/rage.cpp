@@ -67,20 +67,13 @@ void c_menu::draw_rage() {
 
     gui.row_checkbox("Auto Scope", &cfg.m_auto_scope);
 
-    // Auto Stop (gear: Modes multibox)
-    bool auto_stop_modes[5] = { cfg.m_auto_stop_early, cfg.m_auto_stop_full, cfg.m_auto_stop_between,
-                                cfg.m_auto_stop_air, cfg.m_auto_stop_duck };
+    // Auto Stop (gear: Modes multibox). The config owns the array so binds can safely override it.
     gui.row_begin();
     if (gui.row_options_begin("##autostop_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_multibox("Modes", auto_stop_names, auto_stop_modes, 5, "Select auto stop modes.");
+        gui.row_multibox("Modes", auto_stop_names, cfg.m_auto_stop_modes, 5, "Select auto stop modes.");
         gui.row_options_end();
     }
     gui.row_checkbox("Auto Stop", &cfg.m_auto_stop);
-    cfg.m_auto_stop_early = auto_stop_modes[0];
-    cfg.m_auto_stop_full = auto_stop_modes[1];
-    cfg.m_auto_stop_between = auto_stop_modes[2];
-    cfg.m_auto_stop_air = auto_stop_modes[3];
-    cfg.m_auto_stop_duck = auto_stop_modes[4];
     gui.end_group_box();
 
     // ========== RIGHT COLUMN ==========

@@ -476,6 +476,7 @@ void c_gui::animated_row(const char* id, bool visible, const std::function<void(
         return;
 
     const ImVec2 start = ImGui::GetCursorScreenPos();
+    const ImVec2 max_before = window->DC.CursorMaxPos;
     const float row_height = ImMax(ImGui::GetFontSize(), 19.f * m_scale) +
         ImGui::GetStyle().FramePadding.y * 2.f + ImGui::GetStyle().ItemSpacing.y;
     const float animated_height = row_height * amount;
@@ -488,6 +489,12 @@ void c_gui::animated_row(const char* id, bool visible, const std::function<void(
     ImGui::EndDisabled();
     ImGui::PopStyleVar();
     ImGui::PopClipRect();
+    // ItemSize() above registers the full row in CursorMaxPos even while it is clipped. An
+    // auto-height popup reads that bound on the next frame, so leaving it untouched reveals a
+    // small strip first and then teleports the card to its final height. Keep the width the row
+    // measured, but expose only the animated vertical extent to the parent popup.
+    window->DC.CursorMaxPos.y = ImMax(max_before.y,
+        start.y + animated_height - ImGui::GetStyle().ItemSpacing.y * amount);
     ImGui::SetCursorScreenPos(start + ImVec2(0.f, animated_height));
 }
 
@@ -1241,6 +1248,9 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
     // added another 45px here, which detached the card from the control that opened it.
     const ImVec2 anchor( bb.Max.x + 6.f * s, bb.GetCenter( ).y );
     if ( begin_popup_card_at( popup_name.c_str( ), wants_open, anim, anchor, ImVec2( 0.f, 0.5f ), width ) ) {
+        // Unlike bind editors and picker internals, this popup is an extension of a main-menu row
+        // and its checkbox/slider/multibox controls are valid bind targets too.
+        ImGui::GetCurrentWindow()->StateStorage.SetBool(ImHashStr("##BindOptionsWindow"), true);
         // The card forces ItemSpacing to 0 (the config list / colour picker lay themselves out).
         // A gear card is just stacked rows, so give them a vertical gap - otherwise several
         // controls pile up with no breathing room. Popped in row_options_end().

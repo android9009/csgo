@@ -74,6 +74,8 @@ void register_bind_targets() {
     auto& rage = g_cfg->rage_bot;
     menu_binds::register_bool("rage.enabled", "Enabled", &rage.m_enabled);
     menu_binds::register_bool("rage.silent", "Silent", &rage.m_silent);
+    static const char* hitbox_names[] = { "Head", "Chest", "Stomach", "Arms", "Legs", "Feet" };
+    static const char* auto_stop_names[] = { "Early", "Full Stop", "Between Shots", "Air", "Duck" };
     
     // Register binds for ALL weapon groups
     for (int g = 0; g < RAGE_WEAPON_PRESET_MAX; ++g) {
@@ -87,9 +89,16 @@ void register_bind_targets() {
         menu_binds::register_bool((prefix + "penetration").c_str(), "Penetration", &weapon.m_penetration);
         menu_binds::register_bool((prefix + "delay_shot").c_str(), "Delay Shot", &weapon.m_delay_shot);
         menu_binds::register_bool((prefix + "backtrack").c_str(), "Backtrack", &weapon.m_backtrack);
+        menu_binds::register_multibox((prefix + "auto_stop_modes").c_str(), "Auto Stop Modes",
+                                      weapon.m_auto_stop_modes, auto_stop_names, IM_ARRAYSIZE(auto_stop_names));
+        menu_binds::register_multibox((prefix + "hitboxes").c_str(), "Hitboxes",
+                                      weapon.m_hitboxes, hitbox_names, IM_ARRAYSIZE(hitbox_names));
+        menu_binds::register_multibox((prefix + "multipoint").c_str(), "Multipoint",
+                                      weapon.m_multi_points, hitbox_names, IM_ARRAYSIZE(hitbox_names));
+        menu_binds::register_multibox((prefix + "hitbox_safety").c_str(), "Force Safe Point Hitbox",
+                                      weapon.m_hitbox_safety, hitbox_names, IM_ARRAYSIZE(hitbox_names));
         
         for (int i = 0; i < 6; ++i) {
-            static const char* hitbox_names[] = { "Head", "Chest", "Stomach", "Arms", "Legs", "Feet" };
             menu_binds::register_bool((prefix + "hitbox." + std::to_string(i)).c_str(), hitbox_names[i], &weapon.m_hitboxes[i]);
             menu_binds::register_bool((prefix + "multipoint." + std::to_string(i)).c_str(), hitbox_names[i], &weapon.m_multi_points[i]);
         }
