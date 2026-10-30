@@ -120,7 +120,7 @@ void draw_esp_chip_section(const char* id, const char* title, const char* const*
 }
 
 void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
-                          ImVec2 content_origin, float content_width) {
+                          ImVec2 content_origin, float content_width, float content_bottom) {
     static const char* main_items[] = {
         "Bounding Box", "Name", "Distance", "Health Bar", "Ammo Bar", "Skeleton"
     };
@@ -133,8 +133,8 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     };
     static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
 
-    // A content-sized card directly under the header, not a cursor-relative popup. Its height is
-    // measured from the chip sections and its top edge stays fixed while the opening fade runs.
+    // A content-width card directly under the header, not a cursor-relative popup. Its top edge
+    // stays fixed while the opening fade runs; its bottom is aligned with the left column below.
     bool wants_open = false;
     const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
     const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
@@ -147,10 +147,21 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     ImGui::TextColored(gui.text.to_vec4(1.f, false), "%s", gui.tr("ESP Items"));
     ImGui::PopFont();
     ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
+
+    // Match the visible bottom of the left column exactly. The child keeps all chip sections
+    // available through scrolling instead of letting the auto-height card protrude below Glow.
+    const float sections_y = ImGui::GetCursorScreenPos().y;
+    const float sections_h = ImMax(60.f * gui.m_scale,
+        content_bottom - sections_y - 10.f * gui.m_scale); // outer card's bottom padding
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
+    ImGui::BeginChild("##esp_items_sections", ImVec2(0.f, sections_h), false,
+                      ImGuiWindowFlags_NoBackground);
     draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
     draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
     draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
     draw_esp_chip_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
     gui.end_popup_card();
 }
 
@@ -253,6 +264,7 @@ void draw_visuals_players() {
         draw_enemy_side(ui.sides[0]);
     else
         draw_teammate_side(ui.sides[1]);
+    const float left_content_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
     // The right column is the reference's agent-panorama space for the active Enemies/Teammates
     // side, not a CT/T settings panel. The standalone GUI has no agent renderer, so leave it clear.
@@ -261,7 +273,7 @@ void draw_visuals_players() {
     const ImVec2 right_column_origin = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
-                         right_column_origin, column_width);
+                         right_column_origin, column_width, left_content_bottom);
     if (ui.active_side == 0) {
         esp.m_bounding_box = enemy_items.main_items[0];
         esp.m_name = enemy_items.main_items[1];
