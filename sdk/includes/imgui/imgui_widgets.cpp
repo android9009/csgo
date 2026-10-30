@@ -2237,13 +2237,9 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
 
             const bool is_multi = g_combo_is_multi.find(popup_id) != g_combo_is_multi.end() && g_combo_is_multi[popup_id];
 
-            // Both list kinds open past the host window's right edge rather than over it. Besides
-            // keeping the row readable, it is what makes the frosted surface actually read as
-            // blurred: stacked on top of the host card there is nothing behind the list but that
-            // card's own flat tinted surface, and blurring a flat surface changes nothing.
-            ImGuiWindow* host = g.CurrentWindow;
-            const float host_right = host ? (host->Pos.x + host->Size.x) : bb.Max.x;
-            final_pos.x = ImMax(bb.Max.x, host_right) + 8.f * gui.m_scale;
+            // Neverlose anchors both list kinds to the field itself. Using the host window's
+            // right edge detached the popup from right-aligned Combo/MultiCombo controls.
+            final_pos.x = bb.Min.x;
 
             if (is_multi)
             {
