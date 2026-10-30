@@ -111,6 +111,8 @@ void register_bind_targets() {
         menu_binds::register_int((prefix + "minimum_hit_chance").c_str(), "Minimum HitChance", &weapon.m_minimum_hit_chance, 0, 100);
         menu_binds::register_int((prefix + "extrapolate").c_str(), "Extrapolate", &weapon.m_extrapolate, 0, 16);
         menu_binds::register_int((prefix + "minimum_damage").c_str(), "Min Damage", &weapon.m_minimum_damage, -1, 120);
+        menu_binds::register_int((prefix + "body_aim").c_str(), "Body Aim", &weapon.m_body_aim, 0, 2);
+        menu_binds::register_int((prefix + "safe_points").c_str(), "Safe Points", &weapon.m_safe_points, 0, 2);
         menu_binds::register_int((prefix + "head_scale").c_str(), "Head Scale", &weapon.m_head_scale, -1, 100);
         menu_binds::register_int((prefix + "body_scale").c_str(), "Body Scale", &weapon.m_body_scale, -1, 100);
     }

@@ -16,6 +16,7 @@ struct ImGuiWindow;
 
 namespace menu_binds {
 using target_id = std::uint64_t;
+using combo_item_getter = bool (*)(void* data, int index, const char** out_text);
 
 void register_bool(const char* key, const char* label, bool* value);
 void register_int(const char* key, const char* label, int* value, int minimum, int maximum);
@@ -24,12 +25,15 @@ void register_multibox(const char* key, const char* label, bool* values,
                        const char* const items[], int count);
 
 // `rect` is the whole row (right-clicking anywhere on it opens the bind menu); `control` is the
-// widget on the right - toggle, slider track or multibox field - used for the bind indicator.
+// widget on the right - toggle, slider track or combo/multibox field - used for the bind indicator.
 target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* value);
 target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                       const ImRect& rect, const ImRect& control, ImGuiDataType type, void* value,
                       const void* minimum, const void* maximum);
+target_id combo_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                     const ImRect& rect, const ImRect& control, int* value,
+                     combo_item_getter getter, void* data, int count);
 target_id multibox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* values,
                         const char* const items[], int count);

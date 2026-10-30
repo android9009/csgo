@@ -29,7 +29,7 @@
 
 namespace menu_binds {
 namespace {
-enum class value_type { boolean = 0, integer = 1, floating = 2, multi = 3 };
+enum class value_type { boolean = 0, integer = 1, floating = 2, multi = 3, combo = 4 };
 enum class bind_mode { always = 0, hold = 1, toggle = 2 };
 constexpr int k_max_multi_items = 32;
 
@@ -60,6 +60,7 @@ struct bind_target {
     std::array<bool, k_max_multi_items> base_multi{};
     int multi_count = 0;
     std::vector<std::string> multi_items;
+    std::vector<std::string> combo_items;
     int minimum_int = 0;
     int maximum_int = 100;
     float minimum_float = 0.f;
@@ -218,7 +219,8 @@ void load_once() {
         const int saved_type = saved_target.value("type", 0);
         target.type = saved_type == 1 ? value_type::integer
             : saved_type == 2 ? value_type::floating
-            : saved_type == 3 ? value_type::multi : value_type::boolean;
+            : saved_type == 3 ? value_type::multi
+            : saved_type == 4 ? value_type::combo : value_type::boolean;
 
         if (saved_target.contains("entries") && saved_target["entries"].is_array()) {
             for (const auto& saved_entry : saved_target["entries"]) {
@@ -548,9 +550,24 @@ bool bind_mode_row(bind_entry& entry) {
     return changed;
 }
 
-// Value keeps the control's own type: switch for booleans, slider for numbers and a real
-// multibox for an option set. No boolean switch is added to numeric or multi-value binds.
+std::vector<const char*> combo_names(const bind_target& target) {
+    std::vector<const char*> items;
+    items.reserve(target.combo_items.size());
+    for (const std::string& item : target.combo_items)
+        items.push_back(item.c_str());
+    return items;
+}
+
+// Value keeps the control's own type: switch for booleans, slider for numbers, a dropdown for
+// single-choice combos and a multibox for option sets.
 bool bind_value_row(const bind_target& target, bind_entry& entry) {
+    if (target.type == value_type::combo) {
+        std::vector<const char*> items = combo_names(target);
+        if (items.empty())
+            return false;
+        entry.int_value = std::clamp(entry.int_value, 0, static_cast<int>(items.size()) - 1);
+        return ImGui::Combo("Value", &entry.int_value, items.data(), static_cast<int>(items.size()));
+    }
     if (target.type == value_type::multi) {
         const char* items[k_max_multi_items]{};
         for (int i = 0; i < target.multi_count; ++i)
@@ -863,6 +880,11 @@ bool hotkey_matches(const bind_target& target, const bind_entry& entry, const st
 }
 
 std::string hotkey_value(const bind_target& target, const bind_entry& entry) {
+    if (target.type == value_type::combo) {
+        if (entry.int_value >= 0 && entry.int_value < static_cast<int>(target.combo_items.size()))
+            return gui.tr(target.combo_items[entry.int_value].c_str());
+        return std::to_string(entry.int_value);
+    }
     if (target.type == value_type::multi) {
         std::string preview;
         for (int i = 0; i < target.multi_count; ++i) {
@@ -1131,6 +1153,29 @@ bool draw_hotkey_number_editor(bind_target& target, bind_entry& entry, bool clic
     return changed;
 }
 
+bool draw_hotkey_combo_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    const float s = gui.m_scale;
+    bool wants_open = false;
+    const float anim = gui.popup_animation("##hotkey_value", clicked, wants_open);
+    ImGuiWindow* parent = ImGui::GetCurrentWindow();
+    const ImVec2 at(parent->Pos.x + parent->Size.x + 8.f * s, row_y - 10.f * s);
+    if (!gui.begin_popup_card_at("##hotkey_value", wants_open, anim, at,
+                                 ImVec2(0.f, 0.f), 220.f))
+        return false;
+
+    bool changed = false;
+    std::vector<const char*> items = combo_names(target);
+    if (!items.empty()) {
+        const int previous = entry.int_value;
+        entry.int_value = std::clamp(entry.int_value, 0, static_cast<int>(items.size()) - 1);
+        changed = ImGui::Combo("Value", &entry.int_value, items.data(), static_cast<int>(items.size()));
+        entry.int_value = std::clamp(entry.int_value, 0, static_cast<int>(items.size()) - 1);
+        changed |= previous != entry.int_value;
+    }
+    gui.end_popup_card();
+    return changed;
+}
+
 bool draw_hotkey_multi_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
     const float s = gui.m_scale;
     bool wants_open = false;
@@ -1151,6 +1196,8 @@ bool draw_hotkey_multi_editor(bind_target& target, bind_entry& entry, bool click
 }
 
 bool draw_hotkey_value_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    if (target.type == value_type::combo)
+        return draw_hotkey_combo_editor(target, entry, clicked, row_y);
     if (target.type == value_type::multi)
         return draw_hotkey_multi_editor(target, entry, clicked, row_y);
     if (target.type != value_type::boolean)
@@ -1347,6 +1394,49 @@ bind_target& register_automatic_target(ImGuiWindow* window, ImGuiID item_id, con
     return register_stable_target(key.c_str(), visible_label.c_str(), type, pointer);
 }
 
+void configure_combo_target(bind_target& target, int* value, combo_item_getter getter,
+                            void* data, int count) {
+    target.type = value_type::combo;
+    target.pointer = value;
+    target.minimum_int = 0;
+    target.maximum_int = count - 1;
+    g_pointer_targets[value] = target.id;
+    if (target.combo_items.size() != static_cast<size_t>(count)) {
+        target.combo_items.clear();
+        target.combo_items.reserve(count);
+        for (int i = 0; i < count; ++i) {
+            const char* text = nullptr;
+            if (!getter(data, i, &text) || !text)
+                text = "*Unknown item*";
+            target.combo_items.emplace_back(text);
+        }
+    }
+    if (!target.pointer_seen) {
+        target.base_int = *value;
+        target.pointer_seen = true;
+    }
+    for (auto& entry : target.entries)
+        entry.int_value = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
+}
+
+bind_target& register_automatic_combo(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                                      int* value, combo_item_getter getter, void* data, int count) {
+    load_once();
+    const std::string key = "auto." + std::to_string(window->ID) + "." + std::to_string(item_id);
+    const target_id id = hash_key(key);
+    auto [it, inserted] = g_targets.try_emplace(id);
+    bind_target& target = it->second;
+    if (inserted) {
+        target.id = id;
+        target.key = key;
+    }
+    const char* begin = label ? label : "Combo";
+    const char* end = ImGui::FindRenderedTextEnd(begin);
+    target.label.assign(begin, end);
+    configure_combo_target(target, value, getter, data, count);
+    return target;
+}
+
 bind_target* find_registered_multibox(void* pointer) {
     const auto pointer_it = g_multi_pointer_targets.find(pointer);
     if (pointer_it == g_multi_pointer_targets.end())
@@ -1396,7 +1486,7 @@ void write_base(bind_target& target) {
         return;
     if (target.type == value_type::boolean)
         *static_cast<bool*>(target.pointer) = target.base_bool;
-    else if (target.type == value_type::integer)
+    else if (target.type == value_type::integer || target.type == value_type::combo)
         *static_cast<int*>(target.pointer) = target.base_int;
     else if (target.type == value_type::floating)
         *static_cast<float*>(target.pointer) = target.base_float;
@@ -1412,7 +1502,7 @@ void write_entry(bind_target& target, const bind_entry& entry) {
         return;
     if (target.type == value_type::boolean)
         *static_cast<bool*>(target.pointer) = entry.bool_value;
-    else if (target.type == value_type::integer)
+    else if (target.type == value_type::integer || target.type == value_type::combo)
         *static_cast<int*>(target.pointer) = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
     else if (target.type == value_type::floating)
         *static_cast<float*>(target.pointer) = std::clamp(entry.float_value, target.minimum_float, target.maximum_float);
@@ -1504,6 +1594,27 @@ target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
     return target->id;
 }
 
+target_id combo_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                     const ImRect& rect, const ImRect& control, int* value,
+                     combo_item_getter getter, void* data, int count) {
+    if (!value || !getter || count <= 0 || !belongs_to_main_menu(window) ||
+        (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
+        return 0;
+    bind_target* target = find_registered_target(value);
+    if (!target) {
+        target = &register_automatic_combo(window, item_id, label, value, getter, data, count);
+    }
+    else {
+        if (target->type != value_type::integer && target->type != value_type::combo)
+            return 0;
+        // A stable register_int() key stays intact; the Combo hook only adds its option metadata
+        // and switches the Value editor from a number to the corresponding dropdown.
+        configure_combo_target(*target, value, getter, data, count);
+    }
+    draw_bind_menu(*target, rect, control);
+    return target->id;
+}
+
 target_id multibox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* values,
                         const char* const items[], int count) {
@@ -1558,7 +1669,7 @@ void update() {
         if (!target.was_overridden) {
             if (target.type == value_type::boolean)
                 target.base_bool = *static_cast<bool*>(target.pointer);
-            else if (target.type == value_type::integer)
+            else if (target.type == value_type::integer || target.type == value_type::combo)
                 target.base_int = *static_cast<int*>(target.pointer);
             else if (target.type == value_type::floating) {
                 if (std::isfinite(*static_cast<float*>(target.pointer)))
@@ -1631,7 +1742,7 @@ void on_config_loaded() {
         target.was_overridden = false;
         if (target.type == value_type::boolean)
             target.base_bool = *static_cast<bool*>(target.pointer);
-        else if (target.type == value_type::integer)
+        else if (target.type == value_type::integer || target.type == value_type::combo)
             target.base_int = *static_cast<int*>(target.pointer);
         else if (target.type == value_type::floating) {
             if (std::isfinite(*static_cast<float*>(target.pointer)))

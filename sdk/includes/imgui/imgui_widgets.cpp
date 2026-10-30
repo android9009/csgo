@@ -2418,13 +2418,29 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
         SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, CalcMaxPopupHeightFromItemCount(popup_max_height_in_items)));
 
     // Store state for dynamic popup positioning
-    ImGuiID popup_id = ImHashStr("##ComboPopup", 0, g.CurrentWindow->GetID(label));
+    ImGuiWindow* window = GetCurrentWindow();
+    const ImGuiID id = window->GetID(label);
+    ImGuiID popup_id = ImHashStr("##ComboPopup", 0, id);
     g_combo_selected_idx[popup_id] = *current_item;
     g_combo_item_counter[popup_id] = items_count;
     g_combo_is_multi[popup_id] = false;
 
-    if (!BeginCombo(label, preview_value, ImGuiComboFlags_None))
+    const bool combo_open = BeginCombo(label, preview_value, ImGuiComboFlags_None);
+    const ImGuiLastItemData bind_item_data = g.LastItemData;
+    const auto register_bind = [&]() -> menu_binds::target_id {
+        if (bind_item_data.ID != id)
+            return 0;
+        const menu_binds::target_id target = menu_binds::combo_item(
+            window, id, label, bind_item_data.Rect, bind_item_data.NavRect,
+            current_item, items_getter, data, items_count);
+        g.LastItemData = bind_item_data;
+        return target;
+    };
+    if (!combo_open)
+    {
+        register_bind();
         return false;
+    }
 
     // Display items
     // FIXME-OPT: Use clipper (but we need to disable it on the appearing frame to make sure our call to SetItemDefaultFocus() is processed)
@@ -2450,9 +2466,13 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
     }
 
     EndCombo();
+    const menu_binds::target_id bind_target = register_bind();
 
     if (value_changed)
+    {
+        menu_binds::sync_int(bind_target, *current_item);
         MarkItemEdited(g.LastItemData.ID);
+    }
 
     return value_changed;
 }
