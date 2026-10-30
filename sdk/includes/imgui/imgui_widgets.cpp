@@ -2287,6 +2287,7 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
             ImVec2 display_max = r_outer.Max;
             final_pos.x = ImClamp(final_pos.x, display_min.x, ImMax(display_min.x, display_max.x - size_expected.x));
             final_pos.y = ImClamp(final_pos.y, display_min.y, ImMax(display_min.y, display_max.y - size_expected.y));
+            final_pos.y += (1.f - ImSaturate(popup_anim)) * 8.f * gui.m_scale;
             SetNextWindowPos(final_pos);
         }
 

@@ -907,6 +907,7 @@ bool c_gui::begin_popup_card(const char* popup_name, bool& wants_open, float ani
             }
         }
 
+        target.y += (1.f - ImSaturate(anim)) * 8.f * m_scale;
         ImGui::SetNextWindowPos(target + m_popup_animations[id].drag, ImGuiCond_Always, pivot);
     }
 
@@ -928,7 +929,9 @@ bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float 
         ImVec2 top_left = anchor - known * pivot;
         top_left.x = ImClamp(top_left.x, margin, ImMax(margin, display.x - known.x - margin));
         top_left.y = ImClamp(top_left.y, margin, ImMax(margin, display.y - known.y - margin));
-        ImGui::SetNextWindowPos(top_left + known * pivot + m_popup_animations[id].drag, ImGuiCond_Always, pivot);
+        const float slide = (1.f - ImSaturate(anim)) * 8.f * m_scale;
+        ImGui::SetNextWindowPos(top_left + known * pivot + m_popup_animations[id].drag + ImVec2(0.f, slide),
+                                ImGuiCond_Always, pivot);
     }
 
     return begin_popup_card_body(popup_name, id, anim, width, padding);
@@ -2739,24 +2742,17 @@ static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, 
 void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
     t = ImSaturate(t);
     const float rounding = bb.GetHeight() * 0.5f;
-    // The track and the base knob color stay unchanged; the enabled state grows the knob and
-    // adds a soft accent halo instead of recoloring the whole switch.
+    // Keep the switch geometry fixed: state feedback is a brighter knob, not a larger one.
     draw->AddRectFilled(bb.Min, bb.Max,
         ImGui::GetColorU32(switch_off.to_vec4(1.f, false)), rounding);
     draw->AddRect(bb.Min + ImVec2(0.5f, 0.5f), bb.Max - ImVec2(0.5f, 0.5f),
         switch_rim.to_im_color(), rounding - 0.5f, 0, 1.f);
     const float inset = 2.f * m_scale;
-    const float radius = ImMax(0.f, rounding - inset) * ImLerp(1.f, 1.18f, t);
+    const float radius = ImMax(0.f, rounding - inset);
     const float x = ImLerp(bb.Min.x + rounding, bb.Max.x - rounding, t);
     const ImVec2 center(x, bb.GetCenter().y);
-    if (t > 0.001f) {
-        for (int ring = 6; ring >= 1; --ring) {
-            draw->AddCircleFilled(center, radius + ring * 0.75f * m_scale,
-                accent_color.to_im_color(0.025f * t), 32);
-        }
-    }
-    draw->AddCircleFilled(center, radius,
-        ImGui::GetColorU32(knob_off.to_vec4(1.f, false)), 32);
+    const ImVec4 knob_color = ImLerp(knob_off.to_vec4(1.f, false), ImVec4(1.f, 1.f, 1.f, 1.f), t);
+    draw->AddCircleFilled(center, radius, ImGui::GetColorU32(knob_color), 32);
 }
 
 static void draw_switch(ImDrawList* draw, const ImRect& bb, float t) {

@@ -645,8 +645,10 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
 
     bool wants_open = false;
     const float anim = gui.popup_animation("##bind_menu", open_menu, wants_open);
-    const ImVec2 anchor(rect.Max.x + 8.f * s, rect.GetCenter().y);
-    if (gui.begin_popup_card_at("##bind_menu", wants_open, anim, anchor, ImVec2(0.f, 0.5f), 184.f)) {
+    // Keep the outer card's top edge fixed. Its rows are appended above New Bind, so a new
+    // hotkey extends the card downward instead of making the centered card jump upward.
+    const ImVec2 anchor(rect.Max.x + 8.f * s, rect.Min.y - 10.f * s);
+    if (gui.begin_popup_card_at("##bind_menu", wants_open, anim, anchor, ImVec2(0.f, 0.f), 184.f)) {
         ImGuiWindow* card = ImGui::GetCurrentWindow();
         const ImVec4 c_text = gui.text.to_vec4(1.f, false);
         const ImVec4 c_red(0.93f, 0.33f, 0.36f, 1.f);
