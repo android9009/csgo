@@ -185,7 +185,8 @@ void draw_weapon_picker_popup(const ImGuiID popup_id, int& slot, const ImVec2& a
     const bool close_clicked = ImGui::InvisibleButton("##close_picker", ImVec2(24.f * scale, header_h));
     const ImRect close_rect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
     draw_text_centered(draw, close_rect, ICON_FA_TIMES,
-                       ImGui::IsItemHovered() ? IM_COL32(235, 85, 100, 255) : gui.text_disabled.to_im_color());
+                       ImGui::IsItemHovered() ? IM_COL32(235, 85, 100, 255)
+                                              : static_cast<ImU32>(gui.text_disabled.to_im_color()));
     if (close_clicked)
         ImGui::CloseCurrentPopup();
     ImGui::SetCursorScreenPos(header_pos);
@@ -321,7 +322,8 @@ void draw_main_popup() {
         const bool delete_clicked = ImGui::InvisibleButton("##delete", ImVec2(25.f * scale, 24.f * scale));
         const ImRect delete_rect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         draw_text_centered(draw, delete_rect, ICON_FA_TIMES,
-                           ImGui::IsItemHovered() ? IM_COL32(235, 85, 100, 255) : gui.text_disabled.to_im_color());
+                           ImGui::IsItemHovered() ? IM_COL32(235, 85, 100, 255)
+                                                  : static_cast<ImU32>(gui.text_disabled.to_im_color()));
         if (delete_clicked)
             pending_delete = slot;
 
@@ -338,7 +340,8 @@ void draw_main_popup() {
             if (icon_hovered)
                 draw->AddRectFilled(icon_rect.Min, icon_rect.Max, IM_COL32(220, 65, 85, 24), 4.f * scale);
             weapon_icons::draw(draw, weapon, icon_rect.GetCenter(), ImVec2(36.f * scale, 19.f * scale),
-                               icon_hovered ? IM_COL32(235, 85, 100, 255) : gui.text.to_im_color());
+                               icon_hovered ? IM_COL32(235, 85, 100, 255)
+                                            : static_cast<ImU32>(gui.text.to_im_color()));
             if (remove_clicked) {
                 initialize_legacy_preset(slot);
                 rage_state().m_preset_weapons[slot][weapon] = false;

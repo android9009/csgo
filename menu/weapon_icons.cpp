@@ -5,6 +5,7 @@
 #include "weapon_icons.hpp"
 #include "weapon_icons_atlas.hpp"
 #include "imgui_impl_dx9.h"
+#include "imgui_internal.h"
 #include "../sdk/weapon_definitions.hpp"
 
 #include <cstddef>
