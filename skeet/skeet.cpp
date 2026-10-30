@@ -1,4 +1,5 @@
 #include <bit>
+#include <format>
 #include "pch.h"
 #include "Binary/pattern.h"
 #include "Binary/initializer.h"

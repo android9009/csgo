@@ -198,4 +198,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="RequireWin32" BeforeTargets="PrepareForBuild" Condition="'$(Platform)' != 'Win32'">
+    <Error Text="skeet supports only Win32 (x86). Select Release|Win32 or Debug|Win32. x64 is incompatible with the embedded image, CONTEXT registers, SDK layouts, and inline assembly." />
+  </Target>
 </Project>
