@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
 
-      - name: Build empty DLL shell
+      - name: Build Darkside GUI DLL
         run: msbuild opaihook.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal
 
       - name: Upload DLL

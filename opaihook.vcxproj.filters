@@ -3,12 +3,431 @@
   <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cxx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4B04-88EB-625FBE52EBFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4C08-8B7A-83BB121AAD01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\menu">
+      <UniqueIdentifier>{D348432D-B1F1-5599-8C28-B36CB56A76E7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\runtime">
+      <UniqueIdentifier>{872810D2-DCEA-56F2-B833-AA18C0F1D899}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk">
+      <UniqueIdentifier>{C3D14F66-A5AD-5617-8C78-CA4414A0C89D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk\config_system">
+      <UniqueIdentifier>{B5BDB9B2-DAAE-5EC4-A072-F84EBDEC3470}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk\includes">
+      <UniqueIdentifier>{D90A73B2-4A9E-5D68-A172-021D578F6932}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk\includes\imgui">
+      <UniqueIdentifier>{722CE605-C844-5557-A8D0-4A16F6BD9DEB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk\includes\minhook">
+      <UniqueIdentifier>{27225A1C-BE27-542F-9A94-AAFA60F7C903}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk\includes\minhook\hde">
+      <UniqueIdentifier>{8F151AC2-2F26-5FC3-9201-F37D87C3F179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\menu">
+      <UniqueIdentifier>{2785EA4F-0D46-5121-BDBB-D8F46B6E5B32}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\runtime">
+      <UniqueIdentifier>{DD7080B4-E130-5CE0-915A-CD5DB7215F66}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk">
+      <UniqueIdentifier>{1B65C9D9-FE40-5812-92A7-9CE8B1C930DA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\config_system">
+      <UniqueIdentifier>{46ED0C9A-452A-5B74-81B0-67B46AE16566}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes">
+      <UniqueIdentifier>{3E5F1AC9-A0CB-5274-AD19-E8CBA4438806}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\imgui">
+      <UniqueIdentifier>{DE6D4DEC-01F8-5FA3-AE24-EC194913875B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json">
+      <UniqueIdentifier>{55F2E005-B989-57A9-ADF9-59A4E33CB121}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail">
+      <UniqueIdentifier>{C84F8326-F68B-5470-8F34-56BD9ABF7BC0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\conversions">
+      <UniqueIdentifier>{D24EFED6-24CE-5BD1-8DF8-B83F4A6293C1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\input">
+      <UniqueIdentifier>{DB770D27-3FEE-5F14-8DF0-D15E523193FA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\iterators">
+      <UniqueIdentifier>{BDEDEE0D-5F56-5EF6-B5F4-04AFC0010FBC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\meta">
+      <UniqueIdentifier>{D782E541-6878-52B7-8AD9-C77282EB184B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\meta\call_std">
+      <UniqueIdentifier>{698D0C82-67A2-5704-BE42-97AD0E265671}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\detail\output">
+      <UniqueIdentifier>{51418EE7-3327-5FDD-AC2C-0D3C91EFE212}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\thirdparty">
+      <UniqueIdentifier>{75E179B2-92DC-5395-B2CE-984518B44ED2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\json\thirdparty\hedley">
+      <UniqueIdentifier>{373A1B7E-2C66-57B3-93B0-E3AB802C9805}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\minhook">
+      <UniqueIdentifier>{14B36E52-9AE7-5F98-9D40-C59E93848F5B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\includes\minhook\hde">
+      <UniqueIdentifier>{228678DC-0F48-5C0C-B84E-37AC8332D1B4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sdk\typedefs">
+      <UniqueIdentifier>{070C520A-CDDA-508E-B3C0-694A320F2317}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\fonts">
+      <UniqueIdentifier>{32E5EE64-0B22-510A-990E-39E80EEDC30C}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="menu\binds.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\blur.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\effects.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\gui.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\menu.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime\d3d9_runtime.cpp">
+      <Filter>Source Files\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="runtime\fonts.cpp">
+      <Filter>Source Files\runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\config_system\config_system.cpp">
+      <Filter>Source Files\sdk\config_system</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_demo.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_draw.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_impl_dx9.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_impl_win32.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_stdlib.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_tables.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\imgui\imgui_widgets.cpp">
+      <Filter>Source Files\sdk\includes\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\minhook\buffer.c">
+      <Filter>Source Files\sdk\includes\minhook</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\minhook\hde\hde32.c">
+      <Filter>Source Files\sdk\includes\minhook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\minhook\hde\hde64.c">
+      <Filter>Source Files\sdk\includes\minhook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\minhook\hook.c">
+      <Filter>Source Files\sdk\includes\minhook</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\includes\minhook\trampoline.c">
+      <Filter>Source Files\sdk\includes\minhook</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="menu\binds.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\blur.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\color_t.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\gifbg.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\gui.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\hashes.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\menu.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\menu_resources.h">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\notification.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\shader_bg.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\spotify.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="runtime\fonts.hpp">
+      <Filter>Header Files\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="runtime\runtime.hpp">
+      <Filter>Header Files\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\config_system\config_system.hpp">
+      <Filter>Header Files\sdk\config_system</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imconfig.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imgui.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imgui_impl_dx9.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imgui_impl_win32.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imgui_internal.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imgui_stdlib.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imstb_rectpack.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imstb_textedit.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\imstb_truetype.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\shader_blur_x.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\shader_blur_y.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\imgui\shader_default_vs.h">
+      <Filter>Header Files\sdk\includes\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\adl_serializer.h">
+      <Filter>Header Files\sdk\includes\json</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\byte_container_with_subtype.h">
+      <Filter>Header Files\sdk\includes\json</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\abi_macros.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\conversions\from_json.h">
+      <Filter>Header Files\sdk\includes\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\conversions\to_chars.h">
+      <Filter>Header Files\sdk\includes\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\conversions\to_json.h">
+      <Filter>Header Files\sdk\includes\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\exceptions.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\hash.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\binary_reader.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\input_adapters.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\json_sax.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\lexer.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\parser.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\input\position_t.h">
+      <Filter>Header Files\sdk\includes\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\internal_iterator.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\iter_impl.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\iteration_proxy.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\iterator_traits.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\json_reverse_iterator.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\iterators\primitive_iterator.h">
+      <Filter>Header Files\sdk\includes\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\json_custom_base_class.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\json_pointer.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\json_ref.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\macro_scope.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\macro_unscope.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\call_std\begin.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta\call_std</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\call_std\end.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta\call_std</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\cpp_future.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\detected.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\identity_tag.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\is_sax.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\std_fs.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\type_traits.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\meta\void_t.h">
+      <Filter>Header Files\sdk\includes\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\output\binary_writer.h">
+      <Filter>Header Files\sdk\includes\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\output\output_adapters.h">
+      <Filter>Header Files\sdk\includes\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\output\serializer.h">
+      <Filter>Header Files\sdk\includes\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\string_concat.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\string_escape.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\detail\value_t.h">
+      <Filter>Header Files\sdk\includes\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\json.h">
+      <Filter>Header Files\sdk\includes\json</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\json_fwd.h">
+      <Filter>Header Files\sdk\includes\json</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\ordered_map.h">
+      <Filter>Header Files\sdk\includes\json</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\thirdparty\hedley\hedley.h">
+      <Filter>Header Files\sdk\includes\json\thirdparty\hedley</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\json\thirdparty\hedley\hedley_undef.h">
+      <Filter>Header Files\sdk\includes\json\thirdparty\hedley</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\MinHook.h">
+      <Filter>Header Files\sdk\includes\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\buffer.h">
+      <Filter>Header Files\sdk\includes\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\hde\hde32.h">
+      <Filter>Header Files\sdk\includes\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\hde\hde64.h">
+      <Filter>Header Files\sdk\includes\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\hde\pstdint.h">
+      <Filter>Header Files\sdk\includes\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\hde\table32.h">
+      <Filter>Header Files\sdk\includes\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\hde\table64.h">
+      <Filter>Header Files\sdk\includes\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\includes\minhook\trampoline.h">
+      <Filter>Header Files\sdk\includes\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\typedefs\c_color.hpp">
+      <Filter>Header Files\sdk\typedefs</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="menu_fonts.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="menu\fonts\Inter-Medium.ttf">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\fonts\Inter-SemiBold.ttf">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\fonts\MuseoSansCyrl-700.ttf">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\fonts\SSTBold.TTF">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\fonts\SpaceGrotesk-SemiBold.ttf">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\fonts\fa-solid-900.ttf">
+      <Filter>Resource Files\fonts</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+#include "menu/menu_resources.h"
+
+IDR_FONT_INTER_MEDIUM   RCDATA "menu\\fonts\\Inter-Medium.ttf"
+IDR_FONT_INTER_SEMIBOLD RCDATA "menu\\fonts\\Inter-SemiBold.ttf"
+IDR_FONT_MUSEO_BOLD     RCDATA "menu\\fonts\\MuseoSansCyrl-700.ttf"
+IDR_FONT_SST_BOLD       RCDATA "menu\\fonts\\SSTBold.TTF"
+IDR_FONT_SPACE_GROTESK  RCDATA "menu\\fonts\\SpaceGrotesk-SemiBold.ttf"
+IDR_FONT_FA_SOLID       RCDATA "menu\\fonts\\fa-solid-900.ttf"

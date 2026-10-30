@@ -46,8 +46,10 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_WINDOWS;_USRDLL;AIRFLOW_SHELL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;_WINDOWS;_USRDLL;AIRFLOW_SHELL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/utf-8 /Zc:char8_t- %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)menu;$(ProjectDir)sdk\includes\imgui;$(ProjectDir)sdk\includes\minhook;$(ProjectDir)sdk\includes\json;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -55,6 +57,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>d3d9.lib;shell32.lib;imm32.lib;dwmapi.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
@@ -79,6 +82,120 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="menu\binds.cpp" />
+    <ClCompile Include="menu\blur.cpp" />
+    <ClCompile Include="menu\effects.cpp" />
+    <ClCompile Include="menu\gui.cpp" />
+    <ClCompile Include="menu\menu.cpp" />
+    <ClCompile Include="runtime\d3d9_runtime.cpp" />
+    <ClCompile Include="runtime\fonts.cpp" />
+    <ClCompile Include="sdk\config_system\config_system.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_demo.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_draw.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_impl_dx9.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_stdlib.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_tables.cpp" />
+    <ClCompile Include="sdk\includes\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="sdk\includes\minhook\buffer.c" />
+    <ClCompile Include="sdk\includes\minhook\hde\hde32.c" />
+    <ClCompile Include="sdk\includes\minhook\hde\hde64.c" />
+    <ClCompile Include="sdk\includes\minhook\hook.c" />
+    <ClCompile Include="sdk\includes\minhook\trampoline.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="menu\binds.hpp" />
+    <ClInclude Include="menu\blur.hpp" />
+    <ClInclude Include="menu\color_t.hpp" />
+    <ClInclude Include="menu\gifbg.hpp" />
+    <ClInclude Include="menu\gui.hpp" />
+    <ClInclude Include="menu\hashes.hpp" />
+    <ClInclude Include="menu\menu.hpp" />
+    <ClInclude Include="menu\menu_resources.h" />
+    <ClInclude Include="menu\notification.hpp" />
+    <ClInclude Include="menu\shader_bg.hpp" />
+    <ClInclude Include="menu\spotify.hpp" />
+    <ClInclude Include="runtime\fonts.hpp" />
+    <ClInclude Include="runtime\runtime.hpp" />
+    <ClInclude Include="sdk\config_system\config_system.hpp" />
+    <ClInclude Include="sdk\includes\imgui\imconfig.h" />
+    <ClInclude Include="sdk\includes\imgui\imgui.h" />
+    <ClInclude Include="sdk\includes\imgui\imgui_impl_dx9.h" />
+    <ClInclude Include="sdk\includes\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="sdk\includes\imgui\imgui_internal.h" />
+    <ClInclude Include="sdk\includes\imgui\imgui_stdlib.h" />
+    <ClInclude Include="sdk\includes\imgui\imstb_rectpack.h" />
+    <ClInclude Include="sdk\includes\imgui\imstb_textedit.h" />
+    <ClInclude Include="sdk\includes\imgui\imstb_truetype.h" />
+    <ClInclude Include="sdk\includes\imgui\shader_blur_x.h" />
+    <ClInclude Include="sdk\includes\imgui\shader_blur_y.h" />
+    <ClInclude Include="sdk\includes\imgui\shader_default_vs.h" />
+    <ClInclude Include="sdk\includes\json\adl_serializer.h" />
+    <ClInclude Include="sdk\includes\json\byte_container_with_subtype.h" />
+    <ClInclude Include="sdk\includes\json\detail\abi_macros.h" />
+    <ClInclude Include="sdk\includes\json\detail\conversions\from_json.h" />
+    <ClInclude Include="sdk\includes\json\detail\conversions\to_chars.h" />
+    <ClInclude Include="sdk\includes\json\detail\conversions\to_json.h" />
+    <ClInclude Include="sdk\includes\json\detail\exceptions.h" />
+    <ClInclude Include="sdk\includes\json\detail\hash.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\binary_reader.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\input_adapters.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\json_sax.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\lexer.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\parser.h" />
+    <ClInclude Include="sdk\includes\json\detail\input\position_t.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\internal_iterator.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\iter_impl.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\iteration_proxy.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\iterator_traits.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\json_reverse_iterator.h" />
+    <ClInclude Include="sdk\includes\json\detail\iterators\primitive_iterator.h" />
+    <ClInclude Include="sdk\includes\json\detail\json_custom_base_class.h" />
+    <ClInclude Include="sdk\includes\json\detail\json_pointer.h" />
+    <ClInclude Include="sdk\includes\json\detail\json_ref.h" />
+    <ClInclude Include="sdk\includes\json\detail\macro_scope.h" />
+    <ClInclude Include="sdk\includes\json\detail\macro_unscope.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\call_std\begin.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\call_std\end.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\cpp_future.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\detected.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\identity_tag.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\is_sax.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\std_fs.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\type_traits.h" />
+    <ClInclude Include="sdk\includes\json\detail\meta\void_t.h" />
+    <ClInclude Include="sdk\includes\json\detail\output\binary_writer.h" />
+    <ClInclude Include="sdk\includes\json\detail\output\output_adapters.h" />
+    <ClInclude Include="sdk\includes\json\detail\output\serializer.h" />
+    <ClInclude Include="sdk\includes\json\detail\string_concat.h" />
+    <ClInclude Include="sdk\includes\json\detail\string_escape.h" />
+    <ClInclude Include="sdk\includes\json\detail\value_t.h" />
+    <ClInclude Include="sdk\includes\json\json.h" />
+    <ClInclude Include="sdk\includes\json\json_fwd.h" />
+    <ClInclude Include="sdk\includes\json\ordered_map.h" />
+    <ClInclude Include="sdk\includes\json\thirdparty\hedley\hedley.h" />
+    <ClInclude Include="sdk\includes\json\thirdparty\hedley\hedley_undef.h" />
+    <ClInclude Include="sdk\includes\minhook\MinHook.h" />
+    <ClInclude Include="sdk\includes\minhook\buffer.h" />
+    <ClInclude Include="sdk\includes\minhook\hde\hde32.h" />
+    <ClInclude Include="sdk\includes\minhook\hde\hde64.h" />
+    <ClInclude Include="sdk\includes\minhook\hde\pstdint.h" />
+    <ClInclude Include="sdk\includes\minhook\hde\table32.h" />
+    <ClInclude Include="sdk\includes\minhook\hde\table64.h" />
+    <ClInclude Include="sdk\includes\minhook\trampoline.h" />
+    <ClInclude Include="sdk\typedefs\c_color.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="menu_fonts.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="menu\fonts\Inter-Medium.ttf" />
+    <None Include="menu\fonts\Inter-SemiBold.ttf" />
+    <None Include="menu\fonts\MuseoSansCyrl-700.ttf" />
+    <None Include="menu\fonts\SSTBold.TTF" />
+    <None Include="menu\fonts\SpaceGrotesk-SemiBold.ttf" />
+    <None Include="menu\fonts\fa-solid-900.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

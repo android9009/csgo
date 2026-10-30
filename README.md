@@ -1,8 +1,16 @@
-# Airflow Shell
+# Airflow Shell — Darkside GUI
 
-Минимальная пустая Win32 DLL-оболочка. Эта ветка намеренно содержит только базу для дальнейшего развития: без меню, игровых функций, хуков, offsets, конфигов и сторонних библиотек.
+Win32 DLL с оригинальным интерфейсом Darkside, адаптированным для Direct3D 9. В проект перенесены фактические `gui.cpp`, `gui.hpp`, страницы меню, контролы, анимации, модифицированный ImGui, конфиг-браузер, keybind-интерфейс и шрифты Darkside — не самодельная тема по скриншоту.
 
-`DllMain` возвращает `TRUE` при загрузке и выгрузке. При `DLL_PROCESS_ATTACH` вызывается только `DisableThreadLibraryCalls`; поток инициализации и обращения к CS:GO отсутствуют. DLL может быть загружена обычным `LoadLibrary`-инжектором.
+## Использование
+
+1. Соберите `Release | x86` и загрузите `Bins/airflow_shell.dll` в D3D9-процесс CS:GO.
+2. Нажмите **Insert**, чтобы открыть или закрыть меню.
+3. Конфиги интерфейса сохраняются в `C:\airflow\configs`, бинды — в `C:\airflow\binds.json`.
+
+Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Reset`, обработку окна и рендер ImGui. Параметры Rage, ESP, Misc и Skins являются локальными UI-настройками: игровая логика Airflow, offsets, entity/weapon interfaces и gameplay-hook'и не восстановлены.
+
+Базовый GUI использует оригинальные шрифты и rounded blur. Дополнительные D3D11/WIC/WinRT-сервисы анимированного shader-фона, GIF и live-данных Spotify в D3D9-backend не перенесены; соответствующие виджеты сохранены, но не получают текстуры или активную медиа-сессию.
 
 ## Visual Studio 2022
 
@@ -10,7 +18,7 @@
 2. Установите toolset **v143** и Windows SDK.
 3. Выберите `Release | x86` или `Debug | x86` и соберите проект.
 
-Результат: `Bins/airflow_shell.dll`. DirectX SDK и остальные внешние зависимости не требуются.
+Результат: `Bins/airflow_shell.dll`. Проект использует C++20, `/utf-8`, `/Zc:char8_t-` и статический MSVC runtime. Отдельный DirectX SDK и D3DX не требуются; используются системные `d3d9.lib` и библиотеки Windows SDK.
 
 ## CMake (Windows)
 
