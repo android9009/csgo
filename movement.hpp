@@ -42,6 +42,7 @@ private:
 	bool last_jumped = false;
 	bool should_fake = false;
 	bool complete_fast_stop = false;
+	bool edge_was_on_ground = false;
 
 	int ground_ticks{};
 
@@ -77,6 +78,7 @@ public:
 		last_jumped = false;
 		should_fake = false;
 		complete_fast_stop = false;
+		edge_was_on_ground = false;
 
 		ground_ticks = 0;
 

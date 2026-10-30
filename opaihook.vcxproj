@@ -360,6 +360,7 @@
     <ClCompile Include="animations.cpp" />
     <ClCompile Include="anti_aim.cpp" />
     <ClCompile Include="bullet_tracers.cpp" />
+    <ClCompile Include="sound_esp.cpp" />
     <ClCompile Include="buy_bot.cpp" />
     <ClCompile Include="bytesarray.cpp" />
     <ClCompile Include="chams.cpp" />
@@ -460,6 +461,7 @@
     <ClInclude Include="engine_prediction.hpp" />
     <ClInclude Include="entities.hpp" />
     <ClInclude Include="esp.hpp" />
+    <ClInclude Include="sound_esp.hpp" />
     <ClInclude Include="esp_object_render.hpp" />
     <ClInclude Include="eventlistener.hpp" />
     <ClInclude Include="event_logs.hpp" />

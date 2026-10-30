@@ -75,7 +75,7 @@ void c_menu::set_window_pos(const ImVec2& pos)
 
 ImVec2 c_menu::get_window_pos()
 {
-	return window_pos + ImVec2(45, 15);
+	return window_pos;
 }
 
 void c_menu::init_textures()
@@ -135,238 +135,272 @@ ImDrawList* c_menu::get_draw_list()
 	return draw_list;
 }
 
+namespace darkside_ui
+{
+	constexpr float window_w = 800.f;
+	constexpr float window_h = 600.f;
+	constexpr float content_w = 600.f;
+
+	// Ported from Darkside's AddSquircleFilled/AddSquircle. The 1.5x
+	// superellipse radius and 16 segments are intentional: ordinary rounded
+	// rectangles do not have the same silhouette as the reference menu.
+	void squircle_path(ImDrawList* draw, const ImVec2& min, const ImVec2& max, float radius)
+	{
+		float length = radius * 1.5f;
+		length = std::min(length, std::min((max.x - min.x) * 0.5f, (max.y - min.y) * 0.5f));
+		const ImVec2 corners[4] = {
+			{ max.x - length, max.y - length },
+			{ min.x + length, max.y - length },
+			{ min.x + length, min.y + length },
+			{ max.x - length, min.y + length }
+		};
+		for (int corner = 0; corner < 4; ++corner)
+		{
+			for (int i = 0; i <= 16; ++i)
+			{
+				const float angle = corner * IM_PI * 0.5f + (float)i / 16.f * IM_PI * 0.5f;
+				const float ca = cosf(angle), sa = sinf(angle);
+				const float cx = powf(fabsf(ca), 0.4f) * (ca > 0.f ? 1.f : -1.f);
+				const float cy = powf(fabsf(sa), 0.4f) * (sa > 0.f ? 1.f : -1.f);
+				draw->PathLineTo(corners[corner] + ImVec2(cx * length, cy * length));
+			}
+		}
+	}
+
+	void squircle_filled(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32 color, float radius)
+	{
+		if (radius <= 0.f || max.x <= min.x || max.y <= min.y)
+		{
+			draw->AddRectFilled(min, max, color);
+			return;
+		}
+		draw->PathClear();
+		squircle_path(draw, min, max, radius);
+		draw->PathFillConvex(color);
+	}
+
+	void squircle(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32 color, float radius, float thickness = 1.f)
+	{
+		if (radius <= 0.f || max.x <= min.x || max.y <= min.y)
+		{
+			draw->AddRect(min, max, color, 0.f, 0, thickness);
+			return;
+		}
+		draw->PathClear();
+		squircle_path(draw, min, max, radius);
+		draw->PathStroke(color, true, thickness);
+	}
+}
+
 void c_menu::window_begin()
 {
 	ImGui::GetMousePos();
-
 	static auto opened = true;
-
-	const auto window_size = ImVec2(720, 520.f);
-	ImGui::SetNextWindowPos(ImVec2((RENDER->screen.x / 2.f - window_size.x / 2.f), RENDER->screen.y / 2.f - window_size.y / 2.f), ImGuiCond_Once);
-
+	const auto window_size = ImVec2(darkside_ui::window_w, darkside_ui::window_h);
+	ImGui::SetNextWindowPos(ImVec2(RENDER->screen.x * 0.5f - window_size.x * 0.5f,
+		RENDER->screen.y * 0.5f - window_size.y * 0.5f), ImGuiCond_Once);
 	ImGui::SetNextWindowSize(window_size, ImGuiCond_Once);
 	ImGui::PushFont(RENDER->fonts.main.get());
 	ImGui::SetNextWindowBgAlpha(0.f);
 	ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f, 0.f, 0.f, 0.f));
-	ImGui::Begin(CXOR("##base_window"), &opened, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollbar);
-
-	ImGui::PushItemWidth(256);
-
-	this->set_draw_list(ImGui::GetWindowDrawList());
-	this->set_window_pos(ImGui::GetWindowPos());
-
-	auto list = this->get_draw_list();
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.f);
+	ImGui::Begin(CXOR("##base_window"), &opened, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollbar);
+	ImGui::PushItemWidth(276);
+	set_draw_list(ImGui::GetWindowDrawList());
+	set_window_pos(ImGui::GetWindowPos());
+	auto list = get_draw_list();
 	list->Flags |= ImDrawListFlags_AntiAliasedFill | ImDrawListFlags_AntiAliasedLines;
-
-	auto window_pos = this->get_window_pos();
-
-	// push rect for render
-	list->PushClipRect(window_pos, ImVec2(window_pos.x + 720, window_pos.y + 520));
-
-	// push rect for window
-	ImGui::PushClipRect(window_pos, ImVec2(window_pos.x + 720, window_pos.y + 520), false);
+	const auto pos = get_window_pos();
+	list->PushClipRect(pos, pos + window_size);
+	ImGui::PushClipRect(pos, pos + window_size, false);
 }
 
 void c_menu::window_end()
 {
-	auto list = this->get_draw_list();
+	auto list = ImGui::GetWindowDrawList();
+	set_draw_list(list);
 	list->Flags &= ~(ImDrawListFlags_AntiAliasedFill | ImDrawListFlags_AntiAliasedLines);
 	list->PopClipRect();
 	ImGui::PopClipRect();
-
 	ImGui::PopItemWidth();
-
 	ImGui::End(false);
+	ImGui::PopStyleVar(2);
 	ImGui::PopStyleColor();
 	ImGui::PopFont();
 }
 
 void c_menu::draw_ui_background()
 {
-	auto list = this->get_draw_list();
-	const float alpha = this->get_alpha();
-	const auto window_pos = this->get_window_pos();
-	const auto window_max = window_pos + ImVec2(720, 520);
+	auto list = get_draw_list();
+	const float a = get_alpha();
+	const auto pos = get_window_pos();
+	const auto max = pos + ImVec2(darkside_ui::window_w, darkside_ui::window_h);
 	const auto accent = g_cfg.misc.ui_color.base();
 
-	// Airflow recode: a dark, restrained shell instead of the old white blur.
-	imgui_blur::create_blur(list, window_pos, window_max,
-		c_color(12, 16, 26, 238.f * alpha).as_imcolor(), 8.f, ImDrawCornerFlags_All);
-	list->AddRectFilled(window_pos, window_max, c_color(8, 11, 18, 205.f * alpha).as_imcolor(), 8.f);
-
-	// Header and sidebar are separate surfaces so the navigation reads clearly.
-	list->AddRectFilled(window_pos + ImVec2(1, 1), window_pos + ImVec2(719, 47),
-		c_color(20, 25, 38, 220.f * alpha).as_imcolor(), 7.f, ImDrawCornerFlags_Top);
-	list->AddRectFilled(window_pos + ImVec2(1, 47), window_pos + ImVec2(160, 519),
-		c_color(13, 17, 27, 225.f * alpha).as_imcolor());
-	list->AddRectFilled(window_pos + ImVec2(160, 47), window_pos + ImVec2(719, 519),
-		c_color(15, 19, 29, 170.f * alpha).as_imcolor());
-
-	list->AddLine(window_pos + ImVec2(12, 1), window_pos + ImVec2(708, 1),
-		accent.new_alpha(210.f * alpha).as_imcolor(), 1.f);
-	list->AddLine(window_pos + ImVec2(0, 47), window_pos + ImVec2(720, 47),
-		c_color(125, 138, 166, 32.f * alpha).as_imcolor());
-	list->AddLine(window_pos + ImVec2(160, 47), window_pos + ImVec2(160, 520),
-		c_color(125, 138, 166, 28.f * alpha).as_imcolor());
-
-	if (logo_texture)
-		list->AddImage((void*)logo_texture, window_pos + ImVec2(19, 16), window_pos + ImVec2(36, 33),
-			ImVec2(0, 0), ImVec2(1, 1), accent.new_alpha(255.f * alpha).as_imcolor());
+	// Darkside geometry: 800x600, 170px side plate, 60px top plate,
+	// content beginning at x=185 and a 150px-wide tab column.
+	imgui_blur::create_blur(list, pos, max, c_color(11, 14, 22, 244.f * a).as_imcolor(), 6.f);
+	list->AddRectFilled(pos, pos + ImVec2(170, 600), c_color(18, 20, 29, 216.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Left);
+	list->AddRectFilled(pos + ImVec2(170, 0), pos + ImVec2(800, 61), c_color(11, 15, 23, 232.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Top);
+	list->AddRectFilled(pos + ImVec2(170, 61), max, c_color(11, 14, 22, 226.f * a).as_imcolor(), 6.f, ImDrawCornerFlags_Bottom);
+	list->AddRect(pos, max, c_color(30, 33, 44, 255.f * a).as_imcolor(), 6.f);
+	list->AddLine(pos + ImVec2(185, 60), pos + ImVec2(785, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
+	list->AddLine(pos + ImVec2(10, 60), pos + ImVec2(160, 60), c_color(30, 33, 44, 255.f * a).as_imcolor());
 
 	ImGui::PushFont(RENDER->fonts.dmg.get());
-	list->AddText(window_pos + ImVec2(45, 11), c_color(240, 243, 250, 245.f * alpha).as_imcolor(), CXOR("airflow"));
+	list->AddText(pos + ImVec2(12, 22) + ImVec2(1, 1), accent.new_alpha(96.f * a).as_imcolor(), CXOR("AIRFLOW"));
+	list->AddText(pos + ImVec2(12, 22), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("AIRFLOW"));
 	ImGui::PopFont();
-	list->AddText(window_pos + ImVec2(46, 29), accent.new_alpha(190.f * alpha).as_imcolor(), CXOR("RECODE"));
 
-	const auto status = XOR("BUILD  /  2.0");
+	const auto top_title = tabs[tab_selector].c_str();
+	list->AddText(pos + ImVec2(185, 24), c_color(235, 235, 240, 255.f * a).as_imcolor(), top_title);
+	const auto status = XOR("DARKSIDE UI  /  RECODE");
 	const auto status_size = ImGui::CalcTextSize(status.c_str());
-	list->AddText(window_pos + ImVec2(699 - status_size.x, 18),
-		c_color(142, 153, 177, 180.f * alpha).as_imcolor(), status.c_str());
+	list->AddText(pos + ImVec2(785 - status_size.x, 24), c_color(130, 133, 143, 230.f * a).as_imcolor(), status.c_str());
 
-	list->AddText(window_pos + ImVec2(18, 496), c_color(112, 124, 148, 150.f * alpha).as_imcolor(), CXOR("7 MODULES"));
-	list->AddRect(window_pos, window_max, c_color(103, 117, 147, 95.f * alpha).as_imcolor(), 8.f);
+	// Bottom-left user plate from the reference (10, height-48)..(160, height-8).
+	const auto profile_min = pos + ImVec2(10, 552);
+	const auto profile_max = pos + ImVec2(160, 592);
+	list->AddLine(profile_min, ImVec2(profile_max.x, profile_min.y), c_color(30, 33, 44, 255.f * a).as_imcolor());
+	list->AddCircleFilled(profile_min + ImVec2(23, 20), 15.f, c_color(25, 28, 38, 255.f * a).as_imcolor(), 32);
+	list->AddText(profile_min + ImVec2(46, 6), c_color(235, 235, 240, 255.f * a).as_imcolor(), CXOR("airflow"));
+	list->AddText(profile_min + ImVec2(46, 22), c_color(130, 133, 143, 255.f * a).as_imcolor(), CXOR("recode"));
+	list->AddText(profile_min + ImVec2(137, 14), c_color(130, 133, 143, 255.f * a).as_imcolor(), CXOR(">"));
 }
 
 void c_menu::draw_tabs()
 {
-	auto list = this->get_draw_list();
-
-	auto prev_pos = ImGui::GetCursorPos();
-
-	auto window_alpha = 255.f * this->get_alpha();
-	auto child_pos = this->get_window_pos() + ImVec2(0, 49);
-
+	auto list = get_draw_list();
+	const auto prev_pos = ImGui::GetCursorPos();
+	const auto base = get_window_pos();
+	const float a = get_alpha();
+	const auto accent = g_cfg.misc.ui_color.base();
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, this->get_alpha()));
-
-	auto clr = g_cfg.misc.ui_color.base();
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, a));
 
 	for (int i = 0; i < tabs.size(); ++i)
 	{
 		auto& info = tab_info[i];
-
-		ImGui::SetCursorPos(ImVec2(53, 78 + 40 * i));
-
-		auto tab_str = CXOR("##tab_") + std::to_string(i);
-		info.selected = ImGui::ButtonEx(tab_str.c_str(), ImVec2(144, 32), 0, &info.hovered);
+		const float y = 70.f + 34.f * i;
+		ImGui::SetCursorPos(ImVec2(6, y));
+		const auto id = CXOR("##tab_") + std::to_string(i);
+		info.selected = ImGui::ButtonEx(id.c_str(), ImVec2(144, 30), 0, &info.hovered);
 		if (info.selected)
 			tab_selector = i;
+		create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
+		create_animation(info.alpha, tab_selector == i, 0.8f, lerp_animation);
 
-		this->create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
-		this->create_animation(info.alpha, tab_selector == i, 0.8f, skip_disable | lerp_animation);
-
-		auto tab_min = ImVec2(8, 14 + 40 * i);
-		auto tab_max = ImVec2(152, 46 + 40 * i);
-
-		auto tab_pos_min = child_pos + tab_min;
-		auto tab_pos_max = child_pos + tab_max;
-
-		float rgb_val = tab_selector == i ? 245 : 128 + 100 * info.hovered_alpha;
-		c_color text_clr = c_color(rgb_val, rgb_val, rgb_val, rgb_val * this->get_alpha());
-
-		if (tab_selector != i && info.hovered_alpha > 0.01f)
-			list->AddRectFilled(tab_pos_min, tab_pos_max - ImVec2(2, 0),
-				c_color(255, 255, 255, 5.f * info.hovered_alpha * this->get_alpha()).as_imcolor(), 4.f, ImDrawCornerFlags_Left);
-
-		// Active module uses the configured accent, not a generic white selection.
-		if (tab_selector == i)
-		{
-			list->AddRectFilled(tab_pos_min, tab_pos_max - ImVec2(2, 0),
-				c_color(clr.r(), clr.g(), clr.b(), 22.f * info.alpha * this->get_alpha()).as_imcolor(), 4.f, ImDrawCornerFlags_Left);
-
-			// i can't draw rounded rect for 2 pixels
-			// so i decided to limit render range and draw rect for 4 pixels
-			list->PushClipRect(tab_pos_max - ImVec2(2, 32), tab_pos_max);
-			list->AddRectFilled(tab_pos_max - ImVec2(4, 32), tab_pos_max, clr.new_alpha(255 * info.alpha * this->get_alpha()).as_imcolor(), 2.f, ImDrawCornerFlags_Right);
-			list->PopClipRect();
-		}
-
+		const auto min = base + ImVec2(6, 70 + 34 * i);
+		const auto max = min + ImVec2(148, 30);
+		const float fill = std::clamp(info.alpha + info.hovered_alpha * 0.4f, 0.f, 1.f);
+		if (fill > 0.01f)
+			list->AddRectFilled(min, max, c_color(39, 43, 54, 255.f * fill * a).as_imcolor(), 6.f);
+		const float text_mix = std::clamp(info.alpha + info.hovered_alpha, 0.f, 1.f);
+		const int grey = (int)std::lerp(130.f, 235.f, text_mix);
+		auto text = c_color(grey, grey, grey + 5, 255.f * a);
 		if (icon_textures[i])
-			list->AddImage((void*)icon_textures[i], tab_pos_min + ImVec2(10, 9), tab_pos_min + ImVec2(25, 24), ImVec2(0, 0), ImVec2(1, 1), text_clr.as_imcolor());
-
-		list->AddText(ImVec2(tab_pos_min.x + 32, tab_pos_min.y + 8), text_clr.as_imcolor(), tabs[i].c_str());
+		{
+			auto icon = info.alpha > 0.01f ? accent.new_alpha(255.f * a) : text;
+			list->AddImage((void*)icon_textures[i], min + ImVec2(9, 8), min + ImVec2(23, 22), ImVec2(0, 0), ImVec2(1, 1), icon.as_imcolor());
+		}
+		list->AddText(min + ImVec2(32, 8), text.as_imcolor(), tabs[i].c_str());
 	}
-
-	ImGui::PopStyleColor();
+	ImGui::PopStyleColor(4);
 	ImGui::SetCursorPos(prev_pos);
+}
+
+void c_menu::begin_group_box(const char* name)
+{
+	auto window = ImGui::GetCurrentWindow();
+	if (!window || window->SkipItems)
+		return;
+	const auto pos = window->DC.CursorPos;
+	const ImGuiID id = window->GetID(name);
+	const float width = ImGui::GetContentRegionAvail().x;
+	auto found = group_box_heights.find(id);
+	const float height = found != group_box_heights.end() ? found->second : 80.f;
+	group_box_stack.push_back({ id, width, true, draw_list });
+
+	ImGui::BeginChild((std::string(name) + CXOR(".main")).c_str(), ImVec2(width, height), false, ImGuiWindowFlags_NoScrollbar);
+	constexpr float header_h = 32.f;
+	darkside_ui::squircle_filled(ImGui::GetWindowDrawList(), pos + ImVec2(0, header_h), pos + ImVec2(width, height),
+		c_color(18, 20, 29, 255.f * get_alpha()).as_imcolor(), 20.f);
+	darkside_ui::squircle(ImGui::GetWindowDrawList(), pos + ImVec2(0, header_h), pos + ImVec2(width, height),
+		c_color(30, 33, 44, 255.f * get_alpha()).as_imcolor(), 20.f);
+	ImGui::GetWindowDrawList()->AddText(pos + ImVec2(10, 7), c_color(235, 235, 240, 128.f * get_alpha()).as_imcolor(), name);
+	ImGui::SetCursorPos(ImVec2(0, header_h));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+	ImGui::BeginChild(name, ImVec2(width, height - header_h), false,
+		ImGuiWindowFlags_AlwaysUseWindowPadding | ImGuiWindowFlags_NoScrollbar);
+	set_draw_list(ImGui::GetWindowDrawList());
+	ImGui::BeginGroup();
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 0));
+}
+
+void c_menu::end_group_box()
+{
+	if (group_box_stack.empty())
+		return;
+	const auto state = group_box_stack.back();
+	group_box_stack.pop_back();
+	const float content_h = ImGui::GetCursorPosY() + 8.f;
+	group_box_heights[state.id] = content_h + 32.f;
+	ImGui::PopStyleVar();
+	ImGui::EndGroup();
+	ImGui::EndChild();
+	ImGui::EndChild();
+	ImGui::PopStyleVar();
+	draw_list = state.previous_draw_list;
 }
 
 void c_menu::draw_sub_tabs(int& selector, const std::vector< std::string >& tabs)
 {
+	set_draw_list(ImGui::GetWindowDrawList());
 	auto& style = ImGui::GetStyle();
-	auto alpha = this->get_alpha();
-	auto window_alpha = 255.f * alpha;
-	auto child_pos = this->get_window_pos() + ImVec2(178, 62);
-	auto prev_pos = ImGui::GetCursorPos();
-
+	const float a = get_alpha();
+	const auto child_pos = get_window_pos() + ImVec2(185, 76);
+	const auto prev_pos = ImGui::GetCursorPos();
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, this->get_alpha()));
-
-	draw_list->AddRectFilled(child_pos, child_pos + ImVec2(528, 58), c_color(217, 217, 217, 20 * alpha).as_imcolor(), 4.f);
-
-	auto clr = g_cfg.misc.ui_color.base();
-
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, a));
+	const auto accent = g_cfg.misc.ui_color.base();
+	const float step = std::min(94.f, 584.f / std::max<size_t>(1, tabs.size()));
 	for (int i = 0; i < tabs.size(); ++i)
 	{
 		auto& info = subtab_info[tabs[0]][i];
-
-		const auto cursor_pos = ImVec2(27 + 80 * i, 14);
+		const auto cursor_pos = ImVec2(10 + step * i, 10);
 		ImGui::SetCursorPos(cursor_pos);
-
-		const auto tab_size = ImVec2(70.f, 32.f);
-
-		auto tab_str = CXOR("##sub_tab_") + tabs[i];
-		info.selected = ImGui::ButtonEx(tab_str.c_str(), tab_size, 0, &info.hovered);
-
+		const auto tab_size = ImVec2(step - 6.f, 28.f);
+		const auto id = CXOR("##sub_tab_") + tabs[i];
+		info.selected = ImGui::ButtonEx(id.c_str(), tab_size, 0, &info.hovered);
 		if (info.selected)
 			selector = i;
-
-		this->create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
-		this->create_animation(info.alpha, selector == i, 0.8f, skip_disable | lerp_animation);
-
-		// idk why but base pos offsets by 8 pixels
-		// so move to 8 pixels left for correct pos
-		const auto tab_min = child_pos + cursor_pos - ImVec2(8, 0);
-		const auto tab_max = tab_min + tab_size;
-		const auto tab_bb = ImRect(tab_min, tab_max);
-
+		create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
+		create_animation(info.alpha, selector == i, 0.8f, lerp_animation);
+		const auto min = child_pos + ImVec2(10 + step * i, 10);
+		const ImRect bb(min, min + tab_size);
+		const float fill = std::clamp(info.alpha + info.hovered_alpha * 0.5f, 0.f, 1.f);
+		if (fill > 0.01f)
+			draw_list->AddRectFilled(bb.Min, bb.Max, c_color(25, 28, 38, 255.f * fill * a).as_imcolor(), 6.f);
 		if (selector == i)
-		{
-			draw_list->AddRectFilled(tab_bb.Min, tab_bb.Max, c_color(217, 217, 217, 20 * alpha * info.alpha).as_imcolor(), 4.f);
-
-			// i can't draw rounded rect for 2 pixels
-			// so i decided to limit render range and draw rect for 4 pixels
-			draw_list->PushClipRect(ImVec2(tab_bb.Min.x + 15.f, tab_bb.Max.y - 2.f), ImVec2(tab_bb.Max.x - 15.f, tab_bb.Max.y));
-			draw_list->AddRectFilled(ImVec2(tab_bb.Min.x + 15.f, tab_bb.Max.y - 2.f), ImVec2(tab_bb.Max.x - 15.f, tab_bb.Max.y + 4.f), clr.new_alpha(info.alpha * window_alpha).as_imcolor(), 2.f, ImDrawCornerFlags_Top);
-			draw_list->PopClipRect();
-		}
-
-		float rgb_val = selector == i ? 255 : 150 + 105 * info.hovered_alpha;
-		c_color text_clr = c_color(rgb_val, rgb_val, rgb_val, rgb_val * this->get_alpha());
-
-		const ImVec2 label_size = ImGui::CalcTextSize(tabs[i].c_str(), NULL, true);
-
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(text_clr.r() / 255.f, text_clr.g() / 255.f, text_clr.b() / 255.f, text_clr.a() / 255.f));
-		ImGui::RenderTextClipped(tab_bb.Min, tab_bb.Max, tabs[i].c_str(), NULL, &label_size, style.ButtonTextAlign, &tab_bb);
+			draw_list->AddLine(ImVec2(bb.Min.x + 12, bb.Max.y), ImVec2(bb.Max.x - 12, bb.Max.y), accent.new_alpha(255.f * a).as_imcolor(), 1.5f);
+		const int grey = (int)std::lerp(130.f, 235.f, std::clamp(info.alpha + info.hovered_alpha, 0.f, 1.f));
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(grey / 255.f, grey / 255.f, grey / 255.f, a));
+		const auto label_size = ImGui::CalcTextSize(tabs[i].c_str(), NULL, true);
+		ImGui::RenderTextClipped(bb.Min, bb.Max, tabs[i].c_str(), NULL, &label_size, style.ButtonTextAlign, &bb);
 		ImGui::PopStyleColor();
 	}
-
-	ImGui::PopStyleColor();
-
+	ImGui::PopStyleColor(4);
 	ImGui::SetCursorPos(prev_pos);
-
-	// spacing for tab elements
-	ImGui::ItemSize(ImVec2(0, 62));
-
-	ImGui::PushClipRect(child_pos + ImVec2(0.f, 62.f), child_pos + ImVec2(540, 457), false);
-	draw_list->PushClipRect(child_pos + ImVec2(0.f, 62.f), child_pos + ImVec2(540, 457));
+	ImGui::ItemSize(ImVec2(0, 48));
+	ImGui::PushClipRect(child_pos + ImVec2(0, 48), child_pos + ImVec2(600, 509), false);
+	draw_list->PushClipRect(child_pos + ImVec2(0, 48), child_pos + ImVec2(600, 509));
 }
-
-std::vector< Snowflake::Snowflake > snow;
 
 void c_menu::draw_snow()
 {

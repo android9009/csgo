@@ -65,6 +65,16 @@ private:
 	std::array< LPDIRECT3DTEXTURE9, max_tabs > icon_textures{};
 	std::map< std::string, std::string > combo_items{};
 
+	struct group_box_state_t
+	{
+		ImGuiID id{};
+		float width{};
+		bool auto_size{};
+		ImDrawList* previous_draw_list{};
+	};
+	std::map< ImGuiID, float > group_box_heights{};
+	std::vector< group_box_state_t > group_box_stack{};
+
 	std::vector< std::string > skin_names{};
 
 	static bool vector_getter(void* vec, int idx, const char** out_text)
@@ -108,6 +118,9 @@ private:
 
 	bool input_text_wrapper(const char* label, const char* hint, char* buf, int buf_size, const ImVec2& size_arg, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback = NULL, void* user_data = NULL);
 	bool input_text(const char* label, char* buf, size_t buf_size, ImGuiInputTextFlags flags = 0, ImGuiInputTextCallback callback = NULL, void* user_data = NULL);
+
+	void begin_group_box(const char* name);
+	void end_group_box();
 
 	bool checkbox(const char* label, bool* v);
 	bool checkbox_columns(const char* label, unsigned int& v, const std::vector< std::string >& conditions);
@@ -206,6 +219,8 @@ public:
 		subtab_info.clear();
 		item_animations.clear();
 		combo_items.clear();
+		group_box_heights.clear();
+		group_box_stack.clear();
 		skin_names.clear();
 
 		for (auto& i : tab_info)

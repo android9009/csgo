@@ -580,6 +580,9 @@ namespace hooks::detour
 
 		if (player && player->is_player() && !player->is_teammate())
 		{
+			if (std::strstr(sound_name, player_footsteps.c_str()) || std::strstr(sound_name, player_land.c_str()))
+				SOUND_ESP->on_sound(player, origin);
+
 			auto esp = ESP->get_esp_player(player->index());
 			if (esp) 
 			{

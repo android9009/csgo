@@ -1625,7 +1625,7 @@ bool c_ragebot::can_knife(c_cs_player* player, anim_record_t* record, vec3_t ang
 
 void c_ragebot::knife_bot()
 {
-	if (!g_cfg.rage.enable)
+	if (!g_cfg.rage.enable && !g_cfg.misc.knife_bot)
 		return;
 
 	if (HACKS->predicted_time < HACKS->weapon->next_primary_attack() || HACKS->predicted_time < HACKS->weapon->next_secondary_attack())
@@ -1749,7 +1749,8 @@ void c_ragebot::run()
 	predicted_eye_pos.reset();
 	best_rage_player.reset();
 
-	if (!g_cfg.rage.enable || HACKS->weapon->is_misc_weapon() && !HACKS->weapon->is_taser() && !HACKS->weapon->is_knife())
+	const bool misc_knife_bot = g_cfg.misc.knife_bot && HACKS->weapon->is_knife();
+	if ((!g_cfg.rage.enable && !misc_knife_bot) || (HACKS->weapon->is_misc_weapon() && !HACKS->weapon->is_taser() && !HACKS->weapon->is_knife()))
 	{
 		reset_rage_players();
 		return;

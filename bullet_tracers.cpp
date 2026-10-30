@@ -12,7 +12,7 @@ std::unordered_map<std::uint8_t*, std::pair<std::vector<std::uint8_t>, float>> s
 
 INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 {
-	
+	const float duration = std::max(0.1f, (float)g_cfg.misc.tracer_duration);
 	std::string model_name = XOR("sprites/");
 
 	switch (g_cfg.misc.tracer_type)
@@ -27,7 +27,7 @@ INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 		model_name += XOR("White.vmt");
 		break;
 	case 3:
-		HACKS->debug_overlay->add_line_overlay(start, end, clr.r(), clr.g(), clr.b(), false, 3.f);
+		HACKS->debug_overlay->add_line_overlay(start, end, clr.r(), clr.g(), clr.b(), false, duration);
 		break;
 	case 4:
 		const auto thickness = g_cfg.misc.bullet_size / 100.f;
@@ -35,7 +35,7 @@ INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 		vec3_t delta_pos(start - end);
 		math::vector_angles(delta_pos, trajectory);
 
-		HACKS->glow_object_manager->add_glow_box(end, trajectory, vec3_t{ 0.f, -thickness, -thickness }, vec3_t{ (end - start).length_z(false), thickness, thickness }, clr, HACKS->global_vars->curtime, 3.f);
+		HACKS->glow_object_manager->add_glow_box(end, trajectory, vec3_t{ 0.f, -thickness, -thickness }, vec3_t{ (end - start).length_z(false), thickness, thickness }, clr, HACKS->global_vars->curtime, duration);
 		break;
 	}
 
@@ -45,7 +45,7 @@ INLINE void draw_beam(const vec3_t& start, const vec3_t& end, c_color clr)
 	beam_info.model_index = -1;
 	beam_info.start = start;
 	beam_info.end = end;
-	beam_info.life = 3.f;
+	beam_info.life = duration;
 	beam_info.fade_lenght = .1f;
 	beam_info.halo_scale = 0.f;
 	beam_info.amplitude = 1.f;
@@ -254,7 +254,7 @@ void c_bullet_tracers::on_bullet_impact(c_game_event* event)
 			HACKS->debug_overlay->add_box_overlay({ x, y, z }, { -size, -size, -size },
 				{ size, size, size },
 				{ 0, 0, 0 },
-				clr.r(), clr.g(), clr.b(), clr.a(), 4.f);
+				clr.r(), clr.g(), clr.b(), clr.a(), (float)g_cfg.misc.impact_duration);
 		}
 
 		auto& impact = impacts.emplace_back();
@@ -293,7 +293,7 @@ void c_bullet_tracers::render_tracers()
 				{ -size, -size, -size },
 				{ size, size, size },
 				{ 0, 0, 0 },
-				clr.r(), clr.g(), clr.b(), clr.a(), 4);
+				clr.r(), clr.g(), clr.b(), clr.a(), (float)g_cfg.misc.impact_duration);
 		}
 
 		impact_list.remove_all();

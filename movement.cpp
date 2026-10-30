@@ -164,9 +164,16 @@ void c_movement::fast_stop()
 		complete_fast_stop = true;
 }
 
-void c_movement::edge_jump( )
+void c_movement::edge_jump()
 {
-	
+	const bool on_ground = HACKS->local->flags().has(FL_ONGROUND);
+	const bool valid_move = HACKS->local->move_type() != MOVETYPE_LADDER && HACKS->local->move_type() != MOVETYPE_NOCLIP;
+	// The jump must be injected on the first airborne command. Doing this in
+	// auto_jump() is too early because bunny-hop deliberately strips IN_JUMP
+	// while airborne; run_predicted() is the final movement stage.
+	if (valid_move && g_cfg.binds[ej_b].toggled && edge_was_on_ground && !on_ground)
+		HACKS->cmd->buttons.force(IN_JUMP);
+	edge_was_on_ground = on_ground;
 }
 
 bool c_movement::can_use_auto_peek()

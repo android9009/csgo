@@ -34,16 +34,8 @@ const char* target_selections[] = {
 	"Hybrid",
 };
 
-#define begin_child( text )                                                                                                                                                                                                          \
-  ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.f, 1.f, 1.f,  get_alpha( ) ) );                                                                                                                                               \
-  ImGui::Text( ( text ) );                                                                                                                                                                                                           \
-  ImGui::PopStyleColor( );                                                                                                                                                                                                           \
-  ImGui::ItemSize( ImVec2( 0, 1 ) );                                                                                                                                                                                                 \
-  ImGui::BeginGroup( );
-
-#define end_child                                                                                                                                                                                                                    \
-  ImGui::EndGroup( );                                                                                                                                                                                                                \
-  ImGui::ItemSize( ImVec2( 0, 9 ) );
+#define begin_child( text ) begin_group_box( ( text ) );
+#define end_child end_group_box( ); ImGui::ItemSize( ImVec2( 0, 9 ) );
 
 std::vector< std::string > config_list{};
 std::vector< std::string > empty_list = { XOR("Config folder is empty!") };
@@ -590,12 +582,12 @@ void c_menu::draw_ui_items()
 	auto window_pos = get_window_pos();
 	auto prev_pos = ImGui::GetCursorPos();
 
-	auto new_pos = ImVec2(215, 77);
+	auto new_pos = ImVec2(185, 76);
 	ImGui::SetCursorPos(new_pos);
 
 	auto list = get_draw_list();
 
-	ImRect window_bb = ImRect(window_pos + ImVec2(160, 47), window_pos + ImVec2(725, 520));
+	ImRect window_bb = ImRect(window_pos + ImVec2(170, 60), window_pos + ImVec2(800, 600));
 	ImGui::PushClipRect(window_bb.Min, window_bb.Max, false);
 
 	float old_alpha = get_alpha();
@@ -659,7 +651,7 @@ void c_menu::draw_ui_items()
 	else
 		update_configs = false;
 
-	ImGui::BeginChild(CXOR("##tab_child"), ImVec2(), true);
+	ImGui::BeginChild(CXOR("##tab_child"), ImVec2(600, 509), false);
 	{
 		switch (tab_selector)
 		{
@@ -671,7 +663,7 @@ void c_menu::draw_ui_items()
 		//	else
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Weapon & targeting"))
 					{
@@ -787,7 +779,7 @@ void c_menu::draw_ui_items()
 		case 1:
 		{
 			ImGui::Columns(2, 0, false);
-			ImGui::SetColumnOffset(1, 270);
+			ImGui::SetColumnOffset(1, 300);
 			{
 				begin_child(CXOR("Choose your weapon##legit"))
 				{
@@ -850,7 +842,7 @@ void c_menu::draw_ui_items()
 		case 2:
 		{
 			ImGui::Columns(2, 0, false);
-			ImGui::SetColumnOffset(1, 270);
+			ImGui::SetColumnOffset(1, 300);
 			{
 				begin_child(CXOR("Main"))
 				{
@@ -985,7 +977,7 @@ void c_menu::draw_ui_items()
 			case 0:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child("General ");
 					{
@@ -1071,13 +1063,25 @@ void c_menu::draw_ui_items()
 						color_picker(CXOR("Outline color##esp_enemy_arrow"), enemy_esp.colors.offscreen_arrow_outline);
 					}
 					end_child;
+
+					begin_child(CXOR("Sound ESP"))
+					{
+						checkbox(CXOR("Enable##sound_esp"), &g_cfg.visuals.sound_esp.enable);
+						if (g_cfg.visuals.sound_esp.enable)
+						{
+							slider_int(CXOR("Duration##sound_esp"), &g_cfg.visuals.sound_esp.duration, 300, 3000, CXOR("%d ms"));
+							slider_int(CXOR("Radius##sound_esp"), &g_cfg.visuals.sound_esp.radius, 10, 80, CXOR("%d px"));
+							color_picker(CXOR("Color##sound_esp"), g_cfg.visuals.sound_esp.color);
+						}
+					}
+					end_child;
 				}
 			}
 			break;
 			case 1:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("General    "))
 					{
@@ -1128,7 +1132,7 @@ void c_menu::draw_ui_items()
 			case 2:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("General     "))
 					{
@@ -1195,7 +1199,7 @@ void c_menu::draw_ui_items()
 			case 3:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Sky & props"))
 					{
@@ -1239,7 +1243,7 @@ void c_menu::draw_ui_items()
 			case 4:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Screen effects"))
 					{
@@ -1288,7 +1292,7 @@ void c_menu::draw_ui_items()
 			case 5:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("World camera"))
 					{
@@ -1355,7 +1359,7 @@ void c_menu::draw_ui_items()
 			case 0:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Main"))
 					{
@@ -1379,6 +1383,7 @@ void c_menu::draw_ui_items()
 						color_picker(CXOR("Start color##peek"), g_cfg.misc.autopeek_clr);
 						color_picker(CXOR("Move color##peek"), g_cfg.misc.autopeek_clr_back);
 						checkbox(CXOR("Return on key release"), &g_cfg.misc.retrack_peek);
+						checkbox(CXOR("Knife bot"), &g_cfg.misc.knife_bot);
 					}
 					end_child;
 				}
@@ -1387,19 +1392,21 @@ void c_menu::draw_ui_items()
 			case 1:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Tracers"))
 					{
 						checkbox(CXOR("Bullet impacts"), &g_cfg.misc.impacts);
 						color_picker(CXOR("Server color"), g_cfg.misc.server_clr);
 						color_picker(CXOR("Client color"), g_cfg.misc.client_clr);
-						slider_int(CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);				
+						slider_int(CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);
+						slider_int(CXOR("Impact duration"), &g_cfg.misc.impact_duration, 1, 15, CXOR("%d s"));
 
 						multi_combo(CXOR("Bullet tracers"), g_cfg.misc.tracers, { XOR("Enemy"), XOR("Team"), XOR("Local") });
 
 						combo(CXOR("Tracer type"), &g_cfg.misc.tracer_type, tracers, IM_ARRAYSIZE(tracers));
 						slider_int(CXOR("Bullet size"), &g_cfg.misc.bullet_size, 0, 10);
+						slider_int(CXOR("Tracer duration"), &g_cfg.misc.tracer_duration, 1, 10, CXOR("%d s"));
 
 						if (g_cfg.misc.tracers & 1)
 							color_picker(CXOR("Enemy tracer"), g_cfg.misc.trace_clr[0]);
@@ -1454,12 +1461,14 @@ void c_menu::draw_ui_items()
 			case 2:
 			{
 				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				ImGui::SetColumnOffset(1, 300);
 				{
 					begin_child(CXOR("Hud"))
 					{
 						checkbox(CXOR("Force engine radar"), &g_cfg.misc.force_radar);
 						checkbox(CXOR("Preserve killfeed"), &g_cfg.misc.preverse_killfeed);
+						if (g_cfg.misc.preverse_killfeed)
+							slider_int(CXOR("Killfeed duration"), &g_cfg.misc.killfeed_time, 1, 60, CXOR("%d s"));
 						checkbox(CXOR("Unlock inventory"), &g_cfg.misc.unlock_inventory);
 						checkbox(CXOR("Remove server ads"), &g_cfg.misc.remove_ads);
 					}
@@ -1505,7 +1514,7 @@ void c_menu::draw_ui_items()
 		case 5:
 		{
 			ImGui::Columns(2, 0, false);
-			ImGui::SetColumnOffset(1, 270);
+			ImGui::SetColumnOffset(1, 300);
 			{
 				begin_child(CXOR("Choose your weapon     "))
 				{
@@ -1576,7 +1585,7 @@ void c_menu::draw_ui_items()
 				cfg_flags |= button_wait;
 
 			ImGui::Columns(2, 0, false);
-			ImGui::SetColumnOffset(1, 270);
+			ImGui::SetColumnOffset(1, 300);
 			{
 				begin_child(CXOR("General   "))
 				{

@@ -144,6 +144,9 @@
     <ClCompile Include="bullet_tracers.cpp">
       <Filter>features\misc</Filter>
     </ClCompile>
+    <ClCompile Include="sound_esp.cpp">
+      <Filter>features\visuals</Filter>
+    </ClCompile>
     <ClCompile Include="buy_bot.cpp">
       <Filter>features\misc</Filter>
     </ClCompile>
@@ -425,6 +428,9 @@
       <Filter>features\visuals</Filter>
     </ClInclude>
     <ClInclude Include="esp.hpp">
+      <Filter>features\visuals</Filter>
+    </ClInclude>
+    <ClInclude Include="sound_esp.hpp">
       <Filter>features\visuals</Filter>
     </ClInclude>
     <ClInclude Include="esp_object_render.hpp">

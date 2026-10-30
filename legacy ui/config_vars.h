@@ -346,6 +346,14 @@ struct configs_t
 			unsigned int logs{};
 		} eventlog;
 
+		struct sound_esp_t
+		{
+			bool enable{};
+			int duration = 1400;
+			int radius = 36;
+			c_float_color color = c_float_color(81, 124, 253, 220);
+		} sound_esp;
+
 		struct esp_t
 		{
 			bool enable{};
@@ -423,7 +431,9 @@ struct configs_t
 		c_float_color client_clr = c_float_color(255, 0, 0, 127);
 
 		int impact_size = 10;
+		int impact_duration = 4;
 		int bullet_size = 1;
+		int tracer_duration = 3;
 
 		unsigned int tracers{};
 		int tracer_type{};
@@ -481,6 +491,8 @@ struct configs_t
 		bool unlock_inventory{};
 		bool snip_crosshair{};
 		bool preverse_killfeed{};
+		int killfeed_time = 10;
+		bool knife_bot{};
 		bool remove_ads{};
 		bool force_radar{};
 
@@ -509,7 +521,7 @@ struct configs_t
 		ImVec2 watermark_position{};
 		ImVec2 spectators_position{};
 
-		c_float_color ui_color{ 168, 168, 255 };
+		c_float_color ui_color{ 81, 124, 253 };
 	} misc;
 
 	struct skinchanger_t

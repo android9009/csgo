@@ -18,6 +18,7 @@ void c_event_listener::fire_game_event(c_game_event* event)
         MOVEMENT->reset();
         BULLET_TRACERS->reset();
         ESP->reset();
+        SOUND_ESP->reset();
         GRENADE_PREDICTION->reset();
         ENGINE_PREDICTION->reset();
         ANIMFIX->reset();

@@ -168,6 +168,7 @@ namespace hooks::vmt
 					{
 						MOVEMENT->render_peek_position();
 						ESP->render();
+						SOUND_ESP->render();
 						GRENADE_PREDICTION->draw_local_path();
 						GRENADE_PREDICTION->draw_world_path();
 						BULLET_TRACERS->render_hitmarkers();
@@ -262,6 +263,7 @@ namespace hooks::vmt
 		REMOVE_PROJECTILES->reset();
 		WORLD_MODULATION->reset(true);
 		ESP->reset();
+		SOUND_ESP->reset();
 		GRENADE_PREDICTION->reset();
 		CHAMS->reset();
 		HACKS->update_dynamic_interfaces();
@@ -301,6 +303,7 @@ namespace hooks::vmt
 		CHAMS->reset();
 		WORLD_MODULATION->reset(false);
 		ESP->reset();
+		SOUND_ESP->reset();
 		GRENADE_PREDICTION->reset();
 		ENGINE_PREDICTION->reset();
 		ANIMFIX->reset();

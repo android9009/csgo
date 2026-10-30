@@ -22,6 +22,7 @@
 #include "grenade_prediction.hpp"
 #include "penetration.hpp"
 #include "esp.hpp"
+#include "sound_esp.hpp"
 #include "glow.hpp"
 #include "chams.hpp"
 #include "engine_prediction.hpp"

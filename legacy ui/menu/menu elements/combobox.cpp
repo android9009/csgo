@@ -132,124 +132,81 @@ bool c_menu::selectable(const char* label, bool selected, float alpha_pass, ImGu
 
 bool c_menu::begin_combo(const char* label, const char* preview_value, ImGuiComboFlags flags, int item_cnt)
 {
-	float alpha = this->get_alpha();
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.5f * alpha));
-
-	// Always consume the SetNextWindowSizeConstraint() call in our early return paths
+	const float alpha = get_alpha();
 	ImGuiContext& g = *GImGui;
-	bool has_window_size_constraint = (g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint) != 0;
 	g.NextWindowData.Flags &= ~ImGuiNextWindowDataFlags_HasSizeConstraint;
-
 	ImGuiWindow* window = GetCurrentWindow();
 	if (window->SkipItems)
 		return false;
-
 	const ImGuiStyle& style = g.Style;
 	const ImGuiID id = window->GetID(label);
-
-	const float w = 256.f;
-
+	const float w = ImMax(130.f, GetContentRegionAvail().x);
 	const ImVec2 label_size = CalcTextSize(label, NULL, true);
-	const ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(w, 48.f));
-	const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(0.f, 4.f));
-
-	// const ImVec2 pos = window->DC.CursorPos;
-	// const ImRect total_bb(pos, pos + ImVec2(256.f, 48.f));
-
+	const float row_h = ImMax(19.f, label_size.y) + style.FramePadding.y * 2.f;
+	const float combo_w = ImMin(130.f, ImMax(70.f, w - 72.f));
+	const ImVec2 pos = window->DC.CursorPos;
+	const ImRect bb(pos + ImVec2(w - combo_w, (row_h - 20.f) * 0.5f), pos + ImVec2(w, (row_h + 20.f) * 0.5f));
+	const ImRect total_bb(pos, pos + ImVec2(w, row_h));
 	ItemSize(total_bb, style.FramePadding.y);
-	if (!ItemAdd(total_bb, id, &frame_bb))
+	if (!ItemAdd(total_bb, id, &bb))
 		return false;
-
 	bool hovered, held;
-	bool pressed = ButtonBehavior(frame_bb, id, &hovered, &held);
+	const bool pressed = ButtonBehavior(bb, id, &hovered, &held);
 	bool popup_open = IsPopupOpen(id);
-
-	auto& mod = item_animations[CONST_HASH(label)];
-
-	this->create_animation(mod.hovered_alpha, hovered, 1.f, lerp_animation);
-
-	auto back_alpha = (20 + (30 * mod.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, back_clr.u32(), 4.f);
-
-	if (label_size.x > 0)
-		RenderText(ImVec2(frame_bb.Min.x + 12.f, frame_bb.Min.y + 16.f), label);
-
 	if ((pressed || g.NavActivateId == id) && !popup_open)
 	{
-		if (window->DC.NavLayerCurrent == 0)
-			window->NavLastIds[0] = id;
 		OpenPopupEx(id);
 		popup_open = true;
 	}
-
+	auto& mod = item_animations[CONST_HASH(label)];
+	create_animation(mod.hovered_alpha, hovered, 1.f, lerp_animation);
+	create_animation(mod.alpha, popup_open, 0.5f, lerp_animation);
 	mod.active = popup_open;
-
-	this->create_animation(mod.alpha, popup_open, 0.5f, lerp_animation);
-
-	auto bg_size = ImVec2(123, 31);
-
-	if (preview_value != NULL)
+	const float bright = ImMax(mod.alpha, mod.hovered_alpha);
+	draw_list->AddRectFilled(bb.Min, bb.Max, c_color(25, 27, 36, 255.f * alpha).as_imcolor(), 8.f);
+	draw_list->AddRect(bb.Min, bb.Max, c_color(30, 33, 44, 255.f * alpha).as_imcolor(), 8.f);
+	if (preview_value)
 	{
-		auto size = CalcTextSize(preview_value);
-
-		float cur_pos = size.x + 36;
-		float out_pos = cur_pos + ((bg_size.x - cur_pos)) * mod.alpha;
-
-		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, alpha));
-		RenderTextClipped(frame_bb.Max - ImVec2(out_pos, 32), frame_bb.Max, preview_value, NULL, NULL, ImVec2(0.0f, 0.0f));
+		const auto preview_size = CalcTextSize(preview_value);
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.922f, 0.922f, 0.941f, alpha));
+		RenderTextClipped(bb.Min + ImVec2(10, 0), bb.Max - ImVec2(24, 0), preview_value, NULL, &preview_size, ImVec2(0.f, 0.5f));
 		ImGui::PopStyleColor();
 	}
-
-	// combo background (upper part)
-	auto combo_bg_min = frame_bb.Min + ImVec2(126, 9);
-	auto combo_bg_max = combo_bg_min + bg_size;
-	if (popup_open)
-	{
-		draw_list->AddRectFilled(combo_bg_min, combo_bg_max, c_color(5, 5, 5, alpha * mod.alpha).u32(), 4.f, ImDrawCornerFlags_Top);
-	}
-
-	// combo background (separator)
-	if (popup_open)
-		draw_list->AddLine(combo_bg_max - ImVec2(bg_size.x, 1), combo_bg_max - ImVec2(0, 1), c_color(255, 255, 255, 12.75f * alpha * mod.alpha).u32(), 1.f);
-
-	// arrow
-	const auto left_line_min = frame_bb.Min + ImVec2(232, 22);
-	const auto left_line_max = frame_bb.Min + ImVec2(236, 26);
-
-	draw_list->AddLine(left_line_min, left_line_max, c_color(255, 255, 255, 255 * alpha).u32(), 1.5f);
-	draw_list->AddLine(left_line_min + ImVec2(9, -1), left_line_max, c_color(255, 255, 255, 255 * alpha).u32(), 1.5f);
-
+	const auto center = ImVec2(bb.Max.x - 11.f, bb.GetCenter().y);
+	const float turn = mod.alpha * IM_PI;
+	const auto rotate = [&](float x, float y) {
+		return ImVec2(center.x + x * cosf(turn) - y * sinf(turn), center.y + x * sinf(turn) + y * cosf(turn));
+	};
+	const ImVec2 chevron[3] = { rotate(-3.f, -1.5f), rotate(0.f, 1.5f), rotate(3.f, -1.5f) };
+	draw_list->AddPolyline(chevron, 3, c_color(235, 235, 240, 255.f * alpha).as_imcolor(), false, 1.f);
+	const int grey = (int)std::lerp(130.f, 235.f, bright);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(grey / 255.f, grey / 255.f, grey / 255.f, alpha));
+	if (label_size.x > 0.f)
+		RenderTextClipped(total_bb.Min, ImVec2(bb.Min.x - 8.f, total_bb.Max.y), label, NULL, &label_size, ImVec2(0.f, 0.5f));
+	ImGui::PopStyleColor();
+	draw_list->AddLine(ImVec2(pos.x, total_bb.Max.y), ImVec2(pos.x + w, total_bb.Max.y), c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 	if (!popup_open)
 		return false;
 
-	char name[16];
-	ImFormatString(name, IM_ARRAYSIZE(name), CXOR("##Combo_%02d"), g.BeginPopupStack.Size); // Recycle windows based on depth
-
-	SetNextWindowPos(frame_bb.Min + ImVec2(126, 40));
-
-	float max_size = std::clamp(calc_max_popup_height(item_cnt), 0.f, 200.f);
-
-	auto items_size = ImVec2(123.f, max_size * mod.alpha);
-	SetNextWindowSize(items_size);
-
+	char name[32];
+	ImFormatString(name, IM_ARRAYSIZE(name), CXOR("##Combo_%02d"), g.BeginPopupStack.Size);
+	SetNextWindowPos(ImVec2(bb.Min.x, bb.Max.y + 4.f));
+	const float max_size = std::clamp(calc_max_popup_height(item_cnt), 0.f, 200.f);
+	SetNextWindowSize(ImVec2(combo_w, max_size * mod.alpha));
 	SetNextWindowBgAlpha(alpha * mod.alpha);
-
-	// We don't use BeginPopupEx() solely because we have a custom name string, which we could make an argument to BeginPopupEx()
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_Popup | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
-
-	// Horizontally align ourselves with the framed text
-	PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(7, style.WindowPadding.y));
-	bool ret = Begin(name, NULL, window_flags);
-	PopStyleVar();
+	const ImGuiWindowFlags window_flags = ImGuiWindowFlags_Popup | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar;
+	PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+	PushStyleVar(ImGuiStyleVar_WindowRounding, 8.f);
+	PushStyleColor(ImGuiCol_PopupBg, ImVec4(18.f / 255.f, 20.f / 255.f, 29.f / 255.f, alpha * mod.alpha));
+	const bool ret = Begin(name, NULL, window_flags);
+	PopStyleColor();
+	PopStyleVar(2);
 	if (!ret)
 	{
 		EndPopup();
-		IM_ASSERT(0); // This should never happen as we tested for IsPopupOpen() above
 		return false;
 	}
-
-	ImGui::PopStyleColor();
 	return true;
 }
 

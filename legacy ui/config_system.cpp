@@ -318,6 +318,11 @@ namespace config
 			save_bool(visuals[CXOR("eventlog")], CXOR("filter_console"), default_config.visuals.eventlog.filter_console);
 			save_uint(visuals[CXOR("eventlog")], CXOR("logs"), default_config.visuals.eventlog.logs);
 
+			save_bool(visuals[CXOR("sound_esp")], CXOR("enable"), default_config.visuals.sound_esp.enable);
+			save_int(visuals[CXOR("sound_esp")], CXOR("duration"), default_config.visuals.sound_esp.duration);
+			save_int(visuals[CXOR("sound_esp")], CXOR("radius"), default_config.visuals.sound_esp.radius);
+			save_clr(visuals[CXOR("sound_esp")], CXOR("color"), &default_config.visuals.sound_esp.color);
+
 			for (int i = 0; i < c_max; ++i)
 			{
 				auto sub = CXOR("chams ") + std::to_string(i + 1);
@@ -357,7 +362,9 @@ namespace config
 			save_clr(misc, CXOR("server_clr"), &default_config.misc.server_clr);
 			save_clr(misc, CXOR("client_clr"), &default_config.misc.client_clr);
 			save_int(misc, CXOR("impact_size"), default_config.misc.impact_size);
+			save_int(misc, CXOR("impact_duration"), default_config.misc.impact_duration);
 			save_int(misc, CXOR("bullet_size"), default_config.misc.bullet_size);
+			save_int(misc, CXOR("tracer_duration"), default_config.misc.tracer_duration);
 
 			save_uint(misc, CXOR("tracers"), default_config.misc.tracers);
 			save_int(misc, CXOR("tracer_type"), default_config.misc.tracer_type);
@@ -381,6 +388,8 @@ namespace config
 			save_bool(misc, CXOR("remove_ads"), default_config.misc.remove_ads);
 			save_bool(misc, CXOR("snip_crosshair"), default_config.misc.snip_crosshair);
 			save_bool(misc, CXOR("preverse_killfeed"), default_config.misc.preverse_killfeed);
+			save_int(misc, CXOR("killfeed_time"), default_config.misc.killfeed_time);
+			save_bool(misc, CXOR("knife_bot"), default_config.misc.knife_bot);
 			save_bool(misc, CXOR("force_radar"), default_config.misc.force_radar);
 			save_int(misc, CXOR("ragdoll_gravity"), default_config.misc.ragdoll_gravity);
 			save_int(misc, CXOR("strafe_smooth"), default_config.misc.strafe_smooth);
@@ -654,6 +663,11 @@ namespace config
 			save_bool(visuals[CXOR("eventlog")], CXOR("filter_console"), g_cfg.visuals.eventlog.filter_console);
 			save_uint(visuals[CXOR("eventlog")], CXOR("logs"), g_cfg.visuals.eventlog.logs);
 
+			save_bool(visuals[CXOR("sound_esp")], CXOR("enable"), g_cfg.visuals.sound_esp.enable);
+			save_int(visuals[CXOR("sound_esp")], CXOR("duration"), g_cfg.visuals.sound_esp.duration);
+			save_int(visuals[CXOR("sound_esp")], CXOR("radius"), g_cfg.visuals.sound_esp.radius);
+			save_clr(visuals[CXOR("sound_esp")], CXOR("color"), &g_cfg.visuals.sound_esp.color);
+
 			for (int i = 0; i < c_max; ++i)
 			{
 				auto sub = CXOR("chams ") + std::to_string(i + 1);
@@ -693,7 +707,9 @@ namespace config
 			save_clr(misc, CXOR("server_clr"), &g_cfg.misc.server_clr);
 			save_clr(misc, CXOR("client_clr"), &g_cfg.misc.client_clr);
 			save_int(misc, CXOR("impact_size"), g_cfg.misc.impact_size);
+			save_int(misc, CXOR("impact_duration"), g_cfg.misc.impact_duration);
 			save_int(misc, CXOR("bullet_size"), g_cfg.misc.bullet_size);
+			save_int(misc, CXOR("tracer_duration"), g_cfg.misc.tracer_duration);
 
 			save_uint(misc, CXOR("tracers"), g_cfg.misc.tracers);
 			save_int(misc, CXOR("tracer_type"), g_cfg.misc.tracer_type);
@@ -717,6 +733,8 @@ namespace config
 			save_bool(misc, CXOR("remove_ads"), g_cfg.misc.remove_ads);
 			save_bool(misc, CXOR("snip_crosshair"), g_cfg.misc.snip_crosshair);
 			save_bool(misc, CXOR("preverse_killfeed"), g_cfg.misc.preverse_killfeed);
+			save_int(misc, CXOR("killfeed_time"), g_cfg.misc.killfeed_time);
+			save_bool(misc, CXOR("knife_bot"), g_cfg.misc.knife_bot);
 			save_bool(misc, CXOR("force_radar"), g_cfg.misc.force_radar);
 			save_int(misc, CXOR("ragdoll_gravity"), g_cfg.misc.ragdoll_gravity);
 			save_int(misc, CXOR("strafe_smooth"), g_cfg.misc.strafe_smooth);
@@ -1001,6 +1019,11 @@ namespace config
 			load_bool(visuals[CXOR("eventlog")], CXOR("filter_console"), g_cfg.visuals.eventlog.filter_console);
 			load_uint(visuals[CXOR("eventlog")], CXOR("logs"), g_cfg.visuals.eventlog.logs);
 
+			load_bool(visuals[CXOR("sound_esp")], CXOR("enable"), g_cfg.visuals.sound_esp.enable);
+			load_int(visuals[CXOR("sound_esp")], CXOR("duration"), g_cfg.visuals.sound_esp.duration);
+			load_int(visuals[CXOR("sound_esp")], CXOR("radius"), g_cfg.visuals.sound_esp.radius);
+			load_clr(visuals[CXOR("sound_esp")], CXOR("color"), g_cfg.visuals.sound_esp.color);
+
 			for (int i = 0; i < c_max; ++i)
 			{
 				auto sub = CXOR("chams ") + std::to_string(i + 1);
@@ -1038,7 +1061,9 @@ namespace config
 
 			load_bool(misc, CXOR("impacts"), g_cfg.misc.impacts);
 			load_int(misc, CXOR("impact_size"), g_cfg.misc.impact_size);
+			load_int(misc, CXOR("impact_duration"), g_cfg.misc.impact_duration);
 			load_int(misc, CXOR("bullet_size"), g_cfg.misc.bullet_size);
+			load_int(misc, CXOR("tracer_duration"), g_cfg.misc.tracer_duration);
 			load_clr(misc, CXOR("server_clr"), g_cfg.misc.server_clr);
 			load_clr(misc, CXOR("client_clr"), g_cfg.misc.client_clr);
 
@@ -1064,6 +1089,8 @@ namespace config
 			load_bool(misc, CXOR("remove_ads"), g_cfg.misc.remove_ads);
 			load_bool(misc, CXOR("snip_crosshair"), g_cfg.misc.snip_crosshair);
 			load_bool(misc, CXOR("preverse_killfeed"), g_cfg.misc.preverse_killfeed);
+			load_int(misc, CXOR("killfeed_time"), g_cfg.misc.killfeed_time);
+			load_bool(misc, CXOR("knife_bot"), g_cfg.misc.knife_bot);
 			load_bool(misc, CXOR("force_radar"), g_cfg.misc.force_radar);
 			load_int(misc, CXOR("ragdoll_gravity"), g_cfg.misc.ragdoll_gravity);
 			load_int(misc, CXOR("strafe_smooth"), g_cfg.misc.strafe_smooth);

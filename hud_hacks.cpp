@@ -47,7 +47,7 @@ void c_hud_hacks::preverse_killfeed()
 		auto notice = &death_notice->notices[i];
 
 		if (notice->fade == 1.5f)
-			notice->fade = FLT_MAX;
+			notice->fade = g_cfg.misc.killfeed_time > 0 ? (float)g_cfg.misc.killfeed_time : FLT_MAX;
 	}
 #else
 	static auto clear_notices = offsets::clear_killfeed.cast<void(__thiscall*)(std::uintptr_t)>();
@@ -88,7 +88,14 @@ void c_hud_hacks::preverse_killfeed()
 			continue;
 
 		if (child->has_class(CXOR("DeathNotice_Killer")))
-			child->set_attribute_float(CXOR("SpawnTime"), HACKS->global_vars->curtime);
+		{
+			static auto deathnotice_time = HACKS->cvar->find_convar(CXOR("hud_deathnotice_time"));
+			const float lifetime = deathnotice_time ? std::max(0.1f, deathnotice_time->get_float()) : 6.f;
+			const float desired = (float)std::max(1, g_cfg.misc.killfeed_time);
+			// Panorama derives the remaining notice time from SpawnTime. Moving
+			// it into the future extends the notice without freezing it forever.
+			child->set_attribute_float(CXOR("SpawnTime"), HACKS->global_vars->curtime + lifetime - desired);
+		}
 	}
 #endif
 }

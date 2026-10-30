@@ -22,114 +22,106 @@ static const char* patch_formant_string_float_to_int(const char* fmt)
 
 bool c_menu::slider_scalar(const char* label, ImGuiDataType data_type, void* p_data, const void* p_min, const void* p_max, const char* format, float power)
 {
-	float alpha = this->get_alpha();
-
+	const float alpha = get_alpha();
+	IM_UNUSED(power);
 	ImGuiWindow* window = GetCurrentWindow();
 	if (window->SkipItems)
 		return false;
-
 	ImGuiContext& g = *GImGui;
 	const ImGuiStyle& style = g.Style;
 	const ImGuiID id = window->GetID(label);
-	const float w = 256.f;
-
+	const ImVec2 pos = window->DC.CursorPos;
+	const float w = ImMax(120.f, GetContentRegionAvail().x);
 	const ImVec2 label_size = CalcTextSize(label, NULL, true);
-	const ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(w, 56.f));
-	const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(0.f, 4.f));
-
+	const float row_h = ImMax(label_size.y, 19.f) + style.FramePadding.y * 2.f;
+	const float track_right = w - 50.f;
+	float track_left = ImMax(ImMin(82.f, w * 0.45f), track_right - 74.f);
+	if (track_right < track_left + 36.f)
+		track_left = ImMax(0.f, track_right - 36.f);
+	const ImRect frame_bb(pos + ImVec2(track_left, (row_h - 4.f) * 0.5f), pos + ImVec2(track_right, (row_h + 4.f) * 0.5f));
+	const ImRect total_bb(pos, pos + ImVec2(w, row_h));
 	ItemSize(total_bb, style.FramePadding.y);
-	if (!ItemAdd(total_bb, id, &frame_bb))
+	if (!ItemAdd(total_bb, id))
 		return false;
-
-	// Default format string when passing NULL
-	if (format == NULL)
+	if (!format)
 		format = DataTypeGetInfo(data_type)->PrintFmt;
-	else if (data_type == ImGuiDataType_S32 && strcmp(format, CXOR("%d")) != 0) // (FIXME-LEGACY: Patch old "%.0f" format string to use "%d", read function more details.)
+	else if (data_type == ImGuiDataType_S32 && strcmp(format, CXOR("%d")) != 0)
 		format = patch_formant_string_float_to_int(format);
 
-	auto& mod_frame = item_animations[CONST_HASH(label) + HASH("frame")];
 	auto& mod = item_animations[CONST_HASH(label)];
-
-	const bool hovered_frame = ItemHoverable(frame_bb, id);
-	this->create_animation(mod_frame.hovered_alpha, hovered_frame, 1.f, lerp_animation);
-	this->create_animation(mod_frame.alpha, true, 0.3f, skip_disable | lerp_animation);
-
-	auto slider_start = frame_bb.Min + ImVec2(12.f, 28.f);
-	auto slider_size = ImVec2(232, 24.f);
-	auto slider_bounds = ImRect(slider_start, slider_start + slider_size);
-
-	// Tabbing or CTRL-clicking on Slider turns it into an input box
-	const bool hovered = ItemHoverable(slider_bounds, id);
-	const bool focus_requested = FocusableItemRegister(window, id);
-	const bool clicked = (hovered && g.IO.MouseClicked[0]);
-	if (focus_requested || clicked || g.NavActivateId == id || g.NavInputId == id)
+	const bool row_hovered = IsMouseHoveringRect(total_bb.Min, total_bb.Max);
+	create_animation(mod.hovered_alpha, row_hovered, 1.f, lerp_animation);
+	const ImRect hit_bb(frame_bb.Min - ImVec2(4, 7), frame_bb.Max + ImVec2(4, 7));
+	const bool hovered = ItemHoverable(hit_bb, id);
+	if (hovered && g.IO.MouseClicked[0])
 	{
 		SetActiveID(id, window);
 		SetFocusID(id, window);
 		FocusWindow(window);
-		g.ActiveIdUsingNavDirMask |= (1 << ImGuiDir_Left) | (1 << ImGuiDir_Right);
-		if (focus_requested || g.NavInputId == id)
-			FocusableItemUnregister(window);
 	}
-
-	// background
-	auto back_alpha = (20 + (30 * mod_frame.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod_frame.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, back_clr.as_imcolor(), 4.f);
-
-	auto render_bounds = ImRect(slider_bounds.Min + ImVec2(0.f, 9.f), slider_bounds.Max - ImVec2(0.f, 9.f));
-
-	// slider body
-	draw_list->AddRectFilled(render_bounds.Min, render_bounds.Max, c_color(0, 0, 0, 80 * alpha).as_imcolor(), 3.f);
-
-	// Slider behavior
-	ImRect grab_bb;
-	const bool value_changed = SliderBehavior(slider_bounds, id, data_type, p_data, p_min, p_max, format, power, ImGuiSliderFlags_IgnoreGrabCalc, &grab_bb);
+	bool value_changed = false;
+	if (g.ActiveId == id)
+	{
+		if (g.IO.MouseDown[0])
+		{
+			const float t = std::clamp((g.IO.MousePos.x - frame_bb.Min.x) / frame_bb.GetWidth(), 0.f, 1.f);
+			if (data_type == ImGuiDataType_S32)
+			{
+				const int min = *(const int*)p_min, max = *(const int*)p_max;
+				const int next = (int)std::lround(std::lerp((float)min, (float)max, t));
+				if (*(int*)p_data != next)
+				{
+					*(int*)p_data = next;
+					value_changed = true;
+				}
+			}
+		}
+		else
+			ClearActiveID();
+	}
+	if (g.IO.MouseWheel != 0.f && row_hovered && g.HoveredWindow == window && (!g.ActiveId || g.ActiveId == id) && data_type == ImGuiDataType_S32)
+	{
+		const int min = *(const int*)p_min, max = *(const int*)p_max;
+		const int next = std::clamp(*(int*)p_data + (g.IO.MouseWheel > 0.f ? 1 : -1), min, max);
+		value_changed |= next != *(int*)p_data;
+		*(int*)p_data = next;
+		g.IO.MouseWheel = 0.f;
+	}
 	if (value_changed)
 		MarkItemEdited(id);
 
-	// on_directx grab
-	if (grab_bb.Max.x > grab_bb.Min.x)
+	float norm = 0.f;
+	if (data_type == ImGuiDataType_S32)
 	{
-		auto clr = g_cfg.misc.ui_color.base();
-
-		auto render_grab_bb = ImRect(grab_bb.Min + ImVec2(0.f, 9.f), grab_bb.Max - ImVec2(0.f, 9.f));
-
-		// slider colored body
-		auto& gradient = ImDrawPaint().SetLinearGradient(render_bounds.Min, render_grab_bb.Max + ImVec2(0.f, 2.f), clr.new_alpha(clr.a() * alpha * 0.5f).as_imvec4(), clr.new_alpha(clr.a() * alpha).as_imvec4());
-
-		float bb_nomove = render_grab_bb.Max.x - 20.f;
-		float modifier = bb_nomove < render_bounds.Min.x ? 1.f : mod_frame.alpha;
-		float bb_movepart = 20.f * modifier;
-		float grab_offset = std::clamp(bb_nomove + bb_movepart, render_bounds.Min.x, render_grab_bb.Max.x);
-
-		draw_list->AddRectFilledMultiColor(render_bounds.Min, ImVec2(grab_offset, render_grab_bb.Max.y + 2.f), gradient, 4.f);
-
-		// slider grab circle
-		float circle_radius = 8.f;
-		float circle_nomove = (render_grab_bb.Min.x + ((render_grab_bb.Max.x - render_grab_bb.Min.x) / 2.f)) - 20.f;
-		float circle_offset = std::clamp(circle_nomove + bb_movepart, render_bounds.Min.x, render_grab_bb.Max.x);
-
-		auto circle_pos = ImVec2(circle_offset, render_grab_bb.Min.y + 1.f);
-		draw_list->AddCircleFilled(circle_pos, circle_radius, c_color(75, 75, 75, 255 * alpha).as_imcolor());
-		draw_list->AddCircleFilled(circle_pos, circle_radius - 3.f, c_color(255, 255, 255, 255 * alpha).as_imcolor());
+		const int min = *(const int*)p_min, max = *(const int*)p_max;
+		if (max > min)
+			norm = std::clamp((float)(*(int*)p_data - min) / (float)(max - min), 0.f, 1.f);
 	}
+	const float target_fill = norm * frame_bb.GetWidth();
+	mod.alpha = std::lerp(mod.alpha, target_fill, std::clamp(g.IO.DeltaTime * 15.f, 0.f, 1.f));
+	const auto accent = g_cfg.misc.ui_color.base();
+	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, c_color(25, 27, 36, 255.f * alpha).as_imcolor(), 5.f);
+	const float fill_x = std::clamp(frame_bb.Min.x + mod.alpha, frame_bb.Min.x, frame_bb.Max.x);
+	if (fill_x > frame_bb.Min.x + 0.1f)
+		draw_list->AddRectFilled(frame_bb.Min, ImVec2(fill_x, frame_bb.Max.y), accent.new_alpha(255.f * alpha).as_imcolor(), 5.f);
+	draw_list->AddCircleFilled(ImVec2(fill_x, frame_bb.GetCenter().y), 6.f, c_color(255, 255, 255, 255.f * alpha).as_imcolor(), 24);
 
-	// Display value using user-provided display format so user can add prefix/suffix/decorations to the value.
 	char value_buf[64];
 	const char* value_buf_end = value_buf + DataTypeFormatString(value_buf, IM_ARRAYSIZE(value_buf), data_type, p_data, format);
-
-	auto size = CalcTextSize(value_buf);
-
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, alpha));
-	RenderTextClipped(frame_bb.Max - ImVec2(size.x + 23.f, 79.f), frame_bb.Max, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f));
+	const auto value_size = CalcTextSize(value_buf, value_buf_end);
+	const float number_w = ImMax(38.f, value_size.x + 14.f);
+	const ImRect number_bb(pos + ImVec2(w - number_w, (row_h - 20.f) * 0.5f), pos + ImVec2(w, (row_h + 20.f) * 0.5f));
+	draw_list->AddRectFilled(number_bb.Min, number_bb.Max, c_color(25, 27, 36, 255.f * alpha).as_imcolor(), 6.f);
+	draw_list->AddRect(number_bb.Min, number_bb.Max, c_color(30, 33, 44, 255.f * alpha).as_imcolor(), 6.f);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.922f, 0.922f, 0.941f, alpha));
+	RenderTextClipped(number_bb.Min, number_bb.Max, value_buf, value_buf_end, &value_size, ImVec2(0.5f, 0.5f));
+	const int grey = (int)std::lerp(130.f, 235.f, ImMax(norm > 0.f ? 1.f : 0.f, mod.hovered_alpha));
 	ImGui::PopStyleColor();
-
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.5f * alpha));
-	if (label_size.x > 0.0f)
-		RenderText(ImVec2(frame_bb.Min.x + 12.f, frame_bb.Min.y + 9.f), label);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(grey / 255.f, grey / 255.f, grey / 255.f, alpha));
+	if (label_size.x > 0.f)
+		RenderTextClipped(total_bb.Min, ImVec2(frame_bb.Min.x - 8.f, total_bb.Max.y), label, NULL, &label_size, ImVec2(0.f, 0.5f));
 	ImGui::PopStyleColor();
-
+	draw_list->AddLine(ImVec2(pos.x, total_bb.Max.y), ImVec2(pos.x + w, total_bb.Max.y), c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 	IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.ItemFlags);
 	return value_changed;
 }

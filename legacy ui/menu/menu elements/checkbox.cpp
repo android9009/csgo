@@ -5,63 +5,57 @@ using namespace ImGui;
 
 bool c_menu::checkbox(const char* label, bool* v)
 {
-	float alpha = this->get_alpha();
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.5f * alpha));
-
+	const float alpha = get_alpha();
 	ImGuiWindow* window = GetCurrentWindow();
 	if (window->SkipItems)
 		return false;
-
 	ImGuiContext& g = *GImGui;
 	const ImGuiStyle& style = g.Style;
 	const ImGuiID id = window->GetID(label);
 	const ImVec2 label_size = CalcTextSize(label, NULL, true);
-
+	const float w = ImMax(80.f, GetContentRegionAvail().x);
+	const float row_h = ImMax(19.f, label_size.y) + style.FramePadding.y * 2.f;
 	const ImVec2 pos = window->DC.CursorPos;
-	const ImRect total_bb(pos, pos + ImVec2(256, 36));
+	const ImVec2 switch_size(30.f, 19.f);
+	const ImRect frame_bb(pos + ImVec2(w - switch_size.x, (row_h - switch_size.y) * 0.5f),
+		pos + ImVec2(w, (row_h + switch_size.y) * 0.5f));
+	const ImRect total_bb(pos, pos + ImVec2(w, row_h));
 	ItemSize(total_bb, style.FramePadding.y);
 	if (!ItemAdd(total_bb, id))
 		return false;
-
-	auto& mod = item_animations[CONST_HASH(label)];
-
 	bool hovered, held;
-	bool pressed = ButtonBehavior(total_bb, id, &hovered, &held);
-
+	const bool pressed = ButtonBehavior(total_bb, id, &hovered, &held);
 	if (pressed)
 	{
-		*v = !(*v);
+		*v = !*v;
 		MarkItemEdited(id);
 	}
-
-	this->create_animation(mod.hovered_alpha, hovered, 1.f, lerp_animation);
-	this->create_animation(mod.alpha, *v, 0.4f, lerp_animation);
-
-	auto back_size = ImVec2(256, 32);
-
-	// background
-	auto back_alpha = (20 + (30 * mod.hovered_alpha)) * alpha;
-	c_color back_clr = c_color(217, 217, 217).increase(38 * mod.hovered_alpha).new_alpha(back_alpha);
-	draw_list->AddRectFilled(pos, pos + back_size, back_clr.as_imcolor(), 4.f);
-
-	// main body
-	auto body_size = ImVec2(28, 14);
-	auto body_min = pos + ImVec2(220, 9);
-	auto body_max = body_min + body_size;
-	draw_list->AddRectFilled(body_min, body_max, c_color(0, 0, 0, 80 * alpha).as_imcolor(), 8.f);
-
-	auto clr = g_cfg.misc.ui_color.base();
-
-	auto circle_offset = ImVec2(14 * mod.alpha, 0);
-	auto circle_pos = body_min + ImVec2(body_size.y / 2, body_size.y / 2) + circle_offset;
-	auto circle_clr = c_color().multiply(clr, mod.alpha).new_alpha(255 * alpha);
-	draw_list->AddCircleFilled(circle_pos, 4.f, circle_clr.as_imcolor());
-
-	if (label_size.x > 0.0f)
-		RenderText(ImVec2(pos.x + 12, pos.y + 7), label);
-
-	ImGui::PopStyleColor();
-
+	auto& mod = item_animations[CONST_HASH(label)];
+	create_animation(mod.hovered_alpha, hovered, 1.f, lerp_animation);
+	create_animation(mod.alpha, *v, 0.8f, lerp_animation);
+	const auto accent = g_cfg.misc.ui_color.base();
+	const auto off = c_color(14, 18, 25, 255.f * alpha);
+	const auto body = c_color(
+		(std::uint8_t)std::lerp((float)off.r(), (float)accent.r(), mod.alpha),
+		(std::uint8_t)std::lerp((float)off.g(), (float)accent.g(), mod.alpha),
+		(std::uint8_t)std::lerp((float)off.b(), (float)accent.b(), mod.alpha),
+		(std::uint8_t)(255.f * alpha));
+	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, body.as_imcolor(), 9.5f);
+	draw_list->AddRect(frame_bb.Min + ImVec2(0.5f, 0.5f), frame_bb.Max - ImVec2(0.5f, 0.5f),
+		c_color(255, 255, 255, 18.f * (1.f - mod.alpha) * alpha).as_imcolor(), 9.f);
+	const float knob_x = std::lerp(frame_bb.Min.x + 9.5f, frame_bb.Max.x - 9.5f, mod.alpha);
+	draw_list->AddCircleFilled(ImVec2(knob_x, frame_bb.GetCenter().y), 7.5f,
+		c_color(255, 255, 255, 255.f * alpha).as_imcolor(), 24);
+	const float text_active = ImMax(mod.alpha, mod.hovered_alpha);
+	const int text_grey = (int)std::lerp(150.f, 255.f, text_active);
+	if (label_size.x > 0.f)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(text_grey / 255.f, text_grey / 255.f, text_grey / 255.f, alpha));
+		RenderTextClipped(total_bb.Min, ImVec2(frame_bb.Min.x - 8.f, total_bb.Max.y), label, NULL, &label_size, ImVec2(0.f, 0.5f));
+		ImGui::PopStyleColor();
+	}
+	draw_list->AddLine(ImVec2(pos.x, total_bb.Max.y), ImVec2(pos.x + w, total_bb.Max.y),
+		c_color(255, 255, 255, 12.f * alpha).as_imcolor());
 	IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.ItemFlags | ImGuiItemStatusFlags_Checkable | (*v ? ImGuiItemStatusFlags_Checked : 0));
 	return pressed;
 }
