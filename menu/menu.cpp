@@ -382,6 +382,7 @@ void c_menu::render() {
             menu_grab = io.MousePos - window->Pos;
         }
     }
+    menu_binds::draw_hotkeys_window();
     ImGui::End();
     ImGui::PopStyleVar();
 

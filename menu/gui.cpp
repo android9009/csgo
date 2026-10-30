@@ -1246,6 +1246,7 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
         // controls pile up with no breathing room. Popped in row_options_end().
         ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 7.f * s ) );
         ++m_no_separator_depth; // no dividers between a gear card's rows (restored in row_options_end)
+        ++m_row_options_depth;  // sliders keep the regular track, knob and value box in this card
         return true; // PopID + PopStyleVar in row_options_end()
     }
     ImGui::PopID( );
@@ -1253,7 +1254,9 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
 }
 
 void c_gui::row_options_end( ) {
+    IM_ASSERT( m_no_separator_depth > 0 && m_row_options_depth > 0 );
     --m_no_separator_depth;
+    --m_row_options_depth;
     ImGui::PopStyleVar( ); // the ItemSpacing pushed in row_options_begin()
     end_popup_card( );
     ImGui::PopID( );
@@ -1277,11 +1280,12 @@ bool c_gui::row_multibox( const char* label, const char* const* items, bool* val
     return changed;
 }
 
-// Segmented icon bar (the Players tab's header): the active segment opens up to show its label,
-// the others stay icon-only, and the widths ease between the two. Right-aligned on `top_right`.
+// Segmented icon bar (the Players tab's header): the active segment shows its label. Fixed tabs
+// reserve their label width up front, so their icons never travel when selection or cards change.
 // `trailing_icon` is an extra button of its own on the end; true on the frame it is clicked.
 int c_gui::icon_tabs( const char* id, const char* const* icons, const char* const* labels, int count,
-                      int* active, ImVec2 top_right, const char* trailing_icon, int held ) {
+                      int* active, ImVec2 anchor, const char* trailing_icon, int held,
+                      bool center, int fixed_tab_count ) {
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
     if ( window->SkipItems || count <= 0 || !active )
         return -1;
@@ -1295,12 +1299,13 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
     ImFont* font = ImGui::GetFont( );
     const float fs = ImGui::GetFontSize( );
     ImDrawList* draw = window->DrawList;
-    *active = ImClamp( *active, 0, count - 1 );
+    const int selectable_count = fixed_tab_count > 0 ? ImMin( count, fixed_tab_count ) : count;
+    *active = ImClamp( *active, 0, selectable_count - 1 );
 
     ImGui::PushID( id );
 
-    // Measure first: the bar hangs off its right edge, so every segment's width has to be known
-    // before the first one is drawn.
+    // Measure first: the complete bar is centered or right-aligned only after every segment's
+    // reserved width is known.
     float widths[ 8 ] = {};
     float total = 0.f;
     const int n = ImMin( count, 8 );
@@ -1311,7 +1316,9 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const float open_t = cfg_anim_get( ImHashStr( "##open", 0, seg_id ) );
         const ImVec2 isz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, icons[ i ] );
         const ImVec2 lsz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, tr( labels[ i ] ) );
-        widths[ i ] = pad * 2.f + isz.x + open_t * ( 6.f * s + lsz.x );
+        const bool fixed_tab = fixed_tab_count > 0 && i < fixed_tab_count;
+        const float label_width = fixed_tab ? 1.f : open_t;
+        widths[ i ] = pad * 2.f + isz.x + label_width * ( 6.f * s + lsz.x );
         total += widths[ i ] + gap;
     }
     float trailing_w = 0.f;
@@ -1321,7 +1328,7 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
     }
     total -= gap;
 
-    ImVec2 p( top_right.x - total, top_right.y );
+    ImVec2 p( center ? anchor.x - total * 0.5f : anchor.x - total, anchor.y );
     bool trailing_clicked = false;
 
     for ( int i = 0; i < n; ++i ) {
@@ -1331,7 +1338,8 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const bool clicked = ImGui::InvisibleButton( "##seg", ImVec2( widths[ i ], h ) );
         const bool hovered = ImGui::IsItemHovered( );
         if ( clicked ) {
-            *active = i;
+            if ( fixed_tab_count <= 0 || i < fixed_tab_count )
+                *active = i;
             clicked_index = i;
         }
         const float open_t = cfg_anim( ImHashStr( "##open", 0, seg_id ), *active == i, 14.f );
@@ -1541,7 +1549,19 @@ bool c_gui::window_begin( const char* id, bool* open, ImVec2 size, bool* dots_cl
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing );
 
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
-    ImGui::BringWindowToDisplayFront( window ); // above the menu, without taking its focus
+    // Stay above the menu, but never raise the floating window over a popup it owns (the All
+    // Hotkeys row editor). Check the whole open-popup stack: a notification can be the frontmost
+    // window even while this owner's editor still needs to stay above the floating card.
+    bool owns_open_popup = false;
+    for ( int i = 0; i < g.OpenPopupStack.Size; ++i ) {
+        ImGuiWindow* popup = g.OpenPopupStack[ i ].Window;
+        if ( popup && popup->RootWindowPopupTree == window->RootWindowPopupTree ) {
+            owns_open_popup = true;
+            break;
+        }
+    }
+    if ( !owns_open_popup )
+        ImGui::BringWindowToDisplayFront( window );
     popup_surface( window->DrawList, window->Pos, window->Pos + window->Size, 16.f * s, base_alpha * alpha );
 
     // corner buttons: "..." and close

@@ -40,9 +40,10 @@ void before_config_save();
 void after_config_save();
 void on_config_loaded();
 bool is_capturing();
+void draw_hotkeys_window(); // called with the main menu as the current ID-scope window
 void draw_overlay(bool menu_open);
 
-// The "Hotkeys" row in the bind menu toggles the on-screen keybind list.
+// The All Hotkeys window retains this switch for the on-screen keybind list.
 bool overlay_enabled();
 void set_overlay_enabled(bool enabled);
 }

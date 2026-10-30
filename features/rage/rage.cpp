@@ -101,10 +101,6 @@ void c_menu::draw_rage() {
     }
     gui.row_multibox("Multipoint", hitbox_names, cfg.m_multi_points, 6, "Select multipoint locations.");
 
-    // Keep extrapolation on the same full-size row slider as Hit Chance. Sliders inside gear
-    // cards intentionally use a compact popup layout, which made this setting look different.
-    gui.row_begin(); ImGui::SliderInt("Extrapolation", &cfg.m_extrapolation_hit_chance, 0, 100, "%d");
-
     // Hit Chance (gear: DT HitChance and Force Shot)
     gui.row_begin();
     if (gui.row_options_begin("##hitchance_opts", 300.f, c_gui::row_control::slider)) {

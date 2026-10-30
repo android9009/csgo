@@ -56,7 +56,8 @@ public:
 
     float m_anim = 0.f;
     int m_tab = 0;
-    // Visuals sidebar: 0 = Visuals, 1 = Players, 2 = World.
+    // Visuals sidebar: 0 = Visuals/Common, 1 = Players, 2 = World. Clicking the parent row
+    // reveals the two child rows with the existing smooth expansion animation.
     int m_visuals_subtab = 0;
     float m_scale = 1.0f;
 
@@ -264,15 +265,17 @@ public:
                      const char* action_label = nullptr, bool* action_clicked = nullptr, float width = 0.f );
 
     // --- Segmented header + chips ---
-    // icon_tabs(): a bar of icon buttons right-aligned on `top_right`; the active one opens up to
-    // show its label. `trailing_icon` is a separate button on the end (true when clicked).
-    // chips(): wrapped pill toggles, e.g. the ESP Items panel.
+    // icon_tabs(): a bar of icon buttons anchored on `anchor`; the active one shows its label.
+    // `center` treats anchor.x as the center instead of the right edge. With `fixed_tab_count`,
+    // that many leading tabs reserve their full label width even while inactive: switching tabs
+    // or opening a trailing action cannot move their icons.
     // Returns the index clicked this frame (-1 for none, `count` for the trailing button). It draws
     // out of the layout flow, so the rows underneath keep their own position.
     // `held` keeps one segment lit while something it opened is still up (the ESP Items card),
     // without making it "the active side".
     int icon_tabs( const char* id, const char* const* icons, const char* const* labels, int count,
-                   int* active, ImVec2 top_right, const char* trailing_icon = nullptr, int held = -1 );
+                   int* active, ImVec2 anchor, const char* trailing_icon = nullptr, int held = -1,
+                   bool center = false, int fixed_tab_count = -1 );
     void chips( const char* id, const char* const* labels, bool* values, int count );
 
     // The little "pull up" handle a card can grow out of: a plate with a chevron that turns over
@@ -353,6 +356,9 @@ public:
     //   gui.row_checkbox( "Grenade Trajectory", &traj );
     bool row_options_begin( const char* id, float width = 216.f, row_control control = row_control::toggle );
     void row_options_end( );
+    // Stock SliderScalar() switches to a compact strip in popups; gear cards opt back into the
+    // regular track / knob / value-box layout while their options are being laid out.
+    bool full_size_popup_sliders() const { return m_row_options_depth > 0; }
 
     // --- Multibox (multi-select dropdown) ---
     // The menu's Combo, only the list stays open and every entry is a checkbox: same row geometry,
@@ -454,6 +460,7 @@ private:
     bool    m_force_measure = false; // grid_box(): re-measure content even though a concrete (clamped) height was passed
     bool    m_row_started = false;   // row_checkbox()/row_sub_menu(): false until the first row in this box is drawn
     int     m_no_separator_depth = 0; // >0 inside an options-gear card: row_begin() draws no dividers there
+    int     m_row_options_depth = 0;  // stock sliders use full-size rendering inside these cards
 
     // popup_section_begin()/end() state for the currently open section
     ImVec2 m_popup_section_pos{};

@@ -3637,7 +3637,7 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     ImGuiContext& g = *GImGui;
     ImGuiStyle& style = g.Style;
     ImGuiID id = window->GetID( label );
-    const bool is_popup_slider = gui.is_popup_window(window);
+    const bool is_popup_slider = gui.is_popup_window(window) && !gui.full_size_popup_sliders();
     // The scaled card content region is the row's right anchor, including its value box/track;
     // row_content_width() preserves an explicitly constrained section width.
     const float w = gui.row_content_width();

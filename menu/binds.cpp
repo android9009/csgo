@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -86,7 +87,10 @@ std::uint64_t g_submenu = 0;       // entry id of the open child card (k_draft_e
 bool g_submenu_opened = false;     // the open request for g_submenu has already been issued
 target_id g_draft_target = 0;      // which target the pending "New Bind" belongs to
 bind_entry g_draft{};              // the pending bind, committed once it gets a key
-bool g_overlay_enabled = true;     // "Hotkeys": draw the on-screen keybind list at all
+bool g_overlay_enabled = true;     // draw the on-screen keybind list
+bool g_all_hotkeys_open = false;   // floating All Hotkeys editor
+bool g_hotkeys_capture = false;    // the active key capture belongs to that editor
+std::unordered_map<std::uint64_t, float> g_entry_reveal;
 
 std::uint64_t hash_key(const std::string& value) {
     std::uint64_t hash = 1469598103934665603ull;
@@ -326,6 +330,19 @@ float row_anim(ImGuiID id, bool active, float speed = 15.f) {
     return a;
 }
 
+// Existing/loaded rows start at full height. A newly committed row is explicitly seeded with 0,
+// then both its opacity and layout height ease in, so the auto-height parent never jumps.
+float entry_reveal(std::uint64_t entry_id) {
+    auto [it, inserted] = g_entry_reveal.try_emplace(entry_id, 1.f);
+    IM_UNUSED(inserted);
+    float& amount = it->second;
+    const float dt = ImMin(ImGui::GetIO().DeltaTime, 0.05f);
+    amount = ImLerp(amount, 1.f, 1.f - std::exp(-18.f * dt));
+    if (amount > 0.998f)
+        amount = 1.f;
+    return amount;
+}
+
 ImVec4 lerp_color(const ImVec4& a, const ImVec4& b, float t) {
     return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t,
                   a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t);
@@ -352,21 +369,28 @@ struct menu_row {
 
 // One line of a bind card. `lit` keeps a row highlighted while whatever it opened is still up.
 menu_row bind_menu_row(const char* id, const char* icon, const char* label, bool chevron,
-                       bool lit, const ImVec4& tint, bool dim = false) {
+                       bool lit, const ImVec4& tint, bool dim = false, float reveal = 1.f) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    const float w = gui.row_content_width(), h = 30.f * s;
+    const float w = gui.row_content_width();
+    const float reveal_t = ImSaturate(reveal);
+    const float h = 30.f * s * reveal_t;
     const ImVec2 pos = ImGui::GetCursorScreenPos();
 
-    ImGui::InvisibleButton(id, ImVec2(w, h));
+    if (h > 0.01f)
+        ImGui::InvisibleButton(id, ImVec2(w, h));
+    else
+        ImGui::Dummy(ImVec2(w, 0.f));
     // A child card is a focused popup sitting above this one, and ImGui refuses every hover test
     // on items of a popup something is open on top of - which is exactly the gesture that has to
     // keep working here. Parent and child never overlap, so test the rect directly and take the
     // click the same way instead of relying on this item's own hover state.
-    menu_row row{ pos, w, h, ImGui::IsMouseHoveringRect(pos, pos + ImVec2(w, h), true), false };
+    menu_row row{ pos, w, h, reveal_t > 0.95f &&
+        ImGui::IsMouseHoveringRect(pos, pos + ImVec2(w, h), true), false };
     row.clicked = row.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * reveal_t);
     const float t = row_anim(ImGui::GetID(id), row.hovered || lit);
     if (t > 0.01f)
         draw->AddRectFilled(pos, pos + ImVec2(w, h), gui.frame_inactive.to_im_color(t * 0.7f), 6.f * s);
@@ -393,6 +417,7 @@ menu_row bind_menu_row(const char* id, const char* icon, const char* label, bool
         draw->AddText(font, icon_fs, ImVec2(IM_ROUND(pos.x + w - 6.f * s - csz.x),
                                             IM_ROUND(cy - csz.y * 0.5f)), fg, ICON_FA_CHEVRON_RIGHT);
     }
+    ImGui::PopStyleVar();
     return row;
 }
 
@@ -603,9 +628,14 @@ bool draw_entry_card(bind_target& target, bind_entry& entry, bool is_draft,
     gui.end_popup_card();
 
     if (action == card_action::duplicate && !is_draft && target.entries.size() < 16) {
+        if (g_capture_entry == entry.id) {
+            g_capture_entry = 0;
+            g_hotkeys_capture = false;
+        }
         bind_entry copy = entry;
         copy.id = g_next_entry_id++;
         copy.toggled = copy.was_down = copy.active = false;
+        g_entry_reveal[copy.id] = 0.f;
         target.entries.push_back(copy);
         request_submenu(copy.id);
         mark_dirty();
@@ -674,7 +704,8 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
             ImGui::PushID(static_cast<int>(entry.id));
             const std::string label = entry_label(entry);
             const menu_row row = bind_menu_row("##bind", ICON_FA_BOLT, label.c_str(), true,
-                                               g_submenu == entry.id, c_text);
+                                               g_submenu == entry.id, c_text, false,
+                                               entry_reveal(entry.id));
             if (row.hovered)
                 request_submenu(entry.id);
             bool removed = false, ignored = false;
@@ -718,16 +749,20 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
                 }
             }
 
-            if (bind_menu_row("##hotkeys", ICON_FA_LIST, "Hotkeys", false, g_overlay_enabled, c_text).clicked) {
-                g_overlay_enabled = !g_overlay_enabled;
-                mark_dirty();
+            if (bind_menu_row("##hotkeys", ICON_FA_LIST, "Hotkeys", false,
+                              g_all_hotkeys_open, c_text).clicked) {
+                g_all_hotkeys_open = true;
+                request_submenu(0);
+                ImGui::CloseCurrentPopup();
             }
             bind_menu_separator();
             if (bind_menu_row("##reset", ICON_FA_TRASH_ALT, "Reset", false, false, c_red).clicked &&
                 has_binds) {
-                for (const bind_entry& entry : target.entries)
+                for (const bind_entry& entry : target.entries) {
                     if (g_capture_entry == entry.id)
                         g_capture_entry = 0;
+                    g_entry_reveal.erase(entry.id);
+                }
                 target.entries.clear();
                 write_base(target);
                 target.was_overridden = false;
@@ -741,6 +776,7 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
         gui.end_popup_card();
 
         if (commit_draft) {
+            g_entry_reveal[g_draft.id] = 0.f;
             target.entries.push_back(g_draft);
             request_submenu(g_draft.id);
             g_draft = bind_entry{};
@@ -750,6 +786,7 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
         else if (remove_index >= 0) {
             if (g_capture_entry == target.entries[remove_index].id)
                 g_capture_entry = 0;
+            g_entry_reveal.erase(target.entries[remove_index].id);
             target.entries.erase(target.entries.begin() + remove_index);
             request_submenu(0);
             mark_dirty();
@@ -765,6 +802,291 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
             g_capture_entry = 0;
     }
     ImGui::PopID();
+}
+
+// --- All Hotkeys ------------------------------------------------------------------------------
+// A searchable, spaced-out index of every registered bind. Clicking a row opens the exact same
+// editor card as the context menu, so key capture, mode, value, visibility and duplication all
+// share one implementation instead of drifting into a second set of controls.
+std::string lower_copy(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return text;
+}
+
+bool hotkey_matches(const bind_target& target, const bind_entry& entry, const std::string& needle) {
+    if (needle.empty())
+        return true;
+    const std::string haystack = lower_copy(target.key + " " + target.label + " " +
+        entry_label(entry) + " " + key_name(entry.key) + " " + mode_name(entry.mode));
+    return haystack.find(needle) != std::string::npos;
+}
+
+std::string hotkey_value(const bind_target& target, const bind_entry& entry) {
+    if (target.type == value_type::boolean)
+        return gui.tr(entry.bool_value ? "On" : "Off");
+    if (target.type == value_type::integer)
+        return std::to_string(entry.int_value);
+    char text[32];
+    ImFormatString(text, IM_ARRAYSIZE(text), "%.2f", entry.float_value);
+    return text;
+}
+
+struct hotkey_columns {
+    float feature = 0.f;
+    float key = 0.f;
+    float mode = 0.f;
+    float visibility = 0.f;
+    float value = 0.f;
+    float edit = 0.f;
+    float remove = 0.f;
+};
+
+hotkey_columns hotkey_columns_at(ImVec2 pos, float width) {
+    const float s = gui.m_scale;
+    hotkey_columns columns;
+    columns.feature = pos.x + 10.f * s;
+    columns.key = pos.x + width * 0.34f;
+    columns.mode = pos.x + width * 0.46f;
+    columns.visibility = pos.x + width * 0.58f;
+    columns.value = pos.x + width * 0.73f;
+    columns.edit = pos.x + width - 48.f * s;
+    columns.remove = pos.x + width - 20.f * s;
+    return columns;
+}
+
+void draw_hotkey_columns_header() {
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    ImFont* font = ImGui::GetFont();
+    const float s = gui.m_scale, fs = gui.scaled_font_size(font);
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const float width = ImGui::GetContentRegionAvail().x;
+    const hotkey_columns c = hotkey_columns_at(pos, width);
+    const ImU32 color = ImGui::GetColorU32(gui.text_disabled.to_vec4(0.9f, false));
+    const float y = IM_ROUND(pos.y + 3.f * s);
+    draw->AddText(font, fs, ImVec2(c.feature, y), color, gui.tr("Feature"));
+    draw->AddText(font, fs, ImVec2(c.key, y), color, gui.tr("Key"));
+    draw->AddText(font, fs, ImVec2(c.mode, y), color, gui.tr("Mode"));
+    draw->AddText(font, fs, ImVec2(c.visibility, y), color, gui.tr("Visibility"));
+    draw->AddText(font, fs, ImVec2(c.value, y), color, gui.tr("New Value"));
+    ImGui::Dummy(ImVec2(width, 22.f * s));
+}
+
+struct hotkey_row {
+    ImVec2 pos{};
+    bool clicked = false;
+    bool remove = false;
+    bool toggle_visibility = false;
+};
+
+hotkey_row draw_hotkey_row(const bind_target& target, bind_entry& entry) {
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    ImFont* font = ImGui::GetFont();
+    const float s = gui.m_scale;
+    const float reveal = entry_reveal(entry.id);
+    const float full_h = 42.f * s;
+    const float h = full_h * reveal;
+    const float width = ImGui::GetContentRegionAvail().x;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+
+    if (h > 0.01f)
+        ImGui::InvisibleButton("##hotkey_row", ImVec2(width, h));
+    else
+        ImGui::Dummy(ImVec2(width, 0.f));
+    ImGui::Dummy(ImVec2(0.f, 6.f * s * reveal)); // deliberate breathing room between rows
+
+    hotkey_row row;
+    row.pos = pos;
+    const bool hovered = reveal > 0.95f &&
+        ImGui::IsMouseHoveringRect(pos, pos + ImVec2(width, h), true);
+    const hotkey_columns c = hotkey_columns_at(pos, width);
+    const ImRect visibility_bb(ImVec2(c.visibility - 4.f * s, pos.y + 5.f * s),
+                               ImVec2(c.value - 8.f * s, pos.y + full_h - 5.f * s));
+    const ImRect remove_bb(ImVec2(c.remove - 13.f * s, pos.y + full_h * 0.5f - 13.f * s),
+                           ImVec2(c.remove + 13.f * s, pos.y + full_h * 0.5f + 13.f * s));
+    const bool visibility_hovered = hovered && ImGui::IsMouseHoveringRect(
+        visibility_bb.Min, visibility_bb.Max, true);
+    const bool remove_hovered = hovered && ImGui::IsMouseHoveringRect(remove_bb.Min, remove_bb.Max, true);
+    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (remove_hovered)
+            row.remove = true;
+        else if (visibility_hovered)
+            row.toggle_visibility = true;
+        else
+            row.clicked = true;
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * reveal);
+    const float selected = g_submenu == entry.id ? 1.f : 0.f;
+    const float hot = ImMax(row_anim(ImGui::GetID("##hotkey_bg"), hovered), selected);
+    draw->AddRectFilled(pos, pos + ImVec2(width, h),
+        ImGui::GetColorU32(gui.frame_inactive.to_vec4(0.38f + hot * 0.34f, false)), 7.f * s);
+    if (selected > 0.f)
+        draw->AddRect(pos, pos + ImVec2(width, h),
+            ImGui::GetColorU32(gui.accent_color.to_vec4(0.65f, false)), 7.f * s, 0, 1.f * s);
+
+    const float fs = gui.scaled_font_size(font);
+    const float small_fs = ImMax(10.f * s, fs * 0.78f);
+    const float cy = pos.y + h * 0.5f;
+    const ImU32 text = ImGui::GetColorU32(gui.text.to_vec4(1.f, false));
+    const ImU32 dim = ImGui::GetColorU32(gui.text_disabled.to_vec4(1.f, false));
+
+    // Feature name plus its stable registration path. Clip only this column so a long localized
+    // label can never run through the key/mode columns.
+    draw->PushClipRect(pos, ImVec2(c.key - 8.f * s, pos.y + h), true);
+    draw->AddText(font, fs, ImVec2(c.feature, IM_ROUND(cy - 14.f * s * reveal)), text,
+                  gui.tr(target.label.c_str()));
+    draw->AddText(font, small_fs, ImVec2(c.feature, IM_ROUND(cy + 3.f * s * reveal)), dim,
+                  target.key.c_str());
+    draw->PopClipRect();
+
+    const auto centered_text = [&](float x, const char* value, ImU32 color) {
+        draw->AddText(font, fs, ImVec2(x, IM_ROUND(cy - TextLineCenterY(font, fs))), color, value);
+    };
+    const std::string key = entry.key > 0 ? key_name(entry.key) : std::string("-");
+    const std::string value = hotkey_value(target, entry);
+    centered_text(c.key, key.c_str(), text);
+    centered_text(c.mode, gui.tr(mode_name(entry.mode)), text);
+
+    const char* eye = entry.show_in_overlay ? ICON_FA_EYE : ICON_FA_EYE_SLASH;
+    const ImU32 visibility_color = visibility_hovered
+        ? ImGui::GetColorU32(gui.accent_color.to_vec4(1.f, false)) : text;
+    draw->AddText(font, 13.f * s, ImVec2(c.visibility, IM_ROUND(cy - 6.5f * s)), visibility_color, eye);
+    centered_text(c.visibility + 19.f * s,
+                  gui.tr(entry.show_in_overlay ? "Visible" : "Hidden"), visibility_color);
+    centered_text(c.value, value.c_str(),
+                  entry.bool_value || target.type != value_type::boolean ? text : dim);
+
+    const ImVec2 edit_size = font->CalcTextSizeA(13.f * s, FLT_MAX, 0.f, ICON_FA_EDIT);
+    draw->AddText(font, 13.f * s, ImVec2(IM_ROUND(c.edit - edit_size.x * 0.5f),
+        IM_ROUND(cy - edit_size.y * 0.5f)), hovered ? text : dim, ICON_FA_EDIT);
+    const ImVec2 remove_size = font->CalcTextSizeA(13.f * s, FLT_MAX, 0.f, ICON_FA_TRASH_ALT);
+    const ImU32 remove_color = remove_hovered ? ImGui::GetColorU32(ImVec4(0.93f, 0.33f, 0.36f, 1.f)) : dim;
+    draw->AddText(font, 13.f * s, ImVec2(IM_ROUND(c.remove - remove_size.x * 0.5f),
+        IM_ROUND(cy - remove_size.y * 0.5f)), remove_color, ICON_FA_TRASH_ALT);
+
+    ImGui::PopStyleVar();
+    return row;
+}
+
+void draw_hotkeys_editor() {
+    if (!g_all_hotkeys_open && g_hotkeys_capture) {
+        g_capture_entry = 0;
+        g_hotkeys_capture = false;
+    }
+    if (!gui.window_begin("AllHotkeysEditor", &g_all_hotkeys_open, ImVec2(780.f, 520.f)))
+        return;
+    ImGuiWindow* manager = ImGui::GetCurrentWindow();
+    const float s = gui.m_scale;
+
+    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
+    ImFont* bold = fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont();
+    ImGui::PushFont(bold);
+    const char* title = gui.tr("All Hotkeys");
+    const float title_width = ImGui::CalcTextSize(title).x;
+    ImGui::SetCursorPosX(ImMax(16.f * s, (ImGui::GetWindowWidth() - title_width) * 0.5f));
+    ImGui::TextUnformatted(title);
+    ImGui::PopFont();
+    ImGui::Dummy(ImVec2(0.f, 4.f * s));
+
+    static char search[96]{};
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 7.f * s);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.f * s, 7.f * s));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, gui.field_bg.to_vec4(0.9f, false));
+    ImGui::SetNextItemWidth(-1.f);
+    ImGui::BeginDisabled(g_capture_entry != 0);
+    ImGui::InputTextWithHint("##all_hotkeys_search", gui.tr("Search functions..."),
+                             search, IM_ARRAYSIZE(search));
+    ImGui::EndDisabled();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+    if (gui.popup_toggle(ICON_FA_LIST, "Show Overlay", &g_overlay_enabled))
+        mark_dirty();
+    draw_hotkey_columns_header();
+
+    std::vector<bind_target*> targets;
+    for (auto& [id, target] : g_targets) {
+        IM_UNUSED(id);
+        if (!target.entries.empty())
+            targets.push_back(&target);
+    }
+    std::sort(targets.begin(), targets.end(), [](const bind_target* left, const bind_target* right) {
+        if (left->label != right->label)
+            return left->label < right->label;
+        return left->key < right->key;
+    });
+
+    const std::string needle = lower_copy(search);
+    target_id remove_target = 0;
+    std::uint64_t remove_entry = 0;
+    bool any = false, bail = false;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.f * s, 0.f));
+    if (ImGui::BeginChild("##all_hotkeys_rows", ImVec2(0.f, 0.f), false)) {
+        for (bind_target* target : targets) {
+            if (bail)
+                break;
+            for (int i = 0; i < static_cast<int>(target->entries.size()); ++i) {
+                bind_entry& entry = target->entries[i];
+                if (!hotkey_matches(*target, entry, needle))
+                    continue;
+                any = true;
+                ImGui::PushID(static_cast<int>(entry.id));
+                const hotkey_row row = draw_hotkey_row(*target, entry);
+                if (row.toggle_visibility) {
+                    entry.show_in_overlay = !entry.show_in_overlay;
+                    mark_dirty();
+                }
+                if (row.clicked)
+                    request_submenu(entry.id);
+                bool removed = false, ignored = false;
+                const bool alive = draw_entry_card(*target, entry, false, manager,
+                                                   row.pos.y, removed, ignored);
+                if (alive && g_capture_entry == entry.id)
+                    g_hotkeys_capture = true;
+                else if (g_hotkeys_capture && g_capture_entry == 0)
+                    g_hotkeys_capture = false;
+                ImGui::PopID();
+                if (row.remove || removed) {
+                    remove_target = target->id;
+                    remove_entry = entry.id;
+                }
+                if (!alive || row.remove || removed) {
+                    bail = true; // deletion or duplicate: finish with fresh references next frame
+                    break;
+                }
+            }
+        }
+        if (!any) {
+            ImGui::Dummy(ImVec2(0.f, 12.f * s));
+            ImGui::TextDisabled("%s", gui.tr(search[0] ? "No matching functions." : "No hotkeys yet."));
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
+    gui.window_end();
+
+    if (remove_entry != 0) {
+        auto target_it = g_targets.find(remove_target);
+        if (target_it != g_targets.end()) {
+            bind_target& target = target_it->second;
+            auto entry_it = std::find_if(target.entries.begin(), target.entries.end(),
+                [remove_entry](const bind_entry& entry) { return entry.id == remove_entry; });
+            if (entry_it != target.entries.end()) {
+                if (g_capture_entry == remove_entry) {
+                    g_capture_entry = 0;
+                    g_hotkeys_capture = false;
+                }
+                g_entry_reveal.erase(remove_entry);
+                target.entries.erase(entry_it);
+                request_submenu(0);
+                mark_dirty();
+            }
+        }
+    }
+    if (!g_all_hotkeys_open)
+        request_submenu(0);
 }
 
 bind_target& register_stable_target(const char* stable_key, const char* label,
@@ -815,6 +1137,10 @@ void write_entry(bind_target& target, const bind_entry& entry) {
     else if (target.type == value_type::integer) *static_cast<int*>(target.pointer) = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
     else *static_cast<float*>(target.pointer) = std::clamp(entry.float_value, target.minimum_float, target.maximum_float);
 }
+}
+
+void draw_hotkeys_window() {
+    draw_hotkeys_editor();
 }
 
 void register_bool(const char* key, const char* label, bool* value) {
@@ -1005,6 +1331,8 @@ void set_overlay_enabled(bool enabled) {
 }
 
 void draw_overlay(bool menu_open) {
+    if (!menu_open)
+        g_all_hotkeys_open = false;
     if (!g_overlay_enabled)
         return;
 

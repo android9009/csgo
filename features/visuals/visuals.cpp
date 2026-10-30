@@ -117,7 +117,8 @@ void draw_esp_chip_section(const char* id, const char* title, const char* const*
     gui.popup_section_end();
 }
 
-void draw_esp_items_popup(player_side_ui_state& side, bool clicked) {
+void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
+                          ImVec2 content_origin, float content_width) {
     static const char* main_items[] = {
         "Bounding Box", "Name", "Distance", "Health Bar", "Ammo Bar", "Skeleton"
     };
@@ -130,14 +131,25 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked) {
     };
     static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
 
-    // The third header icon opens the same card for the currently selected side.
-    if (!gui.popup_begin("ESP Items", clicked, 320.f, true, false))
+    // A content-sized card directly under the header, not a cursor-relative popup. Its height is
+    // measured from the chip sections and its top edge stays fixed while the opening fade runs.
+    bool wants_open = false;
+    const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
+    const ImVec2 anchor = content_origin + ImVec2(0.f, 30.f * gui.m_scale);
+    if (!gui.begin_popup_card_at("ESP ItemsPopup", wants_open, anim, anchor, ImVec2(0.f, 0.f),
+                                 content_width / gui.m_scale))
         return;
+
+    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
+    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
+    ImGui::TextColored(gui.text.to_vec4(1.f, false), "%s", gui.tr("ESP Items"));
+    ImGui::PopFont();
+    ImGui::Dummy(ImVec2(0.f, 6.f * gui.m_scale));
     draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
     draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
     draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
     draw_esp_chip_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
-    gui.popup_end();
+    gui.end_popup_card();
 }
 
 void draw_enemy_side(player_side_ui_state& side) {
@@ -200,17 +212,20 @@ void draw_visuals_players() {
     auto& ui = player_ui();
     static const char* header_icons[] = { ICON_FA_USER, ICON_FA_USER_MINUS, ICON_FA_LIST_ALT };
     static const char* header_labels[] = { "Enemies", "Teammates", "ESP Items" };
-    static const float weights[] = { 0.62f, 0.38f };
 
+    const ImVec2 content_origin = ImGui::GetCursorScreenPos();
+    const float content_width = ImGui::GetContentRegionAvail().x;
+    const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
     ui.active_side = ImClamp(ui.active_side, 0, 1);
     const int previous_side = ui.active_side;
     const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
     const bool customize_visible = ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) ||
                                    gui.popup_fade_visible(customize_id);
-    const ImVec2 header_right = ImGui::GetCursorScreenPos() +
-        ImVec2(ImGui::GetContentRegionAvail().x, -4.f * gui.m_scale);
+    const ImVec2 header_center = content_origin + ImVec2(
+        column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
     const int header_clicked = gui.icon_tabs("##players_header", header_icons, header_labels,
-        IM_ARRAYSIZE(header_icons), &ui.active_side, header_right, nullptr, customize_visible ? 2 : -1);
+        IM_ARRAYSIZE(header_icons), &ui.active_side, header_center, nullptr,
+        customize_visible ? 2 : -1, true, 2);
     const bool customize_clicked = header_clicked == 2;
     if (customize_clicked)
         ui.active_side = previous_side; // ESP Items is an action, not a third player side
@@ -230,7 +245,7 @@ void draw_visuals_players() {
         enemy_items.weapon_items[0] = esp.m_weapon;
     }
 
-    gui.begin_grid(2, weights);
+    gui.begin_grid(2);
     gui.grid_col(0);
     if (ui.active_side == 0)
         draw_enemy_side(ui.sides[0]);
@@ -241,7 +256,7 @@ void draw_visuals_players() {
     // side, not a CT/T settings panel. The standalone GUI has no agent renderer, so leave it clear.
     gui.end_grid();
 
-    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked);
+    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked, content_origin, content_width);
     if (ui.active_side == 0) {
         esp.m_bounding_box = enemy_items.main_items[0];
         esp.m_name = enemy_items.main_items[1];
