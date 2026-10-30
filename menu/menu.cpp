@@ -334,7 +334,7 @@ void c_menu::render() {
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         gui.group_title("COMMON");
-        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3))
+        if (gui.tab(ICON_FA_IMAGE, "Visuals", false))
             switch_visuals_tab(gui.m_visuals_subtab);
         draw_visuals_subtabs();
         if (gui.tab(ICON_FA_SLIDERS_H, "Miscellaneous", gui.m_tab == 4)) switch_tab(4);
