@@ -6,7 +6,6 @@ void c_glow::run()
 	if (!HACKS->in_game || !HACKS->local)
 		return;
 
-	auto& enemy_esp = g_cfg.visuals.esp[esp_enemy];
 	auto& weapon_esp = g_cfg.visuals.esp[esp_weapon];
 
 	for (int i = 0; i < HACKS->glow_object_manager->glow_objects.count(); i++)
@@ -62,11 +61,9 @@ void c_glow::run()
 				continue;
 			}
 
-			if (player->is_teammate(false))
-				continue;
-
-			if (enemy_esp.enable && (enemy_esp.elements & 256))
-				draw_glow(enemy_esp.colors.glow, true);
+			auto& player_esp = g_cfg.visuals.esp[player->is_teammate(false) ? esp_teammate : esp_enemy];
+			if (player_esp.enable && (player_esp.elements & 256))
+				draw_glow(player_esp.colors.glow, true);
 		}
 
 		auto class_id = object->entity->get_client_class()->class_id;

@@ -792,7 +792,7 @@ namespace hooks::vmt
 	bool __fastcall override_config(void* ecx, void* edx, material_system_config_t* config, bool update)
 	{
 		static auto original = hooker::get_original(&override_config);
-		if (g_cfg.misc.world_modulation & 4)
+		if (get_world_settings().world_modulation & 4)
 			config->m_nFullbright = true;
 
 		return original(ecx, edx, config, update);

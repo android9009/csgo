@@ -149,7 +149,7 @@ private:
 	void draw_smoke_range(float& weapon_alpha, weapon_esp_t& esp, c_base_entity* entity);
 	void draw_molotov_range(float& weapon_alpha, weapon_esp_t& esp, c_base_entity* entity);
 	void draw_weapon_esp();
-    void render_offscreen_esp(esp_player_t& esp);
+    void render_offscreen_esp(esp_player_t& esp, int type);
 	void draw_player_esp();
 
 public:

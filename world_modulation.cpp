@@ -30,9 +30,51 @@ std::vector<std::string> skybox_list
 	XOR("Custom")
 };
 
+
+std::string get_world_map_name()
+{
+#ifndef LEGACY
+	if (!HACKS->client_state)
+		return {};
+
+	const char* name = HACKS->client_state->level_name_short;
+	return name && name[0] ? std::string(name) : std::string();
+#else
+	return {};
+#endif
+}
+
+world_settings_t* get_map_world_settings(bool create)
+{
+	const auto map_name = get_world_map_name();
+	if (map_name.empty())
+		return nullptr;
+
+	auto it = g_cfg.misc.world_profiles.find(map_name);
+	if (it == g_cfg.misc.world_profiles.end() && create)
+	{
+		const auto& global = static_cast<const world_settings_t&>(g_cfg.misc);
+		it = g_cfg.misc.world_profiles.emplace(map_name, global).first;
+	}
+
+	return it != g_cfg.misc.world_profiles.end() ? &it->second : nullptr;
+}
+
+world_settings_t& get_world_settings()
+{
+	if (g_cfg.misc.per_map_world)
+	{
+		if (auto* profile = get_map_world_settings(false))
+			return *profile;
+	}
+
+	return g_cfg.misc;
+}
+
 void c_world_modulation::override_shadows()
 {
-	bool sunset = (g_cfg.misc.world_modulation & 2);
+	auto& world = get_world_settings();
+	bool sunset = (world.world_modulation & 2);
 
 	if (!HACKS->in_game)
 	{
@@ -55,41 +97,42 @@ void c_world_modulation::override_shadows()
 		old_sunset_mode = sunset;
 	}
 
-	if (old_rot_x != g_cfg.misc.sunset_angle.x)
+	if (old_rot_x != world.sunset_angle.x)
 	{
 		HACKS->convars.cl_csm_rot_x->fn_change_callbacks.remove_count();
 
-		HACKS->convars.cl_csm_rot_x->set_value(g_cfg.misc.sunset_angle.x);
-		old_rot_x = g_cfg.misc.sunset_angle.x;
+		HACKS->convars.cl_csm_rot_x->set_value(world.sunset_angle.x);
+		old_rot_x = world.sunset_angle.x;
 	}
 
-	if (old_rot_y != g_cfg.misc.sunset_angle.y)
+	if (old_rot_y != world.sunset_angle.y)
 	{
 		HACKS->convars.cl_csm_rot_y->fn_change_callbacks.remove_count();
 
-		HACKS->convars.cl_csm_rot_y->set_value(g_cfg.misc.sunset_angle.y);
-		old_rot_y = g_cfg.misc.sunset_angle.y;
+		HACKS->convars.cl_csm_rot_y->set_value(world.sunset_angle.y);
+		old_rot_y = world.sunset_angle.y;
 	}
 
-	if (old_rot_z != g_cfg.misc.sunset_angle.z)
+	if (old_rot_z != world.sunset_angle.z)
 	{
 		HACKS->convars.cl_csm_rot_z->fn_change_callbacks.remove_count();
 
-		HACKS->convars.cl_csm_rot_z->set_value(g_cfg.misc.sunset_angle.z);
-		old_rot_z = g_cfg.misc.sunset_angle.z;
+		HACKS->convars.cl_csm_rot_z->set_value(world.sunset_angle.z);
+		old_rot_z = world.sunset_angle.z;
 	}
 }
 
 void c_world_modulation::override_sky_convar()
 {
+	auto& world = get_world_settings();
 	if (!HACKS->in_game || !HACKS->local)
 		return;
 
-	bool nightmode = g_cfg.misc.skybox > 0;
+	bool nightmode = world.skybox > 0;
 
-	g_cfg.misc.skybox = std::clamp(g_cfg.misc.skybox, 0, 23);
+	world.skybox = std::clamp(world.skybox, 0, 23);
 
-	const auto sky_name = g_cfg.misc.skybox == 23 ? g_cfg.misc.skybox_name : skybox_list[g_cfg.misc.skybox].c_str();
+	const auto sky_name = world.skybox == 23 ? world.skybox_name : skybox_list[world.skybox].c_str();
 	if (nightmode && old_sky_name != sky_name)
 	{
 		offsets::load_named_sky.cast<void(__fastcall*)(const char*)>()(sky_name);
@@ -107,22 +150,23 @@ void c_world_modulation::override_sky_convar()
 
 void c_world_modulation::override_prop_color()
 {
+	auto& world = get_world_settings();
 	if (!HACKS->in_game)
 		return;
 
-	auto& props_color = g_cfg.misc.world_clr[props];
+	auto& props_color = world.world_clr[props];
 	if (HACKS->static_prop_manager && HACKS->static_prop_manager->props_count && HACKS->static_prop_manager->props_base)
 	{
 		for (int i = 0; i < HACKS->static_prop_manager->props_count; ++i)
 		{
 			auto& static_props = HACKS->static_prop_manager->props_base[i];
-			static_props.diffuse_modulation.x = !(g_cfg.misc.world_modulation & 1) ? 1.f : props_color[0];
-			static_props.diffuse_modulation.y = !(g_cfg.misc.world_modulation & 1) ? 1.f : props_color[1];
-			static_props.diffuse_modulation.w = !(g_cfg.misc.world_modulation & 1) ? 1.f : props_color[2];
+			static_props.diffuse_modulation.x = !(world.world_modulation & 1) ? 1.f : props_color[0];
+			static_props.diffuse_modulation.y = !(world.world_modulation & 1) ? 1.f : props_color[1];
+			static_props.diffuse_modulation.w = !(world.world_modulation & 1) ? 1.f : props_color[2];
 
 			auto alpha_property = static_props.alpha_property;
 			if (alpha_property)
-				alpha_property->set_alpha_modulation(255 * (g_cfg.misc.prop_alpha / 100.f));
+				alpha_property->set_alpha_modulation(255 * (world.prop_alpha / 100.f));
 		}
 	}
 }
@@ -132,7 +176,8 @@ void c_world_modulation::override_world_color(i_material* material, float* r, fl
 	if (!material || material->is_error_material())
 		return;
 
-	if (!(g_cfg.misc.world_modulation & 1))
+	auto& world = get_world_settings();
+	if (!(world.world_modulation & 1))
 		return;
 
 	constexpr auto world_tex = HASH("World textures");
@@ -149,23 +194,23 @@ void c_world_modulation::override_world_color(i_material* material, float* r, fl
 	{
 	case world_tex:
 	{
-		*r *= g_cfg.misc.world_clr[walls][0];
-		*g *= g_cfg.misc.world_clr[walls][1];
-		*b *= g_cfg.misc.world_clr[walls][2];
+		*r *= world.world_clr[walls][0];
+		*g *= world.world_clr[walls][1];
+		*b *= world.world_clr[walls][2];
 	}
 	break;
 	case skybox_tex:
 	{
-		*r *= g_cfg.misc.world_clr[sky][0];
-		*g *= g_cfg.misc.world_clr[sky][1];
-		*b *= g_cfg.misc.world_clr[sky][2];
+		*r *= world.world_clr[sky][0];
+		*g *= world.world_clr[sky][1];
+		*b *= world.world_clr[sky][2];
 	}
 	break;
 	case prop_tex:
 	{
-		*r *= g_cfg.misc.world_clr[props][0];
-		*g *= g_cfg.misc.world_clr[props][1];
-		*b *= g_cfg.misc.world_clr[props][2];
+		*r *= world.world_clr[props][0];
+		*g *= world.world_clr[props][1];
+		*b *= world.world_clr[props][2];
 	}
 	break;
 	}

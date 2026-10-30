@@ -14,7 +14,8 @@ void c_post_processing::init()
 
 void c_post_processing::override_fog()
 {
-	if (!(g_cfg.misc.custom_fog))
+	auto& world = get_world_settings();
+	if (!(world.custom_fog))
 	{
 		if (HACKS->convars.fog_override->get_int())
 			HACKS->convars.fog_override->set_value(FALSE);
@@ -31,17 +32,17 @@ void c_post_processing::override_fog()
 	if (!HACKS->convars.fog_override->get_int())
 		HACKS->convars.fog_override->set_value(TRUE);
 
-	if (HACKS->convars.fog_start->get_int() != g_cfg.misc.fog_start)
-		HACKS->convars.fog_start->set_value(g_cfg.misc.fog_start);
+	if (HACKS->convars.fog_start->get_int() != world.fog_start)
+		HACKS->convars.fog_start->set_value(world.fog_start);
 
-	if (HACKS->convars.fog_end->get_int() != g_cfg.misc.fog_end)
-		HACKS->convars.fog_end->set_value(g_cfg.misc.fog_end);
+	if (HACKS->convars.fog_end->get_int() != world.fog_end)
+		HACKS->convars.fog_end->set_value(world.fog_end);
 
-	float density = g_cfg.misc.fog_density / 100.f;
+	float density = world.fog_density / 100.f;
 	if (HACKS->convars.fog_maxdensity->get_float() != density)
 		HACKS->convars.fog_maxdensity->set_value(density);
 
-	auto cur_clr = g_cfg.misc.world_clr[fog].base();
+	auto cur_clr = world.world_clr[fog].base();
 
 	char buffer_color[12];
 	sprintf_s(buffer_color, 12, CXOR("%i %i %i"), cur_clr.r(), cur_clr.g(), cur_clr.b());
@@ -52,6 +53,7 @@ void c_post_processing::override_fog()
 
 void c_post_processing::remove_bloom()
 {
+	auto& world = get_world_settings();
 	LISTENER_ENTITY->for_each_entity([&](c_base_entity* entity)
 	{
 		bool& custom_bloom_scale = *(bool*)((std::uintptr_t)entity + m_bUseCustomBloomScale);
@@ -62,16 +64,17 @@ void c_post_processing::remove_bloom()
 		custom_expo_min = true;
 		custom_expo_max = true;
 
-		*(float*)((std::uintptr_t)entity + m_flCustomBloomScale) = g_cfg.misc.custom_bloom ? g_cfg.misc.bloom_scale : 0.f;
-		*(float*)((std::uintptr_t)entity + m_flCustomAutoExposureMin) = g_cfg.misc.custom_bloom ? g_cfg.misc.exposure_min : 1.f;
-		*(float*)((std::uintptr_t)entity + m_flCustomAutoExposureMax) = g_cfg.misc.custom_bloom ? g_cfg.misc.exposure_max : 1.f;
+		*(float*)((std::uintptr_t)entity + m_flCustomBloomScale) = world.custom_bloom ? world.bloom_scale : 0.f;
+		*(float*)((std::uintptr_t)entity + m_flCustomAutoExposureMin) = world.custom_bloom ? world.exposure_min : 1.f;
+		*(float*)((std::uintptr_t)entity + m_flCustomAutoExposureMax) = world.custom_bloom ? world.exposure_max : 1.f;
 
 	}, ENT_TONEMAP);
 }
 
 void c_post_processing::remove()
 {
-	bool sunset_mode = g_cfg.misc.world_modulation & 2;
+	auto& world = get_world_settings();
+	bool sunset_mode = world.world_modulation & 2;
 	bool viewmodel_move_override = (g_cfg.misc.removals & viewmodel_move);
 
 	auto override = should_override_processing();

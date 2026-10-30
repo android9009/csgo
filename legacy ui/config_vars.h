@@ -1,6 +1,8 @@
 #pragma once
 #include "menu/ui_structs.h"
 #include <array>
+#include <map>
+#include <string>
 
 enum fov_t
 {
@@ -92,6 +94,7 @@ enum esp_type_t
 {
 	esp_enemy,
 	esp_weapon,
+	esp_teammate,
 	esp_max
 };
 
@@ -220,11 +223,49 @@ struct skin_weapon_t
 {
 	bool enable{};
 	int skin{};
+	int wear{};
+	int seed{};
+	bool stattrak{};
+	int stattrak_kills{};
 	int knife_model{};
 	int old_model = -1;
 	int old_skin = -1;
 
 	char skins_search[256]{};
+};
+
+struct world_settings_t
+{
+	bool custom_bloom{};
+	int bloom_scale{};
+	int exposure_min{};
+	int exposure_max{};
+
+	bool custom_fog{};
+	int fog_start{};
+	int fog_end = 9300;
+	int fog_density = 70;
+
+	char skybox_name[128]{};
+	int skybox = 0;
+	int prop_alpha = 100;
+
+	unsigned int world_material_options{};
+	unsigned int world_modulation{};
+
+	struct
+	{
+		int x = 0, y = -140, z = 0;
+	} sunset_angle;
+
+	c_float_color world_clr[world_clr_max]
+	{
+		c_float_color(43, 41, 46),
+		c_float_color(255, 255, 255),
+		c_float_color(255, 255, 255),
+		c_float_color(255, 255, 255),
+		c_float_color(255, 255, 255),
+	};
 };
 
 struct configs_t
@@ -397,7 +438,7 @@ struct configs_t
 		bool show_all_history{};
 	} visuals;
 
-	struct misc_t
+	struct misc_t : world_settings_t
 	{
 		bool menu = false;
 
@@ -417,6 +458,9 @@ struct configs_t
 
 		int aspect_ratio{};
 		int strafe_smooth = 70;
+		int strafe_mode = 1;
+		bool strafe_only_jump{};
+		bool strafe_stop_on_shift = true;
 
 		int thirdperson_dist = 150;
 		bool thirdperson_dead{};
@@ -440,27 +484,8 @@ struct configs_t
 
 		c_float_color trace_clr[3] = { c_float_color(150, 130, 255), c_float_color(150, 130, 255), c_float_color(150, 130, 255) };
 
-		bool custom_bloom{};
-		int bloom_scale{};
-		int exposure_min{};
-		int exposure_max{};
-
-		bool custom_fog{};
-		int fog_start{};
-		int fog_end = 9300;
-		int fog_density = 70;
-
-		char skybox_name[128]{};
-		int skybox = 0;
-		int prop_alpha = 100;
-
-		unsigned int world_material_options{};
-		unsigned int world_modulation{};
-
-		struct
-		{
-			int x = 0, y = -140, z = 0;
-		} sunset_angle;
+		bool per_map_world = true;
+		std::map<std::string, world_settings_t> world_profiles{};
 
 		bool pen_xhair{};
 		bool retrack_peek{};
@@ -468,15 +493,6 @@ struct configs_t
 		c_float_color texture_reflect_clr = { 255, 255, 255, 255 };
 		c_float_color autopeek_clr_back = c_float_color(143, 205, 253, 60);
 		c_float_color autopeek_clr = c_float_color(139, 135, 253, 60);
-
-		c_float_color world_clr[world_clr_max]
-		{
-			c_float_color(43, 41, 46),
-			c_float_color(255, 255, 255),
-			c_float_color(255, 255, 255),
-			c_float_color(255, 255, 255),
-			c_float_color(255, 255, 255),
-		};
 
 		unsigned int hitmarker = 0;
 		c_float_color hitmarker_clr = c_float_color(255, 255, 255);
@@ -575,5 +591,10 @@ struct configs_t
 			i.reset2();
 	}
 };
+
+// Returns the active global or per-map visual profile.
+world_settings_t& get_world_settings();
+world_settings_t* get_map_world_settings(bool create);
+std::string get_world_map_name();
 
 extern configs_t g_cfg;

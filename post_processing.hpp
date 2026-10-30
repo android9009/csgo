@@ -16,7 +16,7 @@ private:
 
 	INLINE bool should_override_processing()
 	{
-		if (g_cfg.misc.custom_bloom)
+		if (get_world_settings().custom_bloom)
 			return false;
 
 		if (g_cfg.misc.removals & post_process)

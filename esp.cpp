@@ -425,7 +425,7 @@ void c_esp::draw_weapon_esp()
 	}, ENT_WEAPON);
 }
 
-void c_esp::render_offscreen_esp(esp_player_t& esp)
+void c_esp::render_offscreen_esp(esp_player_t& esp, int type)
 {
 	if (esp.alpha <= 0.5f)
 		return;
@@ -433,7 +433,7 @@ void c_esp::render_offscreen_esp(esp_player_t& esp)
 	if (!HACKS->local || !HACKS->local->is_alive())
 		return;
 
-	auto& enemy_esp = g_cfg.visuals.esp[esp_enemy];
+	auto& enemy_esp = g_cfg.visuals.esp[type];
 	if (!(enemy_esp.elements & 128))
 		return;
 
@@ -476,14 +476,6 @@ void c_esp::render_offscreen_esp(esp_player_t& esp)
 
 void c_esp::draw_player_esp()
 {
-	auto& entity_visuals = g_cfg.visuals.esp[esp_enemy];
-	auto box_color = entity_visuals.colors.box.base();
-	auto name_color = entity_visuals.colors.name.base();
-	auto weapon_color = entity_visuals.colors.weapon.base();
-	auto ammo_color = entity_visuals.colors.ammo_bar.base();
-	auto health_color = entity_visuals.colors.health.base();
-	auto skeleton_color = entity_visuals.colors.skeleton.base();
-
 	LISTENER_ENTITY->for_each_player([&](c_cs_player* player)
 	{
 		auto deref = *(std::uintptr_t*)player;
@@ -492,6 +484,20 @@ void c_esp::draw_player_esp()
 
 		auto index = player->index();
 		auto& esp = player_esp[index];
+		if (player == HACKS->local)
+		{
+			esp.reset();
+			return;
+		}
+
+		const int esp_type = player->is_teammate(false) ? esp_teammate : esp_enemy;
+		auto& entity_visuals = g_cfg.visuals.esp[esp_type];
+		auto box_color = entity_visuals.colors.box.base();
+		auto name_color = entity_visuals.colors.name.base();
+		auto weapon_color = entity_visuals.colors.weapon.base();
+		auto ammo_color = entity_visuals.colors.ammo_bar.base();
+		auto health_color = entity_visuals.colors.health.base();
+		auto skeleton_color = entity_visuals.colors.skeleton.base();
 		
 		if (!HACKS->local->is_alive())
 		{
@@ -577,7 +583,7 @@ void c_esp::draw_player_esp()
 		esp.box = get_player_bounding_box(player, esp);
 		if (esp.box.offscreen)
 		{
-			render_offscreen_esp(esp);
+			render_offscreen_esp(esp, esp_type);
 			return;
 		}
 
@@ -712,7 +718,7 @@ void c_esp::draw_player_esp()
 				esp_objects::render_strings(bbox, esp.objects[i], bar_offsets[position], string_offsets[position]);
 			}
 		}
-	}, true);
+	}, false);
 }
 
 bullet_t bullet_for_indicator()

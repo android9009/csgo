@@ -12,13 +12,23 @@
 #include <Windows.h>
 #include <map>
 
-std::vector< std::string > visual_tabs = {
-	XOR("Enemy"),
+std::vector< std::string > player_tabs = {
+	XOR("Enemies"),
+	XOR("Teammates"),
 	XOR("Local"),
-	XOR("Weapons"),
-	XOR("Modulate"),
+};
+
+std::vector< std::string > world_tabs = {
+	XOR("World ESP"),
+	XOR("Modulation"),
 	XOR("Effects"),
 	XOR("Camera"),
+};
+
+std::vector< std::string > inventory_tabs = {
+	XOR("Loadout"),
+	XOR("Skin editor"),
+	XOR("Agents & gloves"),
 };
 
 std::vector< std::string > misc_tabs = {
@@ -640,7 +650,7 @@ void c_menu::draw_ui_items()
 		ImGui::SetCursorPos(old_pos);
 	};
 
-	if (tab_selector == 6)
+	if (tab_selector == 7)
 	{
 		if (!update_configs)
 		{
@@ -953,7 +963,7 @@ void c_menu::draw_ui_items()
 		case 3:
 		{
 			static int selector = 0;
-			draw_sub_tabs(selector, visual_tabs);
+			draw_sub_tabs(selector, player_tabs);
 
 			static int prev_sub_sel = 0;
 			if (selector != prev_sub_sel)
@@ -971,7 +981,7 @@ void c_menu::draw_ui_items()
 			alpha = subtab_alpha * tab_alpha;
 
 			ImGui::SetCursorPosX(0);
-			ImGui::BeginChild(CXOR("subtab_vis"), {}, false);
+			ImGui::BeginChild(CXOR("subtab_players"), {}, false);
 			switch (selector)
 			{
 			case 0:
@@ -1083,6 +1093,46 @@ void c_menu::draw_ui_items()
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 300);
 				{
+					begin_child(CXOR("Teammates"))
+					{
+						auto& team_esp = g_cfg.visuals.esp[esp_teammate];
+						checkbox(CXOR("Enabled##esp_teammate"), &team_esp.enable);
+						multi_combo(CXOR("ESP items##esp_teammate"), team_esp.elements,
+							{ XOR("Bounding box"), XOR("Name"), XOR("Health bar"), XOR("Weapon icon"), XOR("Weapon text"), XOR("Ammo bar"), XOR("Flags"), XOR("Offscreen arrow"), XOR("Glow") });
+						if (team_esp.elements & 1)
+							color_picker(CXOR("Box color##esp_teammate"), team_esp.colors.box);
+						if (team_esp.elements & 2)
+							color_picker(CXOR("Name color##esp_teammate"), team_esp.colors.name);
+						if (team_esp.elements & 4)
+							color_picker(CXOR("Health color##esp_teammate"), team_esp.colors.health);
+						if (team_esp.elements & 8 || team_esp.elements & 16)
+							color_picker(CXOR("Weapon color##esp_teammate"), team_esp.colors.weapon);
+						if (team_esp.elements & 32)
+							color_picker(CXOR("Ammo color##esp_teammate"), team_esp.colors.ammo_bar);
+						if (team_esp.elements & 256)
+							color_picker(CXOR("Glow color##esp_teammate"), team_esp.colors.glow);
+					}
+					end_child;
+				}
+				ImGui::NextColumn();
+				{
+					auto& team_esp = g_cfg.visuals.esp[esp_teammate];
+					begin_child(CXOR("Offscreen arrow##team"))
+					{
+						slider_int(CXOR("Distance##team_oof"), &team_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
+						slider_int(CXOR("Size##team_oof"), &team_esp.offscreen_size, 5, 25, CXOR("%d px"));
+						color_picker(CXOR("Color##esp_teammate_arrow"), team_esp.colors.offscreen_arrow);
+						color_picker(CXOR("Outline##esp_teammate_arrow"), team_esp.colors.offscreen_arrow_outline);
+					}
+					end_child;
+				}
+			}
+			break;
+			case 2:
+			{
+				ImGui::Columns(2, 0, false);
+				ImGui::SetColumnOffset(1, 300);
+				{
 					begin_child(CXOR("General    "))
 					{
 						checkbox(CXOR("Glow##local_player"), &g_cfg.visuals.local_glow);
@@ -1129,7 +1179,43 @@ void c_menu::draw_ui_items()
 				}
 			}
 			break;
-			case 2:
+			}
+			ImGui::EndChild(false);
+
+			ImGui::PopClipRect();
+			draw_list->PopClipRect();
+		}
+		break;
+		case 4:
+		{
+			static int selector = 0;
+			static int world_profile_scope = 0;
+			const auto map_name = get_world_map_name();
+			const char* profile_names[] = { CXOR("Global"), map_name.empty() ? CXOR("Current map") : map_name.c_str() };
+			auto* map_profile = world_profile_scope == 1 ? get_map_world_settings(true) : nullptr;
+			auto& world_cfg = map_profile ? *map_profile : static_cast<world_settings_t&>(g_cfg.misc);
+			draw_sub_tabs(selector, world_tabs);
+
+			static int prev_sub_sel = 0;
+			if (selector != prev_sub_sel)
+			{
+				for (auto& a : item_animations)
+				{
+					a.second.reset();
+					subtab_alpha = 0.f;
+				}
+
+				prev_sub_sel = selector;
+			}
+
+			create_animation(subtab_alpha, g_cfg.misc.menu && selector == prev_sub_sel, 0.2f, skip_disable | lerp_animation);
+			alpha = subtab_alpha * tab_alpha;
+
+			ImGui::SetCursorPosX(0);
+			ImGui::BeginChild(CXOR("subtab_world"), {}, false);
+			switch (selector)
+			{
+			case 0:
 			{
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 300);
@@ -1196,18 +1282,25 @@ void c_menu::draw_ui_items()
 				}
 			}
 			break;
-			case 3:
+			case 1:
 			{
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 300);
 				{
+					begin_child(CXOR("Map selection"))
+					{
+						combo(CXOR("Profile##world_modulation"), &world_profile_scope, profile_names, 2);
+						checkbox(CXOR("Use per-map profiles"), &g_cfg.misc.per_map_world);
+					}
+					end_child;
+
 					begin_child(CXOR("Sky & props"))
 					{
-						combo(CXOR("Skybox"), &g_cfg.misc.skybox, skyboxes, IM_ARRAYSIZE(skyboxes));
-						if (g_cfg.misc.skybox == 23)
-							input_text(CXOR("Sky name"), g_cfg.misc.skybox_name, 128);
+						combo(CXOR("Skybox"), &world_cfg.skybox, skyboxes, IM_ARRAYSIZE(skyboxes));
+						if (world_cfg.skybox == 23)
+							input_text(CXOR("Sky name"), world_cfg.skybox_name, 128);
 
-						slider_int(CXOR("Props alpha"), &g_cfg.misc.prop_alpha, 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Props alpha"), &world_cfg.prop_alpha, 0, 100, CXOR("%d%%"));
 					}
 					end_child;
 				}
@@ -1215,36 +1308,42 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World modulation"))
 					{
-						multi_combo(CXOR("Modifiers"), g_cfg.misc.world_modulation,
+						multi_combo(CXOR("Modifiers"), world_cfg.world_modulation,
 							{
 								XOR("Night mode"),
 								XOR("Sunset mode"),
 								XOR("Fullbright")
 							});
 
-						if (g_cfg.misc.world_modulation & 1)
+						if (world_cfg.world_modulation & 1)
 						{
-							color_picker(CXOR("World color"), g_cfg.misc.world_clr[world], no_alpha_picker);
-							color_picker(CXOR("Props color"), g_cfg.misc.world_clr[props], no_alpha_picker);
-							color_picker(CXOR("Skybox color"), g_cfg.misc.world_clr[sky], no_alpha_picker);
+							color_picker(CXOR("World color"), world_cfg.world_clr[world], no_alpha_picker);
+							color_picker(CXOR("Props color"), world_cfg.world_clr[props], no_alpha_picker);
+							color_picker(CXOR("Skybox color"), world_cfg.world_clr[sky], no_alpha_picker);
 						}
 
-						if (g_cfg.misc.world_modulation & 2)
+						if (world_cfg.world_modulation & 2)
 						{
-							slider_int(CXOR("Sun pitch"), &g_cfg.misc.sunset_angle.x, -180, 180, CXOR("%d degrees"));
-							slider_int(CXOR("Sun yaw"), &g_cfg.misc.sunset_angle.y, -180, 180, CXOR("%d degrees"));
-							slider_int(CXOR("Sun roll"), &g_cfg.misc.sunset_angle.z, -180, 180, CXOR("%d degrees"));
+							slider_int(CXOR("Sun pitch"), &world_cfg.sunset_angle.x, -180, 180, CXOR("%d degrees"));
+							slider_int(CXOR("Sun yaw"), &world_cfg.sunset_angle.y, -180, 180, CXOR("%d degrees"));
+							slider_int(CXOR("Sun roll"), &world_cfg.sunset_angle.z, -180, 180, CXOR("%d degrees"));
 						}
 					}
 					end_child;
 				}
 			}
 			break;
-			case 4:
+			case 2:
 			{
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 300);
 				{
+					begin_child(CXOR("Map selection##effects"))
+					{
+						combo(CXOR("Profile##world_effects"), &world_profile_scope, profile_names, 2);
+					}
+					end_child;
+
 					begin_child(CXOR("Screen effects"))
 					{
 						multi_combo(CXOR("Removals"), g_cfg.misc.removals,
@@ -1262,12 +1361,12 @@ void c_menu::draw_ui_items()
 
 					begin_child(CXOR("World bloom"))
 					{
-						checkbox(CXOR("Customize bloom"), &g_cfg.misc.custom_bloom);
-						if (g_cfg.misc.custom_bloom)
+						checkbox(CXOR("Customize bloom"), &world_cfg.custom_bloom);
+						if (world_cfg.custom_bloom)
 						{
-							slider_int(CXOR("Bloom scale"), &g_cfg.misc.bloom_scale, 0, 5);
-							slider_int(CXOR("Exposure min"), &g_cfg.misc.exposure_min, 1, 10);
-							slider_int(CXOR("Exposure max"), &g_cfg.misc.exposure_max, 1, 10);
+							slider_int(CXOR("Bloom scale"), &world_cfg.bloom_scale, 0, 5);
+							slider_int(CXOR("Exposure min"), &world_cfg.exposure_min, 1, 10);
+							slider_int(CXOR("Exposure max"), &world_cfg.exposure_max, 1, 10);
 						}
 					}
 					end_child;
@@ -1276,20 +1375,20 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World fog"))
 					{
-						checkbox(CXOR("Customize fog"), &g_cfg.misc.custom_fog);
-						if (g_cfg.misc.custom_fog)
+						checkbox(CXOR("Customize fog"), &world_cfg.custom_fog);
+						if (world_cfg.custom_fog)
 						{
-							slider_int(CXOR("Fog start"), &g_cfg.misc.fog_start, 0, 10000);
-							slider_int(CXOR("Fog end"), &g_cfg.misc.fog_end, 0, 10000);
-							slider_int(CXOR("Density"), &g_cfg.misc.fog_density, 0, 100, CXOR("%d%%"));
-							color_picker(CXOR("Fog color"), g_cfg.misc.world_clr[fog], no_alpha_picker);
+							slider_int(CXOR("Fog start"), &world_cfg.fog_start, 0, 10000);
+							slider_int(CXOR("Fog end"), &world_cfg.fog_end, 0, 10000);
+							slider_int(CXOR("Density"), &world_cfg.fog_density, 0, 100, CXOR("%d%%"));
+							color_picker(CXOR("Fog color"), world_cfg.world_clr[fog], no_alpha_picker);
 						}
 					}
 					end_child;
 				}
 			}
 			break;
-			case 5:
+			case 3:
 			{
 				ImGui::Columns(2, 0, false);
 				ImGui::SetColumnOffset(1, 300);
@@ -1332,7 +1431,7 @@ void c_menu::draw_ui_items()
 			draw_list->PopClipRect();
 		}
 		break;
-		case 4:
+		case 6:
 		{
 			static int selector2 = 0;
 			draw_sub_tabs(selector2, misc_tabs);
@@ -1363,15 +1462,20 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Main"))
 					{
-						checkbox(CXOR("Auto jump"), &g_cfg.misc.auto_jump);
+						checkbox(CXOR("Bunny Hop"), &g_cfg.misc.auto_jump);
 
-						checkbox(CXOR("Auto strafe"), &g_cfg.misc.auto_strafe);
-						slider_int(CXOR("Turn smooth"), &g_cfg.misc.strafe_smooth, 0, 100, CXOR("%d%%"));
+						checkbox(CXOR("Air Strafe"), &g_cfg.misc.auto_strafe);
+						const char* strafe_modes[] = { CXOR("View angles"), CXOR("Movement keys") };
+						combo(CXOR("Strafe direction"), &g_cfg.misc.strafe_mode, strafe_modes, 2);
+						checkbox(CXOR("Only while holding jump"), &g_cfg.misc.strafe_only_jump);
+						checkbox(CXOR("Stop on Shift key"), &g_cfg.misc.strafe_stop_on_shift);
+						slider_int(CXOR("Turn Speed"), &g_cfg.misc.strafe_smooth, 0, 100, CXOR("%d%%"));
 
-						key_bind(CXOR("Edge jump"), g_cfg.binds[ej_b]);
+						key_bind(CXOR("Edge Jump"), g_cfg.binds[ej_b]);
 
-						checkbox(CXOR("Fast stop"), &g_cfg.misc.fast_stop);
-						checkbox(CXOR("Slide walk"), &g_cfg.misc.slide_walk);
+						checkbox(CXOR("Standalone Quick Stop"), &g_cfg.misc.fast_stop);
+						checkbox(CXOR("Slide Walk"), &g_cfg.misc.slide_walk);
+						key_bind(CXOR("Slow Walk"), g_cfg.binds[sw_b]);
 					}
 					end_child;
 				}
@@ -1513,67 +1617,132 @@ void c_menu::draw_ui_items()
 		break;
 		case 5:
 		{
-			ImGui::Columns(2, 0, false);
-			ImGui::SetColumnOffset(1, 300);
+			static int selector = 0;
+			draw_sub_tabs(selector, inventory_tabs);
+
+			static int prev_sub_sel = 0;
+			if (selector != prev_sub_sel)
 			{
-				begin_child(CXOR("Choose your weapon     "))
+				for (auto& a : item_animations)
+					a.second.reset();
+				subtab_alpha = 0.f;
+				prev_sub_sel = selector;
+			}
+			create_animation(subtab_alpha, g_cfg.misc.menu && selector == prev_sub_sel, 0.2f, skip_disable | lerp_animation);
+			alpha = subtab_alpha * tab_alpha;
+
+			ImGui::SetCursorPosX(0);
+			ImGui::BeginChild(CXOR("subtab_inventory"), {}, false);
+			switch (selector)
+			{
+			case 0:
+			{
+				const std::vector<std::vector<int>> categories = {
+					{ weapon_cfg_deagle, weapon_cfg_duals, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p2000, weapon_cfg_p250, weapon_cfg_usps, weapon_cfg_cz75, weapon_cfg_revolver },
+					{ weapon_cfg_famas, weapon_cfg_galil, weapon_cfg_mac10, weapon_cfg_mp5sd, weapon_cfg_ump45, weapon_cfg_xm1014, weapon_cfg_bizon, weapon_cfg_mag7, weapon_cfg_sawedoff, weapon_cfg_mp7, weapon_cfg_mp9, weapon_cfg_nova },
+					{ weapon_cfg_ak47, weapon_cfg_aug, weapon_cfg_awp, weapon_cfg_g3sg1, weapon_cfg_m249, weapon_cfg_m4a1, weapon_cfg_m4a1s, weapon_cfg_p90, weapon_cfg_negev, weapon_cfg_scar20, weapon_cfg_sg556, weapon_cfg_ssg08, weapon_cfg_knife }
+				};
+				const char* category_names[] = { CXOR("Pistols"), CXOR("Mid-Tier"), CXOR("Rifles & Knife") };
+				ImGui::Columns(3, 0, false);
+				ImGui::SetColumnOffset(1, 200);
+				ImGui::SetColumnOffset(2, 400);
+				for (int column = 0; column < 3; ++column)
 				{
-					combo(CXOR("Painting up...##skins"), &g_cfg.skins.group_type, skin_weapon_configs, IM_ARRAYSIZE(skin_weapon_configs));
-
-					if (g_cfg.skins.group_type == weapon_cfg_knife)
-						combo(CXOR("Model  "), &g_cfg.skins.skin_weapon[g_cfg.skins.group_type].knife_model, knife_models, IM_ARRAYSIZE(knife_models));
+					if (column > 0)
+						ImGui::NextColumn();
+					begin_child(category_names[column])
+					{
+						for (const int index : categories[column])
+						{
+							auto& slot = g_cfg.skins.skin_weapon[index];
+							const std::string label = std::string(slot.enable ? "* " : "") + skin_weapon_configs[index] + CXOR("##loadout_") + std::to_string(index);
+							if (selectable(label.c_str(), g_cfg.skins.group_type == index, 1.f, 0, ImVec2(0, 26)))
+							{
+								g_cfg.skins.group_type = index;
+								selector = 1;
+							}
+							ImGui::ItemSize(ImVec2(0, 3));
+						}
+					}
+					end_child;
 				}
-				end_child;
-
-				begin_child(CXOR("Gloves"))
+			}
+			break;
+			case 1:
+			{
+				ImGui::Columns(2, 0, false);
+				ImGui::SetColumnOffset(1, 300);
 				{
-					combo(CXOR("Glove model"), &g_cfg.skins.model_glove, glove_models, IM_ARRAYSIZE(glove_models));
-					combo(CXOR("Glove skin"), &g_cfg.skins.glove_skin, glove_skins, IM_ARRAYSIZE(glove_skins));
+					begin_child(CXOR("Weapon"))
+					{
+						combo(CXOR("Loadout slot##skins"), &g_cfg.skins.group_type, skin_weapon_configs, IM_ARRAYSIZE(skin_weapon_configs));
+						auto& config = g_cfg.skins.skin_weapon[g_cfg.skins.group_type];
+						checkbox(CXOR("Enable skin##inventory"), &config.enable);
+						slider_int(CXOR("Wear##inventory"), &config.wear, 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Pattern seed##inventory"), &config.seed, 0, 1000);
+						checkbox(CXOR("StatTrak##inventory"), &config.stattrak);
+						if (config.stattrak)
+							slider_int(CXOR("StatTrak kills##inventory"), &config.stattrak_kills, 0, 1000000);
+						if (g_cfg.skins.group_type == weapon_cfg_knife)
+							combo(CXOR("Knife model"), &config.knife_model, knife_models, IM_ARRAYSIZE(knife_models));
+					}
+					end_child;
 				}
-				end_child;
+				ImGui::NextColumn();
+				{
+					if (skin_names.size() < skin_changer::paint_kits.size())
+						for (auto& skin : skin_changer::paint_kits)
+							skin_names.emplace_back(skin.first);
 
+					auto& config = g_cfg.skins.skin_weapon[g_cfg.skins.group_type];
+					auto skin_list = skin_changer::paint_kits.empty() ? empty_list : skin_names;
+					const std::string title = XOR("Paint kits | ") + std::to_string(skin_list.size());
+					begin_child(title.c_str())
+					{
+						input_text(CXOR("Search##skins"), config.skins_search, 256);
+						listbox(CXOR("skinlist_____"), &config.skin, skin_list, 15, config.skins_search);
+					}
+					end_child;
+				}
+			}
+			break;
+			case 2:
+			{
+				ImGui::Columns(2, 0, false);
+				ImGui::SetColumnOffset(1, 300);
+				{
+					begin_child(CXOR("Gloves"))
+					{
+						combo(CXOR("Glove model"), &g_cfg.skins.model_glove, glove_models, IM_ARRAYSIZE(glove_models));
+						combo(CXOR("Glove skin"), &g_cfg.skins.glove_skin, glove_skins, IM_ARRAYSIZE(glove_skins));
+					}
+					end_child;
+				}
+				ImGui::NextColumn();
+				{
 #ifndef LEGACY
-				begin_child(CXOR("Player"))
-				{
-					combo(CXOR("Mask"), &g_cfg.skins.masks, masks, IM_ARRAYSIZE(masks));
-
-					combo(CXOR("Agent CT"), &g_cfg.skins.model_ct, agents, IM_ARRAYSIZE(agents));
-
-					if (g_cfg.skins.model_ct == 76)
-						input_text(CXOR("Model path##agent_ct"), g_cfg.skins.custom_model_ct, 128);
-
-					combo(CXOR("Agent T"), &g_cfg.skins.model_t, agents, IM_ARRAYSIZE(agents));
-
-					if (g_cfg.skins.model_t == 76)
-						input_text(CXOR("Model path##agent_t"), g_cfg.skins.custom_model_t, 128);
-				}
-				end_child;
+					begin_child(CXOR("Agents"))
+					{
+						combo(CXOR("Mask"), &g_cfg.skins.masks, masks, IM_ARRAYSIZE(masks));
+						combo(CXOR("Agent CT"), &g_cfg.skins.model_ct, agents, IM_ARRAYSIZE(agents));
+						if (g_cfg.skins.model_ct == 76)
+							input_text(CXOR("Model path##agent_ct"), g_cfg.skins.custom_model_ct, 128);
+						combo(CXOR("Agent T"), &g_cfg.skins.model_t, agents, IM_ARRAYSIZE(agents));
+						if (g_cfg.skins.model_t == 76)
+							input_text(CXOR("Model path##agent_t"), g_cfg.skins.custom_model_t, 128);
+					}
+					end_child;
 #endif
-			}
-			ImGui::NextColumn();
-			{
-				if (skin_names.size() < skin_changer::paint_kits.size())
-				{
-					for (auto& s : skin_changer::paint_kits)
-						skin_names.emplace_back(s.first);
 				}
-
-				auto& config = g_cfg.skins.skin_weapon[g_cfg.skins.group_type];
-				auto skin_list = skin_changer::paint_kits.size() <= 0 ? empty_list : skin_names;
-				std::string skin_list_child_name = XOR("Skins | ") + std::to_string(skin_list.size()) + XOR(" total");
-
-				begin_child(skin_list_child_name.c_str())
-				{
-					checkbox(CXOR("Enable"), &config.enable);
-
-					input_text(CXOR("Skins search"), config.skins_search, 256);
-					listbox(CXOR("skinlist_____"), &config.skin, skin_list, 17, config.skins_search);
-				}
-				end_child;
 			}
+			break;
+			}
+			ImGui::EndChild(false);
+			ImGui::PopClipRect();
+			draw_list->PopClipRect();
 		}
 		break;
-		case 6:
+		case 7:
 		{
 			static int config_select = -1;
 			static char config_name[256]{};

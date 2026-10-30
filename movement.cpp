@@ -55,7 +55,10 @@ void c_movement::auto_strafe()
 	if (HACKS->local->flags().has(FL_ONGROUND))
 		return;
 
-	if (HACKS->cmd->buttons.has(IN_SPEED))
+	if (g_cfg.misc.strafe_stop_on_shift && HACKS->cmd->buttons.has(IN_SPEED))
+		return;
+
+	if (g_cfg.misc.strafe_only_jump && !HACKS->cmd->buttons.has(IN_JUMP))
 		return;
 
 	auto holding_w = HACKS->cmd->buttons.has(IN_FORWARD);
@@ -63,7 +66,7 @@ void c_movement::auto_strafe()
 	auto holding_s = HACKS->cmd->buttons.has(IN_BACK);
 	auto holding_d = HACKS->cmd->buttons.has(IN_MOVERIGHT);
 
-	auto pressing_move = holding_w || holding_a || holding_s || holding_d;
+	auto pressing_move = g_cfg.misc.strafe_mode == 1 && (holding_w || holding_a || holding_s || holding_d);
 
 	vec3_t velocity = HACKS->local->velocity();
 	velocity.z = 0.f;

@@ -86,7 +86,7 @@ namespace hooks::detour
 	{
 		static auto original = hooker::get_original(&draw_fog);
 
-		if ((g_cfg.misc.removals & fog_) && !g_cfg.misc.custom_fog)
+		if ((g_cfg.misc.removals & fog_) && !get_world_settings().custom_fog)
 			return false;
 
 		return original(ecx, edx);

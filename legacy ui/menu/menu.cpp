@@ -34,7 +34,7 @@ std::vector< std::string > key_strings = { XOR("None"), XOR("M1"), XOR("M2"), XO
   XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "),
   XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" "), XOR(" ") };
 
-std::array< std::string, max_tabs > tabs = { XOR("Rage"), XOR("Legit"), XOR("Anti-hit"), XOR("Visuals"), XOR("Misc"), XOR("Skins"), XOR("Configs") };
+std::array< std::string, max_tabs > tabs = { XOR("Rage"), XOR("Legit"), XOR("Anti-hit"), XOR("Players"), XOR("World"), XOR("Inventory"), XOR("Miscellaneous"), XOR("Configs") };
 
 void c_menu::create_animation(float& mod, bool cond, float speed_multiplier, unsigned int animation_flags)
 {
@@ -108,13 +108,16 @@ void c_menu::init_textures()
 		add_texture_to_memory(RENDER->get_device(), visuals_icon, sizeof(visuals_icon), &icon_textures[3]);
 
 	if (!icon_textures[4])
-		add_texture_to_memory(RENDER->get_device(), misc_icon, sizeof(misc_icon), &icon_textures[4]);
+		add_texture_to_memory(RENDER->get_device(), visuals_icon, sizeof(visuals_icon), &icon_textures[4]);
 
 	if (!icon_textures[5])
 		add_texture_to_memory(RENDER->get_device(), skins_icon, sizeof(skins_icon), &icon_textures[5]);
 
 	if (!icon_textures[6])
-		add_texture_to_memory(RENDER->get_device(), cfg_icon, sizeof(cfg_icon), &icon_textures[6]);
+		add_texture_to_memory(RENDER->get_device(), misc_icon, sizeof(misc_icon), &icon_textures[6]);
+
+	if (!icon_textures[7])
+		add_texture_to_memory(RENDER->get_device(), cfg_icon, sizeof(cfg_icon), &icon_textures[7]);
 
 	//MessageBoxA(0, g_cheat_info->user_avatar.c_str(), 0, 0);
 
@@ -282,10 +285,14 @@ void c_menu::draw_tabs()
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, a));
 
+	list->AddText(base + ImVec2(12, 68), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Aimbot"));
+	list->AddText(base + ImVec2(12, 190), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Visuals"));
+	list->AddText(base + ImVec2(12, 302), c_color(100, 104, 116, 220.f * a).as_imcolor(), CXOR("Common"));
+
 	for (int i = 0; i < tabs.size(); ++i)
 	{
 		auto& info = tab_info[i];
-		const float y = 70.f + 34.f * i;
+		const float y = 86.f + 34.f * i + (i >= 3 ? 22.f : 0.f) + (i >= 6 ? 12.f : 0.f);
 		ImGui::SetCursorPos(ImVec2(6, y));
 		const auto id = CXOR("##tab_") + std::to_string(i);
 		info.selected = ImGui::ButtonEx(id.c_str(), ImVec2(144, 30), 0, &info.hovered);
@@ -294,7 +301,7 @@ void c_menu::draw_tabs()
 		create_animation(info.hovered_alpha, info.hovered, 1.f, lerp_animation);
 		create_animation(info.alpha, tab_selector == i, 0.8f, lerp_animation);
 
-		const auto min = base + ImVec2(6, 70 + 34 * i);
+		const auto min = base + ImVec2(6, y);
 		const auto max = min + ImVec2(148, 30);
 		const float fill = std::clamp(info.alpha + info.hovered_alpha * 0.4f, 0.f, 1.f);
 		if (fill > 0.01f)

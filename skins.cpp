@@ -912,11 +912,13 @@ namespace skin_changer
 
 	__forceinline bool set_paint_kit(c_base_combat_weapon* weapon, skin_weapon_t& cfg)
 	{
-		cfg.knife_model = std::clamp(cfg.knife_model, 0, max_knifes);
+		cfg.knife_model = std::clamp(cfg.knife_model, 0, max_knifes - 1);
 
-		int skin = std::clamp(cfg.skin, 0, (int)paint_kits.size() - 1);
+		if (paint_kits.empty())
+			return false;
 
-		auto& skin_data = paint_kits[cfg.skin];
+		const int skin = std::clamp(cfg.skin, 0, (int)paint_kits.size() - 1);
+		auto& skin_data = paint_kits[skin];
 
 		auto client_class = weapon->get_client_class();
 		if (!client_class)
@@ -926,7 +928,9 @@ namespace skin_changer
 
 		weapon->original_owner_xuid_low() = 0;
 		weapon->original_owner_xuid_high() = 0;
-		weapon->fallback_wear() = 0.001f;
+		weapon->fallback_seed() = std::clamp(cfg.seed, 0, 1000);
+		weapon->fallback_wear() = std::clamp(cfg.wear, 0, 100) * 0.01f;
+		weapon->fallback_stat_trak() = cfg.stattrak ? std::max(0, cfg.stattrak_kills) : -1;
 		weapon->item_id_high() = -1;
 
 		if (client_class->class_id == CKnife)

@@ -36,9 +36,9 @@ __forceinline void save_string(json& j, std::string name, std::string v)
 	j[name] = v;
 }
 
-inline void save_clr(json& j, std::string name, c_float_color* v)
+inline void save_clr(json& j, std::string name, const c_float_color* v)
 {
-	auto& color = *v;
+	const auto& color = *v;
 	j[name][CXOR("r")] = color[0];
 	j[name][CXOR("g")] = color[1];
 	j[name][CXOR("b")] = color[2];
@@ -103,13 +103,81 @@ inline void load_float(const json& j, std::string name, float& v)
 	v = j[name].asFloat();
 }
 
-inline void load_string(json& j, std::string name, char* v)
+inline void load_string(const json& j, std::string name, char* v)
 {
 	if (j[name].empty())
 		return;
 
 	std::string value = j[name].asString();
 	strcpy(v,  value.data());
+}
+
+inline void save_world_profile(json& j, const world_settings_t& w)
+{
+	save_bool(j, CXOR("custom_bloom"), w.custom_bloom);
+	save_int(j, CXOR("bloom_scale"), w.bloom_scale);
+	save_int(j, CXOR("exposure_min"), w.exposure_min);
+	save_int(j, CXOR("exposure_max"), w.exposure_max);
+	save_bool(j, CXOR("custom_fog"), w.custom_fog);
+	save_int(j, CXOR("fog_start"), w.fog_start);
+	save_int(j, CXOR("fog_end"), w.fog_end);
+	save_int(j, CXOR("fog_density"), w.fog_density);
+	save_int(j, CXOR("skybox"), w.skybox);
+	save_string(j, CXOR("skybox_name"), w.skybox_name);
+	save_int(j, CXOR("prop_alpha"), w.prop_alpha);
+	save_uint(j, CXOR("world_material_options"), w.world_material_options);
+	save_uint(j, CXOR("world_modulation"), w.world_modulation);
+	save_int(j, CXOR("sunset_x"), w.sunset_angle.x);
+	save_int(j, CXOR("sunset_y"), w.sunset_angle.y);
+	save_int(j, CXOR("sunset_z"), w.sunset_angle.z);
+	for (int i = 0; i < world_clr_max; ++i)
+		save_clr(j[CXOR("world_clr") + std::to_string(i)], CXOR("color"), &w.world_clr[i]);
+}
+
+inline void load_world_profile(const json& j, world_settings_t& w)
+{
+	load_bool(j, CXOR("custom_bloom"), w.custom_bloom);
+	load_int(j, CXOR("bloom_scale"), w.bloom_scale);
+	load_int(j, CXOR("exposure_min"), w.exposure_min);
+	load_int(j, CXOR("exposure_max"), w.exposure_max);
+	load_bool(j, CXOR("custom_fog"), w.custom_fog);
+	load_int(j, CXOR("fog_start"), w.fog_start);
+	load_int(j, CXOR("fog_end"), w.fog_end);
+	load_int(j, CXOR("fog_density"), w.fog_density);
+	load_int(j, CXOR("skybox"), w.skybox);
+	load_string(j, CXOR("skybox_name"), w.skybox_name);
+	load_int(j, CXOR("prop_alpha"), w.prop_alpha);
+	load_uint(j, CXOR("world_material_options"), w.world_material_options);
+	load_uint(j, CXOR("world_modulation"), w.world_modulation);
+	load_int(j, CXOR("sunset_x"), w.sunset_angle.x);
+	load_int(j, CXOR("sunset_y"), w.sunset_angle.y);
+	load_int(j, CXOR("sunset_z"), w.sunset_angle.z);
+	for (int i = 0; i < world_clr_max; ++i)
+		load_clr(j[CXOR("world_clr") + std::to_string(i)], CXOR("color"), w.world_clr[i]);
+}
+
+inline void save_world_profiles(json& misc, const configs_t& cfg)
+{
+	save_bool(misc, CXOR("per_map_world"), cfg.misc.per_map_world);
+	auto& profiles = misc[CXOR("map_profiles")];
+	for (const auto& entry : cfg.misc.world_profiles)
+		save_world_profile(profiles[entry.first], entry.second);
+}
+
+inline void load_world_profiles(const json& misc, configs_t& cfg)
+{
+	load_bool(misc, CXOR("per_map_world"), cfg.misc.per_map_world);
+	cfg.misc.world_profiles.clear();
+	const auto& profiles = misc[CXOR("map_profiles")];
+	if (profiles.empty() || !profiles.isObject())
+		return;
+
+	for (const auto& name : profiles.getMemberNames())
+	{
+		world_settings_t profile = static_cast<const world_settings_t&>(cfg.misc);
+		load_world_profile(profiles[name], profile);
+		cfg.misc.world_profiles[name] = profile;
+	}
 }
 
 inline bool is_dir(const TCHAR* dir)
@@ -393,6 +461,9 @@ namespace config
 			save_bool(misc, CXOR("force_radar"), default_config.misc.force_radar);
 			save_int(misc, CXOR("ragdoll_gravity"), default_config.misc.ragdoll_gravity);
 			save_int(misc, CXOR("strafe_smooth"), default_config.misc.strafe_smooth);
+			save_int(misc, CXOR("strafe_mode"), default_config.misc.strafe_mode);
+			save_bool(misc, CXOR("strafe_only_jump"), default_config.misc.strafe_only_jump);
+			save_bool(misc, CXOR("strafe_stop_on_shift"), default_config.misc.strafe_stop_on_shift);
 
 			save_bool(misc[CXOR("buybot")], CXOR("enable"), default_config.misc.buybot.enable);
 			save_int(misc[CXOR("buybot")], CXOR("main_weapon"), default_config.misc.buybot.main_weapon);
@@ -427,6 +498,8 @@ namespace config
 			save_string(misc, CXOR("sound_name"), default_config.misc.sound_name);
 			save_int(misc, CXOR("prop_alpha"), default_config.misc.prop_alpha);
 			save_uint(misc, CXOR("world_material_options"), default_config.misc.world_material_options);
+
+			save_world_profiles(misc, default_config);
 
 			save_float(misc[CXOR("keybind_pos")], CXOR("x"), default_config.misc.keybind_position.x);
 			save_float(misc[CXOR("keybind_pos")], CXOR("y"), default_config.misc.keybind_position.y);
@@ -467,6 +540,10 @@ namespace config
 					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
 					save_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
 					save_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					save_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					save_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					save_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					save_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
 				}
 			}
 		}
@@ -738,6 +815,9 @@ namespace config
 			save_bool(misc, CXOR("force_radar"), g_cfg.misc.force_radar);
 			save_int(misc, CXOR("ragdoll_gravity"), g_cfg.misc.ragdoll_gravity);
 			save_int(misc, CXOR("strafe_smooth"), g_cfg.misc.strafe_smooth);
+			save_int(misc, CXOR("strafe_mode"), g_cfg.misc.strafe_mode);
+			save_bool(misc, CXOR("strafe_only_jump"), g_cfg.misc.strafe_only_jump);
+			save_bool(misc, CXOR("strafe_stop_on_shift"), g_cfg.misc.strafe_stop_on_shift);
 
 			save_bool(misc[CXOR("buybot")], CXOR("enable"), g_cfg.misc.buybot.enable);
 			save_int(misc[CXOR("buybot")], CXOR("main_weapon"), g_cfg.misc.buybot.main_weapon);
@@ -772,6 +852,8 @@ namespace config
 			save_string(misc, CXOR("sound_name"), g_cfg.misc.sound_name);
 			save_int(misc, CXOR("prop_alpha"), g_cfg.misc.prop_alpha);
 			save_uint(misc, CXOR("world_material_options"), g_cfg.misc.world_material_options);
+
+			save_world_profiles(misc, g_cfg);
 
 			save_float(misc[CXOR("keybind_pos")], CXOR("x"), g_cfg.misc.keybind_position.x);
 			save_float(misc[CXOR("keybind_pos")], CXOR("y"), g_cfg.misc.keybind_position.y);
@@ -813,6 +895,10 @@ namespace config
 					save_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
 					save_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
 					save_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					save_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					save_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					save_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					save_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
 				}
 			}
 		}
@@ -1094,6 +1180,9 @@ namespace config
 			load_bool(misc, CXOR("force_radar"), g_cfg.misc.force_radar);
 			load_int(misc, CXOR("ragdoll_gravity"), g_cfg.misc.ragdoll_gravity);
 			load_int(misc, CXOR("strafe_smooth"), g_cfg.misc.strafe_smooth);
+			load_int(misc, CXOR("strafe_mode"), g_cfg.misc.strafe_mode);
+			load_bool(misc, CXOR("strafe_only_jump"), g_cfg.misc.strafe_only_jump);
+			load_bool(misc, CXOR("strafe_stop_on_shift"), g_cfg.misc.strafe_stop_on_shift);
 
 			load_bool(misc[CXOR("buybot")], CXOR("enable"), g_cfg.misc.buybot.enable);
 			load_int(misc[CXOR("buybot")], CXOR("main_weapon"), g_cfg.misc.buybot.main_weapon);
@@ -1128,6 +1217,8 @@ namespace config
 			load_string(misc, CXOR("sound_name"), g_cfg.misc.sound_name);
 			load_int(misc, CXOR("prop_alpha"), g_cfg.misc.prop_alpha);
 			load_uint(misc, CXOR("world_material_options"), g_cfg.misc.world_material_options);
+
+			load_world_profiles(misc, g_cfg);
 
 			load_float(misc[CXOR("keybind_pos")], CXOR("x"), g_cfg.misc.keybind_position.x);
 			load_float(misc[CXOR("keybind_pos")], CXOR("y"), g_cfg.misc.keybind_position.y);
@@ -1169,6 +1260,10 @@ namespace config
 					load_bool(skins_cfg_json, CXOR("enable"), skins_cfg.enable);
 					load_int(skins_cfg_json, CXOR("knife_model"), skins_cfg.knife_model);
 					load_int(skins_cfg_json, CXOR("skin"), skins_cfg.skin);
+					load_int(skins_cfg_json, CXOR("wear"), skins_cfg.wear);
+					load_int(skins_cfg_json, CXOR("seed"), skins_cfg.seed);
+					load_bool(skins_cfg_json, CXOR("stattrak"), skins_cfg.stattrak);
+					load_int(skins_cfg_json, CXOR("stattrak_kills"), skins_cfg.stattrak_kills);
 				}
 			}
 		}

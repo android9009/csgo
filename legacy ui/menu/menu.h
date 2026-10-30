@@ -12,7 +12,7 @@ class ImDrawList;
 class c_game_event;
 struct ImVec2;
 
-constexpr int max_tabs = 7;
+constexpr int max_tabs = 8;
 
 enum animation_flags_t
 {
