@@ -82,7 +82,16 @@ void draw(ImDrawList* draw_list, int weapon, ImVec2 center, ImVec2 max_size, ImU
     const float cell_y = static_cast<float>((weapon / atlas::columns) * atlas::cell_height);
     const ImVec2 uv0((cell_x + bounds.x0) / atlas::width, (cell_y + bounds.y0) / atlas::height);
     const ImVec2 uv1((cell_x + bounds.x1) / atlas::width, (cell_y + bounds.y1) / atlas::height);
-    draw_list->AddImage(image, rect_min, rect_max, uv0, uv1, color);
+
+    // This D3D9 backend modulates non-font textures with D3DCOLOR (AARRGGBB),
+    // while ImGui packs colors as ABGR by default. Keep the conversion local
+    // to weapon images so text and the rest of the GUI retain their colors.
+    ImU32 vertex_color = color;
+#ifndef IMGUI_USE_BGRA_PACKED_COLOR
+    vertex_color = (color & 0xFF00FF00u) | ((color & 0x00FF0000u) >> 16) |
+        ((color & 0x000000FFu) << 16);
+#endif
+    draw_list->AddImage(image, rect_min, rect_max, uv0, uv1, vertex_color);
 }
 
 void on_device_reset() {

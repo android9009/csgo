@@ -114,6 +114,29 @@ void draw_text_centered(ImDrawList* draw, const ImRect& rect, const char* text, 
                          IM_ROUND(rect.GetCenter().y - size.y * 0.5f)), color, text);
 }
 
+bool exact_text_input(const char* id, char* buffer, int buffer_size, ImVec2 pos, float width,
+                      float font_size, ImGuiInputTextFlags flags, bool focus = false) {
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.f));
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.f, 0.f, 0.f, 0.f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.f, 0.f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
+    ImGui::BeginChild(id, ImVec2(width, font_size), false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::SetWindowFontScale(font_size / GImGui->FontBaseSize);
+    if (focus)
+        ImGui::SetKeyboardFocusHere();
+    const bool edited = ImGui::InputTextEx("##input", nullptr, buffer, buffer_size,
+                                           ImVec2(width, 0.f), flags, nullptr, nullptr);
+    ImGuiContext& context = *GImGui;
+    const ImGuiLastItemData input_item = context.LastItemData;
+    ImGui::EndChild();
+    context.LastItemData = input_item;
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+    return edited;
+}
+
 void draw_create_group_popup(const ImGuiID popup_id, const ImVec2& anchor, float scale) {
     bool open = ImGui::IsPopupOpen(popup_id, ImGuiPopupFlags_None);
     const float alpha = gui.popup_fade_alpha(popup_id, open);
@@ -191,9 +214,9 @@ void draw_weapon_picker_popup(const ImGuiID popup_id, int& slot, const ImVec2& a
         name_slot = slot;
     }
     was_open = open;
-    ImGui::SetCursorScreenPos(header_pos);
-    ImGui::InputTextEx("##preset_name", nullptr, name_buffer, static_cast<int>(sizeof(name_buffer)),
-                       ImVec2(width - 26.f * scale, header_h), ImGuiInputTextFlags_None, nullptr, nullptr);
+    exact_text_input("##preset_name", name_buffer, static_cast<int>(sizeof(name_buffer)),
+                     header_pos + ImVec2(2.f * scale, (header_h - ImGui::GetFontSize()) * 0.5f),
+                     width - 26.f * scale, ImGui::GetFontSize(), ImGuiInputTextFlags_None);
     rage_state().m_preset_names[slot] = name_buffer;
 
     ImGui::SetCursorScreenPos(header_pos + ImVec2(width - 24.f * scale, 0.f));
@@ -326,32 +349,50 @@ void draw_main_popup() {
         const ImVec2 block_pos = ImGui::GetCursorScreenPos();
         const float block_width = ImGui::GetContentRegionAvail().x;
         const bool selected = rage_state().m_selected_group == slot;
-        if (selected) {
+
+        bool controls_hovered = ImGui::IsMouseHoveringRect(
+            block_pos + ImVec2(block_width - 25.f * scale, 0.f),
+            block_pos + ImVec2(block_width, 24.f * scale));
+        int cell_index = 0;
+        for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+            if (!preset_has_weapon(slot, weapon))
+                continue;
+            const ImVec2 cell_min = block_pos + ImVec2(
+                (6.f + (cell_index % 5) * 42.f) * scale,
+                (24.f + (cell_index / 5) * 26.f) * scale);
+            controls_hovered |= ImGui::IsMouseHoveringRect(
+                cell_min, cell_min + ImVec2(38.f * scale, 26.f * scale));
+            ++cell_index;
+        }
+        const ImVec2 add_cell_min = block_pos + ImVec2(
+            (6.f + (cell_index % 5) * 42.f) * scale,
+            (24.f + (cell_index / 5) * 26.f) * scale);
+        controls_hovered |= ImGui::IsMouseHoveringRect(
+            add_cell_min, add_cell_min + ImVec2(28.f * scale, 26.f * scale));
+
+        const bool card_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+            ImGui::IsMouseHoveringRect(block_pos, block_pos + ImVec2(block_width, block_h)) &&
+            !controls_hovered;
+        if (selected || card_hovered) {
             draw->AddRectFilled(block_pos, block_pos + ImVec2(block_width, block_h),
                                 gui.frame_inactive.to_im_color(0.55f), 5.f * scale);
             draw->AddRect(block_pos, block_pos + ImVec2(block_width, block_h), gui.popup_border.to_im_color(), 5.f * scale);
         }
 
-        bool control_hovered = false;
         if (rename_slot == slot) {
-            ImGui::SetCursorScreenPos(block_pos + ImVec2(0.f, 1.f * scale));
-            if (rename_focus) {
-                ImGui::SetKeyboardFocusHere();
-                rename_focus = false;
-            }
-            const bool rename_enter = ImGui::InputTextEx("##rename", nullptr, rename_buffer,
-                static_cast<int>(sizeof(rename_buffer)), ImVec2(block_width - 25.f * scale, 22.f * scale),
-                ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll, nullptr, nullptr);
-            control_hovered = ImGui::IsItemHovered();
+            const bool rename_enter = exact_text_input(
+                "##rename", rename_buffer, static_cast<int>(sizeof(rename_buffer)),
+                block_pos + ImVec2(9.f * scale, (24.f * scale - ImGui::GetFontSize()) * 0.5f),
+                block_width - 34.f * scale, ImGui::GetFontSize(),
+                ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll, rename_focus);
+            rename_focus = false;
             rage_state().m_preset_names[slot] = rename_buffer;
             if (rename_enter || ImGui::IsItemDeactivated())
                 rename_slot = -1;
+            ImGui::SetCursorScreenPos(block_pos + ImVec2(block_width - 25.f * scale, 0.f));
         } else {
+            ImGui::SetCursorScreenPos(block_pos);
             const bool select_clicked = ImGui::InvisibleButton("##select", ImVec2(block_width - 25.f * scale, 24.f * scale));
-            const bool name_hovered = ImGui::IsItemHovered();
-            control_hovered = name_hovered;
-            if (name_hovered)
-                draw->AddRectFilled(block_pos, block_pos + ImVec2(block_width, 24.f * scale), gui.frame_inactive.to_im_color(0.45f), 5.f * scale);
             draw->PushClipRect(block_pos, block_pos + ImVec2(block_width - 26.f * scale, 24.f * scale), true);
             draw->AddText(block_pos + ImVec2(9.f * scale, (24.f * scale - ImGui::GetFontSize()) * 0.5f),
                           gui.text.to_im_color(), preset_name(slot));
@@ -362,13 +403,12 @@ void draw_main_popup() {
                 std::snprintf(rename_buffer, sizeof(rename_buffer), "%s", preset_name(slot));
                 rename_focus = true;
             }
+            ImGui::SameLine(0.f, 0.f);
         }
 
-        ImGui::SameLine(0.f, 0.f);
         const bool delete_clicked = ImGui::InvisibleButton("##delete", ImVec2(25.f * scale, 24.f * scale));
         const ImRect delete_rect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         const bool delete_hovered = ImGui::IsItemHovered();
-        control_hovered = control_hovered || delete_hovered;
         draw_text_centered(draw, delete_rect, ICON_FA_TIMES,
                            delete_hovered ? IM_COL32(235, 85, 100, 255)
                                           : static_cast<ImU32>(gui.text_disabled.to_im_color()));
@@ -386,7 +426,6 @@ void draw_main_popup() {
             const bool remove_clicked = ImGui::InvisibleButton("##remove", ImVec2(38.f * scale, 26.f * scale));
             const ImRect icon_rect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
             const bool icon_hovered = ImGui::IsItemHovered();
-            control_hovered = control_hovered || icon_hovered;
             draw->PushClipRect(icon_rect.Min, icon_rect.Max, true);
             weapon_icons::draw(draw, weapon, icon_rect.GetCenter(), ImVec2(32.f * scale, 16.f * scale),
                                icon_hovered ? IM_COL32(255, 0, 0, 255)
@@ -405,7 +444,6 @@ void draw_main_popup() {
         const bool add_clicked = ImGui::InvisibleButton("##add", ImVec2(28.f * scale, 26.f * scale));
         const ImRect add_rect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
         const bool add_hovered = ImGui::IsItemHovered();
-        control_hovered = control_hovered || add_hovered;
         if (add_hovered)
             draw->AddRectFilled(add_rect.Min, add_rect.Max, gui.frame_inactive.to_im_color(0.65f), 4.f * scale);
         draw_text_centered(draw, add_rect, ICON_FA_PLUS,
@@ -415,9 +453,7 @@ void draw_main_popup() {
             ImGui::OpenPopupEx(picker_popup_id, ImGuiPopupFlags_None);
         }
 
-        const bool card_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
-            ImGui::IsMouseHoveringRect(block_pos, block_pos + ImVec2(block_width, block_h));
-        if (card_hovered && !control_hovered && ImGui::IsMouseClicked(0))
+        if (card_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             rage_state().m_selected_group = slot;
 
         ImGui::Unindent(6.f * scale);
