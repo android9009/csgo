@@ -45,7 +45,6 @@ Index of this file:
 #endif
 
 #include "../../../menu/gui.hpp"
-#include "../../../menu/blur.hpp"
 #include "../../../menu/hashes.hpp"
 #include "../../../menu/binds.hpp"
 
