@@ -72,7 +72,7 @@ public:
     // reserve ends. Passing the wrong kind puts the gear on top of the control.
     enum class row_control { toggle, box, slider };
 
-    color_t accent_color = { 0.318f, 0.486f, 0.992f, 1.f }; // old one
+    color_t accent_color = { 1.f, 1.f, 1.f, 1.f }; // initial Style: #FFFFFFFF
     //color_t accent_color = { 0.604f, 0.596f, 0.788f, 1.f }; // neverlose v4
 
     color_t text = { 0.922f, 0.922f, 0.922f, 1.f };

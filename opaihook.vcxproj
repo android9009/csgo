@@ -96,6 +96,7 @@
     <ClCompile Include="menu\menu_shared.cpp" />
     <ClCompile Include="runtime\d3d9_runtime.cpp" />
     <ClCompile Include="runtime\fonts.cpp" />
+    <ClCompile Include="runtime\steam_avatar.cpp" />
     <ClCompile Include="sdk\config_system\config_system.cpp" />
     <ClCompile Include="sdk\includes\imgui\imgui.cpp" />
     <ClCompile Include="sdk\includes\imgui\imgui_demo.cpp" />
@@ -126,6 +127,7 @@
     <ClInclude Include="menu\spotify.hpp" />
     <ClInclude Include="runtime\fonts.hpp" />
     <ClInclude Include="runtime\runtime.hpp" />
+    <ClInclude Include="runtime\steam_avatar.hpp" />
     <ClInclude Include="sdk\config_system\config_system.hpp" />
     <ClInclude Include="sdk\includes\imgui\imconfig.h" />
     <ClInclude Include="sdk\includes\imgui\imgui.h" />

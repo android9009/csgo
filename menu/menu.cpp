@@ -9,6 +9,7 @@
 #include <cmath>
 #include "../sdk/config_system/config_system.hpp"
 #include "../sdk/includes/imgui/imgui_internal.h"
+#include "../runtime/steam_avatar.hpp"
 
 namespace {
 void switch_tab(int tab) {
@@ -383,7 +384,8 @@ void c_menu::render() {
 
         draw->AddLine(pos + ImVec2(185.f, 60.f), pos + ImVec2(size.x - 15.f, 60.f), gui.border.to_im_color());
         draw->AddLine(pos + ImVec2(10.f, 60.f), pos + ImVec2(160.f, 60.f), gui.border.to_im_color());
-        gui.user_profile(pos + ImVec2(10.f, size.y - 48.f), pos + ImVec2(160.f, size.y - 8.f), nullptr);
+        gui.user_profile(pos + ImVec2(10.f, size.y - 48.f), pos + ImVec2(160.f, size.y - 8.f),
+                         steam_avatar::texture());
 
         ImGui::SetCursorPos(ImVec2(10.f, 70.f));
         ImGui::BeginChild("##tabs", ImVec2(150.f, size.y - 120.f), false);

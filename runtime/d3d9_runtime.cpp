@@ -4,6 +4,7 @@
 
 #include "runtime.hpp"
 #include "fonts.hpp"
+#include "steam_avatar.hpp"
 
 #include <Windows.h>
 #include <d3d9.h>
@@ -153,6 +154,7 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
     {
         std::scoped_lock lock(frame_mutex);
         if (initialized && reset_device == device) {
+            steam_avatar::on_device_reset();
             blur::on_device_reset();
             ImGui_ImplDX9_InvalidateDeviceObjects();
         }

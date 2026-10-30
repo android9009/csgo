@@ -162,6 +162,9 @@
     <ClCompile Include="runtime\fonts.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="runtime\steam_avatar.cpp">
+      <Filter>Source Files\runtime</Filter>
+    </ClCompile>
     <ClCompile Include="sdk\config_system\config_system.cpp">
       <Filter>Source Files\sdk\config_system</Filter>
     </ClCompile>
@@ -246,6 +249,9 @@
       <Filter>Header Files\runtime</Filter>
     </ClInclude>
     <ClInclude Include="runtime\runtime.hpp">
+      <Filter>Header Files\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="runtime\steam_avatar.hpp">
       <Filter>Header Files\runtime</Filter>
     </ClInclude>
     <ClInclude Include="sdk\config_system\config_system.hpp">

@@ -22,6 +22,7 @@ add_library(airflow_shell SHARED
   menu/menu_shared.cpp
   runtime/d3d9_runtime.cpp
   runtime/fonts.cpp
+  runtime/steam_avatar.cpp
   sdk/config_system/config_system.cpp
   sdk/includes/imgui/imgui.cpp
   sdk/includes/imgui/imgui_demo.cpp
