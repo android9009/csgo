@@ -51,6 +51,19 @@ struct CUSTOMVERTEX
 };
 #define D3DFVF_CUSTOMVERTEX ( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 )
 
+static ImU32 ImGui_ImplDX9_ConvertVertexColor(ImU32 color)
+{
+#ifdef IMGUI_USE_BGRA_PACKED_COLOR
+    return color;
+#else
+    // ImGui packs colors as 0xAABBGGRR by default, but D3DDECLTYPE_D3DCOLOR
+    // expects 0xAARRGGBB. Convert at the renderer boundary for every draw
+    // list so shapes, text and textured controls use the same channel order.
+    return (color & 0xFF00FF00u) | ((color & 0x00FF0000u) >> 16) |
+        ((color & 0x000000FFu) << 16);
+#endif
+}
+
 static void ImGui_ImplDX9_SetupRenderState(const ImDrawData* draw_data)
 {
     // setup viewport
@@ -160,8 +173,11 @@ void ImGui_ImplDX9_RenderDrawData( const ImDrawData* draw_data )
     for( int n = 0; n < draw_data->CmdListsCount; ++n )
     {
         const ImDrawList* cmd_list = draw_data->CmdLists [ n ];
-        memcpy( vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof( ImDrawVert ) );
-        vtx_dst += cmd_list->VtxBuffer.Size;
+        const int vtx_count = cmd_list->VtxBuffer.Size;
+        memcpy( vtx_dst, cmd_list->VtxBuffer.Data, vtx_count * sizeof( ImDrawVert ) );
+        for( int i = 0; i < vtx_count; ++i )
+            vtx_dst[ i ].col = ImGui_ImplDX9_ConvertVertexColor( vtx_dst[ i ].col );
+        vtx_dst += vtx_count;
         memcpy( idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof( ImDrawIdx ) );
         idx_dst += cmd_list->IdxBuffer.Size;
     }
