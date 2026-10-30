@@ -267,7 +267,7 @@ void draw_visuals_players() {
         draw_teammate_side(ui.sides[1]);
     const float left_content_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
-    // The right column is the reference's live agent-panorama space for the active side,
+    // The right column displays the active side's material-target character preview,
     // not a separate CT/T settings panel. ESP Items remains a card above the same column.
     gui.end_grid();
 

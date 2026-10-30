@@ -287,6 +287,9 @@
     <ClInclude Include="sdk\config_system\config_system.hpp">
       <Filter>Header Files\sdk\config_system</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\source_preview.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\weapon_definitions.hpp">
       <Filter>Header Files\sdk</Filter>
     </ClInclude>

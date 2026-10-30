@@ -7,9 +7,12 @@
 
 struct IDirect3DDevice9;
 
-// Live CS:GO ItemPreviewPanel mirrored into the existing ImGui Players column.
-// The D3D9 frame hooks own capture/reset lifetime; draw() only synchronizes the panel when needed.
+// Fatality C_MergedMDL preview. FrameStageNotify renders into the material target;
+// the D3D9/ImGui pass only displays the completed raw texture.
 namespace agent_preview {
+void* frame_stage_notify_target();
+void on_frame_stage_render_end();
+
 void begin_frame(IDirect3DDevice9* device);
 void draw(const ImVec2& min, const ImVec2& max, int side);
 void end_frame();

@@ -139,6 +139,7 @@
     <ClInclude Include="runtime\runtime.hpp" />
     <ClInclude Include="runtime\steam_avatar.hpp" />
     <ClInclude Include="sdk\config_system\config_system.hpp" />
+    <ClInclude Include="sdk\source_preview.hpp" />
     <ClInclude Include="sdk\weapon_definitions.hpp" />
     <ClInclude Include="sdk\includes\imgui\imconfig.h" />
     <ClInclude Include="sdk\includes\imgui\imgui.h" />
