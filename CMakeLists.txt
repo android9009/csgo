@@ -14,7 +14,6 @@ add_library(airflow_shell SHARED
   features/rage/anti_aim.cpp
   features/rage/rage.cpp
   features/skins/skins.cpp
-  features/visuals/visuals.cpp
   menu/binds.cpp
   menu/blur.cpp
   menu/effects.cpp
@@ -23,6 +22,7 @@ add_library(airflow_shell SHARED
   menu/menu_shared.cpp
   menu/weapon_icons.cpp
   menu/weapon_presets.cpp
+  menu/visuals.cpp
   runtime/d3d9_runtime.cpp
   runtime/fonts.cpp
   runtime/steam_avatar.cpp

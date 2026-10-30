@@ -1,7 +1,7 @@
-// Darkside UI page only; no gameplay implementation.
-#include "../../menu/menu.hpp"
-#include "../../menu/hashes.hpp"
-#include "../../sdk/config_system/config_system.hpp"
+// Visuals menu page only. Gameplay ESP/rendering code belongs under features/visuals.
+#include "menu.hpp"
+#include "hashes.hpp"
+#include "../sdk/config_system/config_system.hpp"
 
 namespace {
 color_value make_ui_color(float r, float g, float b) {

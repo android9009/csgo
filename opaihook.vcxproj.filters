@@ -138,9 +138,6 @@
     <ClCompile Include="features\skins\skins.cpp">
       <Filter>Source Files\features\skins</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\visuals.cpp">
-      <Filter>Source Files\features\visuals</Filter>
-    </ClCompile>
     <ClCompile Include="menu\binds.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
@@ -163,6 +160,9 @@
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="menu\weapon_presets.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\visuals.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="runtime\d3d9_runtime.cpp">
