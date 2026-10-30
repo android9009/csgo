@@ -548,7 +548,7 @@ namespace config
 			save_int(skins[CXOR("agents")], CXOR("ct"), default_config.skins.model_ct);
 			save_int(skins[CXOR("agents")], CXOR("t"), default_config.skins.model_t);
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
@@ -565,7 +565,7 @@ namespace config
 				}
 			}
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
 
@@ -938,7 +938,7 @@ namespace config
 			save_int(skins[CXOR("agents")], CXOR("ct"), g_cfg.skins.model_ct);
 			save_int(skins[CXOR("agents")], CXOR("t"), g_cfg.skins.model_t);
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
@@ -955,7 +955,7 @@ namespace config
 				}
 			}
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
 
@@ -1338,7 +1338,7 @@ namespace config
 			load_int(skins[CXOR("agents")], CXOR("ct"), g_cfg.skins.model_ct);
 			load_int(skins[CXOR("agents")], CXOR("t"), g_cfg.skins.model_t);
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("skin_weapon ") + std::to_string(i + 1);
 
@@ -1355,7 +1355,7 @@ namespace config
 				}
 			}
 
-			for (int i = 0; i < weapon_cfg_max; ++i)
+			for (int i = 0; i < skin_weapon_cfg_max; ++i)
 			{
 				auto sub = CXOR("team_skin_weapon ") + std::to_string(i + 1);
 

@@ -149,24 +149,24 @@ namespace inventory_preview
 
 		std::string weapon_econ_name(int slot, const skin_weapon_t& config)
 		{
-			static constexpr const char* names[weapon_cfg_max] = {
+			static constexpr const char* names[skin_weapon_cfg_max] = {
 				"weapon_deagle", "weapon_elite", "weapon_fiveseven", "weapon_glock", "weapon_ak47",
 				"weapon_aug", "weapon_awp", "weapon_famas", "weapon_g3sg1", "weapon_galilar",
 				"weapon_m249", "weapon_m4a1", "weapon_m4a1_silencer", "weapon_mac10", "weapon_p90",
 				"weapon_mp5sd", "weapon_ump45", "weapon_xm1014", "weapon_bizon", "weapon_mag7",
 				"weapon_negev", "weapon_sawedoff", "weapon_tec9", "weapon_hkp2000", "weapon_mp7",
 				"weapon_mp9", "weapon_nova", "weapon_p250", "weapon_scar20", "weapon_sg556",
-				"weapon_ssg08", "weapon_usp_silencer", "weapon_cz75a", "weapon_revolver", "weapon_knife"
+				"weapon_ssg08", "weapon_usp_silencer", "weapon_cz75a", "weapon_revolver", "weapon_knife", "weapon_taser"
 			};
 
 			if (slot == weapon_cfg_knife)
 				return knife_econ_name(config.knife_model);
-			return names[std::clamp(slot, 0, weapon_cfg_max - 1)];
+			return names[std::clamp(slot, 0, skin_weapon_cfg_max - 1)];
 		}
 
 		IDirect3DTexture9* weapon_texture(int slot, bool force_skin = false, int team = 3)
 		{
-			if (slot < 0 || slot >= weapon_cfg_max)
+			if (slot < 0 || slot >= skin_weapon_cfg_max)
 				return nullptr;
 
 			const auto& config = skin_changer::get_weapon_config(slot, team);

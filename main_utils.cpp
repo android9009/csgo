@@ -159,7 +159,7 @@ namespace main_utils
 		if (!HACKS->weapon)
 			return {};
 
-		int tab = get_legit_tab();
+		int tab = HACKS->weapon->is_taser() ? weapon_cfg_taser : get_legit_tab();
 		return skin_changer::get_weapon_config(tab, HACKS->local->team());
 	}
 

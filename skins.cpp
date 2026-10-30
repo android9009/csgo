@@ -38,7 +38,7 @@ namespace skin_changer
 	skin_weapon_t& get_weapon_config(int slot, int team)
 	{
 		auto& profiles = team == TEAM_TT ? g_cfg.skins.team_skin_weapon : g_cfg.skins.skin_weapon;
-		return profiles[std::clamp(slot, 0, weapon_cfg_max - 1)];
+		return profiles[std::clamp(slot, 0, skin_weapon_cfg_max - 1)];
 	}
 
 	bool call_force_update = false;
@@ -1238,7 +1238,8 @@ namespace skin_changer
 			if (!weapon)
 				continue;
 
-			auto& skin_cfg = get_weapon_config(main_utils::get_legit_tab(weapon), HACKS->local->team());
+			const int skin_slot = weapon->is_taser() ? weapon_cfg_taser : main_utils::get_legit_tab(weapon);
+			auto& skin_cfg = get_weapon_config(skin_slot, HACKS->local->team());
 			if (!skin_cfg.enable)
 			{
 				if (skin_cfg.old_skin != -1)
@@ -1250,7 +1251,7 @@ namespace skin_changer
 				continue;
 			}
 
-			if (weapon->is_misc_weapon() && !weapon->is_knife())
+			if (weapon->is_misc_weapon() && !weapon->is_knife() && !weapon->is_taser())
 				continue;
 
 			if (!set_paint_kit(weapon, skin_cfg))

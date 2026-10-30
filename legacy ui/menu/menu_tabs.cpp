@@ -261,6 +261,7 @@ const char* skin_weapon_configs[] = {
 	xor_strs::weapon_cfg_cz75.c_str(),
 	xor_strs::weapon_cfg_revolver.c_str(),
 	xor_strs::weapon_cfg_knife.c_str(),
+	"Taser",
 };
 
 const char* aa_pitch[] =
@@ -1732,11 +1733,13 @@ void c_menu::draw_ui_items()
 					inventory_preview::draw_weapon(weapon_cfg_knife, ImVec2(150, 140), alpha, false, inventory_team == 0 ? 3 : 2);
 					ImGui::SameLine();
 					inventory_preview::draw_gloves(ImVec2(150, 140), alpha);
+					ImGui::SameLine();
+					inventory_preview::draw_weapon(weapon_cfg_taser, ImVec2(150, 140), alpha, false, inventory_team == 0 ? 3 : 2);
 				}
 				end_child;
 
 				const std::vector<std::vector<int>> categories = {
-					{ weapon_cfg_deagle, weapon_cfg_duals, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p2000, weapon_cfg_p250, weapon_cfg_usps, weapon_cfg_cz75, weapon_cfg_revolver },
+					{ weapon_cfg_deagle, weapon_cfg_duals, weapon_cfg_fiveseven, weapon_cfg_glock, weapon_cfg_tec9, weapon_cfg_p2000, weapon_cfg_p250, weapon_cfg_usps, weapon_cfg_cz75, weapon_cfg_revolver, weapon_cfg_taser },
 					{ weapon_cfg_famas, weapon_cfg_galil, weapon_cfg_mac10, weapon_cfg_mp5sd, weapon_cfg_ump45, weapon_cfg_xm1014, weapon_cfg_bizon, weapon_cfg_mag7, weapon_cfg_sawedoff, weapon_cfg_mp7, weapon_cfg_mp9, weapon_cfg_nova },
 					{ weapon_cfg_ak47, weapon_cfg_aug, weapon_cfg_awp, weapon_cfg_g3sg1, weapon_cfg_m249, weapon_cfg_m4a1, weapon_cfg_m4a1s, weapon_cfg_p90, weapon_cfg_negev, weapon_cfg_scar20, weapon_cfg_sg556, weapon_cfg_ssg08, weapon_cfg_knife }
 				};

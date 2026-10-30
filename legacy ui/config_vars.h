@@ -170,7 +170,9 @@ enum weapon_cfg_type_t
 	weapon_cfg_cz75,
 	weapon_cfg_revolver,
 	weapon_cfg_knife,
-	weapon_cfg_max
+	weapon_cfg_max,
+	weapon_cfg_taser = weapon_cfg_max,
+	skin_weapon_cfg_max
 };
 
 struct chams_t
@@ -594,8 +596,8 @@ struct configs_t
 		char custom_model_t[128]{};
 		char custom_model_ct[128]{};
 
-		std::array< skin_weapon_t, weapon_cfg_max > skin_weapon{};
-		std::array< skin_weapon_t, weapon_cfg_max > team_skin_weapon{};
+		std::array< skin_weapon_t, skin_weapon_cfg_max > skin_weapon{};
+		std::array< skin_weapon_t, skin_weapon_cfg_max > team_skin_weapon{};
 	} skins;
 
 	std::array< key_binds_t, binds_max > binds = {
