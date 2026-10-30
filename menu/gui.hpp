@@ -113,7 +113,7 @@ public:
     // label and only draw tr(label), so call sites keep passing English and switching the
     // language never changes an ID. trf() is the same for strings with %s arguments.
     int language = 0;
-    const char* tr( const char* text ) const;
+    const char* tr( const char* label ) const;
     std::string trf( const char* fmt, const char* a, const char* b = nullptr ) const;
 
     // 0 = Dark, 1 = Light. apply_theme() rewrites the palette (the accent is left alone - it's
@@ -160,7 +160,7 @@ public:
     bool row_sub_menu( const char* label, const char* description = "Open this section to adjust its settings." );
     void info_tooltip(const char* title, const char* description);
     void popup_shadow(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha = 1.f);
-    void popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha, bool border = true);
+    void popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha, bool draw_border = true);
 
     float popup_animation(const char* name, bool clicked, bool& wants_open);
     float popup_fade_alpha(ImGuiID id, bool open);
@@ -377,7 +377,7 @@ public:
     // measures its own true height via BeginGroup/EndGroup and stacks below the previous one.
     // Pass border=true for a section boxed in its own outline, false for one that's just spaced
     // (e.g. a lone slider sitting below a bordered group, matching this menu's reference design).
-    void popup_section_begin( const char* id, bool border = true, float pad = 14.f );
+    void popup_section_begin( const char* id, bool draw_border = true, float pad = 14.f );
     void popup_section_end();
 
     // --- Auto-layout grid ---

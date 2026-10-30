@@ -21,6 +21,9 @@
 
 #pragma comment(lib, "d3d9.lib")
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg,
+    WPARAM wparam, LPARAM lparam);
+
 namespace {
 using present_t = HRESULT(WINAPI*)(IDirect3DDevice9*, const RECT*, const RECT*, HWND,
     const RGNDATA*);
@@ -35,9 +38,6 @@ bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
 std::mutex frame_mutex;
-
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg,
-    WPARAM wparam, LPARAM lparam);
 
 LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
     if (!original_wndproc)

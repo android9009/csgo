@@ -630,7 +630,6 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
     IM_UNUSED(font);
 
     ImGui::PushID(target.key.c_str());
-    const bool menu_up = ImGui::IsPopupOpen(ImGui::GetID("##bind_menu"), ImGuiPopupFlags_None);
     const bool row_hovered = ImGui::IsMouseHoveringRect(rect.Min, rect.Max, true);
     const bool has_binds = !target.entries.empty();
 
@@ -843,6 +842,7 @@ void register_float(const char* key, const char* label, float* value, float mini
 
 target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* value) {
+    IM_UNUSED(label);
     IM_UNUSED(item_id);
     if (!value || !belongs_to_main_menu(window) ||
         (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
@@ -857,6 +857,7 @@ target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
 target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                       const ImRect& rect, const ImRect& control, ImGuiDataType type, void* value,
                       const void* minimum, const void* maximum) {
+    IM_UNUSED(label);
     IM_UNUSED(item_id);
     if (!value || !minimum || !maximum || !belongs_to_main_menu(window) ||
         (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))

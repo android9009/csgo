@@ -36,7 +36,7 @@ public:
         NotificationItem item;
         item.title = title;
         item.message = show_time ? (message) : message;
-        item.spawn_time = ImGui::GetTime();
+        item.spawn_time = static_cast<float>(ImGui::GetTime());
         item.duration = duration;
         item.anim_offset = 1.0f;   // start from right side
         item.slot = 0;
@@ -50,9 +50,8 @@ public:
         ImGuiIO& io = ImGui::GetIO();
         ImDrawList* draw = ImGui::GetForegroundDrawList();
 
-        const float now = ImGui::GetTime();
+        const float now = static_cast<float>(ImGui::GetTime());
         const float screen_w = io.DisplaySize.x;
-        const float screen_h = io.DisplaySize.y;
 
         const float notif_w = 280.0f;
         const float notif_h = 72.0f;
@@ -66,8 +65,6 @@ public:
         const float logo_rounding = 10.0f;   // 圆角半径
         const float logo_pad_x = 12.0f;    // 左边距
         const float logo_pad_y = (notif_h - logo_size) * 0.5f; // 垂直居中
-        const ImU32 logo_bgColor = IM_COL32(77, 125, 255, 255);
-        const ImU32 logo_borderColor = IM_COL32(100, 150, 255, 255);
 
         for (int i = (int)m_notifications.size() - 1; i >= 0; i--) {
             auto& n = m_notifications[i];
@@ -170,7 +167,7 @@ public:
             if (filled_w > 0.0f) {
                 ImVec2 fill_max(bar_min.x + filled_w, bar_max.y);
                 draw->AddRectFilled(bar_min, fill_max,
-                    gui.accent_color.to_im_color((int)(255 * alpha)), 1.5f);
+                    gui.accent_color.to_im_color(static_cast<float>(static_cast<int>(255 * alpha))), 1.5f);
             }
         }
     }

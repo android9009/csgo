@@ -530,7 +530,7 @@ void c_gui::popup_shadow(ImDrawList* draw, ImVec2 min, ImVec2 max, float roundin
 
 extern void draw_blur_rounded(ImDrawList*, ImVec2, ImVec2, float, float, ImColor);
 
-void c_gui::popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha, bool border) {
+void c_gui::popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float rounding, float alpha, bool draw_border) {
     if (!draw || alpha <= 0.f || max.x <= min.x || max.y <= min.y)
         return;
     const float radius = ImClamp(rounding, 0.f, ImMax(0.f, ImMin(max.x - min.x, max.y - min.y) * 0.5f - 1.f));
@@ -542,7 +542,7 @@ void c_gui::popup_surface(ImDrawList* draw, ImVec2 min, ImVec2 max, float roundi
     // continuing the menu's image rather than starting its own - every card, tooltip and option
     // list comes through here, so they all pick it up.
     shader_bg::draw_into(draw, min, max, radius, alpha);
-    if (border)
+    if (draw_border)
         draw->AddRect(min, max, popup_border.to_im_color(0.75f * alpha, false), radius, 0, 1.f * m_scale);
     draw->PopClipRect();
 }
@@ -1312,13 +1312,6 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
     window->DC.CursorMaxPos = saved_cursor_max;
     IM_UNUSED( trailing_clicked );
     return clicked_index;
-}
-
-// Cap band of 'H', in the units the text is actually drawn at: Y1 - Y0 is the cap height. A
-// wordmark is stacked on its caps, not on its em boxes, or the two lines drift apart.
-static float glyph_cap_h( const ImFont* font, float fs ) {
-    const ImFontGlyph* g = font->FindGlyph( ( ImWchar )'H' );
-    return g ? ( g->Y1 - g->Y0 ) * ( fs / font->FontSize ) : fs * 0.70f;
 }
 
 // The wordmark above the sidebar's divider. Every constant here is an unscaled pixel because the
@@ -2096,10 +2089,10 @@ void c_gui::config_popup( const char* popup_name, bool clicked, std::vector<conf
     end_popup_card( );
 }
 
-void c_gui::popup_section_begin( const char* id, bool border, float pad ) {
+void c_gui::popup_section_begin( const char* id, bool draw_border, float pad ) {
     m_popup_section_pos = ImGui::GetCursorScreenPos();
-    m_popup_section_border = border;
-    m_popup_section_pad = border ? pad * m_scale : 0.f;
+    m_popup_section_border = draw_border;
+    m_popup_section_pad = draw_border ? pad * m_scale : 0.f;
     const float horizontal_pad = 14.f * m_scale;
 
     float w = ImGui::GetContentRegionAvail().x;
@@ -2473,20 +2466,20 @@ namespace {
     };
 }
 
-const char* c_gui::tr( const char* text ) const {
-    if ( !text || language <= 0 || language > 2 )
-        return text;
+const char* c_gui::tr( const char* label ) const {
+    if ( !label || language <= 0 || language > 2 )
+        return label;
     static std::unordered_map<ImGuiID, int> index;
     if ( index.empty( ) )
         for ( int i = 0; i < IM_ARRAYSIZE( k_translations ); ++i )
             index[ ImHashData( k_translations[ i ].en, strlen( k_translations[ i ].en ) ) ] = i;
     // "Label##id" is looked up by its visible part; the translation comes back without the id
-    const char* end = ImGui::FindRenderedTextEnd( text );
-    if ( end == text )
-        return text;
-    const auto it = index.find( ImHashData( text, ( size_t )( end - text ) ) );
+    const char* end = ImGui::FindRenderedTextEnd( label );
+    if ( end == label )
+        return label;
+    const auto it = index.find( ImHashData( label, ( size_t )( end - label ) ) );
     if ( it == index.end( ) )
-        return text;
+        return label;
     const tr_entry& e = k_translations[ it->second ];
     return language == 1 ? e.ru : e.tr;
 }
@@ -3564,7 +3557,7 @@ namespace {
             }
             change_t = ImMin( 1.f, change_t + dt * 3.4f );
 
-            const float target = s.duration > 0.0 ? ( float )ImSaturate( s.position / s.duration ) : 0.f;
+            const float target = s.duration > 0.0 ? ImSaturate( static_cast<float>( s.position / s.duration ) ) : 0.f;
             fill_t = seeking ? target : ImLerp( fill_t, target, 1.f - expf( -dt * 20.f ) );
 
             lyrics_line_t = ImMin( 1.f, lyrics_line_t + dt * 4.5f );

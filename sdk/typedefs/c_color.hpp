@@ -16,11 +16,11 @@ public:
 	}
 
 	c_byte_color operator+( c_byte_color color ) {
-		return c_byte_color( r + color.r, g + color.g, b + color.b );
+		return c_byte_color( static_cast<float>( r + color.r ), static_cast<float>( g + color.g ), static_cast<float>( b + color.b ) );
 	}
 
 	c_byte_color operator+( unsigned char n ) {
-		return c_byte_color( r + n, g + n, b + n );
+		return c_byte_color( static_cast<float>( r + n ), static_cast<float>( g + n ), static_cast<float>( b + n ) );
 	}
 
 	c_byte_color operator+=( c_byte_color color ) {
@@ -40,11 +40,11 @@ public:
 	}
 
 	c_byte_color operator-( c_byte_color color ) {
-		return c_byte_color( r - color.r, g - color.g, b - color.b );
+		return c_byte_color( static_cast<float>( r - color.r ), static_cast<float>( g - color.g ), static_cast<float>( b - color.b ) );
 	}
 
 	c_byte_color operator-( unsigned char n ) {
-		return c_byte_color( r - n, g - n, b - n );
+		return c_byte_color( static_cast<float>( r - n ), static_cast<float>( g - n ), static_cast<float>( b - n ) );
 	}
 
 	c_byte_color operator-=( c_byte_color color ) {
@@ -64,11 +64,11 @@ public:
 	}
 
 	c_byte_color operator/( c_byte_color color ) {
-		return c_byte_color( r / color.r, g / color.g, b / color.b );
+		return c_byte_color( static_cast<float>( r / color.r ), static_cast<float>( g / color.g ), static_cast<float>( b / color.b ) );
 	}
 
 	c_byte_color operator/( unsigned char n ) {
-		return c_byte_color( r / n, g / n, b / n );
+		return c_byte_color( static_cast<float>( r / n ), static_cast<float>( g / n ), static_cast<float>( b / n ) );
 	}
 
 	c_byte_color operator/=( c_byte_color color ) {
@@ -88,11 +88,11 @@ public:
 	}
 
 	c_byte_color operator*( c_byte_color color ) {
-		return c_byte_color( r * color.r, g * color.g, b * color.b );
+		return c_byte_color( static_cast<float>( r * color.r ), static_cast<float>( g * color.g ), static_cast<float>( b * color.b ) );
 	}
 
 	c_byte_color operator*( unsigned char n ) {
-		return c_byte_color( r * n, g * n, b * n );
+		return c_byte_color( static_cast<float>( r * n ), static_cast<float>( g * n ), static_cast<float>( b * n ) );
 	}
 
 	c_byte_color operator*=( c_byte_color color ) {
