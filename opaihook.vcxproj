@@ -82,11 +82,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="features\config\config.cpp" />
+    <ClCompile Include="features\legit\legit.cpp" />
+    <ClCompile Include="features\misc\misc.cpp" />
+    <ClCompile Include="features\rage\rage.cpp" />
+    <ClCompile Include="features\skins\skins.cpp" />
+    <ClCompile Include="features\visuals\visuals.cpp" />
     <ClCompile Include="menu\binds.cpp" />
     <ClCompile Include="menu\blur.cpp" />
     <ClCompile Include="menu\effects.cpp" />
     <ClCompile Include="menu\gui.cpp" />
     <ClCompile Include="menu\menu.cpp" />
+    <ClCompile Include="menu\menu_shared.cpp" />
     <ClCompile Include="runtime\d3d9_runtime.cpp" />
     <ClCompile Include="runtime\fonts.cpp" />
     <ClCompile Include="sdk\config_system\config_system.cpp" />
@@ -113,6 +120,7 @@
     <ClInclude Include="menu\hashes.hpp" />
     <ClInclude Include="menu\menu.hpp" />
     <ClInclude Include="menu\menu_resources.h" />
+    <ClInclude Include="menu\menu_shared.hpp" />
     <ClInclude Include="menu\notification.hpp" />
     <ClInclude Include="menu\shader_bg.hpp" />
     <ClInclude Include="menu\spotify.hpp" />

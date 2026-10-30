@@ -14,7 +14,7 @@ Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Re
 
 ## Visual Studio 2022
 
-1. Откройте `opaihook.sln`.
+1. Откройте `airflow.sln`.
 2. Установите toolset **v143** и Windows SDK.
 3. Выберите `Release | x86` или `Debug | x86` и соберите проект.
 

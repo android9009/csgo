@@ -8,11 +8,18 @@ project(airflow_shell LANGUAGES C CXX RC)
 
 add_library(airflow_shell SHARED
   dllmain.cpp
+  features/config/config.cpp
+  features/legit/legit.cpp
+  features/misc/misc.cpp
+  features/rage/rage.cpp
+  features/skins/skins.cpp
+  features/visuals/visuals.cpp
   menu/binds.cpp
   menu/blur.cpp
   menu/effects.cpp
   menu/gui.cpp
   menu/menu.cpp
+  menu/menu_shared.cpp
   runtime/d3d9_runtime.cpp
   runtime/fonts.cpp
   sdk/config_system/config_system.cpp

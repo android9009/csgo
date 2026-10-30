@@ -1,43 +1,21 @@
 // Adapted for the standalone D3D9 GUI shell; CS2 umbrella dependencies removed.
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "menu.hpp"
+#include "menu_shared.hpp"
 #include "hashes.hpp"
 #include "notification.hpp"
 #include "shader_bg.hpp"
 #include "binds.hpp"
-#include <algorithm>
 #include <cmath>
 #include "../sdk/config_system/config_system.hpp"
 #include "../sdk/includes/imgui/imgui_internal.h"
 
 namespace {
-std::string g_selected_config;
-
-void refresh_config_selection() {
-    g_config_system->refresh();
-    const auto found = std::find(g_config_system->config_files.begin(),
-                                 g_config_system->config_files.end(), g_selected_config);
-    if (found == g_config_system->config_files.end())
-        g_selected_config = g_config_system->config_files.empty() ? std::string{} : g_config_system->config_files.front();
-}
-
 void switch_tab(int tab) {
     if (gui.m_tab == tab)
         return;
     gui.m_tab = tab;
     gui.m_anim = 0.f;
-}
-
-void save_config(const std::string& name) {
-    menu_binds::before_config_save();
-    g_config_system->save(name);
-    menu_binds::after_config_save();
-}
-
-void load_config(const std::string& name) {
-    menu_binds::before_config_save();
-    g_config_system->read(name);
-    menu_binds::on_config_loaded();
 }
 
 void register_bind_targets() {
@@ -174,7 +152,7 @@ void draw_top_bar(ImGuiWindow* window) {
     draw->AddText(button_pos + ImVec2((save_w - save_size.x) * 0.5f, (30.f - save_size.y) * 0.5f),
                   save_hovered ? gui.accent_color.to_im_color() : gui.text.to_im_color(), ICON_FA_SAVE);
 
-    const char* current_name = g_selected_config.empty() ? "None" : g_selected_config.c_str();
+    const char* current_name = menu_shared::selected_config.empty() ? "None" : menu_shared::selected_config.c_str();
     const ImVec2 name_size = ImGui::CalcTextSize(current_name);
     draw->AddText(button_pos + ImVec2(save_w + 12.f, (30.f - name_size.y) * 0.5f),
                   gui.text.to_im_color(), current_name);
@@ -183,12 +161,12 @@ void draw_top_bar(ImGuiWindow* window) {
     draw->AddText(button_pos + ImVec2(total_w - arrow_size.x - 12.f, (30.f - arrow_size.y) * 0.5f),
                   gui.text_disabled.to_im_color(), ICON_FA_CHEVRON_DOWN);
 
-    if (save_clicked && !g_selected_config.empty()) {
-        save_config(g_selected_config);
-        PushNotification(gui.tr("Config Saved"), gui.trf("Saved changes to %s", g_selected_config.c_str()));
+    if (save_clicked && !menu_shared::selected_config.empty()) {
+        menu_shared::save_config(menu_shared::selected_config);
+        PushNotification(gui.tr("Config Saved"), gui.trf("Saved changes to %s", menu_shared::selected_config.c_str()));
     }
     if (config_clicked)
-        refresh_config_selection();
+        menu_shared::refresh_config_selection();
 
     // Config dropdown - made taller
     bool config_open = false;
@@ -207,9 +185,9 @@ void draw_top_bar(ImGuiWindow* window) {
             ImGui::TextDisabled("%s", gui.tr("No presets found"));
         } else {
             for (const auto& file : g_config_system->config_files) {
-                if (ImGui::Selectable(file.c_str(), file == g_selected_config)) {
-                    g_selected_config = file;
-                    load_config(file);
+                if (ImGui::Selectable(file.c_str(), file == menu_shared::selected_config)) {
+                    menu_shared::selected_config = file;
+                    menu_shared::load_config(file);
                     PushNotification(gui.tr("Config Loaded"), gui.trf("Loaded config: %s", file.c_str()));
                     ImGui::CloseCurrentPopup();
                 }
@@ -344,7 +322,7 @@ void c_menu::init() {
     gui.user_name = "PASTAWARE";
     gui.user_status = "Till: Lifetime";
     gui.user_till = "Till: Lifetime";
-    refresh_config_selection();
+    menu_shared::refresh_config_selection();
     register_bind_targets();
 }
 
@@ -353,306 +331,6 @@ void c_menu::draw() {
     render();
     menu_binds::draw_overlay(m_opened);
     menu_binds::flush();
-}
-
-void c_menu::draw_rage() {
-    static const char* hitbox_names[] = { "Head", "Chest", "Stomach", "Arms", "Legs", "Feet" };
-    static const char* auto_stop_names[] = { "Early", "Full Stop", "Between Shots", "Air", "Duck" };
-
-    auto& rage = g_cfg->rage_bot;
-    auto& anti = g_cfg->anti_hit;
-    rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
-    auto& cfg = rage.m_weapon_config[rage.m_selected_group];
-
-    // Neverlose layout: left column MAIN + ACCURACY, right column SELECTION + ANTI-AIM. The
-    // options gear sits in the slot left of the control it belongs to; its card holds the
-    // settings that have no row of their own. The group being edited is chosen from the
-    // weapon-group selector in the top bar.
-    gui.begin_grid(2);
-
-    // ========== LEFT COLUMN ==========
-    gui.grid_col(0);
-
-    gui.grid_box("MAIN", k_auto_height);
-
-    // Enabled (gear: Silent / Extrapolate / Backtrack)
-    gui.row_begin();
-    if (gui.row_options_begin("##enable_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_checkbox("Silent", &rage.m_silent);
-        gui.row_checkbox("Backtrack", &cfg.m_backtrack);
-        gui.row_begin(); ImGui::SliderInt("Extrapolate", &cfg.m_extrapolate, 0, 16, "%d ticks");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Enabled", &rage.m_enabled);
-
-    // Peek Assist (gear: Style / Auto Stop / Retreat Mode / Max Distance)
-    static const char* peek_style[]    = { "Static", "Gradient", "Dynamic" };
-    static const char* peek_autostop[] = { "Select", "Early", "Full Stop" };
-    static const char* peek_retreat[]  = { "Off", "On Shot", "On Hurt" };
-    gui.row_begin();
-    if (gui.row_options_begin("##peek_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::Combo("Style", &rage.m_peek_assist_style, peek_style, IM_ARRAYSIZE(peek_style));
-        gui.row_begin(); ImGui::Combo("Auto Stop", &rage.m_peek_assist_auto_stop, peek_autostop, IM_ARRAYSIZE(peek_autostop));
-        gui.row_begin(); ImGui::Combo("Retreat Mode", &rage.m_peek_assist_retreat, peek_retreat, IM_ARRAYSIZE(peek_retreat));
-        gui.row_begin(); ImGui::SliderInt("Max Distance", &rage.m_peek_assist_max_distance, 0, 100,
-                                          rage.m_peek_assist_max_distance >= 100 ? "Inf." : "%d m");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Peek Assist", &rage.m_peek_assist);
-
-    // Hide Shots / Double Tap - no gear
-    gui.row_checkbox("Hide Shots", &rage.m_hide_shots);
-    gui.row_checkbox("Double Tap", &rage.m_double_tap);
-
-    gui.row_begin(); ImGui::SliderInt("Field of View", &rage.m_fov, 0, 180, "%d\xc2\xb0");
-    gui.end_group_box();
-
-    gui.grid_box("ACCURACY", k_auto_height);
-
-    gui.row_checkbox("Auto Scope", &cfg.m_auto_scope);
-
-    // Auto Stop (gear: Modes multibox)
-    bool auto_stop_modes[5] = { cfg.m_auto_stop_early, cfg.m_auto_stop_full, cfg.m_auto_stop_between,
-                                cfg.m_auto_stop_air, cfg.m_auto_stop_duck };
-    gui.row_begin();
-    if (gui.row_options_begin("##autostop_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_multibox("Modes", auto_stop_names, auto_stop_modes, 5, "Select auto stop modes.");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Auto Stop", &cfg.m_auto_stop);
-    cfg.m_auto_stop_early = auto_stop_modes[0];
-    cfg.m_auto_stop_full = auto_stop_modes[1];
-    cfg.m_auto_stop_between = auto_stop_modes[2];
-    cfg.m_auto_stop_air = auto_stop_modes[3];
-    cfg.m_auto_stop_duck = auto_stop_modes[4];
-    gui.end_group_box();
-
-    // ========== RIGHT COLUMN ==========
-    gui.grid_col(1);
-
-    gui.grid_box("SELECTION", k_auto_height);
-
-    // Hitboxes (gear: Prefer Body Aim)
-    gui.row_begin();
-    if (gui.row_options_begin("##hitbox_opts", 216.f, c_gui::row_control::box)) {
-        gui.row_checkbox("Prefer Body Aim", &cfg.m_prefer_body_aim);
-        gui.row_options_end();
-    }
-    gui.row_multibox("Hitboxes", hitbox_names, cfg.m_hitboxes, 6, "Select target hitboxes.");
-
-    // Multipoint (gear: Head Scale / Body Scale)
-    gui.row_begin();
-    if (gui.row_options_begin("##multipoint_opts", 250.f, c_gui::row_control::box)) {
-        gui.row_begin(); ImGui::SliderInt("Head Scale", &cfg.m_head_scale, -1, 100, 
-            cfg.m_head_scale == -1 ? "Auto" : "%d%%");
-        gui.row_begin(); ImGui::SliderInt("Body Scale", &cfg.m_body_scale, -1, 100,
-            cfg.m_body_scale == -1 ? "Auto" : "%d%%");
-        gui.row_options_end();
-    }
-    gui.row_multibox("Multipoint", hitbox_names, cfg.m_multi_points, 6, "Select multipoint locations.");
-
-    // Hit Chance (gear: Hit Chance Seed)
-    gui.row_begin();
-    if (gui.row_options_begin("##hitchance_opts", 250.f, c_gui::row_control::slider)) {
-        gui.row_begin(); ImGui::SliderInt("Hit Chance Seed", &cfg.m_hit_chance_seed, 0, 256);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::SliderInt("Hit Chance", &cfg.m_hit_chance, -1, 100, 
-        cfg.m_hit_chance == -1 ? "Auto" : "%d%%");
-
-    // Min. Damage (gear: Delay Shot)
-    gui.row_begin();
-    if (gui.row_options_begin("##mindmg_opts", 216.f, c_gui::row_control::slider)) {
-        gui.row_checkbox("Delay Shot", &cfg.m_delay_shot);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::SliderInt("Min. Damage", &cfg.m_minimum_damage, -1, 120,
-        cfg.m_minimum_damage == -1 ? "Auto" : "%d");
-
-    gui.row_checkbox("Penetrate Walls", &cfg.m_penetration);
-    gui.end_group_box();
-
-    // ANTI-AIM (moved here from its own tab)
-    gui.grid_box("ANTI-AIM", k_auto_height);
-
-    static const char* pitch_modes[]  = { "Off", "Down", "Up", "Zero", "Custom" };
-    static const char* yaw_modes[]    = { "Off", "Local View", "At Target" };
-    static const char* jitter_modes[] = { "Disabled", "Offset", "Center", "3-Way", "5-Way" };
-
-    gui.row_checkbox("Enabled", &anti.m_enabled);
-
-    gui.row_begin(); ImGui::Combo("Pitch", &anti.m_pitch_mode, pitch_modes, IM_ARRAYSIZE(pitch_modes));
-
-    // Yaw (gear: Yaw Add)
-    gui.row_begin();
-    if (gui.row_options_begin("##yaw_opts", 250.f, c_gui::row_control::box)) {
-        gui.row_begin(); ImGui::SliderInt("Yaw Add", &anti.m_yaw_amount, -180, 180);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::Combo("Yaw", &anti.m_yaw_mode, yaw_modes, IM_ARRAYSIZE(yaw_modes));
-
-    // Yaw Jitter (gear: Jitter Amount для offset/center/3-way/5-way)
-    gui.row_begin();
-    if (gui.row_options_begin("##jitter_opts", 250.f, c_gui::row_control::box)) {
-        gui.row_begin(); ImGui::SliderInt("Jitter Range", &anti.m_jitter_amount, 0, 90);
-        gui.row_options_end();
-    }
-    gui.row_begin(); ImGui::Combo("Yaw Jitter", &anti.m_yaw_jitter, jitter_modes, IM_ARRAYSIZE(jitter_modes));
-
-    // Slow Walk с слайдером скорости
-    gui.row_begin();
-    if (gui.row_options_begin("##slowwalk_opts", 250.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::SliderInt("Speed", &anti.m_aa_slow_walk_speed, 1, 100, "%d%%");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Slow Walk", &anti.m_aa_slow_walk);
-    
-    gui.row_checkbox("Leg Jitter", &anti.m_leg_jitter);
-    gui.row_checkbox("Freestanding", &anti.m_freestanding);
-    gui.end_group_box();
-
-    gui.end_grid();
-}
-
-void c_menu::draw_legit() {
-    gui.begin_grid(2);
-
-    gui.grid_col(0);
-    gui.grid_box("AIMBOT", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->legit_bot.m_enabled);
-    gui.row_begin(); ImGui::SliderFloat("Field Of View", &g_cfg->legit_bot.m_fov, 0.f, 180.f, "%.1f");
-    gui.row_begin(); ImGui::SliderFloat("Smooth", &g_cfg->legit_bot.m_smooth, 1.f, 20.f, "%.1f");
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("TRIGGERBOT", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->legit_bot.m_triggerbot_enabled);
-    gui.end_group_box();
-
-    gui.grid_box("BACKTRACK", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->legit_bot.m_backtrack_enabled);
-    gui.row_begin(); ImGui::SliderInt("Ticks", &g_cfg->legit_bot.m_backtrack_ticks, 0, 15);
-    gui.end_group_box();
-
-    gui.end_grid();
-}
-
-void c_menu::draw_visuals() {
-    gui.begin_grid(2);
-
-    gui.grid_col(0);
-    gui.grid_box("PLAYER ESP", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->visuals.m_player_esp.m_enabled);
-    gui.row_checkbox("Teammates", &g_cfg->visuals.m_player_esp.m_teammates);
-    gui.row_checkbox("Bounding Box", &g_cfg->visuals.m_player_esp.m_bounding_box);
-    gui.row_checkbox("Name", &g_cfg->visuals.m_player_esp.m_name);
-    gui.row_checkbox("Health", &g_cfg->visuals.m_player_esp.m_health_bar);
-    gui.row_checkbox("Weapon", &g_cfg->visuals.m_player_esp.m_weapon);
-    gui.row_checkbox("Skeleton", &g_cfg->visuals.m_player_esp.m_skeleton);
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("WORLD", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
-    gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
-    gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
-    gui.end_group_box();
-
-    gui.grid_box("THIRDPERSON", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->world_esp.m_enable_thirdperson);
-    gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
-    gui.end_group_box();
-
-    gui.end_grid();
-}
-
-void c_menu::draw_misc() {
-    gui.begin_grid(2);
-
-    gui.grid_col(0);
-    gui.grid_box("MOVEMENT", k_auto_height);
-    gui.row_checkbox("Bunny Hop", &g_cfg->misc.m_bunny_hop);
-    gui.row_checkbox("Automatic Strafe", &g_cfg->misc.m_auto_strafe);
-    static const char* strafe_modes[] = { "Legit", "Directional", "Rage" };
-    gui.row_begin(); ImGui::Combo("Strafe Type", &g_cfg->misc.m_strafe_type, strafe_modes, IM_ARRAYSIZE(strafe_modes));
-    gui.row_begin(); ImGui::SliderInt("Smooth", &g_cfg->misc.m_strafe_smooth, 0, 100);
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("OTHER", k_auto_height);
-    gui.row_checkbox("Menu Shader", &shader_bg::state().enabled);
-    gui.row_begin(); ImGui::SliderFloat("Shader Opacity", &shader_bg::state().opacity, 0.f, 1.f, "%.2f");
-    gui.end_group_box();
-
-    gui.end_grid();
-}
-
-void c_menu::draw_skins() {
-    gui.begin_grid(2);
-
-    gui.grid_col(0);
-    gui.grid_box("KNIFE", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Model", &g_cfg->skins.m_knives.m_selected, 0, 20);
-    gui.end_group_box();
-
-    gui.grid_box("GLOVES", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Model", &g_cfg->skins.m_gloves.m_selected, 0, 20);
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("AGENTS", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Counter-Terrorist", &g_cfg->skins.m_agents.m_selected_ct, 0, 20);
-    gui.row_begin(); ImGui::SliderInt("Terrorist", &g_cfg->skins.m_agents.m_selected, 0, 20);
-    gui.end_group_box();
-
-    gui.end_grid();
-}
-
-void c_menu::draw_configs() {
-    static char config_name[64] = "default";
-
-    refresh_config_selection();
-
-    gui.begin_grid(2);
-    gui.grid_col(0);
-    gui.grid_box("CONFIGS", 340.f, true);
-    for (const auto& file : g_config_system->config_files) {
-        if (ImGui::Selectable(file.c_str(), file == g_selected_config)) {
-            g_selected_config = file;
-            strncpy_s(config_name, file.c_str(), sizeof(config_name) - 1);
-        }
-    }
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("ACTIONS", k_auto_height);
-    gui.row_begin(); ImGui::InputText("Name", config_name, sizeof(config_name));
-    gui.row_begin();
-    if (ImGui::Button("Create", ImVec2(-1.f, 30.f)) && config_name[0]) {
-        save_config(config_name);
-        refresh_config_selection();
-        g_selected_config = config_name;
-    }
-    gui.row_begin();
-    if (ImGui::Button("Load", ImVec2(-1.f, 30.f)) && config_name[0]) {
-        load_config(config_name);
-        g_selected_config = config_name;
-    }
-    gui.row_begin();
-    if (ImGui::Button("Save", ImVec2(-1.f, 30.f)) && config_name[0]) {
-        save_config(config_name);
-        g_selected_config = config_name;
-    }
-    gui.row_begin();
-    if (ImGui::Button("Delete", ImVec2(-1.f, 30.f)) && config_name[0]) {
-        g_config_system->remove(config_name);
-        if (g_selected_config == config_name)
-            g_selected_config.clear();
-        refresh_config_selection();
-        config_name[0] = '\0';
-    }
-    gui.end_group_box();
-    gui.end_grid();
 }
 
 void c_menu::render() {

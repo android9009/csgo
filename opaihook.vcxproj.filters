@@ -10,6 +10,27 @@
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4C08-8B7A-83BB121AAD01}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\features">
+      <UniqueIdentifier>{712EE2E6-7FD6-59DA-9CE6-16A3B013537F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\config">
+      <UniqueIdentifier>{F0EA42F9-DECF-5DCC-8540-BCBEB063B03E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\legit">
+      <UniqueIdentifier>{550FDCDC-C6A3-52EA-B499-065C4344187A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\misc">
+      <UniqueIdentifier>{3E31E9A1-0F0B-5847-8FEC-9D50E843E4BA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\rage">
+      <UniqueIdentifier>{B0DF8DFF-B7DD-57E7-864E-3A0F8D532B7B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\skins">
+      <UniqueIdentifier>{AB3CAFAE-4581-547B-8090-B4E565AF383E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\visuals">
+      <UniqueIdentifier>{F432CCAC-2BAE-5DEC-9587-B6B60F9B2BDB}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\menu">
       <UniqueIdentifier>{D348432D-B1F1-5599-8C28-B36CB56A76E7}</UniqueIdentifier>
     </Filter>
@@ -99,6 +120,24 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="features\config\config.cpp">
+      <Filter>Source Files\features\config</Filter>
+    </ClCompile>
+    <ClCompile Include="features\legit\legit.cpp">
+      <Filter>Source Files\features\legit</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\misc.cpp">
+      <Filter>Source Files\features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\rage\rage.cpp">
+      <Filter>Source Files\features\rage</Filter>
+    </ClCompile>
+    <ClCompile Include="features\skins\skins.cpp">
+      <Filter>Source Files\features\skins</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\visuals.cpp">
+      <Filter>Source Files\features\visuals</Filter>
+    </ClCompile>
     <ClCompile Include="menu\binds.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
@@ -112,6 +151,9 @@
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\menu_shared.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="runtime\d3d9_runtime.cpp">
@@ -186,6 +228,9 @@
       <Filter>Header Files\menu</Filter>
     </ClInclude>
     <ClInclude Include="menu\menu_resources.h">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\menu_shared.hpp">
       <Filter>Header Files\menu</Filter>
     </ClInclude>
     <ClInclude Include="menu\notification.hpp">

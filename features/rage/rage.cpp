@@ -1,0 +1,162 @@
+// Darkside UI page only; no gameplay implementation.
+#include "../../menu/menu.hpp"
+#include "../../sdk/config_system/config_system.hpp"
+
+void c_menu::draw_rage() {
+    static const char* hitbox_names[] = { "Head", "Chest", "Stomach", "Arms", "Legs", "Feet" };
+    static const char* auto_stop_names[] = { "Early", "Full Stop", "Between Shots", "Air", "Duck" };
+
+    auto& rage = g_cfg->rage_bot;
+    auto& anti = g_cfg->anti_hit;
+    rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
+    auto& cfg = rage.m_weapon_config[rage.m_selected_group];
+
+    // Neverlose layout: left column MAIN + ACCURACY, right column SELECTION + ANTI-AIM. The
+    // options gear sits in the slot left of the control it belongs to; its card holds the
+    // settings that have no row of their own. The group being edited is chosen from the
+    // weapon-group selector in the top bar.
+    gui.begin_grid(2);
+
+    // ========== LEFT COLUMN ==========
+    gui.grid_col(0);
+
+    gui.grid_box("MAIN", k_auto_height);
+
+    // Enabled (gear: Silent / Extrapolate / Backtrack)
+    gui.row_begin();
+    if (gui.row_options_begin("##enable_opts", 250.f, c_gui::row_control::toggle)) {
+        gui.row_checkbox("Silent", &rage.m_silent);
+        gui.row_checkbox("Backtrack", &cfg.m_backtrack);
+        gui.row_begin(); ImGui::SliderInt("Extrapolate", &cfg.m_extrapolate, 0, 16, "%d ticks");
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Enabled", &rage.m_enabled);
+
+    // Peek Assist (gear: Style / Auto Stop / Retreat Mode / Max Distance)
+    static const char* peek_style[]    = { "Static", "Gradient", "Dynamic" };
+    static const char* peek_autostop[] = { "Select", "Early", "Full Stop" };
+    static const char* peek_retreat[]  = { "Off", "On Shot", "On Hurt" };
+    gui.row_begin();
+    if (gui.row_options_begin("##peek_opts", 250.f, c_gui::row_control::toggle)) {
+        gui.row_begin(); ImGui::Combo("Style", &rage.m_peek_assist_style, peek_style, IM_ARRAYSIZE(peek_style));
+        gui.row_begin(); ImGui::Combo("Auto Stop", &rage.m_peek_assist_auto_stop, peek_autostop, IM_ARRAYSIZE(peek_autostop));
+        gui.row_begin(); ImGui::Combo("Retreat Mode", &rage.m_peek_assist_retreat, peek_retreat, IM_ARRAYSIZE(peek_retreat));
+        gui.row_begin(); ImGui::SliderInt("Max Distance", &rage.m_peek_assist_max_distance, 0, 100,
+                                          rage.m_peek_assist_max_distance >= 100 ? "Inf." : "%d m");
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Peek Assist", &rage.m_peek_assist);
+
+    // Hide Shots / Double Tap - no gear
+    gui.row_checkbox("Hide Shots", &rage.m_hide_shots);
+    gui.row_checkbox("Double Tap", &rage.m_double_tap);
+
+    gui.row_begin(); ImGui::SliderInt("Field of View", &rage.m_fov, 0, 180, "%d\xc2\xb0");
+    gui.end_group_box();
+
+    gui.grid_box("ACCURACY", k_auto_height);
+
+    gui.row_checkbox("Auto Scope", &cfg.m_auto_scope);
+
+    // Auto Stop (gear: Modes multibox)
+    bool auto_stop_modes[5] = { cfg.m_auto_stop_early, cfg.m_auto_stop_full, cfg.m_auto_stop_between,
+                                cfg.m_auto_stop_air, cfg.m_auto_stop_duck };
+    gui.row_begin();
+    if (gui.row_options_begin("##autostop_opts", 250.f, c_gui::row_control::toggle)) {
+        gui.row_multibox("Modes", auto_stop_names, auto_stop_modes, 5, "Select auto stop modes.");
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Auto Stop", &cfg.m_auto_stop);
+    cfg.m_auto_stop_early = auto_stop_modes[0];
+    cfg.m_auto_stop_full = auto_stop_modes[1];
+    cfg.m_auto_stop_between = auto_stop_modes[2];
+    cfg.m_auto_stop_air = auto_stop_modes[3];
+    cfg.m_auto_stop_duck = auto_stop_modes[4];
+    gui.end_group_box();
+
+    // ========== RIGHT COLUMN ==========
+    gui.grid_col(1);
+
+    gui.grid_box("SELECTION", k_auto_height);
+
+    // Hitboxes (gear: Prefer Body Aim)
+    gui.row_begin();
+    if (gui.row_options_begin("##hitbox_opts", 216.f, c_gui::row_control::box)) {
+        gui.row_checkbox("Prefer Body Aim", &cfg.m_prefer_body_aim);
+        gui.row_options_end();
+    }
+    gui.row_multibox("Hitboxes", hitbox_names, cfg.m_hitboxes, 6, "Select target hitboxes.");
+
+    // Multipoint (gear: Head Scale / Body Scale)
+    gui.row_begin();
+    if (gui.row_options_begin("##multipoint_opts", 250.f, c_gui::row_control::box)) {
+        gui.row_begin(); ImGui::SliderInt("Head Scale", &cfg.m_head_scale, -1, 100, 
+            cfg.m_head_scale == -1 ? "Auto" : "%d%%");
+        gui.row_begin(); ImGui::SliderInt("Body Scale", &cfg.m_body_scale, -1, 100,
+            cfg.m_body_scale == -1 ? "Auto" : "%d%%");
+        gui.row_options_end();
+    }
+    gui.row_multibox("Multipoint", hitbox_names, cfg.m_multi_points, 6, "Select multipoint locations.");
+
+    // Hit Chance (gear: Hit Chance Seed)
+    gui.row_begin();
+    if (gui.row_options_begin("##hitchance_opts", 250.f, c_gui::row_control::slider)) {
+        gui.row_begin(); ImGui::SliderInt("Hit Chance Seed", &cfg.m_hit_chance_seed, 0, 256);
+        gui.row_options_end();
+    }
+    gui.row_begin(); ImGui::SliderInt("Hit Chance", &cfg.m_hit_chance, -1, 100, 
+        cfg.m_hit_chance == -1 ? "Auto" : "%d%%");
+
+    // Min. Damage (gear: Delay Shot)
+    gui.row_begin();
+    if (gui.row_options_begin("##mindmg_opts", 216.f, c_gui::row_control::slider)) {
+        gui.row_checkbox("Delay Shot", &cfg.m_delay_shot);
+        gui.row_options_end();
+    }
+    gui.row_begin(); ImGui::SliderInt("Min. Damage", &cfg.m_minimum_damage, -1, 120,
+        cfg.m_minimum_damage == -1 ? "Auto" : "%d");
+
+    gui.row_checkbox("Penetrate Walls", &cfg.m_penetration);
+    gui.end_group_box();
+
+    // ANTI-AIM (moved here from its own tab)
+    gui.grid_box("ANTI-AIM", k_auto_height);
+
+    static const char* pitch_modes[]  = { "Off", "Down", "Up", "Zero", "Custom" };
+    static const char* yaw_modes[]    = { "Off", "Local View", "At Target" };
+    static const char* jitter_modes[] = { "Disabled", "Offset", "Center", "3-Way", "5-Way" };
+
+    gui.row_checkbox("Enabled", &anti.m_enabled);
+
+    gui.row_begin(); ImGui::Combo("Pitch", &anti.m_pitch_mode, pitch_modes, IM_ARRAYSIZE(pitch_modes));
+
+    // Yaw (gear: Yaw Add)
+    gui.row_begin();
+    if (gui.row_options_begin("##yaw_opts", 250.f, c_gui::row_control::box)) {
+        gui.row_begin(); ImGui::SliderInt("Yaw Add", &anti.m_yaw_amount, -180, 180);
+        gui.row_options_end();
+    }
+    gui.row_begin(); ImGui::Combo("Yaw", &anti.m_yaw_mode, yaw_modes, IM_ARRAYSIZE(yaw_modes));
+
+    // Yaw Jitter (gear: Jitter Amount для offset/center/3-way/5-way)
+    gui.row_begin();
+    if (gui.row_options_begin("##jitter_opts", 250.f, c_gui::row_control::box)) {
+        gui.row_begin(); ImGui::SliderInt("Jitter Range", &anti.m_jitter_amount, 0, 90);
+        gui.row_options_end();
+    }
+    gui.row_begin(); ImGui::Combo("Yaw Jitter", &anti.m_yaw_jitter, jitter_modes, IM_ARRAYSIZE(jitter_modes));
+
+    // Slow Walk с слайдером скорости
+    gui.row_begin();
+    if (gui.row_options_begin("##slowwalk_opts", 250.f, c_gui::row_control::toggle)) {
+        gui.row_begin(); ImGui::SliderInt("Speed", &anti.m_aa_slow_walk_speed, 1, 100, "%d%%");
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Slow Walk", &anti.m_aa_slow_walk);
+    
+    gui.row_checkbox("Leg Jitter", &anti.m_leg_jitter);
+    gui.row_checkbox("Freestanding", &anti.m_freestanding);
+    gui.end_group_box();
+
+    gui.end_grid();
+}
