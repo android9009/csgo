@@ -231,6 +231,94 @@ void c_menu::init() {
     gui.user_till = "Till: Lifetime";
     menu_shared::refresh_config_selection();
     register_bind_targets();
+
+    m_initialization_overlay_active = true;
+    m_initialization_overlay_time = 0.f;
+}
+
+void c_menu::draw_initialization_overlay() {
+    if (!m_initialization_overlay_active)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.DisplaySize.x <= 0.f || io.DisplaySize.y <= 0.f)
+        return;
+
+    m_initialization_overlay_time += ImMin(io.DeltaTime, 0.05f);
+    const float elapsed = m_initialization_overlay_time;
+    constexpr float fade_in_duration = 0.20f;
+    constexpr float load_duration = 2.80f;
+    constexpr float hold_duration = 0.55f;
+    constexpr float fade_out_duration = 0.45f;
+    constexpr float fade_out_start = load_duration + hold_duration;
+    constexpr float total_duration = fade_out_start + fade_out_duration;
+    if (elapsed >= total_duration) {
+        m_initialization_overlay_active = false;
+        return;
+    }
+
+    const auto smoothstep = [](float value) {
+        value = ImClamp(value, 0.f, 1.f);
+        return value * value * (3.f - 2.f * value);
+    };
+
+    float alpha = smoothstep(elapsed / fade_in_duration);
+    if (elapsed > fade_out_start)
+        alpha *= 1.f - smoothstep((elapsed - fade_out_start) / fade_out_duration);
+
+    const float progress = ImClamp(elapsed / load_duration, 0.f, 1.f);
+    const int stage = ImClamp(1 + static_cast<int>(progress * 10.f), 1, 10);
+    const bool complete = progress >= 1.f;
+    const std::string counter = std::to_string(stage) + " of 10";
+    const char* status = complete ? "Initialization complete" : "Initialization in progress";
+
+    constexpr float card_w = 330.f;
+    constexpr float card_h = 70.f;
+    constexpr float margin = 12.f;
+    const float slide = (1.f - alpha) * 28.f;
+    const ImVec2 card_min(io.DisplaySize.x - card_w - margin + slide, margin);
+    const ImVec2 card_max = card_min + ImVec2(card_w, card_h);
+    const int text_alpha = static_cast<int>(255.f * alpha);
+
+    ImDrawList* draw = ImGui::GetForegroundDrawList();
+    draw->AddRectFilled(card_min + ImVec2(0.f, 4.f), card_max + ImVec2(0.f, 4.f),
+                        IM_COL32(0, 0, 0, static_cast<int>(90.f * alpha)), 16.f);
+    draw->AddRectFilled(card_min, card_max,
+                        IM_COL32(16, 18, 28, static_cast<int>(245.f * alpha)), 16.f);
+    draw->AddRect(card_min, card_max,
+                  IM_COL32(122, 132, 255, static_cast<int>(48.f * alpha)), 16.f);
+
+    ImFontAtlas* atlas = io.Fonts;
+    ImFont* body = atlas && atlas->Fonts.Size > 0 ? atlas->Fonts[0] : ImGui::GetFont();
+    ImFont* bold = atlas && atlas->Fonts.Size > 4 ? atlas->Fonts[4] : body;
+    ImFont* small = atlas && atlas->Fonts.Size > 7 ? atlas->Fonts[7] : body;
+
+    constexpr float logo_size = 40.f;
+    const ImVec2 logo_min = card_min + ImVec2(12.f, 15.f);
+    const ImVec2 logo_max = logo_min + ImVec2(logo_size, logo_size);
+    draw->AddRectFilled(logo_min, logo_max, IM_COL32(4, 6, 12, text_alpha), 10.f);
+    draw->AddRect(logo_min, logo_max, IM_COL32(255, 255, 255, static_cast<int>(14.f * alpha)), 10.f);
+    const ImVec2 logo_text_size = bold->CalcTextSizeA(14.f, FLT_MAX, 0.f, "PW");
+    draw->AddText(bold, 14.f, logo_min + (ImVec2(logo_size, logo_size) - logo_text_size) * 0.5f,
+                  IM_COL32(240, 242, 250, text_alpha), "PW");
+
+    const float text_x = card_min.x + 64.f;
+    draw->AddText(bold, 14.f, ImVec2(IM_ROUND(text_x), IM_ROUND(card_min.y + 10.f)),
+                  IM_COL32(238, 240, 248, text_alpha), "PASTAWARE");
+    const ImVec2 counter_size = small->CalcTextSizeA(12.f, FLT_MAX, 0.f, counter.c_str());
+    draw->AddText(small, 12.f,
+                  ImVec2(IM_ROUND(card_max.x - 12.f - counter_size.x), IM_ROUND(card_min.y + 12.f)),
+                  IM_COL32(164, 168, 184, text_alpha), counter.c_str());
+    draw->AddText(small, 13.f, ImVec2(IM_ROUND(text_x), IM_ROUND(card_min.y + 33.f)),
+                  IM_COL32(137, 141, 158, text_alpha), status);
+
+    const ImVec2 bar_min = card_min + ImVec2(12.f, card_h - 6.f);
+    const ImVec2 bar_max = card_max - ImVec2(12.f, 3.f);
+    draw->AddRectFilled(bar_min, bar_max, IM_COL32(58, 62, 80, static_cast<int>(140.f * alpha)), 1.5f);
+    if (progress > 0.f) {
+        const ImVec2 fill_max(ImLerp(bar_min.x, bar_max.x, progress), bar_max.y);
+        draw->AddRectFilled(bar_min, fill_max, gui.accent_color.to_im_color(alpha, false), 1.5f);
+    }
 }
 
 void c_menu::draw() {
@@ -238,6 +326,7 @@ void c_menu::draw() {
     render();
     menu_binds::draw_overlay(m_opened);
     menu_binds::flush();
+    draw_initialization_overlay();
 }
 
 void c_menu::render() {

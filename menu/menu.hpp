@@ -30,6 +30,10 @@ public:
     c_gui& ui() { return ::gui; }
 
 private:
+    bool m_initialization_overlay_active = false;
+    float m_initialization_overlay_time = 0.f;
+
+    void draw_initialization_overlay();
     void draw_rage();
     void draw_legit();
     void draw_anti_aim();
