@@ -69,7 +69,9 @@ players_ui_state& player_ui() {
     return state;
 }
 
-void draw_visuals_common() {
+// Kept with the UI settings, but deliberately unreachable: the Visuals parent only expands to
+// Players/World and has no content page of its own.
+[[maybe_unused]] void draw_visuals_common() {
     auto& effects = g_cfg->visuals.m_effects;
     auto& indicators = g_cfg->visuals.m_indicators;
 
@@ -107,12 +109,12 @@ void draw_visuals_common() {
 
 void draw_esp_chip_section(const char* id, const char* title, const char* const* labels,
                            bool* values, int count) {
-    gui.popup_section_begin(id, true, 12.f);
+    gui.popup_section_begin(id, true, 10.f);
     ImFontAtlas* fonts = ImGui::GetIO().Fonts;
     ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
     ImGui::TextUnformatted(gui.tr(title));
     ImGui::PopFont();
-    ImGui::Dummy(ImVec2(0.f, 8.f * gui.m_scale));
+    ImGui::Dummy(ImVec2(0.f, 5.f * gui.m_scale));
     gui.chips(id, labels, values, count);
     gui.popup_section_end();
 }
@@ -135,7 +137,7 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     // measured from the chip sections and its top edge stays fixed while the opening fade runs.
     bool wants_open = false;
     const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
-    const ImVec2 anchor = content_origin + ImVec2(0.f, 30.f * gui.m_scale);
+    const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
     if (!gui.begin_popup_card_at("ESP ItemsPopup", wants_open, anim, anchor, ImVec2(0.f, 0.f),
                                  content_width / gui.m_scale))
         return;
@@ -144,7 +146,7 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
     ImGui::TextColored(gui.text.to_vec4(1.f, false), "%s", gui.tr("ESP Items"));
     ImGui::PopFont();
-    ImGui::Dummy(ImVec2(0.f, 6.f * gui.m_scale));
+    ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
     draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
     draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
     draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
@@ -290,10 +292,9 @@ void draw_visuals_world() {
 } // namespace
 
 void c_menu::draw_visuals() {
-    gui.m_visuals_subtab = ImClamp(gui.m_visuals_subtab, 0, 2);
-    switch (gui.m_visuals_subtab) {
-        case 1: draw_visuals_players(); break;
-        case 2: draw_visuals_world(); break;
-        default: draw_visuals_common(); break;
-    }
+    gui.m_visuals_subtab = ImClamp(gui.m_visuals_subtab, 1, 2);
+    if (gui.m_visuals_subtab == 2)
+        draw_visuals_world();
+    else
+        draw_visuals_players();
 }

@@ -21,7 +21,7 @@ void switch_tab(int tab) {
 }
 
 void switch_visuals_tab(int tab) {
-    tab = ImClamp(tab, 0, 2);
+    tab = ImClamp(tab, 1, 2);
     if (gui.m_tab == 3 && gui.m_visuals_subtab == tab)
         return;
     gui.m_tab = 3;
@@ -334,8 +334,8 @@ void c_menu::render() {
 
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         gui.group_title("COMMON");
-        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3 && gui.m_visuals_subtab == 0))
-            switch_visuals_tab(0);
+        if (gui.tab(ICON_FA_IMAGE, "Visuals", gui.m_tab == 3))
+            switch_visuals_tab(gui.m_visuals_subtab);
         draw_visuals_subtabs();
         if (gui.tab(ICON_FA_SLIDERS_H, "Miscellaneous", gui.m_tab == 4)) switch_tab(4);
 

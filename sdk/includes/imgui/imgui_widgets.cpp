@@ -3637,10 +3637,18 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     ImGuiContext& g = *GImGui;
     ImGuiStyle& style = g.Style;
     ImGuiID id = window->GetID( label );
-    const bool is_popup_slider = gui.is_popup_window(window) && !gui.full_size_popup_sliders();
+    const bool in_popup = gui.is_popup_window(window);
+    const bool is_gear_slider = in_popup && gui.full_size_popup_sliders();
+    const bool is_popup_slider = in_popup && !is_gear_slider;
     // The scaled card content region is the row's right anchor, including its value box/track;
     // row_content_width() preserves an explicitly constrained section width.
     const float w = gui.row_content_width();
+
+    if ( format == NULL )
+        format = DataTypeGetInfo( data_type )->PrintFmt;
+    char value_buf[64];
+    const char* value_buf_end = value_buf + DataTypeFormatString(
+        value_buf, IM_ARRAYSIZE( value_buf ), data_type, p_data, format );
 
     ImVec2 label_size = CalcTextSize( label, 0, 1 );
     // Same floor as Checkbox's switch_h so every row type in a group_box shares the same rhythm/
@@ -3649,7 +3657,19 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     float row_h = ImMax(label_size.y, 19.f * gui.m_scale) + style.FramePadding.y * 2.f;
     float track_h = 4.f * gui.m_scale;
     float track_y = (row_h - track_h) * 0.5f;
-    float number_w = 38.f * gui.m_scale;    // the value box; it grows with a wider number below
+    float number_w = 38.f * gui.m_scale;    // the value box; gear cards reserve its real text below
+    if (is_gear_slider)
+    {
+        char min_buf[64], max_buf[64];
+        DataTypeFormatString(min_buf, IM_ARRAYSIZE(min_buf), data_type, p_min, format);
+        DataTypeFormatString(max_buf, IM_ARRAYSIZE(max_buf), data_type, p_max, format);
+        const float reserve_text_w = ImMax(CalcTextSize(value_buf, value_buf_end).x,
+            ImMax(CalcTextSize(min_buf).x, CalcTextSize(max_buf).x));
+        // A value such as "15 ticks" must never grow back over the track. Reserving the widest
+        // endpoint also keeps the track fixed while the slider is dragged through wider numbers.
+        number_w = ImMin(ImMax(number_w, reserve_text_w + 14.f * gui.m_scale),
+                         ImMax(38.f * gui.m_scale, w * 0.55f));
+    }
     float control_gap = 12.f * gui.m_scale; // track -> box
     float label_reserved = ImMin(82.f * gui.m_scale, w * 0.45f);
     float track_left = label_reserved;
@@ -3680,10 +3700,6 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     float& row_hover_anim = row_hover_anims[id];
     bool row_is_hovered = ImGui::IsMouseHoveringRect(total_bb.Min, total_bb.Max);
     row_hover_anim = ImLerp(row_hover_anim, row_is_hovered ? 1.f : 0.f, g.IO.DeltaTime * 15.f);
-
-    // Default format string when passing NULL
-    if ( format == NULL )
-        format = DataTypeGetInfo( data_type )->PrintFmt;
 
     ImRect hit_bb(frame_bb.Min - ImVec2(4.f, 7.f) * gui.m_scale,
                   frame_bb.Max + ImVec2(4.f, 7.f) * gui.m_scale);
@@ -3754,12 +3770,13 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     if (is_popup_slider && fabsf(value->second - target_fill) < 0.25f * gui.m_scale)
         value->second = target_fill;
 
-    char value_buf[64];
-    const char* value_buf_end = value_buf + DataTypeFormatString( value_buf, IM_ARRAYSIZE( value_buf ), data_type, p_data, format );
+    value_buf_end = value_buf + DataTypeFormatString(
+        value_buf, IM_ARRAYSIZE( value_buf ), data_type, p_data, format );
 
     // Value box: sized to its number, anchored to the row's right margin and centred vertically.
     const float text_width = CalcTextSize( value_buf, value_buf_end ).x;
-    const float box_w = ImMin( ImMax( number_w, text_width + 14.f * gui.m_scale ), w );
+    const float box_w = is_gear_slider ? ImMin(number_w, w)
+        : ImMin( ImMax( number_w, text_width + 14.f * gui.m_scale ), w );
     const float box_y = IM_ROUND( ( row_h - number_h ) * 0.5f );
     number_bb = ImRect( pos + ImVec2( w - box_w, box_y ), pos + ImVec2( w, box_y + number_h ) );
 

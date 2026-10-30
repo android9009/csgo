@@ -56,9 +56,9 @@ public:
 
     float m_anim = 0.f;
     int m_tab = 0;
-    // Visuals sidebar: 0 = Visuals/Common, 1 = Players, 2 = World. Clicking the parent row
-    // reveals the two child rows with the existing smooth expansion animation.
-    int m_visuals_subtab = 0;
+    // Visuals is only an expanding parent row: remember the last real page (1 = Players,
+    // 2 = World) and return to it whenever the parent is clicked.
+    int m_visuals_subtab = 1;
     float m_scale = 1.0f;
 
     // How many widgets already own the slot just left of the row's control (the colour swatch,
