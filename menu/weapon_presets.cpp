@@ -114,6 +114,17 @@ void draw_text_centered(ImDrawList* draw, const ImRect& rect, const char* text, 
                          IM_ROUND(rect.GetCenter().y - size.y * 0.5f)), color, text);
 }
 
+int caret_to_end_callback(ImGuiInputTextCallbackData* data) {
+    bool* pending = static_cast<bool*>(data->UserData);
+    if (pending && *pending) {
+        data->CursorPos = data->BufTextLen;
+        data->SelectionStart = data->CursorPos;
+        data->SelectionEnd = data->CursorPos;
+        *pending = false;
+    }
+    return 0;
+}
+
 bool exact_text_input(const char* id, char* buffer, int buffer_size, ImVec2 pos, float width,
                       float font_size, ImGuiInputTextFlags flags, bool focus = false) {
     ImGui::SetCursorScreenPos(pos);
@@ -126,8 +137,12 @@ bool exact_text_input(const char* id, char* buffer, int buffer_size, ImVec2 pos,
     ImGui::SetWindowFontScale(font_size / GImGui->FontBaseSize);
     if (focus)
         ImGui::SetKeyboardFocusHere();
+    bool reset_caret = focus;
+    const ImGuiInputTextFlags input_flags = focus ?
+        (flags | ImGuiInputTextFlags_CallbackAlways) : flags;
     const bool edited = ImGui::InputTextEx("##input", nullptr, buffer, buffer_size,
-                                           ImVec2(width, 0.f), flags, nullptr, nullptr);
+                                           ImVec2(width, 0.f), input_flags,
+                                           caret_to_end_callback, &reset_caret);
     ImGuiContext& context = *GImGui;
     const ImGuiLastItemData input_item = context.LastItemData;
     ImGui::EndChild();
@@ -384,26 +399,28 @@ void draw_main_popup() {
                 "##rename", rename_buffer, static_cast<int>(sizeof(rename_buffer)),
                 block_pos + ImVec2(9.f * scale, (24.f * scale - ImGui::GetFontSize()) * 0.5f),
                 block_width - 34.f * scale, ImGui::GetFontSize(),
-                ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll, rename_focus);
+                ImGuiInputTextFlags_EnterReturnsTrue, rename_focus);
             rename_focus = false;
             rage_state().m_preset_names[slot] = rename_buffer;
             if (rename_enter || ImGui::IsItemDeactivated())
                 rename_slot = -1;
             ImGui::SetCursorScreenPos(block_pos + ImVec2(block_width - 25.f * scale, 0.f));
         } else {
-            ImGui::SetCursorScreenPos(block_pos);
-            const bool select_clicked = ImGui::InvisibleButton("##select", ImVec2(block_width - 25.f * scale, 24.f * scale));
+            const ImVec2 text_pos = block_pos + ImVec2(9.f * scale, (24.f * scale - ImGui::GetFontSize()) * 0.5f);
+            const ImVec2 text_size = ImGui::CalcTextSize(preset_name(slot));
+            const float text_hit_width = ImMin(text_size.x, ImMax(1.f, block_width - 35.f * scale));
+            ImGui::SetCursorScreenPos(text_pos);
+            const bool rename_clicked = ImGui::InvisibleButton("##select", ImVec2(text_hit_width, text_size.y));
             draw->PushClipRect(block_pos, block_pos + ImVec2(block_width - 26.f * scale, 24.f * scale), true);
-            draw->AddText(block_pos + ImVec2(9.f * scale, (24.f * scale - ImGui::GetFontSize()) * 0.5f),
-                          gui.text.to_im_color(), preset_name(slot));
+            draw->AddText(text_pos, gui.text.to_im_color(), preset_name(slot));
             draw->PopClipRect();
-            if (select_clicked) {
+            if (rename_clicked) {
                 rage_state().m_selected_group = slot;
                 rename_slot = slot;
                 std::snprintf(rename_buffer, sizeof(rename_buffer), "%s", preset_name(slot));
                 rename_focus = true;
             }
-            ImGui::SameLine(0.f, 0.f);
+            ImGui::SetCursorScreenPos(block_pos + ImVec2(block_width - 25.f * scale, 0.f));
         }
 
         const bool delete_clicked = ImGui::InvisibleButton("##delete", ImVec2(25.f * scale, 24.f * scale));
