@@ -79,6 +79,13 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
 bool initialize_renderer(IDirect3DDevice9* present_device) {
     if (!present_device)
         return false;
+#ifdef _DEBUG
+    static bool initialization_logged = false;
+    if (!initialization_logged) {
+        AIRFLOW_DEBUG_LOG("renderer initialization enter");
+        initialization_logged = true;
+    }
+#endif
 
     D3DDEVICE_CREATION_PARAMETERS parameters{};
     if (FAILED(present_device->GetCreationParameters(&parameters)) || !parameters.hFocusWindow)
@@ -128,6 +135,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     initialized = true;
+    AIRFLOW_DEBUG_LOG("renderer initialized");
     return true;
 }
 
@@ -137,6 +145,19 @@ void render_frame(IDirect3DDevice9* present_device) {
         return;
     if (present_device != device)
         return;
+
+#ifdef _DEBUG
+    static bool menu_state_initialized = false;
+    static bool previous_menu_open = false;
+    static bool trace_menu_draw = false;
+    const bool menu_open = g_menu->is_opened();
+    if (!menu_state_initialized || menu_open != previous_menu_open) {
+        AIRFLOW_DEBUG_LOGF("menu state: %s", menu_open ? "opened" : "closed");
+        trace_menu_draw = menu_open;
+        menu_state_initialized = true;
+        previous_menu_open = menu_open;
+    }
+#endif
 
     // Panorama has already rendered into the backbuffer at this point. Copy the live agent region
     // before this frame's opaque ImGui menu covers it again.
@@ -151,7 +172,18 @@ void render_frame(IDirect3DDevice9* present_device) {
     ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
     AIRFLOW_DEBUG_STAGE("c_menu.draw");
+#ifdef _DEBUG
+    if (trace_menu_draw)
+        AIRFLOW_DEBUG_LOG("menu draw enter");
+#endif
     g_menu->draw();
+#ifdef _DEBUG
+    if (trace_menu_draw) {
+        AIRFLOW_DEBUG_LOG("menu draw returned");
+        trace_menu_draw = false;
+    }
+#endif
+    AIRFLOW_DEBUG_STAGE("c_menu.draw returned");
     AIRFLOW_DEBUG_STAGE("agent_preview.end_frame");
     agent_preview::end_frame();
     AIRFLOW_DEBUG_STAGE("ImGui render");

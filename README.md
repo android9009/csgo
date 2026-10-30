@@ -22,7 +22,7 @@ Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Re
 
 ## Debug-диагностика
 
-Только сборка `Debug | x86` открывает консоль при запуске runtime и устанавливает обработчик необработанных исключений. Этапы Panorama/D3D9, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\airflow\debug.log`; также создаётся `C:\airflow\crash_last.dmp` для анализа в Visual Studio. В `Release` консоль, файловые debug-логи, exception filter и DbgHelp полностью исключены препроцессором.
+Только сборка `Debug | x86` открывает консоль при запуске runtime и регистрирует SEH/CRT/SIGABRT-диагностику. Этапы renderer, меню и Panorama/D3D9, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\airflow\debug.log`; для необработанного SEH и `abort()` также создаётся `C:\airflow\crash_last.dmp`. Строка `FIRST-CHANCE` описывает исключение, которое игра ещё может обработать; `CRASH` или `CRT report` важнее для итогового анализа. В `Release` консоль, файловые debug-логи, обработчики и DbgHelp полностью исключены препроцессором.
 
 ## CMake (Windows)
 
