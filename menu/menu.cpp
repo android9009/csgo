@@ -43,6 +43,10 @@ void register_bind_targets() {
         
         menu_binds::register_int((prefix + "hit_chance").c_str(), "Hit Chance", &weapon.m_hit_chance, -1, 100);
         menu_binds::register_int((prefix + "hit_chance_seed").c_str(), "Hit Chance Seed", &weapon.m_hit_chance_seed, 0, 256);
+        menu_binds::register_int((prefix + "dt_hit_chance").c_str(), "DT HitChance", &weapon.m_dt_hit_chance, 0, 100);
+        menu_binds::register_int((prefix + "extrapolation_hit_chance").c_str(), "Extrapolation HitChance", &weapon.m_extrapolation_hit_chance, 0, 100);
+        menu_binds::register_bool((prefix + "force_shot").c_str(), "Force Shot", &weapon.m_force_shot);
+        menu_binds::register_int((prefix + "minimum_hit_chance").c_str(), "Minimum HitChance", &weapon.m_minimum_hit_chance, 0, 100);
         menu_binds::register_int((prefix + "extrapolate").c_str(), "Extrapolate", &weapon.m_extrapolate, 0, 16);
         menu_binds::register_int((prefix + "minimum_damage").c_str(), "Min Damage", &weapon.m_minimum_damage, -1, 120);
         menu_binds::register_int((prefix + "head_scale").c_str(), "Head Scale", &weapon.m_head_scale, -1, 100);
@@ -89,35 +93,6 @@ void register_bind_targets() {
     menu_binds::register_int("skins.gloves", "Glove Model", &g_cfg->skins.m_gloves.m_selected, 0, 20);
     menu_binds::register_int("skins.agent_ct", "Counter-Terrorist", &g_cfg->skins.m_agents.m_selected_ct, 0, 20);
     menu_binds::register_int("skins.agent_t", "Terrorist", &g_cfg->skins.m_agents.m_selected, 0, 20);
-}
-
-void draw_animated_row(const char* id, bool visible, const std::function<void()>& draw_row) {
-    ImGuiWindow* window = ImGui::GetCurrentWindow();
-    const ImGuiID animation_id = window->GetID(id);
-    ImGuiStorage* storage = window->DC.StateStorage;
-    float amount = storage->GetFloat(animation_id, visible ? 1.f : 0.f);
-    amount = ImLerp(amount, visible ? 1.f : 0.f,
-                    1.f - expf(-14.f * ImMin(ImGui::GetIO().DeltaTime, 0.05f)));
-    if (ImAbs(amount - (visible ? 1.f : 0.f)) < 0.002f)
-        amount = visible ? 1.f : 0.f;
-    storage->SetFloat(animation_id, amount);
-    if (amount <= 0.002f)
-        return;
-
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    const float row_height = ImMax(ImGui::GetFontSize(), 19.f * gui.m_scale) +
-        ImGui::GetStyle().FramePadding.y * 2.f + ImGui::GetStyle().ItemSpacing.y;
-    const float animated_height = row_height * amount;
-    ImGui::PushClipRect(start, start + ImVec2(ImGui::GetContentRegionAvail().x, animated_height), true);
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * amount);
-    ImGui::BeginDisabled(amount < 0.98f);
-    ImGui::SetCursorScreenPos(start - ImVec2(0.f, (1.f - amount) * 5.f * gui.m_scale));
-    gui.row_begin();
-    draw_row();
-    ImGui::EndDisabled();
-    ImGui::PopStyleVar();
-    ImGui::PopClipRect();
-    ImGui::SetCursorScreenPos(start + ImVec2(0.f, animated_height));
 }
 
 void draw_top_bar(ImGuiWindow* window) {

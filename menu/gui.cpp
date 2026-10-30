@@ -456,6 +456,35 @@ void c_gui::row_begin() {
     m_row_slot_claims = 0; // a fresh row: nothing owns the slot left of its control yet
 }
 
+void c_gui::animated_row(const char* id, bool visible, const std::function<void()>& draw_row) {
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    const ImGuiID animation_id = window->GetID(id);
+    ImGuiStorage* storage = window->DC.StateStorage;
+    float amount = storage->GetFloat(animation_id, visible ? 1.f : 0.f);
+    amount = ImLerp(amount, visible ? 1.f : 0.f,
+                    1.f - expf(-14.f * ImMin(ImGui::GetIO().DeltaTime, 0.05f)));
+    if (ImAbs(amount - (visible ? 1.f : 0.f)) < 0.002f)
+        amount = visible ? 1.f : 0.f;
+    storage->SetFloat(animation_id, amount);
+    if (amount <= 0.002f)
+        return;
+
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const float row_height = ImMax(ImGui::GetFontSize(), 19.f * m_scale) +
+        ImGui::GetStyle().FramePadding.y * 2.f + ImGui::GetStyle().ItemSpacing.y;
+    const float animated_height = row_height * amount;
+    ImGui::PushClipRect(start, start + ImVec2(ImGui::GetContentRegionAvail().x, animated_height), true);
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * amount);
+    ImGui::BeginDisabled(amount < 0.98f);
+    ImGui::SetCursorScreenPos(start - ImVec2(0.f, (1.f - amount) * 5.f * m_scale));
+    row_begin();
+    draw_row();
+    ImGui::EndDisabled();
+    ImGui::PopStyleVar();
+    ImGui::PopClipRect();
+    ImGui::SetCursorScreenPos(start + ImVec2(0.f, animated_height));
+}
+
 float c_gui::take_row_slot_reserve() {
     // Called by the row widgets (Checkbox / BeginCombo / SliderScalar) when they lay their label
     // out: the claimed slots left of the control are room the label does not have. Taking it here

@@ -95,6 +95,10 @@ public:
         // Accuracy
         int m_hit_chance = 60;  // -1 = Auto
         int m_hit_chance_seed = 0;  // 0-256
+        int m_dt_hit_chance = 0;
+        int m_extrapolation_hit_chance = 0;
+        bool m_force_shot = false;
+        int m_minimum_hit_chance = 0;
         int m_extrapolate = 0;  // 0-16 ticks
         bool m_backtrack = false;
         int m_backtrack_ticks = 12;  // 0-64 ticks (0 = all unlag window)
@@ -114,8 +118,8 @@ public:
         bool m_penetration = false;
 
         // Safety (UI only: 0 = Off, 1 = Prefer, 2 = Force)
-        int m_body_aim = 1;
-        int m_safe_points = 1;
+        int m_body_aim = 0;
+        int m_safe_points = 0;
         bool m_hitbox_safety[6] = {true, true, true, false, false, false};
     };
     

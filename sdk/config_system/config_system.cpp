@@ -38,6 +38,10 @@ void c_config_system::setup_values( )
 		push_item(&cfg.m_body_scale, "rage_bot", prefix + "_body_scale", cfg.m_body_scale);
 		push_item(&cfg.m_hit_chance, "rage_bot", prefix + "_hit_chance", cfg.m_hit_chance);
 		push_item(&cfg.m_hit_chance_seed, "rage_bot", prefix + "_hit_chance_seed", cfg.m_hit_chance_seed);
+		push_item(&cfg.m_dt_hit_chance, "rage_bot", prefix + "_dt_hit_chance", cfg.m_dt_hit_chance);
+		push_item(&cfg.m_extrapolation_hit_chance, "rage_bot", prefix + "_extrapolation_hit_chance", cfg.m_extrapolation_hit_chance);
+		push_item(&cfg.m_force_shot, "rage_bot", prefix + "_force_shot", cfg.m_force_shot);
+		push_item(&cfg.m_minimum_hit_chance, "rage_bot", prefix + "_minimum_hit_chance", cfg.m_minimum_hit_chance);
 		push_item(&cfg.m_extrapolate, "rage_bot", prefix + "_extrapolate", cfg.m_extrapolate);
 		push_item(&cfg.m_backtrack, "rage_bot", prefix + "_backtrack", cfg.m_backtrack);
 		push_item(&cfg.m_minimum_damage, "rage_bot", prefix + "_min_damage", cfg.m_minimum_damage);

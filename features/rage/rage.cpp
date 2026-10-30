@@ -99,10 +99,15 @@ void c_menu::draw_rage() {
     }
     gui.row_multibox("Multipoint", hitbox_names, cfg.m_multi_points, 6, "Select multipoint locations.");
 
-    // Hit Chance (gear: Hit Chance Seed)
+    // Hit Chance (gear: DT / extrapolation chance and Force Shot)
     gui.row_begin();
-    if (gui.row_options_begin("##hitchance_opts", 250.f, c_gui::row_control::slider)) {
-        gui.row_begin(); ImGui::SliderInt("Hit Chance Seed", &cfg.m_hit_chance_seed, 0, 256);
+    if (gui.row_options_begin("##hitchance_opts", 300.f, c_gui::row_control::slider)) {
+        gui.row_begin(); ImGui::SliderInt("DT HitChance", &cfg.m_dt_hit_chance, 0, 100, "%d%%");
+        gui.row_begin(); ImGui::SliderInt("Extrapolation HitChance", &cfg.m_extrapolation_hit_chance, 0, 100, "%d%%");
+        gui.row_checkbox("Force Shot", &cfg.m_force_shot);
+        gui.animated_row("##force_shot_minimum", cfg.m_force_shot, [&] {
+            ImGui::SliderInt("Minimum HitChance", &cfg.m_minimum_hit_chance, 0, 100, "%d%%");
+        });
         gui.row_options_end();
     }
     gui.row_begin(); ImGui::SliderInt("Hit Chance", &cfg.m_hit_chance, -1, 100, 
@@ -132,7 +137,7 @@ void c_menu::draw_rage() {
         gui.row_options_end();
     gui.row_begin(); ImGui::Combo("Safe Points", &cfg.m_safe_points, safety_modes, IM_ARRAYSIZE(safety_modes));
 
-    gui.row_multibox("Ensure Hitbox Safety", hitbox_names, cfg.m_hitbox_safety, 6,
+    gui.row_multibox("Force Safe Point Hitbox", hitbox_names, cfg.m_hitbox_safety, 6,
                      "Select hitboxes that require safe points.");
     gui.end_group_box();
 

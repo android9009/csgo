@@ -156,6 +156,8 @@ public:
     // Row helpers: auto-insert a Separator() before every row after the first one in the current
     // group_box() - no more `if (i != last) Separator();` bookkeeping at every call site.
     void row_begin();                             // call before any non-wrapped row widget (e.g. SliderInt)
+    // Reveals one row with a smooth fade/slide and collapses its height when hidden.
+    void animated_row(const char* id, bool visible, const std::function<void()>& draw_row);
     bool row_checkbox( const char* label, bool* v, const char* description = "Click to enable or disable this option." );
     bool row_sub_menu( const char* label, const char* description = "Open this section to adjust its settings." );
     // Set by row wrappers while a stock widget runs: the wrapper supplies its own description
