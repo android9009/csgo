@@ -2933,12 +2933,12 @@ ImRect c_gui::row_slot_rect( row_control control ) const {
     }
     case row_control::slider: {
         // ImGui::SliderScalar: value box (38) + gap (12) on the right, then a track of at most
-        // 74px (100px in a card), starting no further left than the 82px label reserve.
+        // 74px (92px in a card), starting no further left than the 82px label reserve.
         const float number_w = 38.f * m_scale;
         const float control_gap = 12.f * m_scale;
         const float label_reserved = ImMin( 82.f * m_scale, w * 0.45f );
         const float track_right = is_popup_window( window ) ? ( pos.x + w - 4.f * m_scale ) : ( pos.x + w - number_w - control_gap );
-        const float max_track_w = ( is_popup_window( window ) ? 100.f : 74.f ) * m_scale;
+        const float max_track_w = ( is_popup_window( window ) ? 92.f : 74.f ) * m_scale;
         float track_left = ImMax( pos.x + label_reserved, track_right - max_track_w );
         if ( track_right < track_left + 36.f * m_scale )
             track_left = ImMax( pos.x, track_right - 36.f * m_scale );

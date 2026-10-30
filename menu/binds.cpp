@@ -73,7 +73,7 @@ std::array<bool, 0xA6> g_capture_down{};
 constexpr const char* k_bind_file = "c:\\airflow\\binds.json";
 
 // --- Bind menu state ------------------------------------------------------------------------
-// The menu is a root card (Copy Lua Path / one row per bind / New Bind / Hotkeys / Reset) whose
+// The menu is a root card (one row per bind / New Bind / Hotkeys / Reset) whose
 // rows open a child card on *hover*, the way neverlose's does. Only one child is up at a time,
 // so which one it is lives here rather than per row.
 //
@@ -312,11 +312,10 @@ void write_base(bind_target& target);
 // Layout mirrors neverlose's: a gear in the gap left of the row's control opens a context menu
 // (right-clicking the row does the same), and every bind in it opens its own card on hover.
 //
-//   Copy Lua Path                         ##bind_menu  (root card)
-//   ----------
+//   ##bind_menu (root card)
 //   Toggle "N"                >           -> ##bind_sub_<id>    Key / Mode / Value + actions
 //   Hold "D"                  >
-//   New Bind                  >           -> ##bind_sub_draft   (the same card, pending bind)
+//   New Bind                  >           -> the same popup id when its draft is committed
 //   Hotkeys
 //   ----------
 //   Reset
@@ -499,16 +498,16 @@ bool bind_mode_row(bind_entry& entry) {
             changed = true;
         }
         const float t = row_anim(ImGui::GetID(names[i]), entry.mode == modes[i]);
-        if (t > 0.01f)
-            draw->AddRectFilled(bb.Min, bb.Max, gui.accent_color.to_im_color(t, false), 5.f * s);
-        else if (hovered)
+        if (hovered)
             draw->AddRectFilled(bb.Min, bb.Max, gui.frame_inactive.to_im_color(0.7f), 5.f * s);
         const char* shown = gui.tr(names[i]);
         const ImVec2 tsz = font->CalcTextSizeA(fs, FLT_MAX, 0.f, shown);
+        ImVec4 ink = ImLerp(gui.text_disabled.to_vec4(1.f, false), gui.text.to_vec4(1.f, false),
+                            ImMax(t, hovered ? 0.6f : 0.f));
+        ink = ImLerp(ink, gui.accent_color.to_vec4(1.f, false), t);
         draw->AddText(font, fs, ImVec2(IM_ROUND(bb.GetCenter().x - tsz.x * 0.5f),
                                        IM_ROUND(bb.GetCenter().y - TextLineCenterY(font, fs))),
-                      mix_color(gui.text_disabled.to_vec4(1.f, false), gui.text.to_vec4(1.f, false),
-                                ImMax(t, hovered ? 0.6f : 0.f)), shown);
+                      ImGui::GetColorU32(ink), shown);
     }
     return changed;
 }
@@ -598,10 +597,7 @@ bool draw_entry_card(bind_target& target, bind_entry& entry, bool is_draft,
                      ImGuiWindow* parent, float row_y, bool& removed, bool& committed) {
     const float s = gui.m_scale;
     char name[48];
-    if (is_draft)
-        ImFormatString(name, IM_ARRAYSIZE(name), "##bind_sub_draft");
-    else
-        ImFormatString(name, IM_ARRAYSIZE(name), "##bind_sub_%llu", (unsigned long long)entry.id);
+    ImFormatString(name, IM_ARRAYSIZE(name), "##bind_sub_%llu", (unsigned long long)entry.id);
 
     const std::uint64_t latch = is_draft ? k_draft_entry : entry.id;
     const bool open_request = g_submenu == latch && !g_submenu_opened;
@@ -693,10 +689,6 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
             ImGui::IsMouseHoveringRect(card->Pos, card->Pos + card->Size, false))
             request_submenu(0);
 
-        if (bind_menu_row("##lua", ICON_FA_LINK, "Copy Lua Path", false, false, c_text).clicked)
-            ImGui::SetClipboardText(target.key.c_str());
-        bind_menu_separator();
-
         int remove_index = -1;
         bool commit_draft = false, bail = false;
         for (int i = 0; i < static_cast<int>(target.entries.size()); ++i) {
@@ -708,9 +700,9 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
                                                entry_reveal(entry.id));
             if (row.hovered)
                 request_submenu(entry.id);
+            ImGui::PopID();
             bool removed = false, ignored = false;
             const bool alive = draw_entry_card(target, entry, false, card, row.pos.y, removed, ignored);
-            ImGui::PopID();
             if (removed)
                 remove_index = i;
             if (!alive) {
@@ -779,6 +771,9 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
             g_entry_reveal[g_draft.id] = 0.f;
             target.entries.push_back(g_draft);
             request_submenu(g_draft.id);
+            // The draft and committed entry deliberately share one popup ID. Keep it open instead
+            // of closing the draft card and opening a second one on the next frame.
+            g_submenu_opened = true;
             g_draft = bind_entry{};
             g_draft_target = 0;
             mark_dirty();
@@ -805,9 +800,9 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
 }
 
 // --- All Hotkeys ------------------------------------------------------------------------------
-// A searchable, spaced-out index of every registered bind. Clicking a row opens the exact same
-// editor card as the context menu, so key capture, mode, value, visibility and duplication all
-// share one implementation instead of drifting into a second set of controls.
+// A searchable, spaced-out index of every registered bind. Feature/edit opens the same full card
+// as the context menu; Key / Mode / Visibility / New Value edit that same entry inline, while
+// duplication, deletion, persistence and runtime synchronization continue to use the shared data.
 std::string lower_copy(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
@@ -873,11 +868,13 @@ void draw_hotkey_columns_header() {
     ImGui::Dummy(ImVec2(width, 22.f * s));
 }
 
+enum class hotkey_cell { none, key, mode, visibility, value };
+
 struct hotkey_row {
     ImVec2 pos{};
     bool clicked = false;
     bool remove = false;
-    bool toggle_visibility = false;
+    hotkey_cell cell = hotkey_cell::none;
 };
 
 hotkey_row draw_hotkey_row(const bind_target& target, bind_entry& entry) {
@@ -901,18 +898,37 @@ hotkey_row draw_hotkey_row(const bind_target& target, bind_entry& entry) {
     const bool hovered = reveal > 0.95f &&
         ImGui::IsMouseHoveringRect(pos, pos + ImVec2(width, h), true);
     const hotkey_columns c = hotkey_columns_at(pos, width);
-    const ImRect visibility_bb(ImVec2(c.visibility - 4.f * s, pos.y + 5.f * s),
-                               ImVec2(c.value - 8.f * s, pos.y + full_h - 5.f * s));
+    const float cell_top = pos.y + 4.f * s;
+    const float cell_bottom = pos.y + full_h - 4.f * s;
+    const ImRect key_bb(ImVec2(c.key - 6.f * s, cell_top),
+                        ImVec2(c.mode - 8.f * s, cell_bottom));
+    const ImRect mode_bb(ImVec2(c.mode - 6.f * s, cell_top),
+                         ImVec2(c.visibility - 8.f * s, cell_bottom));
+    const ImRect visibility_bb(ImVec2(c.visibility - 6.f * s, cell_top),
+                               ImVec2(c.value - 8.f * s, cell_bottom));
+    const ImRect value_bb(ImVec2(c.value - 6.f * s, cell_top),
+                          ImVec2(c.edit - 19.f * s, cell_bottom));
     const ImRect remove_bb(ImVec2(c.remove - 13.f * s, pos.y + full_h * 0.5f - 13.f * s),
                            ImVec2(c.remove + 13.f * s, pos.y + full_h * 0.5f + 13.f * s));
-    const bool visibility_hovered = hovered && ImGui::IsMouseHoveringRect(
-        visibility_bb.Min, visibility_bb.Max, true);
-    const bool remove_hovered = hovered && ImGui::IsMouseHoveringRect(remove_bb.Min, remove_bb.Max, true);
+    const auto cell_hovered = [&](const ImRect& bb) {
+        return hovered && ImGui::IsMouseHoveringRect(bb.Min, bb.Max, true);
+    };
+    const bool key_hovered = cell_hovered(key_bb);
+    const bool mode_hovered = cell_hovered(mode_bb);
+    const bool visibility_hovered = cell_hovered(visibility_bb);
+    const bool value_hovered = cell_hovered(value_bb);
+    const bool remove_hovered = cell_hovered(remove_bb);
     if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (remove_hovered)
             row.remove = true;
+        else if (key_hovered)
+            row.cell = hotkey_cell::key;
+        else if (mode_hovered)
+            row.cell = hotkey_cell::mode;
         else if (visibility_hovered)
-            row.toggle_visibility = true;
+            row.cell = hotkey_cell::visibility;
+        else if (value_hovered)
+            row.cell = hotkey_cell::value;
         else
             row.clicked = true;
     }
@@ -941,22 +957,58 @@ hotkey_row draw_hotkey_row(const bind_target& target, bind_entry& entry) {
                   target.key.c_str());
     draw->PopClipRect();
 
-    const auto centered_text = [&](float x, const char* value, ImU32 color) {
-        draw->AddText(font, fs, ImVec2(x, IM_ROUND(cy - TextLineCenterY(font, fs))), color, value);
-    };
-    const std::string key = entry.key > 0 ? key_name(entry.key) : std::string("-");
-    const std::string value = hotkey_value(target, entry);
-    centered_text(c.key, key.c_str(), text);
-    centered_text(c.mode, gui.tr(mode_name(entry.mode)), text);
+    const auto draw_cell = [&](const ImRect& bb, const char* id, const char* value,
+                               bool cell_hot, bool open, const ImVec4& base, const char* icon) {
+        const float t = row_anim(ImGui::GetID(id), cell_hot || open);
+        const float animated_h = bb.GetHeight() * reveal;
+        const ImRect animated_bb(ImVec2(bb.Min.x, cy - animated_h * 0.5f),
+                                 ImVec2(bb.Max.x, cy + animated_h * 0.5f));
+        if (t > 0.01f)
+            draw->AddRectFilled(animated_bb.Min, animated_bb.Max,
+                                gui.frame_inactive.to_im_color(t * 0.55f), 5.f * s);
 
+        const ImVec4 hot_color = open ? gui.accent_color.to_vec4(1.f, false)
+                                     : gui.text.to_vec4(1.f, false);
+        const ImU32 color = mix_color(base, hot_color, t);
+        const float chevron_fs = 9.f * s;
+        const ImVec2 chevron_size = font->CalcTextSizeA(chevron_fs, FLT_MAX, 0.f,
+                                                        ICON_FA_CHEVRON_DOWN);
+        const float chevron_x = bb.Max.x - 5.f * s - chevron_size.x;
+        float text_x = bb.Min.x + 6.f * s;
+        draw->PushClipRect(ImVec2(bb.Min.x, pos.y),
+                           ImVec2(chevron_x - 4.f * s, pos.y + h), true);
+        if (icon) {
+            draw->AddText(font, 13.f * s,
+                          ImVec2(text_x, IM_ROUND(cy - 6.5f * s)), color, icon);
+            text_x += 19.f * s;
+        }
+        draw->AddText(font, fs, ImVec2(text_x, IM_ROUND(cy - TextLineCenterY(font, fs))),
+                      color, value);
+        draw->PopClipRect();
+        draw->AddText(font, chevron_fs,
+                      ImVec2(IM_ROUND(chevron_x), IM_ROUND(cy - chevron_size.y * 0.5f)),
+                      color, ICON_FA_CHEVRON_DOWN);
+    };
+
+    const bool capturing = g_capture_entry == entry.id && g_hotkeys_capture;
+    const bool mode_open = ImGui::IsPopupOpen(ImGui::GetID("##hotkey_mode"), ImGuiPopupFlags_None);
+    const bool visibility_open = ImGui::IsPopupOpen(ImGui::GetID("##hotkey_visibility"),
+                                                     ImGuiPopupFlags_None);
+    const bool value_open = ImGui::IsPopupOpen(ImGui::GetID("##hotkey_value"), ImGuiPopupFlags_None);
+    const std::string key = capturing ? std::string("...")
+        : (entry.key > 0 ? key_name(entry.key) : std::string("-"));
+    const std::string value = hotkey_value(target, entry);
+    const ImVec4 text_vec = gui.text.to_vec4(1.f, false);
+    const ImVec4 dim_vec = gui.text_disabled.to_vec4(1.f, false);
     const char* eye = entry.show_in_overlay ? ICON_FA_EYE : ICON_FA_EYE_SLASH;
-    const ImU32 visibility_color = visibility_hovered
-        ? ImGui::GetColorU32(gui.accent_color.to_vec4(1.f, false)) : text;
-    draw->AddText(font, 13.f * s, ImVec2(c.visibility, IM_ROUND(cy - 6.5f * s)), visibility_color, eye);
-    centered_text(c.visibility + 19.f * s,
-                  gui.tr(entry.show_in_overlay ? "Visible" : "Hidden"), visibility_color);
-    centered_text(c.value, value.c_str(),
-                  entry.bool_value || target.type != value_type::boolean ? text : dim);
+    draw_cell(key_bb, "##key_cell", key.c_str(), key_hovered, capturing, text_vec, nullptr);
+    draw_cell(mode_bb, "##mode_cell", gui.tr(mode_name(entry.mode)), mode_hovered, mode_open,
+              text_vec, nullptr);
+    draw_cell(visibility_bb, "##visibility_cell",
+              gui.tr(entry.show_in_overlay ? "Visible" : "Hidden"), visibility_hovered,
+              visibility_open, text_vec, eye);
+    draw_cell(value_bb, "##value_cell", value.c_str(), value_hovered, value_open,
+              entry.bool_value || target.type != value_type::boolean ? text_vec : dim_vec, nullptr);
 
     const ImVec2 edit_size = font->CalcTextSizeA(13.f * s, FLT_MAX, 0.f, ICON_FA_EDIT);
     draw->AddText(font, 13.f * s, ImVec2(IM_ROUND(c.edit - edit_size.x * 0.5f),
@@ -970,6 +1022,72 @@ hotkey_row draw_hotkey_row(const bind_target& target, bind_entry& entry) {
     return row;
 }
 
+bool draw_hotkey_mode_editor(bind_entry& entry, bool clicked, float row_y) {
+    static const char* options[] = { "Hold", "Toggle", "Always" };
+    static const bind_mode modes[] = { bind_mode::hold, bind_mode::toggle, bind_mode::always };
+    int index = entry.mode == bind_mode::hold ? 0 : entry.mode == bind_mode::toggle ? 1 : 2;
+    if (!gui.popup_option_card("##hotkey_mode", clicked, row_y, options, IM_ARRAYSIZE(options), &index))
+        return false;
+    entry.mode = modes[ImClamp(index, 0, 2)];
+    entry.toggled = false;
+    entry.was_down = entry.key > 0 && (GetAsyncKeyState(entry.key) & 0x8000) != 0;
+    return true;
+}
+
+bool draw_hotkey_visibility_editor(bind_entry& entry, bool clicked, float row_y) {
+    static const char* options[] = { "Hidden", "Visible" };
+    int index = entry.show_in_overlay ? 1 : 0;
+    if (!gui.popup_option_card("##hotkey_visibility", clicked, row_y,
+                               options, IM_ARRAYSIZE(options), &index))
+        return false;
+    entry.show_in_overlay = index != 0;
+    return true;
+}
+
+bool draw_hotkey_number_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    const float s = gui.m_scale;
+    bool wants_open = false;
+    const float anim = gui.popup_animation("##hotkey_value", clicked, wants_open);
+    ImGuiWindow* parent = ImGui::GetCurrentWindow();
+    const ImVec2 at(parent->Pos.x + parent->Size.x + 8.f * s, row_y - 10.f * s);
+    if (!gui.begin_popup_card_at("##hotkey_value", wants_open, anim, at,
+                                 ImVec2(0.f, 0.f), 196.f))
+        return false;
+
+    bool changed = false;
+    ImGui::TextDisabled("%s", gui.tr("New Value"));
+    ImGui::Dummy(ImVec2(0.f, 6.f * s));
+    ImGui::SetNextItemWidth(gui.row_content_width());
+    if (target.type == value_type::integer) {
+        const int previous = entry.int_value;
+        changed = ImGui::InputInt("##value", &entry.int_value, 1, 10);
+        entry.int_value = std::clamp(entry.int_value, target.minimum_int, target.maximum_int);
+        changed |= previous != entry.int_value;
+    }
+    else {
+        const float previous = entry.float_value;
+        changed = ImGui::InputFloat("##value", &entry.float_value, 0.1f, 1.f, "%.2f");
+        if (!std::isfinite(entry.float_value))
+            entry.float_value = previous;
+        entry.float_value = std::clamp(entry.float_value, target.minimum_float, target.maximum_float);
+        changed |= previous != entry.float_value;
+    }
+    gui.end_popup_card();
+    return changed;
+}
+
+bool draw_hotkey_value_editor(bind_target& target, bind_entry& entry, bool clicked, float row_y) {
+    if (target.type != value_type::boolean)
+        return draw_hotkey_number_editor(target, entry, clicked, row_y);
+    static const char* options[] = { "Off", "On" };
+    int index = entry.bool_value ? 1 : 0;
+    if (!gui.popup_option_card("##hotkey_value", clicked, row_y,
+                               options, IM_ARRAYSIZE(options), &index))
+        return false;
+    entry.bool_value = index != 0;
+    return true;
+}
+
 void draw_hotkeys_editor() {
     if (!g_all_hotkeys_open && g_hotkeys_capture) {
         g_capture_entry = 0;
@@ -979,6 +1097,8 @@ void draw_hotkeys_editor() {
         return;
     ImGuiWindow* manager = ImGui::GetCurrentWindow();
     const float s = gui.m_scale;
+    const float content_x = ImGui::GetCursorPosX();
+    const float content_width = ImGui::GetContentRegionAvail().x;
 
     ImFontAtlas* fonts = ImGui::GetIO().Fonts;
     ImFont* bold = fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont();
@@ -994,7 +1114,10 @@ void draw_hotkeys_editor() {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 7.f * s);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.f * s, 7.f * s));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, gui.field_bg.to_vec4(0.9f, false));
-    ImGui::SetNextItemWidth(-1.f);
+    // Centering the title changes CursorPos.x. Restore the original content line explicitly so
+    // the search has equal side insets and its right rounded corner is not clipped by the window.
+    ImGui::SetCursorPosX(content_x);
+    ImGui::SetNextItemWidth(content_width);
     ImGui::BeginDisabled(g_capture_entry != 0);
     ImGui::InputTextWithHint("##all_hotkeys_search", gui.tr("Search functions..."),
                              search, IM_ARRAYSIZE(search));
@@ -1034,12 +1157,27 @@ void draw_hotkeys_editor() {
                 any = true;
                 ImGui::PushID(static_cast<int>(entry.id));
                 const hotkey_row row = draw_hotkey_row(*target, entry);
-                if (row.toggle_visibility) {
-                    entry.show_in_overlay = !entry.show_in_overlay;
-                    mark_dirty();
+                if (row.cell == hotkey_cell::key) {
+                    if (g_capture_entry != entry.id || !g_hotkeys_capture)
+                        begin_capture(entry);
+                    g_hotkeys_capture = true;
+                    request_submenu(0);
+                }
+                else if (row.cell != hotkey_cell::none) {
+                    request_submenu(0); // an inline cell replaces, rather than stacks with, the full card
                 }
                 if (row.clicked)
                     request_submenu(entry.id);
+
+                if (draw_hotkey_mode_editor(entry, row.cell == hotkey_cell::mode, row.pos.y))
+                    mark_dirty();
+                if (draw_hotkey_visibility_editor(entry, row.cell == hotkey_cell::visibility, row.pos.y))
+                    mark_dirty();
+                if (draw_hotkey_value_editor(*target, entry, row.cell == hotkey_cell::value, row.pos.y))
+                    mark_dirty();
+                if (g_hotkeys_capture && g_capture_entry == entry.id)
+                    update_capture(entry); // key capture lives in the row, even with no card open
+
                 bool removed = false, ignored = false;
                 const bool alive = draw_entry_card(*target, entry, false, manager,
                                                    row.pos.y, removed, ignored);
@@ -1122,6 +1260,17 @@ bind_target* find_registered_target(void* pointer) {
     return target_it == g_targets.end() ? nullptr : &target_it->second;
 }
 
+bind_target& register_automatic_target(ImGuiWindow* window, ImGuiID item_id, const char* label,
+                                       value_type type, void* pointer) {
+    // Explicit registrations keep their readable Lua keys. Every other main-menu checkbox/slider
+    // receives a stable ImGui-window/item key, so the bind menu is no longer limited to a hand-maintained list.
+    const std::string key = "auto." + std::to_string(window->ID) + "." + std::to_string(item_id);
+    const char* begin = label ? label : "Control";
+    const char* end = ImGui::FindRenderedTextEnd(begin);
+    const std::string visible_label(begin, end);
+    return register_stable_target(key.c_str(), visible_label.c_str(), type, pointer);
+}
+
 void write_base(bind_target& target) {
     if (!target.pointer)
         return;
@@ -1170,13 +1319,13 @@ void register_float(const char* key, const char* label, float* value, float mini
 
 target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                         const ImRect& rect, const ImRect& control, bool* value) {
-    IM_UNUSED(label);
-    IM_UNUSED(item_id);
     if (!value || !belongs_to_main_menu(window) ||
         (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
         return 0;
     bind_target* target = find_registered_target(value);
-    if (!target || target->type != value_type::boolean)
+    if (!target)
+        target = &register_automatic_target(window, item_id, label, value_type::boolean, value);
+    if (target->type != value_type::boolean)
         return 0;
     draw_bind_menu(*target, rect, control);
     return target->id;
@@ -1185,8 +1334,6 @@ target_id checkbox_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
 target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
                       const ImRect& rect, const ImRect& control, ImGuiDataType type, void* value,
                       const void* minimum, const void* maximum) {
-    IM_UNUSED(label);
-    IM_UNUSED(item_id);
     if (!value || !minimum || !maximum || !belongs_to_main_menu(window) ||
         (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
         return 0;
@@ -1195,7 +1342,9 @@ target_id slider_item(ImGuiWindow* window, ImGuiID item_id, const char* label,
 
     const value_type target_type = type == ImGuiDataType_S32 ? value_type::integer : value_type::floating;
     bind_target* target = find_registered_target(value);
-    if (!target || target->type != target_type)
+    if (!target)
+        target = &register_automatic_target(window, item_id, label, target_type, value);
+    if (target->type != target_type)
         return 0;
     if (target_type == value_type::integer) {
         target->minimum_int = *static_cast<const int*>(minimum);

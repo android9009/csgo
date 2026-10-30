@@ -3663,10 +3663,28 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
         char min_buf[64], max_buf[64];
         DataTypeFormatString(min_buf, IM_ARRAYSIZE(min_buf), data_type, p_min, format);
         DataTypeFormatString(max_buf, IM_ARRAYSIZE(max_buf), data_type, p_max, format);
-        const float reserve_text_w = ImMax(CalcTextSize(value_buf, value_buf_end).x,
+        float reserve_text_w = ImMax(CalcTextSize(value_buf, value_buf_end).x,
             ImMax(CalcTextSize(min_buf).x, CalcTextSize(max_buf).x));
-        // A value such as "15 ticks" must never grow back over the track. Reserving the widest
-        // endpoint also keeps the track fixed while the slider is dragged through wider numbers.
+        if (data_type == ImGuiDataType_S32)
+        {
+            const int first = *(const int*)p_min;
+            const int last = *(const int*)p_max;
+            // Proportional digits do not necessarily make the endpoints the widest strings.
+            // Measure small ranges completely: "10 ticks" can otherwise briefly get the box
+            // sized for "16 ticks" while dragging, before the next frame grows it again.
+            if (last >= first && static_cast<long long>(last) - first <= 64)
+            {
+                char step_buf[64];
+                for (int step = first;; ++step)
+                {
+                    DataTypeFormatString(step_buf, IM_ARRAYSIZE(step_buf), data_type, &step, format);
+                    reserve_text_w = ImMax(reserve_text_w, CalcTextSize(step_buf).x);
+                    if (step == last)
+                        break;
+                }
+            }
+        }
+        // Keep the reservation for the widest value so the text can never grow back over the track.
         number_w = ImMin(ImMax(number_w, reserve_text_w + 14.f * gui.m_scale),
                          ImMax(38.f * gui.m_scale, w * 0.55f));
     }
@@ -3677,7 +3695,8 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     // up with the rows above it instead of overhanging them.
     float track_right = is_popup_slider ? w - 4.f * gui.m_scale : w - number_w - control_gap;
     // Extra controls in wide color cards use the same compact, right-aligned popup track.
-    const float max_track_w = (is_popup_slider ? 100.f : 74.f) * gui.m_scale;
+    // The slightly shorter popup track moves Value in bind cards right without moving its inset.
+    const float max_track_w = (is_popup_slider ? 92.f : 74.f) * gui.m_scale;
     track_left = ImMax(track_left, track_right - max_track_w);
     if (track_right < track_left + 36.f * gui.m_scale)
         track_left = ImMax(0.f, track_right - 36.f * gui.m_scale);
