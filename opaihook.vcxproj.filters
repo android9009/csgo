@@ -171,6 +171,9 @@
     <ClCompile Include="runtime\d3d9_runtime.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="runtime\debug_console.cpp">
+      <Filter>Source Files\runtime</Filter>
+    </ClCompile>
     <ClCompile Include="runtime\fonts.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
@@ -268,6 +271,9 @@
     </ClInclude>
     <ClInclude Include="menu\weapon_presets.hpp">
       <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="runtime\debug_console.hpp">
+      <Filter>Header Files\runtime</Filter>
     </ClInclude>
     <ClInclude Include="runtime\fonts.hpp">
       <Filter>Header Files\runtime</Filter>

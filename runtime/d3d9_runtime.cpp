@@ -3,6 +3,7 @@
 #endif
 
 #include "runtime.hpp"
+#include "debug_console.hpp"
 #include "fonts.hpp"
 #include "steam_avatar.hpp"
 
@@ -139,7 +140,9 @@ void render_frame(IDirect3DDevice9* present_device) {
 
     // Panorama has already rendered into the backbuffer at this point. Copy the live agent region
     // before this frame's opaque ImGui menu covers it again.
+    AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");
     agent_preview::begin_frame(present_device);
+    AIRFLOW_DEBUG_STAGE("ImGui frame setup");
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::GetIO().MouseDrawCursor = g_menu->is_opened();
@@ -147,8 +150,11 @@ void render_frame(IDirect3DDevice9* present_device) {
     // width there. Doing it after Begin() leaves popup controls using the previous DPI metrics.
     ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
+    AIRFLOW_DEBUG_STAGE("c_menu.draw");
     g_menu->draw();
+    AIRFLOW_DEBUG_STAGE("agent_preview.end_frame");
     agent_preview::end_frame();
+    AIRFLOW_DEBUG_STAGE("ImGui render");
     ImGui::Render();
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
 }
@@ -262,8 +268,15 @@ bool install_hooks() {
 }
 
 DWORD WINAPI worker(LPVOID) {
-    if (!install_hooks())
-        OutputDebugStringA("[airflow_shell] D3D9 hook initialization failed.\n");
+    AIRFLOW_DEBUG_START();
+    AIRFLOW_DEBUG_STAGE("install_hooks");
+    AIRFLOW_DEBUG_LOG("runtime worker started");
+    if (!install_hooks()) {
+        AIRFLOW_DEBUG_LOG("D3D9 hook initialization failed");
+    } else {
+        AIRFLOW_DEBUG_LOG("D3D9 hooks installed");
+    }
+    AIRFLOW_DEBUG_STAGE("runtime worker idle");
     return 0;
 }
 } // namespace

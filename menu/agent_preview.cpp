@@ -6,6 +6,7 @@
 #include <d3d9.h>
 
 #include "menu.hpp"
+#include "../runtime/debug_console.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
@@ -177,20 +178,31 @@ void* ui_engine() {
             GetProcAddress(module, "CreateInterface"));
         if (!create_interface)
             return nullptr;
+        AIRFLOW_DEBUG_STAGE("panorama.CreateInterface");
         s.panorama_engine = create_interface("PanoramaUIEngine001", nullptr);
+        AIRFLOW_DEBUG_STAGE("panorama.CreateInterface returned");
+        AIRFLOW_DEBUG_LOGF("panorama CreateInterface: %p", s.panorama_engine);
         if (!s.panorama_engine)
             return nullptr;
     }
 
     using access_ui_engine_t = void* (__thiscall*)(void*);
     const auto access = virtual_function<access_ui_engine_t>(s.panorama_engine, 11);
-    return access ? access(s.panorama_engine) : nullptr;
+    AIRFLOW_DEBUG_STAGE("panorama.AccessUIEngine");
+    void* engine = access ? access(s.panorama_engine) : nullptr;
+    AIRFLOW_DEBUG_STAGE("panorama.AccessUIEngine returned");
+    return engine;
 }
 
 bool valid_panel(void* engine, void* panel) {
     using is_valid_panel_t = bool(__thiscall*)(void*, void*);
     const auto is_valid = virtual_function<is_valid_panel_t>(engine, 36);
-    return panel && is_valid && is_valid(engine, panel);
+    if (!panel || !is_valid)
+        return false;
+    AIRFLOW_DEBUG_STAGE("panorama.IsValidPanelPointer");
+    const bool valid = is_valid(engine, panel);
+    AIRFLOW_DEBUG_STAGE("panorama.IsValidPanelPointer returned");
+    return valid;
 }
 
 void* find_root(void* engine) {
@@ -206,14 +218,21 @@ void* find_root(void* engine) {
     if (!get_last_target || !get_panel_id || !get_parent)
         return nullptr;
 
+    AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel");
     void* panel = get_last_target(engine);
+    AIRFLOW_DEBUG_STAGE("panorama.GetLastDispatchedEventTargetPanel returned");
     // The depth cap also makes a malformed parent chain harmless. This runs at most once a second,
     // never as a full Panorama walk in the render hot path.
     for (int depth = 0; panel && depth < 32 && valid_panel(engine, panel); ++depth) {
+        AIRFLOW_DEBUG_LOGF("panorama root walk: depth=%d panel=%p", depth, panel);
+        AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetID");
         const char* id = get_panel_id(panel);
+        AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetID returned");
         if (id && (!std::strcmp(id, "CSGOHud") || !std::strcmp(id, "CSGOMainMenu")))
             return panel;
+        AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetParent");
         panel = get_parent(panel);
+        AIRFLOW_DEBUG_STAGE("panorama.IUIPanel.GetParent returned");
     }
     return nullptr;
 }
@@ -224,11 +243,16 @@ bool run_script(void* root, const std::string& script) {
         return false;
 
     // CS:GO x86 IUIPanel/UIEngine layout. These are not the Source 2 / CS2 vtable indices.
-    using run_script_t = int(__thiscall*)(void*, void*, const char*, const char*, int, int, bool, bool);
+    using run_script_t = void(__thiscall*)(void*, void*, const char*, const char*, int, int, bool, bool);
     const auto run = virtual_function<run_script_t>(engine, 113);
     if (!run)
         return false;
+    AIRFLOW_DEBUG_LOGF("panorama RunScript enter: engine=%p root=%p bytes=%llu", engine, root,
+        static_cast<unsigned long long>(script.size()));
+    AIRFLOW_DEBUG_STAGE("panorama.UIEngine.RunScript");
     run(engine, root, script.c_str(), "panorama/layout/base_mainmenu.xml", 8, 10, false, false);
+    AIRFLOW_DEBUG_STAGE("panorama.UIEngine.RunScript returned");
+    AIRFLOW_DEBUG_LOG("panorama RunScript leave");
     return true;
 }
 
@@ -263,6 +287,7 @@ void refresh_root(ULONGLONG now) {
     if (!engine)
         return;
     void* current = find_root(engine);
+    AIRFLOW_DEBUG_LOGF("panorama roots: cached=%p current=%p", s.root, current);
     const bool old_valid = s.root && valid_panel(engine, s.root);
 
     if (s.root && !old_valid) {
@@ -347,7 +372,11 @@ void synchronize_panel(const RECT& rect, int side, ULONGLONG now) {
         now < s.next_panel_check)
         return;
 
-    if (!run_script(s.root, panel_script(rect, side, agent, background, reload)))
+    AIRFLOW_DEBUG_LOGF("agent preview sync: side=%d agent=%d rect=%ld,%ld,%ld,%ld reload=%d",
+        side, agent, rect.left, rect.top, rect.right, rect.bottom, reload ? 1 : 0);
+    AIRFLOW_DEBUG_STAGE("agent_preview.panel_script");
+    const std::string script = panel_script(rect, side, agent, background, reload);
+    if (!run_script(s.root, script))
         return;
 
     s.panel_created = true;
@@ -393,8 +422,11 @@ void hide_panel() {
 
 void release_capture() {
     auto& s = state();
-    if (s.capture_texture)
+    if (s.capture_texture) {
+        AIRFLOW_DEBUG_STAGE("d3d9.Texture.Release(agent preview)");
         s.capture_texture->Release();
+        AIRFLOW_DEBUG_STAGE("d3d9.Texture.Release(agent preview) returned");
+    }
     s.capture_texture = nullptr;
     s.capture_device = nullptr;
     s.capture_format = D3DFMT_UNKNOWN;
@@ -413,9 +445,15 @@ bool ensure_capture_texture(IDirect3DDevice9* device, int width, int height, D3D
 
     release_capture();
     IDirect3DTexture9* texture = nullptr;
-    if (FAILED(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, format,
-                                     D3DPOOL_DEFAULT, &texture, nullptr)) || !texture)
+    AIRFLOW_DEBUG_STAGE("d3d9.CreateTexture(agent preview)");
+    const HRESULT result = device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, format,
+        D3DPOOL_DEFAULT, &texture, nullptr);
+    AIRFLOW_DEBUG_STAGE("d3d9.CreateTexture(agent preview) returned");
+    if (FAILED(result) || !texture) {
+        AIRFLOW_DEBUG_LOGF("agent capture CreateTexture failed: hr=0x%08lX size=%dx%d format=%d",
+            static_cast<unsigned long>(result), width, height, format);
         return false;
+    }
 
     s.capture_device = device;
     s.capture_texture = texture;
@@ -431,11 +469,20 @@ bool capture_backbuffer(IDirect3DDevice9* device) {
         return false;
 
     IDirect3DSurface9* backbuffer = nullptr;
-    if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer)) || !backbuffer)
+    AIRFLOW_DEBUG_STAGE("d3d9.GetBackBuffer(agent preview)");
+    const HRESULT backbuffer_result = device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO,
+        &backbuffer);
+    AIRFLOW_DEBUG_STAGE("d3d9.GetBackBuffer(agent preview) returned");
+    if (FAILED(backbuffer_result) || !backbuffer) {
+        AIRFLOW_DEBUG_LOGF("agent capture GetBackBuffer failed: hr=0x%08lX",
+            static_cast<unsigned long>(backbuffer_result));
         return false;
+    }
 
     D3DSURFACE_DESC description{};
+    AIRFLOW_DEBUG_STAGE("d3d9.BackBuffer.GetDesc(agent preview)");
     HRESULT result = backbuffer->GetDesc(&description);
+    AIRFLOW_DEBUG_STAGE("d3d9.BackBuffer.GetDesc(agent preview) returned");
     RECT source_rect = s.requested_rect;
     source_rect.left = std::clamp(source_rect.left, 0L, static_cast<LONG>(description.Width));
     source_rect.top = std::clamp(source_rect.top, 0L, static_cast<LONG>(description.Height));
@@ -457,11 +504,18 @@ bool capture_backbuffer(IDirect3DDevice9* device) {
     }
 
     IDirect3DSurface9* target = nullptr;
+    AIRFLOW_DEBUG_STAGE("d3d9.Texture.GetSurfaceLevel(agent preview region)");
     result = s.capture_texture->GetSurfaceLevel(0, &target);
+    AIRFLOW_DEBUG_STAGE("d3d9.Texture.GetSurfaceLevel(agent preview region) returned");
     if (SUCCEEDED(result) && target) {
+        AIRFLOW_DEBUG_STAGE("d3d9.StretchRect(agent preview region)");
         result = device->StretchRect(backbuffer, full_frame ? nullptr : &source_rect,
-                                     target, nullptr, D3DTEXF_NONE);
+            target, nullptr, D3DTEXF_NONE);
+        AIRFLOW_DEBUG_STAGE("d3d9.StretchRect(agent preview region) returned");
         target->Release();
+        if (FAILED(result))
+            AIRFLOW_DEBUG_LOGF("agent capture region StretchRect failed: hr=0x%08lX",
+                static_cast<unsigned long>(result));
     }
 
     // StretchRect cannot sub-rect a multisampled backbuffer on every D3D9 driver. Resolve the
@@ -470,12 +524,19 @@ bool capture_backbuffer(IDirect3DDevice9* device) {
         ensure_capture_texture(device, static_cast<int>(description.Width),
                                static_cast<int>(description.Height), description.Format)) {
         target = nullptr;
+        AIRFLOW_DEBUG_STAGE("d3d9.Texture.GetSurfaceLevel(agent preview full frame)");
         result = s.capture_texture->GetSurfaceLevel(0, &target);
+        AIRFLOW_DEBUG_STAGE("d3d9.Texture.GetSurfaceLevel(agent preview full frame) returned");
         if (SUCCEEDED(result) && target) {
+            AIRFLOW_DEBUG_STAGE("d3d9.StretchRect(agent preview full frame)");
             result = device->StretchRect(backbuffer, nullptr, target, nullptr, D3DTEXF_NONE);
+            AIRFLOW_DEBUG_STAGE("d3d9.StretchRect(agent preview full frame) returned");
             target->Release();
         }
         full_frame = SUCCEEDED(result);
+        if (FAILED(result))
+            AIRFLOW_DEBUG_LOGF("agent capture full-frame StretchRect failed: hr=0x%08lX",
+                static_cast<unsigned long>(result));
     }
     backbuffer->Release();
 
@@ -532,16 +593,20 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     s.requested_active = true;
     s.requested_side = side;
     s.requested_rect = rect;
+    AIRFLOW_DEBUG_STAGE("agent_preview.synchronize_panel");
     synchronize_panel(rect, side, GetTickCount64());
+    AIRFLOW_DEBUG_STAGE("agent_preview.synchronize_panel returned");
 
     if (!s.capture_valid || !s.capture_texture || s.captured_side != side ||
         !same_size(s.captured_rect, rect))
         return;
 
     const float alpha = ImGui::GetStyle().Alpha;
+    AIRFLOW_DEBUG_STAGE("ImGui.AddImage(agent preview)");
     ImGui::GetWindowDrawList()->AddImage(
         reinterpret_cast<ImTextureID>(s.capture_texture), min, max,
         s.captured_uv0, s.captured_uv1, ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, alpha)));
+    AIRFLOW_DEBUG_STAGE("ImGui.AddImage(agent preview) returned");
 }
 
 void end_frame() {

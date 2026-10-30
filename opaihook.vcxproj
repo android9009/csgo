@@ -99,6 +99,7 @@
     <ClCompile Include="menu\weapon_presets.cpp" />
     <ClCompile Include="menu\visuals.cpp" />
     <ClCompile Include="runtime\d3d9_runtime.cpp" />
+    <ClCompile Include="runtime\debug_console.cpp" />
     <ClCompile Include="runtime\fonts.cpp" />
     <ClCompile Include="runtime\steam_avatar.cpp" />
     <ClCompile Include="sdk\config_system\config_system.cpp" />
@@ -133,6 +134,7 @@
     <ClInclude Include="menu\weapon_icons.hpp" />
     <ClInclude Include="menu\weapon_icons_atlas.hpp" />
     <ClInclude Include="menu\weapon_presets.hpp" />
+    <ClInclude Include="runtime\debug_console.hpp" />
     <ClInclude Include="runtime\fonts.hpp" />
     <ClInclude Include="runtime\runtime.hpp" />
     <ClInclude Include="runtime\steam_avatar.hpp" />

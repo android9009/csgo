@@ -20,6 +20,10 @@ Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Re
 
 Результат: `Bins/airflow_shell.dll`. Проект использует C++20, `/utf-8`, `/Zc:char8_t-` и статический MSVC runtime. Отдельный DirectX SDK и D3DX не требуются; используются системные `d3d9.lib` и библиотеки Windows SDK.
 
+## Debug-диагностика
+
+Только сборка `Debug | x86` открывает консоль при запуске runtime и устанавливает обработчик необработанных исключений. Этапы Panorama/D3D9, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\airflow\debug.log`; также создаётся `C:\airflow\crash_last.dmp` для анализа в Visual Studio. В `Release` консоль, файловые debug-логи, exception filter и DbgHelp полностью исключены препроцессором.
+
 ## CMake (Windows)
 
 ```bat
