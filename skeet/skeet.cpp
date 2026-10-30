@@ -1093,7 +1093,11 @@ bool skeet_t::extra()
         return false;
     }
     const uintptr_t overlayBase = (uintptr_t)overlay;
-    auto overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B 5F 3C");
+    // Steam builds differ in both the compare register and surrounding stack
+    // layout. Prefer the longer signature, then retain the original broad form.
+    auto overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 1A 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 04 8B 01 6A 00 FF 50 14 3B ?? 3C");
+    if (!overlayReturn)
+        overlayReturn = PatternScan(overlay, "3D ? ? ? ? 73 ? 68 ? ? ? ? E8 ? ? ? ? 8B 0D ? ? ? ? 83 C4 ? ? ? 6A ? FF 50 ? 3B 5F");
     if (!overlayReturn) {
         ReportCrashStageDetails(skeet_crash::OverlayReturnPatternFailed,
             (std::uint32_t)overlayBase, g_patternMatchCount,
@@ -1101,6 +1105,8 @@ bool skeet_t::extra()
         return false;
     }
     auto overlayReference = PatternScan(overlay, "89 3D ? ? ? ? F3 0F 10 87");
+    if (!overlayReference)
+        overlayReference = PatternScan(overlay, "89 1D ? ? ? ? F3 0F 10 83");
     if (!overlayReference) {
         ReportCrashStageDetails(skeet_crash::OverlayReferencePatternFailed,
             (std::uint32_t)overlayBase, g_patternMatchCount,
