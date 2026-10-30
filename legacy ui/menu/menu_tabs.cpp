@@ -1012,6 +1012,9 @@ void c_menu::draw_ui_items()
 							//  XOR("Skeleton"),
 							});
 
+						if (enemy_esp.elements & 64)
+							multi_combo(CXOR("Flags##esp_enemy_flags"), enemy_esp.flags,
+								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled") });
 						if (enemy_esp.elements & 1)
 							color_picker(CXOR("Box color##esp_enemy"), enemy_esp.colors.box);
 
@@ -1101,6 +1104,10 @@ void c_menu::draw_ui_items()
 						checkbox(CXOR("Enabled##esp_teammate"), &team_esp.enable);
 						multi_combo(CXOR("ESP items##esp_teammate"), team_esp.elements,
 							{ XOR("Bounding box"), XOR("Name"), XOR("Health bar"), XOR("Weapon icon"), XOR("Weapon text"), XOR("Ammo bar"), XOR("Flags"), XOR("Offscreen arrow"), XOR("Glow") });
+						if (team_esp.elements & 64)
+							multi_combo(CXOR("Flags##esp_teammate_flags"), team_esp.flags,
+								{ XOR("Armor"), XOR("Unarmored"), XOR("Defuser"), XOR("Blind"), XOR("Scoped"), XOR("Reload"), XOR("Immunity"), XOR("Slowed"), XOR("Defuse"), XOR("Bomb"), XOR("Planting"), XOR("Pin pulled") });
+						checkbox(CXOR("Disable Model Rendering##teammates"), &team_esp.disable_model);
 						if (team_esp.elements & 1)
 							color_picker(CXOR("Box color##esp_teammate"), team_esp.colors.box);
 						if (team_esp.elements & 2)
@@ -1119,6 +1126,25 @@ void c_menu::draw_ui_items()
 				ImGui::NextColumn();
 				{
 					auto& team_esp = g_cfg.visuals.esp[esp_teammate];
+					begin_child(CXOR("Chams##teammates"))
+					{
+						static int team_chams_model = 0;
+						const char* team_models[] = { CXOR("Player"), CXOR("Behind walls") };
+						combo(CXOR("Type##team_chams"), &team_chams_model, team_models, IM_ARRAYSIZE(team_models));
+						auto& team_chams = g_cfg.visuals.chams[c_team_vis + team_chams_model];
+						checkbox(CXOR("Enable##team_chams"), &team_chams.enable);
+						combo(CXOR("Material##team_chams"), &team_chams.material, vis_chams_type, IM_ARRAYSIZE(vis_chams_type));
+						color_picker(CXOR("Material color##team_chams"), team_chams.main_color);
+						if (team_chams.material == 4)
+						{
+							slider_int(CXOR("Fill##team_chams"), &team_chams.glow_fill, 0, 100, CXOR("%d%%"));
+							color_picker(CXOR("Glow color##team_chams"), team_chams.glow_color);
+						}
+						if (team_chams.material == 6)
+							input_text(CXOR("Sprite path##team_chams"), team_chams.chams_sprite, 128);
+					}
+					end_child;
+
 					begin_child(CXOR("Offscreen arrow##team"))
 					{
 						slider_int(CXOR("Distance##team_oof"), &team_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
@@ -1400,16 +1426,28 @@ void c_menu::draw_ui_items()
 						key_bind(CXOR("Thirdperson"), g_cfg.binds[tp_b]);
 						slider_int(CXOR("Distance"), &g_cfg.misc.thirdperson_dist, 10, 300);
 						checkbox(CXOR("While dead"), &g_cfg.misc.thirdperson_dead);
+						checkbox(CXOR("Disable close to wall"), &g_cfg.misc.thirdperson_disable_on_collision);
 					}
 					end_child;
 
 					begin_child(CXOR("Viewmodel  "))
 					{
 						slider_int(CXOR("Viewmodel FOV"), &g_cfg.misc.fovs[arms], 0, 30);
+						checkbox(CXOR("Force Viewmodel FOV"), &g_cfg.misc.force_viewmodel_fov);
 						checkbox(CXOR("Show viewmodel in scope"), &g_cfg.misc.viewmodel_scope);
 						slider_int(CXOR("Offset X"), &g_cfg.misc.viewmodel_pos[0], -20, 20);
 						slider_int(CXOR("Offset Y"), &g_cfg.misc.viewmodel_pos[1], -20, 20);
 						slider_int(CXOR("Offset Z"), &g_cfg.misc.viewmodel_pos[2], -20, 20);
+						slider_int(CXOR("Angle pitch##viewmodel"), &g_cfg.misc.viewmodel_angles[0], -90, 90);
+						slider_int(CXOR("Angle yaw##viewmodel"), &g_cfg.misc.viewmodel_angles[1], -180, 180);
+						slider_int(CXOR("Angle roll##viewmodel"), &g_cfg.misc.viewmodel_angles[2], -90, 90);
+						checkbox(CXOR("Override modifiers##viewmodel"), &g_cfg.misc.viewmodel_modifiers);
+						if (g_cfg.misc.viewmodel_modifiers)
+						{
+							slider_int(CXOR("Bobbing##viewmodel"), &g_cfg.misc.viewmodel_bob, 0, 200, CXOR("%d%%"));
+							slider_int(CXOR("Rotation sway##viewmodel"), &g_cfg.misc.viewmodel_sway, 0, 200, CXOR("%d%%"));
+							slider_int(CXOR("Lower weapon##viewmodel"), &g_cfg.misc.viewmodel_lower, 0, 200, CXOR("%d%%"));
+						}
 					}
 					end_child;
 				}
@@ -1419,7 +1457,9 @@ void c_menu::draw_ui_items()
 					{
 						slider_int(CXOR("Aspect ratio"), &g_cfg.misc.aspect_ratio, 0, 200);
 						slider_int(CXOR("FOV"), &g_cfg.misc.fovs[world], 0, 60);
-						slider_int(CXOR("Zoom FOV"), &g_cfg.misc.fovs[zoom], 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Scale (x1)##scope"), &g_cfg.misc.fovs[zoom], 0, 100, CXOR("%d%%"));
+						slider_int(CXOR("Scale (x2)##scope"), &g_cfg.misc.zoom_fov_second, 0, 100, CXOR("%d%%"));
+						checkbox(CXOR("Instant Scope"), &g_cfg.misc.instant_scope);
 						checkbox(CXOR("Skip second zoom"), &g_cfg.misc.skip_second_zoom);
 					}
 					end_child;

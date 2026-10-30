@@ -98,6 +98,22 @@ enum esp_type_t
 	esp_max
 };
 
+enum esp_flag_t : unsigned int
+{
+	esp_flag_armor = 1 << 0,
+	esp_flag_unarmored = 1 << 1,
+	esp_flag_defuser = 1 << 2,
+	esp_flag_blind = 1 << 3,
+	esp_flag_scoped = 1 << 4,
+	esp_flag_reload = 1 << 5,
+	esp_flag_immunity = 1 << 6,
+	esp_flag_slowed = 1 << 7,
+	esp_flag_defusing = 1 << 8,
+	esp_flag_bomb = 1 << 9,
+	esp_flag_planting = 1 << 10,
+	esp_flag_pin_pulled = 1 << 11
+};
+
 enum chams_type_t
 {
 	c_vis,
@@ -111,6 +127,8 @@ enum chams_type_t
 	c_attachments,
 	c_fake,
 	c_gloves,
+	c_team_vis,
+	c_team_xqz,
 	c_max
 };
 
@@ -378,6 +396,9 @@ struct configs_t
 		  chams_t{ false, false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_WPN
 		  chams_t{ false, false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_ATTACHMENTS
 		  chams_t{ false, false, 3, 100, 5, c_float_color(255, 255, 255, 100), c_float_color(0, 0, 0, 0) },         // C_FAKE
+		  chams_t{ false, false, 3, 100, 5, c_float_color(148, 168, 255, 100), c_float_color(100, 100, 100, 150) }, // C_GLOVES
+		  chams_t{ false, false, 0, 100, 5, c_float_color(120, 190, 110), c_float_color(80, 138, 108, 150) },       // C_TEAM_VIS
+		  chams_t{ false, false, 0, 100, 5, c_float_color(70, 130, 170), c_float_color(80, 108, 138, 150) },        // C_TEAM_XQZ
 		};
 
 		struct event_logs_t
@@ -399,7 +420,9 @@ struct configs_t
 		{
 			bool enable{};
 			bool nade_offscreen{};
+			bool disable_model{};
 			unsigned int elements{};
+			unsigned int flags{ esp_flag_armor | esp_flag_defuser | esp_flag_scoped | esp_flag_bomb | esp_flag_planting };
 
 			int offscreen_size{ 15 };
 			int offscreen_dist{ 250 };
@@ -449,9 +472,17 @@ struct configs_t
 		bool slide_walk{};
 
 		int fovs[3] = { 0, 0, 100 };
+		int zoom_fov_second = 100;
 		int viewmodel_pos[3] = {};
+		int viewmodel_angles[3] = {};
 
 		bool viewmodel_scope{};
+		bool force_viewmodel_fov = true;
+		bool instant_scope{};
+		bool viewmodel_modifiers{};
+		int viewmodel_bob = 100;
+		int viewmodel_sway = 100;
+		int viewmodel_lower = 100;
 		bool penetration_crosshair{};
 		bool fix_sensitivity{};
 		bool skip_second_zoom{};
@@ -464,6 +495,7 @@ struct configs_t
 
 		int thirdperson_dist = 150;
 		bool thirdperson_dead{};
+		bool thirdperson_disable_on_collision{};
 
 		bool blend_scope{};
 		int scope_amt = 50;

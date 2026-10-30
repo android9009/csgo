@@ -4,17 +4,18 @@ class c_fov_and_view
 {
 private:
 	bool override_sensitivity{};
+	bool modifiers_applied{};
 	int last_fov{};
+	float original_sway{};
+	float original_bob_lat{};
+	float original_bob_vert{};
+	float original_lower{};
 
 public:
-	INLINE void reset()
-	{
-		override_sensitivity = false;
-
-		last_fov = 0;
-	}
+	void reset();
 
 	void change_zoom_sensitivity();
+	void change_viewmodel_modifiers();
 	void change_fov();
 	void change_fov_dead_and_remove_recoil(c_view_setup* setup);
 };

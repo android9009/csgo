@@ -342,7 +342,11 @@ bool c_chams::should_draw()
 		else
 		{
 			if (player->is_teammate(false))
-				return false;
+			{
+				bool team_xqz = this->draw_model(g_cfg.visuals.chams[c_team_xqz], nullptr, 1.f, true);
+				bool team_vis = this->draw_model(g_cfg.visuals.chams[c_team_vis]);
+				return team_vis || team_xqz;
+			}
 
 			if (HACKS->local == player)
 				return false;

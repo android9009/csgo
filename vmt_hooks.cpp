@@ -512,6 +512,7 @@ namespace hooks::vmt
 		static auto original = hooker::get_original(&override_view);
 
 		THIRDPSERON->run_alive();
+		FOV_AND_VIEW->change_viewmodel_modifiers();
 		FOV_AND_VIEW->change_fov_dead_and_remove_recoil(setup);
 		original(ecx, edx, setup);
 		THIRDPSERON->fix_camera_on_fakeduck(setup);
@@ -521,7 +522,7 @@ namespace hooks::vmt
 	{
 		static auto original = hooker::get_original(&get_viewmodel_fov);
 
-		return original(ecx, edx) + g_cfg.misc.fovs[arms];
+		return original(ecx, edx) + (g_cfg.misc.force_viewmodel_fov ? g_cfg.misc.fovs[arms] : 0);
 	}
 
 	bool __fastcall do_post_screen_effects(void* ecx, void* edx, c_view_setup* setup)

@@ -352,7 +352,9 @@ namespace config
 					save_bool(esp_cfg_json, CXOR("nade_offscreen"), esp_cfg.nade_offscreen);
 					save_int(esp_cfg_json, CXOR("offscreen_dist"), esp_cfg.offscreen_dist);
 					save_int(esp_cfg_json, CXOR("offscreen_size"), esp_cfg.offscreen_size);
+					save_bool(esp_cfg_json, CXOR("disable_model"), esp_cfg.disable_model);
 					save_uint(esp_cfg_json, CXOR("elements"), esp_cfg.elements);
+					save_uint(esp_cfg_json, CXOR("flags"), esp_cfg.flags);
 
 					auto& esp_colors = esp_cfg_json[CXOR("colors")];
 					{
@@ -421,11 +423,20 @@ namespace config
 			{
 				save_int(misc[CXOR("fov") + std::to_string(i + 1)], CXOR("amt_"), default_config.misc.fovs[i]);
 				save_int(misc[CXOR("viewmodel_pos") + std::to_string(i + 1)], CXOR("pos_"), default_config.misc.viewmodel_pos[i]);
+				save_int(misc[CXOR("viewmodel_angle") + std::to_string(i + 1)], CXOR("angle_"), default_config.misc.viewmodel_angles[i]);
 			}
 
+			save_int(misc, CXOR("zoom_fov_second"), default_config.misc.zoom_fov_second);
+			save_bool(misc, CXOR("force_viewmodel_fov"), default_config.misc.force_viewmodel_fov);
+			save_bool(misc, CXOR("instant_scope"), default_config.misc.instant_scope);
+			save_bool(misc, CXOR("viewmodel_modifiers"), default_config.misc.viewmodel_modifiers);
+			save_int(misc, CXOR("viewmodel_bob"), default_config.misc.viewmodel_bob);
+			save_int(misc, CXOR("viewmodel_sway"), default_config.misc.viewmodel_sway);
+			save_int(misc, CXOR("viewmodel_lower"), default_config.misc.viewmodel_lower);
 			save_int(misc, CXOR("aspect_ratio"), default_config.misc.aspect_ratio);
 
 			save_bool(misc, CXOR("thirdperson_dead"), default_config.misc.thirdperson_dead);
+			save_bool(misc, CXOR("thirdperson_disable_on_collision"), default_config.misc.thirdperson_disable_on_collision);
 			save_int(misc, CXOR("thirdperson_dist"), default_config.misc.thirdperson_dist);
 
 			save_bool(misc, CXOR("impacts"), default_config.misc.impacts);
@@ -708,7 +719,9 @@ namespace config
 					save_bool(esp_cfg_json, CXOR("nade_offscreen"), esp_cfg.nade_offscreen);
 					save_int(esp_cfg_json, CXOR("offscreen_dist"), esp_cfg.offscreen_dist);
 					save_int(esp_cfg_json, CXOR("offscreen_size"), esp_cfg.offscreen_size);
+					save_bool(esp_cfg_json, CXOR("disable_model"), esp_cfg.disable_model);
 					save_uint(esp_cfg_json, CXOR("elements"), esp_cfg.elements);
+					save_uint(esp_cfg_json, CXOR("flags"), esp_cfg.flags);
 
 					auto& esp_colors = esp_cfg_json[CXOR("colors")];
 					{
@@ -777,11 +790,20 @@ namespace config
 			{
 				save_int(misc[CXOR("fov") + std::to_string(i + 1)], CXOR("amt_"), g_cfg.misc.fovs[i]);
 				save_int(misc[CXOR("viewmodel_pos") + std::to_string(i + 1)], CXOR("pos_"), g_cfg.misc.viewmodel_pos[i]);
+				save_int(misc[CXOR("viewmodel_angle") + std::to_string(i + 1)], CXOR("angle_"), g_cfg.misc.viewmodel_angles[i]);
 			}
 
+			save_int(misc, CXOR("zoom_fov_second"), g_cfg.misc.zoom_fov_second);
+			save_bool(misc, CXOR("force_viewmodel_fov"), g_cfg.misc.force_viewmodel_fov);
+			save_bool(misc, CXOR("instant_scope"), g_cfg.misc.instant_scope);
+			save_bool(misc, CXOR("viewmodel_modifiers"), g_cfg.misc.viewmodel_modifiers);
+			save_int(misc, CXOR("viewmodel_bob"), g_cfg.misc.viewmodel_bob);
+			save_int(misc, CXOR("viewmodel_sway"), g_cfg.misc.viewmodel_sway);
+			save_int(misc, CXOR("viewmodel_lower"), g_cfg.misc.viewmodel_lower);
 			save_int(misc, CXOR("aspect_ratio"), g_cfg.misc.aspect_ratio);
 
 			save_bool(misc, CXOR("thirdperson_dead"), g_cfg.misc.thirdperson_dead);
+			save_bool(misc, CXOR("thirdperson_disable_on_collision"), g_cfg.misc.thirdperson_disable_on_collision);
 			save_int(misc, CXOR("thirdperson_dist"), g_cfg.misc.thirdperson_dist);
 
 			save_bool(misc, CXOR("impacts"), g_cfg.misc.impacts);
@@ -1075,7 +1097,9 @@ namespace config
 					load_bool(esp_cfg_json, CXOR("nade_offscreen"), esp_cfg.nade_offscreen);
 					load_int(esp_cfg_json, CXOR("offscreen_dist"), esp_cfg.offscreen_dist);
 					load_int(esp_cfg_json, CXOR("offscreen_size"), esp_cfg.offscreen_size);
+					load_bool(esp_cfg_json, CXOR("disable_model"), esp_cfg.disable_model);
 					load_uint(esp_cfg_json, CXOR("elements"), esp_cfg.elements);
+					load_uint(esp_cfg_json, CXOR("flags"), esp_cfg.flags);
 
 					auto& esp_colors = esp_cfg_json[CXOR("colors")];
 					{
@@ -1144,11 +1168,20 @@ namespace config
 			{
 				load_int(misc[CXOR("fov") + std::to_string(i + 1)], CXOR("amt_"), g_cfg.misc.fovs[i]);
 				load_int(misc[CXOR("viewmodel_pos") + std::to_string(i + 1)], CXOR("pos_"), g_cfg.misc.viewmodel_pos[i]);
+				load_int(misc[CXOR("viewmodel_angle") + std::to_string(i + 1)], CXOR("angle_"), g_cfg.misc.viewmodel_angles[i]);
 			}
 
+			load_int(misc, CXOR("zoom_fov_second"), g_cfg.misc.zoom_fov_second);
+			load_bool(misc, CXOR("force_viewmodel_fov"), g_cfg.misc.force_viewmodel_fov);
+			load_bool(misc, CXOR("instant_scope"), g_cfg.misc.instant_scope);
+			load_bool(misc, CXOR("viewmodel_modifiers"), g_cfg.misc.viewmodel_modifiers);
+			load_int(misc, CXOR("viewmodel_bob"), g_cfg.misc.viewmodel_bob);
+			load_int(misc, CXOR("viewmodel_sway"), g_cfg.misc.viewmodel_sway);
+			load_int(misc, CXOR("viewmodel_lower"), g_cfg.misc.viewmodel_lower);
 			load_int(misc, CXOR("aspect_ratio"), g_cfg.misc.aspect_ratio);
 
 			load_bool(misc, CXOR("thirdperson_dead"), g_cfg.misc.thirdperson_dead);
+			load_bool(misc, CXOR("thirdperson_disable_on_collision"), g_cfg.misc.thirdperson_disable_on_collision);
 			load_int(misc, CXOR("thirdperson_dist"), g_cfg.misc.thirdperson_dist);
 
 			load_bool(misc, CXOR("impacts"), g_cfg.misc.impacts);

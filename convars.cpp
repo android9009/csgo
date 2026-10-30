@@ -68,6 +68,10 @@ void c_hacks::convars_t::init()
 	weapon_accuracy_shotgun_spread_patterns		= HACKS->cvar->find_convar(CXOR("weapon_accuracy_shotgun_spread_patterns"));
 
 	cl_wpn_sway_interp							= HACKS->cvar->find_convar(CXOR("cl_wpn_sway_interp"));
+	cl_wpn_sway_scale							= HACKS->cvar->find_convar(CXOR("cl_wpn_sway_scale"));
+	cl_bobamt_lat								= HACKS->cvar->find_convar(CXOR("cl_bobamt_lat"));
+	cl_bobamt_vert							= HACKS->cvar->find_convar(CXOR("cl_bobamt_vert"));
+	cl_bob_lower_amt							= HACKS->cvar->find_convar(CXOR("cl_bob_lower_amt"));
 	cl_forwardspeed								= HACKS->cvar->find_convar(CXOR("cl_forwardspeed"));
 
 	sv_minupdaterate							= HACKS->cvar->find_convar(CXOR("sv_minupdaterate"));

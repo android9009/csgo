@@ -58,6 +58,8 @@ struct esp_player_t
 {
     bool valid = false;
     bool planting = false;
+    bool reloading = false;
+    bool pin_pulled = false;
 
     int health{};
     int ammo{};
@@ -98,6 +100,8 @@ struct esp_player_t
         {
             weapon_name = weapon->get_weapon_name();
             weapon_icon = (const char*)weapon->get_weapon_icon();
+            reloading = weapon->in_reload();
+            pin_pulled = weapon->is_grenade() && weapon->pin_pulled();
 
             auto info = HACKS->weapon_system->get_weapon_data(weapon->item_definition_index());
             if (info)
@@ -108,6 +112,11 @@ struct esp_player_t
                 planting = weapon->item_definition_index() == WEAPON_C4 && weapon->started_arming();
             }
         }
+        else
+        {
+            reloading = false;
+            pin_pulled = false;
+        }
     }
 
     INLINE void reset()
@@ -116,6 +125,8 @@ struct esp_player_t
         {
             valid = false;
             planting = false;
+            reloading = false;
+            pin_pulled = false;
 
             health = 0;
             ammo = 0;

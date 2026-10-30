@@ -1,6 +1,59 @@
 #include "globals.hpp"
 #include "fov_and_view.hpp"
 
+void c_fov_and_view::reset()
+{
+	if (modifiers_applied)
+	{
+		if (HACKS->convars.cl_wpn_sway_scale)
+			HACKS->convars.cl_wpn_sway_scale->set_value(original_sway);
+		if (HACKS->convars.cl_bobamt_lat)
+			HACKS->convars.cl_bobamt_lat->set_value(original_bob_lat);
+		if (HACKS->convars.cl_bobamt_vert)
+			HACKS->convars.cl_bobamt_vert->set_value(original_bob_vert);
+		if (HACKS->convars.cl_bob_lower_amt)
+			HACKS->convars.cl_bob_lower_amt->set_value(original_lower);
+	}
+
+	override_sensitivity = false;
+	modifiers_applied = false;
+	last_fov = 0;
+}
+
+void c_fov_and_view::change_viewmodel_modifiers()
+{
+	auto& convars = HACKS->convars;
+	if (!convars.cl_wpn_sway_scale || !convars.cl_bobamt_lat || !convars.cl_bobamt_vert || !convars.cl_bob_lower_amt)
+		return;
+
+	if (!g_cfg.misc.viewmodel_modifiers)
+	{
+		if (modifiers_applied)
+		{
+			convars.cl_wpn_sway_scale->set_value(original_sway);
+			convars.cl_bobamt_lat->set_value(original_bob_lat);
+			convars.cl_bobamt_vert->set_value(original_bob_vert);
+			convars.cl_bob_lower_amt->set_value(original_lower);
+			modifiers_applied = false;
+		}
+		return;
+	}
+
+	if (!modifiers_applied)
+	{
+		original_sway = convars.cl_wpn_sway_scale->get_float();
+		original_bob_lat = convars.cl_bobamt_lat->get_float();
+		original_bob_vert = convars.cl_bobamt_vert->get_float();
+		original_lower = convars.cl_bob_lower_amt->get_float();
+		modifiers_applied = true;
+	}
+
+	convars.cl_wpn_sway_scale->set_value(original_sway * g_cfg.misc.viewmodel_sway * 0.01f);
+	convars.cl_bobamt_lat->set_value(original_bob_lat * g_cfg.misc.viewmodel_bob * 0.01f);
+	convars.cl_bobamt_vert->set_value(original_bob_vert * g_cfg.misc.viewmodel_bob * 0.01f);
+	convars.cl_bob_lower_amt->set_value(original_lower * g_cfg.misc.viewmodel_lower * 0.01f);
+}
+
 void c_fov_and_view::change_zoom_sensitivity()
 {
 	if (!HACKS->local || !HACKS->weapon || !HACKS->weapon_info)
@@ -32,7 +85,8 @@ void c_fov_and_view::change_fov()
 	// get fov that should be added to real
 	float zoom_fov = HACKS->weapon->get_zoom_fov(zoom_level) + g_cfg.misc.fovs[world];
 	float fov_delta = newfov - zoom_fov;
-	float total_fov = fov_delta * (1.f - g_cfg.misc.fovs[zoom] * 0.01f);
+	float zoom_scale = zoom_level > 1 ? g_cfg.misc.zoom_fov_second : g_cfg.misc.fovs[zoom];
+	float total_fov = fov_delta * (1.f - zoom_scale * 0.01f);
 
 	HACKS->local->default_fov() = HACKS->local->fov_start() = HACKS->local->fov() = newfov;
 
@@ -50,7 +104,7 @@ void c_fov_and_view::change_fov()
 			HACKS->local->fov() = out / zoom_level;
 			last_fov = HACKS->local->fov();
 
-			if (g_cfg.misc.skip_second_zoom)
+			if (g_cfg.misc.skip_second_zoom || g_cfg.misc.instant_scope)
 				HACKS->local->fov_rate() = 0.f;
 			else
 				HACKS->local->fov_rate() = HACKS->weapon->get_zoom_time(zoom_level);

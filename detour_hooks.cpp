@@ -252,6 +252,8 @@ namespace hooks::detour
 		if (g_cfg.misc.removals & vis_recoil)
 			eye_angles -= HACKS->local->aim_punch_angle() * 0.9f + HACKS->local->view_punch_angle();
 
+		eye_angles += vec3_t{ g_cfg.misc.viewmodel_angles[0], g_cfg.misc.viewmodel_angles[1], g_cfg.misc.viewmodel_angles[2] };
+
 		original(ecx, edx, owner, eye_pos, eye_angles);
 	}
 
@@ -326,6 +328,10 @@ namespace hooks::detour
 
 		if (index < 1 || index > 64)
 			return original(ecx, edx, renderable, render_with_viewmodels, type, model_type, split_screen_enables);
+
+		auto player = (c_cs_player*)entity;
+		if (g_cfg.visuals.esp[esp_teammate].disable_model && player->is_teammate(false))
+			return;
 
 		// set advanced transparency type for fixing z order (chams renders behind props)
 		if (index == HACKS->engine->get_local_player())

@@ -688,6 +688,7 @@ public:
 	NETVAR(account_id, int&, "DT_BaseAttributableItem", "m_iAccountID");
 	NETVAR(zoom_level, int, "DT_WeaponCSBaseGun", "m_zoomLevel");
 	NETVAR(clip1, int, "DT_BaseCombatWeapon", "m_iClip1");
+	NETVAR(in_reload, bool, "DT_BaseCombatWeapon", "m_bInReload");
 
 	NETVAR_PTR(custom_name, char, "DT_BaseAttributableItem", "m_szCustomName");
 

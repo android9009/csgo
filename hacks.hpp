@@ -86,6 +86,10 @@ private:
         c_convar* sv_accelerate{};
         c_convar* weapon_accuracy_shotgun_spread_patterns{};
         c_convar* cl_wpn_sway_interp{};
+        c_convar* cl_wpn_sway_scale{};
+        c_convar* cl_bobamt_lat{};
+        c_convar* cl_bobamt_vert{};
+        c_convar* cl_bob_lower_amt{};
         c_convar* cl_forwardspeed{};
         c_convar* sv_minupdaterate{};
         c_convar* sv_maxupdaterate{};

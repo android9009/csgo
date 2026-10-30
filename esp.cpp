@@ -661,20 +661,35 @@ void c_esp::draw_player_esp()
 
 					if (entity_visuals.elements & 64)
 					{
-						if (player->armor_value() > 0)
-							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, player->has_helmet() ? XOR("HK") : XOR("K"));
+						auto add_flag = [&](const char* text)
+						{
+							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, text);
+						};
 
-						if (player->is_scoped())
-							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, XOR("ZOOM"));
-
-						if (player->has_defuser())
-							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, XOR("KIT"));
-
-						if (HACKS->player_resource && HACKS->player_resource->player_c4_index() == player->index())
-							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, XOR("C4"));
-
-						if (esp.planting)
-							EMPLACE_OBJECT(true, FONT_OUTLINE | FONT_LIGHT_BACK, FONT_PIXEL, ESP_POS_RIGHT, 0.f, 0.f, esp.alpha, { 255, 255, 255, 255 }, { 0, 0, 0, 255 }, XOR("PLANTING"));
+						if ((entity_visuals.flags & esp_flag_armor) && player->armor_value() > 0)
+							add_flag(player->has_helmet() ? XOR("HK") : XOR("K"));
+						if ((entity_visuals.flags & esp_flag_unarmored) && player->armor_value() <= 0)
+							add_flag(XOR("NO ARMOR"));
+						if ((entity_visuals.flags & esp_flag_defuser) && player->has_defuser())
+							add_flag(XOR("KIT"));
+						if ((entity_visuals.flags & esp_flag_blind) && player->flash_duration() > 0.f)
+							add_flag(XOR("BLIND"));
+						if ((entity_visuals.flags & esp_flag_scoped) && player->is_scoped())
+							add_flag(XOR("SCOPED"));
+						if ((entity_visuals.flags & esp_flag_reload) && esp.reloading)
+							add_flag(XOR("RELOAD"));
+						if ((entity_visuals.flags & esp_flag_immunity) && player->has_gun_game_immunity())
+							add_flag(XOR("IMMUNE"));
+						if ((entity_visuals.flags & esp_flag_slowed) && player->velocity_modifier() < 0.99f)
+							add_flag(XOR("SLOWED"));
+						if ((entity_visuals.flags & esp_flag_defusing) && player->is_defusing())
+							add_flag(XOR("DEFUSING"));
+						if ((entity_visuals.flags & esp_flag_bomb) && HACKS->player_resource && HACKS->player_resource->player_c4_index() == player->index())
+							add_flag(XOR("C4"));
+						if ((entity_visuals.flags & esp_flag_planting) && esp.planting)
+							add_flag(XOR("PLANTING"));
+						if ((entity_visuals.flags & esp_flag_pin_pulled) && esp.pin_pulled)
+							add_flag(XOR("PIN"));
 					}
 
 #if _DEBUG || ALPHA || BETA
