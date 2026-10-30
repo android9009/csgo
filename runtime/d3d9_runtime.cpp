@@ -18,6 +18,7 @@
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"
 #include "../menu/menu.hpp"
+#include "../menu/weapon_icons.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 #pragma comment(lib, "d3d9.lib")
@@ -155,6 +156,7 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
         std::scoped_lock lock(frame_mutex);
         if (initialized && reset_device == device) {
             steam_avatar::on_device_reset();
+            weapon_icons::on_device_reset();
             blur::on_device_reset();
             ImGui_ImplDX9_InvalidateDeviceObjects();
         }

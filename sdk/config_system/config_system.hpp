@@ -1,5 +1,6 @@
 #pragma once
 #include "../typedefs/c_color.hpp"
+#include "../weapon_definitions.hpp"
 
 #include <vector>
 #include <string>
@@ -47,6 +48,10 @@ const char* const weapon_group_names[] = {
     "Shotgun",
     "LMG"
 };
+
+// Slot 0 is Global; the remaining slots are independent user-created presets. Fixed slots keep
+// config/bind pointers stable while allowing several presets for the same weapon category.
+inline constexpr int RAGE_WEAPON_PRESET_MAX = 32;
 
 // ============================================================================
 // CONFIG SYSTEM
@@ -132,7 +137,19 @@ public:
         int m_selected_group = 0;
         
         // Настройки по группам оружий
-        weapon_config_t m_weapon_config[WEAPON_GROUP_MAX];
+        weapon_config_t m_weapon_config[RAGE_WEAPON_PRESET_MAX];
+
+        // Preset metadata. m_override_general is also the active flag for slots 1..31, which keeps
+        // old configs compatible: an enabled legacy group appears with its original category.
+        bool m_preset_initialized[RAGE_WEAPON_PRESET_MAX] = {true};
+        bool m_preset_custom[RAGE_WEAPON_PRESET_MAX] = {};
+        int m_preset_category[RAGE_WEAPON_PRESET_MAX] = {
+            0,
+            WEAPON_PRESET_PISTOLS, WEAPON_PRESET_HEAVY_PISTOL, WEAPON_PRESET_SMGS,
+            WEAPON_PRESET_RIFLES, WEAPON_PRESET_AUTOSNIPERS, WEAPON_PRESET_SSG_08,
+            WEAPON_PRESET_AWP, WEAPON_PRESET_SHOTGUNS, WEAPON_PRESET_MACHINEGUNS
+        };
+        bool m_preset_weapons[RAGE_WEAPON_PRESET_MAX][WEAPON_COUNT] = {};
         
         // Override keybind
         int m_override_damage_key_bind = 0;
@@ -164,7 +181,7 @@ public:
 
         // Получение конфига для текущего оружия
         weapon_config_t& get_weapon_config(int group) {
-            if (group < 0 || group >= WEAPON_GROUP_MAX)
+            if (group < 0 || group >= RAGE_WEAPON_PRESET_MAX)
                 group = WEAPON_GROUP_GENERAL;
             
             auto& cfg = m_weapon_config[group];

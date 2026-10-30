@@ -95,6 +95,8 @@
     <ClCompile Include="menu\gui.cpp" />
     <ClCompile Include="menu\menu.cpp" />
     <ClCompile Include="menu\menu_shared.cpp" />
+    <ClCompile Include="menu\weapon_icons.cpp" />
+    <ClCompile Include="menu\weapon_presets.cpp" />
     <ClCompile Include="runtime\d3d9_runtime.cpp" />
     <ClCompile Include="runtime\fonts.cpp" />
     <ClCompile Include="runtime\steam_avatar.cpp" />
@@ -126,10 +128,14 @@
     <ClInclude Include="menu\notification.hpp" />
     <ClInclude Include="menu\shader_bg.hpp" />
     <ClInclude Include="menu\spotify.hpp" />
+    <ClInclude Include="menu\weapon_icons.hpp" />
+    <ClInclude Include="menu\weapon_icons_atlas.hpp" />
+    <ClInclude Include="menu\weapon_presets.hpp" />
     <ClInclude Include="runtime\fonts.hpp" />
     <ClInclude Include="runtime\runtime.hpp" />
     <ClInclude Include="runtime\steam_avatar.hpp" />
     <ClInclude Include="sdk\config_system\config_system.hpp" />
+    <ClInclude Include="sdk\weapon_definitions.hpp" />
     <ClInclude Include="sdk\includes\imgui\imconfig.h" />
     <ClInclude Include="sdk\includes\imgui\imgui.h" />
     <ClInclude Include="sdk\includes\imgui\imgui_impl_dx9.h" />

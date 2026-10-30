@@ -8,13 +8,15 @@ void c_menu::draw_rage() {
     static const char* safety_modes[] = { "Off", "Prefer", "Force" };
 
     auto& rage = g_cfg->rage_bot;
-    rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
+    rage.m_selected_group = ImClamp(rage.m_selected_group, 0, RAGE_WEAPON_PRESET_MAX - 1);
+    if (rage.m_selected_group != 0 && !rage.m_weapon_config[rage.m_selected_group].m_override_general)
+        rage.m_selected_group = 0;
     auto& cfg = rage.m_weapon_config[rage.m_selected_group];
 
     // Neverlose layout: MAIN + ACCURACY on the left, SELECTION + SAFETY on the right. Anti-Aim
     // has its own tab. The options gear sits in the slot left of the control it belongs to; its card holds the
-    // settings that have no row of their own. The group being edited is chosen from the
-    // weapon-group selector in the top bar.
+    // settings that have no row of their own. The preset being edited is chosen from the
+    // Weapon Presets selector in the top bar.
     gui.begin_grid(2);
 
     // ========== LEFT COLUMN ==========

@@ -4,6 +4,7 @@
 #include "menu_shared.hpp"
 #include "hashes.hpp"
 #include "notification.hpp"
+#include "weapon_presets.hpp"
 #include "shader_bg.hpp"
 #include "binds.hpp"
 #include <cmath>
@@ -25,9 +26,11 @@ void register_bind_targets() {
     menu_binds::register_bool("rage.silent", "Silent", &rage.m_silent);
     
     // Register binds for ALL weapon groups
-    for (int g = 0; g < WEAPON_GROUP_MAX; ++g) {
+    for (int g = 0; g < RAGE_WEAPON_PRESET_MAX; ++g) {
         auto& weapon = rage.m_weapon_config[g];
-        const std::string prefix = "rage." + std::string(weapon_group_names[g]) + ".";
+        const std::string group_name = g < WEAPON_GROUP_MAX
+            ? std::string(weapon_group_names[g]) : "Preset " + std::to_string(g);
+        const std::string prefix = "rage." + group_name + ".";
         
         menu_binds::register_bool((prefix + "auto_stop").c_str(), "Auto Stop", &weapon.m_auto_stop);
         menu_binds::register_bool((prefix + "auto_scope").c_str(), "Auto Scope", &weapon.m_auto_scope);
@@ -96,126 +99,14 @@ void register_bind_targets() {
 }
 
 void draw_top_bar(ImGuiWindow* window) {
-    ImDrawList* draw = window->DrawList;
     const ImVec2 pos = window->Pos;
     const ImVec2 size = window->Size;
-    const float s = gui.m_scale;
 
     ImGui::SetCursorPos(ImVec2(190.f, 15.f));
     const ImVec2 button_pos = ImGui::GetCursorScreenPos();
 
-    // Weapon-group selector - Rage tab only. It opens a popup card (begin_popup_card_at), which
-    // is a top-level popup window and so draws above the menu's "##content" child instead of
-    // being covered by it. "Global" is the General group every other group falls back to; the
-    // groups under the divider are the per-weapon overrides.
-    if (gui.m_tab == 0) {
-        auto& rage = g_cfg->rage_bot;
-        rage.m_selected_group = ImClamp(rage.m_selected_group, 0, WEAPON_GROUP_MAX - 1);
-
-        const float wg_w = 150.f;
-        const ImVec2 wg_pos = button_pos;
-
-        ImGui::SetCursorScreenPos(wg_pos);
-        const bool wg_clicked = ImGui::InvisibleButton("##top_weapon_group", ImVec2(wg_w, 30.f));
-        const bool wg_hovered = ImGui::IsItemHovered();
-
-        static float wg_hover = 0.f;
-        wg_hover = ImLerp(wg_hover, wg_hovered ? 1.f : 0.f, ImClamp(ImGui::GetIO().DeltaTime * 15.f, 0.f, 1.f));
-
-        draw->AddRectFilled(wg_pos, wg_pos + ImVec2(wg_w, 30.f),
-                            gui.frame_inactive.to_im_color(0.5f + wg_hover * 0.3f), 6.f);
-
-        const char* wg_name = rage.m_selected_group == 0 ? "Global" : weapon_group_names[rage.m_selected_group];
-        const ImVec2 wg_name_size = ImGui::CalcTextSize(wg_name);
-        draw->AddText(wg_pos + ImVec2(12.f, (30.f - wg_name_size.y) * 0.5f),
-                      gui.text.to_im_color(), wg_name);
-
-        const ImVec2 wg_arrow_size = ImGui::CalcTextSize(ICON_FA_CHEVRON_DOWN);
-        draw->AddText(wg_pos + ImVec2(wg_w - wg_arrow_size.x - 12.f, (30.f - wg_arrow_size.y) * 0.5f),
-                      gui.text_disabled.to_im_color(), ICON_FA_CHEVRON_DOWN);
-
-        bool wg_open = false;
-        const float wg_anim = gui.popup_animation("##top_weapon_group_dropdown", wg_clicked, wg_open);
-        const ImVec2 wg_anchor(wg_pos.x, wg_pos.y + 36.f * s);
-        if (gui.begin_popup_card_at("##top_weapon_group_dropdown", wg_open, wg_anim,
-                                    wg_anchor, ImVec2(0.f, 0.f), 200.f)) {
-            // "Global" header = the General group. Clicking it edits the base settings.
-            {
-                const bool sel = rage.m_selected_group == 0;
-                ImVec2 rp = ImGui::GetCursorScreenPos();
-                const float rw = ImGui::GetContentRegionAvail().x;
-                const float rh = 26.f * s;
-                ImRect rb(rp, rp + ImVec2(rw, rh));
-                const bool rhov = ImGui::IsMouseHoveringRect(rb.Min, rb.Max);
-                if (rhov && ImGui::IsMouseClicked(0))
-                    rage.m_selected_group = 0;
-                ImDrawList* pd = ImGui::GetWindowDrawList();
-                if (rhov || sel)
-                    pd->AddRectFilled(rb.Min, rb.Max, gui.frame_inactive.to_im_color(sel ? 0.8f : 0.4f), 4.f * s);
-                ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.Size > 4 ? ImGui::GetIO().Fonts->Fonts[4] : ImGui::GetFont());
-                pd->AddText(ImVec2(rb.Min.x + 8.f * s, IM_ROUND(rb.GetCenter().y - ImGui::GetFontSize() / 2.f)),
-                            sel ? gui.accent_color.to_im_color() : gui.text.to_im_color(), "Global");
-                ImGui::PopFont();
-                ImGui::Dummy(ImVec2(rw, rh));
-            }
-            ImGui::Separator();
-
-            // Per-weapon groups: a click enables the override; a second click (once enabled)
-            // opens that group's settings in the tab; the trailing X removes it from override.
-            ImGui::BeginChild("##wg_list", ImVec2(0, 220.f * s), false);
-            for (int i = 1; i < WEAPON_GROUP_MAX; ++i) {
-                auto& wcfg = rage.m_weapon_config[i];
-                const bool enabled = wcfg.m_override_general;
-                const bool sel = rage.m_selected_group == i;
-
-                ImGui::PushID(i);
-                ImVec2 rp = ImGui::GetCursorScreenPos();
-                const float rw = ImGui::GetContentRegionAvail().x;
-                const float rh = 28.f * s;
-                ImRect rb(rp, rp + ImVec2(rw, rh));
-
-                const float x_w = 26.f * s;
-                ImRect main_bb(rp, rp + ImVec2(rw - (enabled ? x_w : 0.f), rh));
-                ImRect x_bb(rp + ImVec2(rw - x_w, 0.f), rp + ImVec2(rw, rh));
-
-                bool main_hov = ImGui::IsMouseHoveringRect(main_bb.Min, main_bb.Max);
-                const bool x_hov = enabled && ImGui::IsMouseHoveringRect(x_bb.Min, x_bb.Max);
-                if (x_hov) main_hov = false;
-
-                if (main_hov && ImGui::IsMouseClicked(0)) {
-                    if (!enabled)
-                        wcfg.m_override_general = true;   // first click: enable override
-                    else
-                        rage.m_selected_group = i;        // already on: open its settings
-                }
-                if (x_hov && ImGui::IsMouseClicked(0)) {
-                    wcfg.m_override_general = false;      // X: remove from override
-                    if (rage.m_selected_group == i)
-                        rage.m_selected_group = 0;        // fall back to editing General
-                }
-
-                ImDrawList* pd = ImGui::GetWindowDrawList();
-                if (main_hov || sel)
-                    pd->AddRectFilled(rb.Min, rb.Max, gui.frame_inactive.to_im_color(sel ? 0.8f : 0.4f), 4.f * s);
-
-                const ImU32 name_col = sel ? gui.accent_color.to_im_color()
-                                           : (enabled ? gui.text.to_im_color() : gui.text_disabled.to_im_color());
-                pd->AddText(ImVec2(rb.Min.x + 8.f * s, IM_ROUND(rb.GetCenter().y - ImGui::GetFontSize() / 2.f)),
-                            name_col, weapon_group_names[i]);
-
-                if (enabled) {
-                    const ImVec2 xs = ImGui::CalcTextSize(ICON_FA_TIMES);
-                    pd->AddText(ImVec2(x_bb.GetCenter().x - xs.x / 2.f, x_bb.GetCenter().y - xs.y / 2.f),
-                                x_hov ? gui.accent_color.to_im_color() : gui.text_disabled.to_im_color(), ICON_FA_TIMES);
-                }
-
-                ImGui::Dummy(ImVec2(rw, rh));
-                ImGui::PopID();
-            }
-            ImGui::EndChild();
-            gui.end_popup_card();
-        }
-    }
+    if (gui.m_tab == 0)
+        weapon_presets_ui::draw(button_pos);
 
     const int search_tab = gui.search_bar(pos + ImVec2(size.x - 15.f * gui.m_scale, 15.f));
     if (search_tab >= 0)

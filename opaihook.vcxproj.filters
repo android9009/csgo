@@ -159,6 +159,12 @@
     <ClCompile Include="menu\menu_shared.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
+    <ClCompile Include="menu\weapon_icons.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\weapon_presets.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
     <ClCompile Include="runtime\d3d9_runtime.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
@@ -248,6 +254,15 @@
     <ClInclude Include="menu\spotify.hpp">
       <Filter>Header Files\menu</Filter>
     </ClInclude>
+    <ClInclude Include="menu\weapon_icons.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\weapon_icons_atlas.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\weapon_presets.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
     <ClInclude Include="runtime\fonts.hpp">
       <Filter>Header Files\runtime</Filter>
     </ClInclude>
@@ -259,6 +274,9 @@
     </ClInclude>
     <ClInclude Include="sdk\config_system\config_system.hpp">
       <Filter>Header Files\sdk\config_system</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\weapon_definitions.hpp">
+      <Filter>Header Files\sdk</Filter>
     </ClInclude>
     <ClInclude Include="sdk\includes\imgui\imconfig.h">
       <Filter>Header Files\sdk\includes\imgui</Filter>

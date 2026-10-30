@@ -21,6 +21,8 @@ add_library(airflow_shell SHARED
   menu/gui.cpp
   menu/menu.cpp
   menu/menu_shared.cpp
+  menu/weapon_icons.cpp
+  menu/weapon_presets.cpp
   runtime/d3d9_runtime.cpp
   runtime/fonts.cpp
   runtime/steam_avatar.cpp

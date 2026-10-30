@@ -21,7 +21,7 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->rage_bot.m_silent, "rage_bot", "silent", g_cfg->rage_bot.m_silent );
 
 	// Save weapon config for each group
-	for (int group = 0; group < WEAPON_GROUP_MAX; group++) {
+	for (int group = 0; group < RAGE_WEAPON_PRESET_MAX; group++) {
 		auto& cfg = g_cfg->rage_bot.m_weapon_config[group];
 		std::string prefix = std::format("weapon_group_{}", group);
 		
@@ -56,6 +56,16 @@ void c_config_system::setup_values( )
 		push_item(&cfg.m_penetration, "rage_bot", prefix + "_penetration", cfg.m_penetration);
 		push_item(&cfg.m_body_aim, "rage_bot", prefix + "_body_aim", cfg.m_body_aim);
 		push_item(&cfg.m_safe_points, "rage_bot", prefix + "_safe_points", cfg.m_safe_points);
+
+		if (group > 0) {
+			push_item(&g_cfg->rage_bot.m_preset_initialized[group], "rage_bot", prefix + "_preset_initialized", g_cfg->rage_bot.m_preset_initialized[group]);
+			push_item(&g_cfg->rage_bot.m_preset_custom[group], "rage_bot", prefix + "_preset_custom", g_cfg->rage_bot.m_preset_custom[group]);
+			push_item(&g_cfg->rage_bot.m_preset_category[group], "rage_bot", prefix + "_preset_category", g_cfg->rage_bot.m_preset_category[group]);
+			for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+				push_item(&g_cfg->rage_bot.m_preset_weapons[group][weapon], "rage_bot",
+					prefix + "_weapon_" + std::to_string(weapon), g_cfg->rage_bot.m_preset_weapons[group][weapon]);
+			}
+		}
 	}
 
 	push_item( &g_cfg->rage_bot.m_override_damage_key_bind, "rage_bot", "override_damage_keybind", g_cfg->rage_bot.m_override_damage_key_bind );
