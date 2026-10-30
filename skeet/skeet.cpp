@@ -95,6 +95,99 @@ static bool PatchOverlayCallSlots(std::uint8_t* image, size_t imageSize) {
     return true;
 }
 
+#if defined(_M_IX86)
+// The firing wrapper at 0x43398a76 has already prepared its record and tick
+// budget when it calls the movement-only predictor at 0x43398b67. Redirect
+// that call to the full record evaluator so its animation-aware predictor is
+// available to hitscan as well. This is a tail-call adapter: the full evaluator
+// cleans its four arguments, and we clean the original three on return.
+static __declspec(naked) void FiringExtrapolationAdapter() {
+    __asm {
+        ;Original stack: return, animation entry, output record, tick delta.
+        ;EDX is the target entity. The caller's EBP+8 is the outer lag-comp
+        ;context used by both wrappers for their final apply operation.
+        ;The full evaluator rejects an empty history, while the compact wrapper
+        ;has a current-record fallback. Preserve that path with a tail jump.
+        mov eax, dword ptr [esp + 4]
+        cmp dword ptr [eax + 5D8h], 0
+        je movement_only
+        mov eax, dword ptr [esp + 8]
+        mov ecx, dword ptr [eax + 4Ch]
+        add ecx, dword ptr [esp + 0Ch]
+
+        ;Full evaluator arguments, right to left:
+        ;desired tick, animation-aware flag, output record, output flags.
+        sub eax, 0Ch
+        push eax
+        mov eax, dword ptr [esp + 0Ch]
+        push eax
+        push 1
+        push ecx
+        mov ecx, dword ptr [ebp + 8]
+        mov eax, 4336C53Bh
+        call eax
+
+        ;The evaluator returns bool in AL, not a zero-extended EAX. On
+        ;success skip the now-redundant post-processing/apply in the compact
+        ;wrapper, but retain its firing-specific restoration at 0x43398e29.
+        ;On failure skip directly to its clean epilogue at 0x43398e91.
+        test al, al
+        mov eax, 43398E91h
+        jz prediction_done
+        mov eax, 43398E29h
+prediction_done:
+        mov dword ptr [esp], eax
+        ret 0Ch
+movement_only:
+        mov eax, 43322B09h
+        jmp eax
+    }
+}
+#endif
+
+static bool ImageBytesEqual(const std::uint8_t* image, size_t imageSize,
+    size_t offset, const std::uint8_t* expected, size_t expectedSize) {
+    return image && offset <= imageSize && expectedSize <= imageSize - offset
+        && memcmp(image + offset, expected, expectedSize) == 0;
+}
+
+static bool PatchFiringExtrapolation(std::uint8_t* image, size_t imageSize) {
+#if !defined(_M_IX86)
+    (void)image;
+    (void)imageSize;
+    return false;
+#else
+    constexpr size_t callOffset = 0x43398B67 - 0x43310000;
+    static constexpr std::uint8_t originalCall[] = { 0xE8, 0x9D, 0x9F, 0xF8, 0xFF };
+    static constexpr std::uint8_t evaluatorEntry[] = {
+        0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0, 0x81, 0xEC, 0x88, 0x01, 0x00, 0x00
+    };
+    static constexpr std::uint8_t successContinuation[] = { 0xF6, 0x47, 0x6C, 0x04 };
+    static constexpr std::uint8_t failureContinuation[] = {
+        0x5F, 0x5E, 0x8B, 0xE5, 0x5D, 0xC2, 0x04, 0x00
+    };
+    struct Guard { size_t offset; const std::uint8_t* bytes; size_t size; };
+    const Guard guards[] = {
+        { callOffset, originalCall, sizeof(originalCall) },
+        { 0x4336C53B - 0x43310000, evaluatorEntry, sizeof(evaluatorEntry) },
+        { 0x43398E29 - 0x43310000, successContinuation, sizeof(successContinuation) },
+        { 0x43398E91 - 0x43310000, failureContinuation, sizeof(failureContinuation) }
+    };
+    for (const auto& guard : guards) {
+        if (!ImageBytesEqual(image, imageSize, guard.offset, guard.bytes, guard.size)) {
+            return false;
+        }
+    }
+
+    const uintptr_t nextInstruction = reinterpret_cast<uintptr_t>(image + callOffset) + 5;
+    const std::uint32_t displacement = static_cast<std::uint32_t>(
+        reinterpret_cast<uintptr_t>(&FiringExtrapolationAdapter) - nextInstruction);
+    image[callOffset] = 0xE8;
+    memcpy(image + callOffset + 1, &displacement, sizeof(displacement));
+    return FlushInstructionCache(GetCurrentProcess(), image + callOffset, 5) != FALSE;
+#endif
+}
+
 static bool handle_int3(CONTEXT* ctx, ctx_t* dump_ctx) {
     auto skeet = skeet_t::getInstance();
 
@@ -751,6 +844,7 @@ bool skeet_t::extra()
         return false;
     }
     if (!PatchOverlayCallSlots((std::uint8_t*)(uintptr_t)_base, _size)) return false;
+    if (!PatchFiringExtrapolation((std::uint8_t*)(uintptr_t)_base, _size)) return false;
     // Publish neither address until both have passed validation.
     *(uint32_t*)0x43468D94 = (uint32_t)overlayReturn;
     *(uint32_t*)0x43468350 = overlayGlobal;
