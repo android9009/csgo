@@ -23,7 +23,18 @@ jobs:
 
       - name: Build Airflow Debug Win32
         shell: pwsh
-        run: msbuild opaihook.vcxproj /m /p:Configuration=Debug /p:Platform=Win32 /v:minimal
+        run: |
+          msbuild opaihook.vcxproj /m /p:Configuration=Debug /p:Platform=Win32 /v:minimal /fl "/flp:logfile=msbuild.log;verbosity=normal"
+          $buildExit = $LASTEXITCODE
+          if ($buildExit -ne 0) {
+            $errors = Select-String -Path msbuild.log -Pattern '(?:fatal )?error [A-Z]+[0-9]+:'
+            if ($errors) {
+              $errors | Select-Object -First 80 | ForEach-Object { Write-Host "::error::$($_.Line)" }
+            } else {
+              Get-Content msbuild.log -Tail 40 | ForEach-Object { Write-Host "::error::$_" }
+            }
+          }
+          exit $buildExit
 
       - name: Upload Airflow DLL
         uses: actions/upload-artifact@v4
