@@ -266,16 +266,16 @@ public:
 
     // --- Segmented header + chips ---
     // icon_tabs(): a bar of icon buttons anchored on `anchor`; the active one shows its label.
-    // `center` treats anchor.x as the center instead of the right edge. With `fixed_tab_count`,
-    // that many leading tabs reserve their full label width even while inactive: switching tabs
-    // or opening a trailing action cannot move their icons.
+    // `center` treats anchor.x as the center instead of the right edge. Segment widths animate
+    // with their labels, keeping inactive icons close together. `selectable_tabs` limits how many
+    // leading tabs can become active; later segments act as buttons (for example, ESP Items).
     // Returns the index clicked this frame (-1 for none, `count` for the trailing button). It draws
     // out of the layout flow, so the rows underneath keep their own position.
     // `held` keeps one segment lit while something it opened is still up (the ESP Items card),
     // without making it "the active side".
     int icon_tabs( const char* id, const char* const* icons, const char* const* labels, int count,
                    int* active, ImVec2 anchor, const char* trailing_icon = nullptr, int held = -1,
-                   bool center = false, int fixed_tab_count = -1 );
+                   bool center = false, int selectable_tabs = -1 );
     void chips( const char* id, const char* const* labels, bool* values, int count );
 
     // The little "pull up" handle a card can grow out of: a plate with a chevron that turns over

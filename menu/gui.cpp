@@ -1280,12 +1280,12 @@ bool c_gui::row_multibox( const char* label, const char* const* items, bool* val
     return changed;
 }
 
-// Segmented icon bar (the Players tab's header): the active segment shows its label. Fixed tabs
-// reserve their label width up front, so their icons never travel when selection or cards change.
-// `trailing_icon` is an extra button of its own on the end; true on the frame it is clicked.
+// Segmented icon bar (the Players tab's header): inactive icons sit close together, while the
+// active segment slides open to show its label. Leading tabs are selectable; later ones can be
+// action buttons. `trailing_icon` is a separate button on the end.
 int c_gui::icon_tabs( const char* id, const char* const* icons, const char* const* labels, int count,
                       int* active, ImVec2 anchor, const char* trailing_icon, int held,
-                      bool center, int fixed_tab_count ) {
+                      bool center, int selectable_tabs ) {
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
     if ( window->SkipItems || count <= 0 || !active )
         return -1;
@@ -1299,13 +1299,13 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
     ImFont* font = ImGui::GetFont( );
     const float fs = ImGui::GetFontSize( );
     ImDrawList* draw = window->DrawList;
-    const int selectable_count = fixed_tab_count > 0 ? ImMin( count, fixed_tab_count ) : count;
+    const int selectable_count = selectable_tabs > 0 ? ImMin( count, selectable_tabs ) : count;
     *active = ImClamp( *active, 0, selectable_count - 1 );
 
     ImGui::PushID( id );
 
     // Measure first: the complete bar is centered or right-aligned only after every segment's
-    // reserved width is known.
+    // animated width is known.
     float widths[ 8 ] = {};
     float total = 0.f;
     const int n = ImMin( count, 8 );
@@ -1316,9 +1316,7 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const float open_t = cfg_anim_get( ImHashStr( "##open", 0, seg_id ) );
         const ImVec2 isz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, icons[ i ] );
         const ImVec2 lsz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, tr( labels[ i ] ) );
-        const bool fixed_tab = fixed_tab_count > 0 && i < fixed_tab_count;
-        const float label_width = fixed_tab ? 1.f : open_t;
-        widths[ i ] = pad * 2.f + isz.x + label_width * ( 6.f * s + lsz.x );
+        widths[ i ] = pad * 2.f + isz.x + open_t * ( 6.f * s + lsz.x );
         total += widths[ i ] + gap;
     }
     float trailing_w = 0.f;
@@ -1338,7 +1336,7 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const bool clicked = ImGui::InvisibleButton( "##seg", ImVec2( widths[ i ], h ) );
         const bool hovered = ImGui::IsItemHovered( );
         if ( clicked ) {
-            if ( fixed_tab_count <= 0 || i < fixed_tab_count )
+            if ( selectable_tabs <= 0 || i < selectable_tabs )
                 *active = i;
             clicked_index = i;
         }
@@ -1346,15 +1344,10 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
         const float hot = ImMax( cfg_anim( seg_id, hovered ), i == held ? 1.f : 0.f );
         const ImRect bb( p, p + ImVec2( widths[ i ], h ) );
         const ImVec2 isz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, icons[ i ] );
-        const ImVec2 lsz = font->CalcTextSizeA( fs, FLT_MAX, 0.f, tr( labels[ i ] ) );
-        // Fixed cells keep every icon stationary; the visible plate still grows from the icon
-        // and collapses back into it, restoring the Enemies/Teammates reveal animation.
-        const float open_width = pad * 2.f + isz.x + open_t * ( 6.f * s + lsz.x );
-        const ImRect plate_bb( bb.Min, ImVec2( bb.Min.x + open_width, bb.Max.y ) );
 
         const float plate = ImMax( open_t, hot * 0.5f );
         if ( plate > 0.01f )
-            draw->AddRectFilled( plate_bb.Min, plate_bb.Max, frame_inactive.to_im_color( 0.9f * plate ), 8.f * s );
+            draw->AddRectFilled( bb.Min, bb.Max, frame_inactive.to_im_color( 0.9f * plate ), 8.f * s );
 
         ImVec4 col = ImLerp( text_disabled.to_vec4( 1.f, false ), text.to_vec4( 1.f, false ), hot );
         col = ImLerp( col, accent_color.to_vec4( 1.f, false ), open_t );
@@ -1366,7 +1359,7 @@ int c_gui::icon_tabs( const char* id, const char* const* icons, const char* cons
 
         if ( open_t > 0.01f ) { // label slides out of the icon as the segment opens
             const char* shown = tr( labels[ i ] );
-            draw->PushClipRect( plate_bb.Min, plate_bb.Max, true );
+            draw->PushClipRect( bb.Min, bb.Max, true );
             draw->AddText( font, fs, ImVec2( IM_ROUND( icon_x + isz.x + 6.f * s ),
                 IM_ROUND( bb.GetCenter( ).y - TextLineCenterY( font, fs ) ) ),
                 ImGui::GetColorU32( ImVec4( col.x, col.y, col.z, col.w * open_t ) ), shown );
