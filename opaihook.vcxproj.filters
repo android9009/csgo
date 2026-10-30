@@ -138,6 +138,9 @@
     <ClCompile Include="features\skins\skins.cpp">
       <Filter>Source Files\features\skins</Filter>
     </ClCompile>
+    <ClCompile Include="menu\agent_preview.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
     <ClCompile Include="menu\binds.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
@@ -218,6 +221,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="menu\agent_preview.hpp">
+      <Filter>Header Files\menu</Filter>
+    </ClInclude>
     <ClInclude Include="menu\binds.hpp">
       <Filter>Header Files\menu</Filter>
     </ClInclude>

@@ -14,6 +14,7 @@ add_library(airflow_shell SHARED
   features/rage/anti_aim.cpp
   features/rage/rage.cpp
   features/skins/skins.cpp
+  menu/agent_preview.cpp
   menu/binds.cpp
   menu/blur.cpp
   menu/effects.cpp

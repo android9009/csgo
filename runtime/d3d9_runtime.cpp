@@ -15,6 +15,7 @@
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
+#include "../menu/agent_preview.hpp"
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"
 #include "../menu/menu.hpp"
@@ -136,6 +137,9 @@ void render_frame(IDirect3DDevice9* present_device) {
     if (present_device != device)
         return;
 
+    // Panorama has already rendered into the backbuffer at this point. Copy the live agent region
+    // before this frame's opaque ImGui menu covers it again.
+    agent_preview::begin_frame(present_device);
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::GetIO().MouseDrawCursor = g_menu->is_opened();
@@ -144,6 +148,7 @@ void render_frame(IDirect3DDevice9* present_device) {
     ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
     g_menu->draw();
+    agent_preview::end_frame();
     ImGui::Render();
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
 }
@@ -158,6 +163,7 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
     {
         std::scoped_lock lock(frame_mutex);
         if (initialized && reset_device == device) {
+            agent_preview::on_device_reset();
             steam_avatar::on_device_reset();
             weapon_icons::on_device_reset();
             blur::on_device_reset();

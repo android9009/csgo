@@ -1,6 +1,7 @@
 // Visuals menu page only. Gameplay ESP/rendering code belongs under features/visuals.
 #include "menu.hpp"
 #include "hashes.hpp"
+#include "agent_preview.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 namespace {
@@ -266,12 +267,16 @@ void draw_visuals_players() {
         draw_teammate_side(ui.sides[1]);
     const float left_content_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
-    // The right column is the reference's agent-panorama space for the active Enemies/Teammates
-    // side, not a CT/T settings panel. The standalone GUI has no agent renderer, so leave it clear.
+    // The right column is the reference's live agent-panorama space for the active side,
+    // not a separate CT/T settings panel. ESP Items remains a card above the same column.
     gui.end_grid();
 
     const ImVec2 right_column_origin = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
+    const ImVec2 preview_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
+    agent_preview::draw(preview_origin,
+                        ImVec2(right_column_origin.x + column_width, left_content_bottom),
+                        ui.active_side);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
                          right_column_origin, column_width, left_content_bottom);
     if (ui.active_side == 0) {
