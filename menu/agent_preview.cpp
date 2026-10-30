@@ -1,9 +1,12 @@
 #include "agent_preview.hpp"
-#include "menu.hpp"
-#include "../sdk/config_system/config_system.hpp"
 
+// Windows SDK headers must precede gui.hpp's `using namespace std`; otherwise rpcndr/objidl
+// see both std::byte and the Win32 byte typedef under C++20.
 #include <Windows.h>
 #include <d3d9.h>
+
+#include "menu.hpp"
+#include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
 #include <cmath>
