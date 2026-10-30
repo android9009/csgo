@@ -115,7 +115,7 @@ void draw_top_bar(ImGuiWindow* window) {
 }
 
 void c_menu::init() {
-    gui.apply_theme(0);
+    menu_shared::load_menu_theme();
     gui.apply_style_colors();
     gui.user_name = "PASTAWARE";
     gui.user_status = "Till: Lifetime";
@@ -174,10 +174,16 @@ void c_menu::draw_initialization_overlay() {
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     draw->AddRectFilled(card_min + ImVec2(0.f, 4.f), card_max + ImVec2(0.f, 4.f),
                         IM_COL32(0, 0, 0, static_cast<int>(90.f * alpha)), 16.f);
+    for (int ring = 4; ring >= 1; --ring) {
+        const float expand = ring * 1.5f;
+        draw->AddRect(card_min - ImVec2(expand, expand), card_max + ImVec2(expand, expand),
+                      IM_COL32(108, 126, 255, static_cast<int>((30 - ring * 5) * alpha)),
+                      16.f + expand, 0, 1.f);
+    }
     draw->AddRectFilled(card_min, card_max,
                         IM_COL32(16, 18, 28, static_cast<int>(245.f * alpha)), 16.f);
     draw->AddRect(card_min, card_max,
-                  IM_COL32(122, 132, 255, static_cast<int>(48.f * alpha)), 16.f);
+                  IM_COL32(132, 145, 255, static_cast<int>(115.f * alpha)), 16.f, 0, 1.f);
 
     ImFontAtlas* atlas = io.Fonts;
     ImFont* body = atlas && atlas->Fonts.Size > 0 ? atlas->Fonts[0] : ImGui::GetFont();
@@ -195,21 +201,13 @@ void c_menu::draw_initialization_overlay() {
 
     const float text_x = card_min.x + 64.f;
     draw->AddText(bold, 14.f, ImVec2(IM_ROUND(text_x), IM_ROUND(card_min.y + 10.f)),
-                  IM_COL32(238, 240, 248, text_alpha), "PASTAWARE");
+                  IM_COL32(238, 240, 248, text_alpha), "pastaware");
     const ImVec2 counter_size = small->CalcTextSizeA(12.f, FLT_MAX, 0.f, counter.c_str());
     draw->AddText(small, 12.f,
                   ImVec2(IM_ROUND(card_max.x - 12.f - counter_size.x), IM_ROUND(card_min.y + 12.f)),
-                  IM_COL32(164, 168, 184, text_alpha), counter.c_str());
+                  IM_COL32(188, 194, 214, text_alpha), counter.c_str());
     draw->AddText(small, 13.f, ImVec2(IM_ROUND(text_x), IM_ROUND(card_min.y + 33.f)),
                   IM_COL32(137, 141, 158, text_alpha), status);
-
-    const ImVec2 bar_min = card_min + ImVec2(12.f, card_h - 6.f);
-    const ImVec2 bar_max = card_max - ImVec2(12.f, 3.f);
-    draw->AddRectFilled(bar_min, bar_max, IM_COL32(58, 62, 80, static_cast<int>(140.f * alpha)), 1.5f);
-    if (progress > 0.f) {
-        const ImVec2 fill_max(ImLerp(bar_min.x, bar_max.x, progress), bar_max.y);
-        draw->AddRectFilled(bar_min, fill_max, gui.accent_color.to_im_color(alpha, false), 1.5f);
-    }
 }
 
 void c_menu::draw() {

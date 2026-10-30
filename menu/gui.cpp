@@ -1,4 +1,5 @@
 #include "gui.hpp"
+#include "menu_shared.hpp"
 #include "hashes.hpp"
 #include "notification.hpp"
 #include "shader_bg.hpp"
@@ -2742,9 +2743,13 @@ static void draw_knob( ImDrawList* draw, ImVec2 c, float r, const ImVec4& fill, 
 void c_gui::draw_switch_body(ImDrawList* draw, const ImRect& bb, float t) {
     t = ImSaturate(t);
     const float rounding = bb.GetHeight() * 0.5f;
-    // Keep the switch geometry fixed: state feedback is a brighter knob, not a larger one.
+    // Keep the switch geometry fixed: state feedback is color, not a larger knob.
+    const ImVec4 track_off = switch_off.to_vec4(1.f, false);
+    const ImVec4 track_on = theme == 0
+        ? ImVec4(0.42f, 0.45f, 0.78f, 1.f) // blue-violet track in Dark only
+        : track_off;
     draw->AddRectFilled(bb.Min, bb.Max,
-        ImGui::GetColorU32(switch_off.to_vec4(1.f, false)), rounding);
+        ImGui::GetColorU32(ImLerp(track_off, track_on, t)), rounding);
     draw->AddRect(bb.Min + ImVec2(0.5f, 0.5f), bb.Max - ImVec2(0.5f, 0.5f),
         switch_rim.to_im_color(), rounding - 0.5f, 0, 1.f);
     const float inset = 2.f * m_scale;
@@ -4579,8 +4584,10 @@ void c_gui::user_profile_card( bool& wants_open, float anim, ImVec2 anchor, void
         draw->AddText( font, small, cog_pos, cfg_mix( c_dim, c_text, ImMax( cog_t, r.t * 0.6f ) ), ICON_FA_COG );
 
         int theme_idx = theme;
-        if ( popup_option_card( theme_popup, cog_clicked || r.clicked, r.pos.y, themes, IM_ARRAYSIZE( themes ), &theme_idx ) )
+        if ( popup_option_card( theme_popup, cog_clicked || r.clicked, r.pos.y, themes, IM_ARRAYSIZE( themes ), &theme_idx ) ) {
             apply_theme( theme_idx );
+            menu_shared::save_menu_theme();
+        }
     }
 
     popup_separator( );

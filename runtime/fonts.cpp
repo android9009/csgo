@@ -94,7 +94,6 @@ bool initialize_menu_fonts() {
 
     io.FontDefault = menu_body ? menu_body : (io.Fonts->Fonts.Size ? io.Fonts->Fonts[0] : nullptr);
     io.Fonts->Build();
-    gui.apply_theme(0);
     gui.apply_style_colors();
     return ImGui_ImplDX9_CreateDeviceObjects();
 }
