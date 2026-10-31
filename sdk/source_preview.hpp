@@ -188,7 +188,11 @@ public:
     void ClearColor4ub(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
         call_vfunc<void>(this, 79, r, g, b, a);
     }
-    void PushRenderTargetAndViewport() { call_vfunc<void>(this, 116); }
+    // The game's vtable orders the Push overloads by descending arity: 116 takes six arguments,
+    // 117 takes five, 118 takes one, and 119 is the no-arg current-target/viewport overload.
+    // Slot 116 ends in `ret 0x18`; calling it with no arguments makes it consume caller stack
+    // frames as render-target arguments. Pop remains slot 120.
+    void PushRenderTargetAndViewport() { call_vfunc<void>(this, 119); }
     void PopRenderTargetAndViewport() { call_vfunc<void>(this, 120); }
     void SetIntRenderingParameter(int parameter, int value) {
         call_vfunc<void>(this, 126, parameter, value);
