@@ -112,8 +112,10 @@ void write_minidump(EXCEPTION_POINTERS* exception) {
         exception_info_pointer = &exception_info;
     }
 
+    const auto dump_type = static_cast<MINIDUMP_TYPE>(MiniDumpNormal |
+        MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithFullMemoryInfo);
     const BOOL dumped = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file,
-        MiniDumpNormal, exception_info_pointer, nullptr, nullptr);
+        dump_type, exception_info_pointer, nullptr, nullptr);
     const DWORD error = dumped ? ERROR_SUCCESS : GetLastError();
     CloseHandle(file);
     if (dumped)

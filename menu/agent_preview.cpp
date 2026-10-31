@@ -365,6 +365,17 @@ void paint_locked(preview_state& s) {
     if (!context)
         return;
 
+#ifdef _DEBUG
+    static bool context_logged = false;
+    if (!context_logged) {
+        context_logged = true;
+        AIRFLOW_DEBUG_STAGE("agent_preview.context.inspect");
+        const auto context_table = *reinterpret_cast<void***>(context);
+        AIRFLOW_DEBUG_LOGF("agent_preview context=%p vtable=%p slot116=%p slot120=%p",
+            context, context_table, context_table ? context_table[116] : nullptr,
+            context_table ? context_table[120] : nullptr);
+    }
+#endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
     context->PushRenderTargetAndViewport();
     AIRFLOW_DEBUG_STAGE("agent_preview.context.SetRenderTarget");
