@@ -28,6 +28,7 @@ thread_local bool reporting = false;
 std::atomic<DWORD> last_first_chance_code{0};
 std::atomic<const void*> last_first_chance_address{nullptr};
 std::atomic<ULONGLONG> last_first_chance_tick{0};
+std::atomic<bool> first_chance_dump_attempted{false};
 
 void write_line(const char* message) {
     if (!message)
@@ -158,8 +159,9 @@ void report_exception(EXCEPTION_POINTERS* exception, const char* origin, bool du
 #if defined(_M_IX86)
     if (exception->ContextRecord) {
         const CONTEXT* context = exception->ContextRecord;
-        logf("registers: EIP=0x%08lX ESP=0x%08lX EBP=0x%08lX EAX=0x%08lX ECX=0x%08lX EDX=0x%08lX",
-            context->Eip, context->Esp, context->Ebp, context->Eax, context->Ecx, context->Edx);
+        logf("registers: EIP=0x%08lX ESP=0x%08lX EBP=0x%08lX EAX=0x%08lX EBX=0x%08lX ECX=0x%08lX EDX=0x%08lX ESI=0x%08lX EDI=0x%08lX",
+            context->Eip, context->Esp, context->Ebp, context->Eax, context->Ebx,
+            context->Ecx, context->Edx, context->Esi, context->Edi);
     }
 #endif
 
@@ -185,7 +187,11 @@ LONG WINAPI vectored_exception(EXCEPTION_POINTERS* exception) {
     last_first_chance_code.store(code, std::memory_order_relaxed);
     last_first_chance_address.store(address, std::memory_order_relaxed);
     last_first_chance_tick.store(now, std::memory_order_relaxed);
-    report_exception(exception, "FIRST-CHANCE", false);
+
+    // Some game exits never reach our unhandled filter. Capture the first reportable exception
+    // once; a later CRASH report still overwrites the dump with the final exception.
+    const bool dump = !reporting && !first_chance_dump_attempted.exchange(true);
+    report_exception(exception, "FIRST-CHANCE", dump);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
