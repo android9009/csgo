@@ -215,6 +215,7 @@ void* create_interface(HMODULE module, const char* name) {
     return factory ? factory(name, nullptr) : nullptr;
 }
 
+// Build 2023 IKeyValuesSystem: allocation/free are slots 2/3, not the legacy 1/2 pair.
 using key_values_alloc_t = void* (__thiscall*)(void*, int);
 using key_values_free_t = void(__thiscall*)(void*, void*);
 using key_values_init_t = void(__thiscall*)(void*, const char*, int, int);
@@ -225,7 +226,7 @@ using find_material_t = void* (__thiscall*)(void*, const char*, const char*, boo
     const char*);
 
 void* make_material(const char* name, const char* shader, const char* definition) {
-    const auto allocate = virtual_function<key_values_alloc_t>(key_values_system, 1);
+    const auto allocate = virtual_function<key_values_alloc_t>(key_values_system, 2);
     const auto init = reinterpret_cast<key_values_init_t>(key_values_init);
     const auto load = reinterpret_cast<key_values_load_t>(key_values_load);
     const auto create = virtual_function<create_material_t>(material_system, 83);
@@ -236,12 +237,12 @@ void* make_material(const char* name, const char* shader, const char* definition
     // layouts. The engine constructor initializes the actual object; ownership
     // is transferred to CreateMaterial just like in the Source references.
     void* values = allocate(key_values_system, 64);
-    if (!values)
+    if (!readable_range(values, 64))
         return nullptr;
     std::memset(values, 0, 64);
     init(values, shader, 0, 0);
     if (!load(values, name, definition, nullptr, nullptr, nullptr, nullptr)) {
-        const auto release = virtual_function<key_values_free_t>(key_values_system, 2);
+        const auto release = virtual_function<key_values_free_t>(key_values_system, 3);
         if (release)
             release(key_values_system, values);
         return nullptr;
@@ -814,6 +815,12 @@ bool acquire_interfaces() {
         GetProcAddress(vstdlib_module, "KeyValuesSystem"));
     key_values_system = key_values_factory ? key_values_factory() : nullptr;
     if (!studio_render || !model_render || !render_view || !material_system || !key_values_system)
+        return false;
+
+    const auto key_values_allocate = virtual_function<key_values_alloc_t>(key_values_system, 2);
+    const auto key_values_free = virtual_function<key_values_free_t>(key_values_system, 3);
+    if (!function_in_module(vstdlib_module, reinterpret_cast<const void*>(key_values_allocate)) ||
+        !function_in_module(vstdlib_module, reinterpret_cast<const void*>(key_values_free)))
         return false;
 
     const auto studio_target = virtual_function<studio_draw_t>(studio_render, 29);
