@@ -7,7 +7,8 @@ namespace debug_console {
 void start();
 void log(const char* message);
 void logf(const char* format, ...);
-// `stage` must have static storage duration (string literals are intended).
+// `stage` must have static storage duration (string literals are intended). Stages are tracked
+// per thread so renderer activity cannot overwrite the crashing game thread's last operation.
 void set_stage(const char* stage);
 }
 

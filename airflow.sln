@@ -4,6 +4,11 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "airflow_shell", "opaihook.vcxproj", "{5F68854C-01EB-435B-913E-139078CF39A0}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "airflow_injector", "airflow_injector.vcxproj", "{A1D7F3E2-9C64-4D4A-8F27-2D0D5D3B53B1}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5F68854C-01EB-435B-913E-139078CF39A0} = {5F68854C-01EB-435B-913E-139078CF39A0}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -14,6 +19,8 @@ Global
 		{5F68854C-01EB-435B-913E-139078CF39A0}.Debug|x86.Build.0 = Debug|Win32
 		{5F68854C-01EB-435B-913E-139078CF39A0}.Release|x86.ActiveCfg = Release|Win32
 		{5F68854C-01EB-435B-913E-139078CF39A0}.Release|x86.Build.0 = Release|Win32
+		{A1D7F3E2-9C64-4D4A-8F27-2D0D5D3B53B1}.Debug|x86.ActiveCfg = Debug|Win32
+		{A1D7F3E2-9C64-4D4A-8F27-2D0D5D3B53B1}.Debug|x86.Build.0 = Debug|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

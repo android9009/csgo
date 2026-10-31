@@ -16,7 +16,7 @@
 namespace debug_console {
 namespace {
 HANDLE console_output = nullptr;
-std::atomic<const char*> current_stage{"debug console not initialized"};
+thread_local const char* current_stage = "debug console not initialized";
 LPTOP_LEVEL_EXCEPTION_FILTER previous_filter = nullptr;
 PVOID vectored_registration = nullptr;
 _CRT_REPORT_HOOK previous_crt_hook = nullptr;
@@ -143,7 +143,7 @@ void report_exception(EXCEPTION_POINTERS* exception, const char* origin, bool du
             reinterpret_cast<DWORD_PTR>(memory.AllocationBase);
     }
 
-    const char* stage = current_stage.load(std::memory_order_relaxed);
+    const char* stage = current_stage;
     logf("%s %s code=0x%08lX address=%p module=%s+0x%08lX stage=%s",
         origin, exception_name(record->ExceptionCode), record->ExceptionCode, address, module_name,
         static_cast<unsigned long>(module_offset), stage ? stage : "unknown");
@@ -211,7 +211,7 @@ void __cdecl abort_signal(int signal_value) {
     if (reporting)
         return;
     reporting = true;
-    const char* stage = current_stage.load(std::memory_order_relaxed);
+    const char* stage = current_stage;
     logf("CRASH SIGABRT signal=%d stage=%s", signal_value, stage ? stage : "unknown");
     write_minidump(nullptr);
     reporting = false;
@@ -232,7 +232,7 @@ void start() {
     vectored_registration = AddVectoredExceptionHandler(1, &vectored_exception);
     previous_crt_hook = _CrtSetReportHook(&crt_report_hook);
     std::signal(SIGABRT, &abort_signal);
-    current_stage.store("runtime worker", std::memory_order_relaxed);
+    current_stage = "runtime worker";
     log("debug console ready; log=C:\\airflow\\debug.log; dump=C:\\airflow\\crash_last.dmp");
     logf("debug handlers: vectored=%s; CRT reports and SIGABRT enabled",
         vectored_registration ? "yes" : "no");
@@ -254,7 +254,7 @@ void logf(const char* format, ...) {
 }
 
 void set_stage(const char* stage) {
-    current_stage.store(stage, std::memory_order_relaxed);
+    current_stage = stage;
 }
 } // namespace debug_console
 #endif

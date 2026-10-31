@@ -91,6 +91,7 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
 bool initialize_renderer(IDirect3DDevice9* present_device) {
     if (!present_device)
         return false;
+    AIRFLOW_DEBUG_STAGE("renderer.initialize");
 #ifdef _DEBUG
     static bool initialization_logged = false;
     if (!initialization_logged) {
@@ -152,6 +153,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
 }
 
 void render_frame(IDirect3DDevice9* present_device) {
+    AIRFLOW_DEBUG_STAGE("renderer.render_frame");
     std::scoped_lock lock(frame_mutex);
     if (!initialized && !initialize_renderer(present_device))
         return;
@@ -206,6 +208,8 @@ void render_frame(IDirect3DDevice9* present_device) {
 void __fastcall hooked_frame_stage_notify(void* client, void*, ClientFrameStage_t stage) {
     // Fatality ordering is significant: the game completes its own stage first, then the merged
     // model is drawn to its material target at FRAME_RENDER_END.
+    if (stage == FRAME_RENDER_END)
+        AIRFLOW_DEBUG_STAGE("FrameStageNotify.original.FRAME_RENDER_END");
     original_frame_stage_notify(client, stage);
     if (stage == FRAME_RENDER_END)
         agent_preview::on_frame_stage_render_end();
@@ -218,6 +222,7 @@ HRESULT WINAPI hooked_present(IDirect3DDevice9* present_device, const RECT* sour
 }
 
 HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETERS* parameters) {
+    AIRFLOW_DEBUG_STAGE("renderer.reset");
     {
         std::scoped_lock lock(frame_mutex);
         if (initialized && reset_device == device) {

@@ -7,6 +7,7 @@
 #include "menu.hpp"
 #include "../sdk/config_system/config_system.hpp"
 #include "../sdk/source_preview.hpp"
+#include "../runtime/debug_console.hpp"
 
 #include <algorithm>
 #include <array>
@@ -165,6 +166,7 @@ const char* agent_model(int agent) {
 
 void release_display_locked(preview_state& s) {
     if (s.display_texture) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.display.raw_Release");
         s.display_texture->Release();
         s.display_texture = nullptr;
     }
@@ -179,6 +181,7 @@ void release_display_and_unlock(preview_state& s) {
 
 void release_model_locked(preview_state& s) {
     if (s.preview_model) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.model.Free");
         if (const auto allocator = source_preview::memalloc())
             allocator->Free(s.preview_model);
         s.preview_model = nullptr;
@@ -189,6 +192,7 @@ void release_model_locked(preview_state& s) {
 
 void release_texture_locked(ITexture*& texture) {
     if (texture) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.texture.DecrementReferenceCount");
         texture->DecrementReferenceCount();
         texture = nullptr;
     }
@@ -196,10 +200,13 @@ void release_texture_locked(ITexture*& texture) {
 
 class render_context_scope {
 public:
-    explicit render_context_scope(source_preview::IMaterialSystem* material_system)
-        : context_(material_system ? material_system->GetRenderContext() : nullptr) {
-        if (context_)
+    explicit render_context_scope(source_preview::IMaterialSystem* material_system) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.context.GetRenderContext");
+        context_ = material_system ? material_system->GetRenderContext() : nullptr;
+        if (context_) {
+            AIRFLOW_DEBUG_STAGE("agent_preview.context.BeginRender");
             context_->BeginRender();
+        }
     }
 
     render_context_scope(const render_context_scope&) = delete;
@@ -209,8 +216,11 @@ public:
         if (context_) {
             // CMatRenderContextPtr::~CMatRenderContextPtr() calls EndRender(), then its
             // SafeRelease() calls EndRender() again before releasing the interface.
+            AIRFLOW_DEBUG_STAGE("agent_preview.context.EndRender.1");
             context_->EndRender();
+            AIRFLOW_DEBUG_STAGE("agent_preview.context.EndRender.2");
             context_->EndRender();
+            AIRFLOW_DEBUG_STAGE("agent_preview.context.Release");
             context_->Release();
         }
     }
@@ -247,19 +257,27 @@ void angle_matrix(const source_preview::QAngle& angles, source_preview::matrix3x
 }
 
 bool create_model_locked(preview_state& s) {
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.interfaces");
     const auto allocator = source_preview::memalloc();
     if (!allocator || !source_preview::model_api_ready())
         return false;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.Alloc");
     const auto model = static_cast<C_MergedMDL*>(allocator->Alloc(k_merged_mdl_size));
     if (!model)
         return false;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.create");
     model->create();
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SetMDL");
     model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SetMergedMDL.player");
     model->SetMergedMDL(agent_model(s.requested_agent));
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SetMergedMDL.weapon");
     model->SetMergedMDL("models/weapons/w_snip_ssg08.mdl");
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SetSequence");
     model->SetSequence(113, false);
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SetupBonesForAttachmentQueries");
     model->SetupBonesForAttachmentQueries();
     model->RootMDL.flTime = 20.f;
 
@@ -272,6 +290,7 @@ bool create_model_locked(preview_state& s) {
 // This is Fatality's entity_rendering::paint path, reduced only by excluding its unrelated
 // chams/world-ESP branches. It must run after original FrameStageNotify at FRAME_RENDER_END.
 void paint_locked(preview_state& s) {
+    AIRFLOW_DEBUG_STAGE("agent_preview.paint.interfaces");
     const auto material_system = source_preview::material_system();
     const auto render_view = source_preview::render_view();
     const auto model_render = source_preview::model_render();
@@ -282,25 +301,34 @@ void paint_locked(preview_state& s) {
 
     if (!s.preview_texture) {
         const auto texture_name = std::to_string(std::rand());
+        AIRFLOW_DEBUG_STAGE("agent_preview.target.ForceBeginRenderTargetAllocation");
         material_system->ForceBeginRenderTargetAllocation();
+        AIRFLOW_DEBUG_STAGE("agent_preview.target.GetBackBufferFormat");
+        const auto back_buffer_format = material_system->GetBackBufferFormat();
+        AIRFLOW_DEBUG_STAGE("agent_preview.target.CreateNamedRenderTargetTextureEx");
         s.preview_texture = material_system->CreateNamedRenderTargetTextureEx(
             texture_name.c_str(), k_preview_width, k_preview_height,
-            source_preview::RT_SIZE_NO_CHANGE, material_system->GetBackBufferFormat(),
+            source_preview::RT_SIZE_NO_CHANGE, back_buffer_format,
             source_preview::MATERIAL_RT_DEPTH_SHARED,
             source_preview::TEXTUREFLAGS_CLAMPS | source_preview::TEXTUREFLAGS_CLAMPT,
             source_preview::CREATERENDERTARGETFLAGS_HDR);
+        AIRFLOW_DEBUG_STAGE("agent_preview.target.ForceEndRenderTargetAllocation");
         material_system->ForceEndRenderTargetAllocation();
+        AIRFLOW_DEBUG_STAGE("agent_preview.target.FinishRenderTargetAllocation");
         material_system->FinishRenderTargetAllocation();
     }
 
     if (!s.cubemap_texture) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.cubemap.FindTexture");
         s.cubemap_texture = material_system->FindTexture(
             "editor/cubemap.hdr", source_preview::TEXTURE_GROUP_CUBE_MAP);
     }
 
     if ((s.model_side != s.requested_side || s.model_agent != s.requested_agent) &&
-        s.preview_model)
+        s.preview_model) {
+        AIRFLOW_DEBUG_STAGE("agent_preview.model.release_changed");
         release_model_locked(s);
+    }
 
     if (!s.requested_active)
         return;
@@ -310,8 +338,10 @@ void paint_locked(preview_state& s) {
     if (!s.preview_texture)
         return;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.flTime");
     s.preview_model->RootMDL.flTime += globals->frametime * 0.5f;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.view.setup");
     auto& view_setup = s.view_setup;
     view_setup.x = 0;
     view_setup.y = 0;
@@ -325,6 +355,7 @@ void paint_locked(preview_state& s) {
     view_setup.zFar = 1000.f;
     view_setup.m_bDoBloomAndToneMapping = true;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.view.GetMatricesForView");
     source_preview::VMatrix world_to_view{}, view_to_projection{}, world_to_pixels{};
     render_view->GetMatricesForView(view_setup, &world_to_view, &view_to_projection,
         &s.world_to_projection, &world_to_pixels);
@@ -334,12 +365,18 @@ void paint_locked(preview_state& s) {
     if (!context)
         return;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
     context->PushRenderTargetAndViewport();
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.SetRenderTarget");
     context->SetRenderTarget(s.preview_texture);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.BindLocalCubemap");
     context->BindLocalCubemap(s.cubemap_texture);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.SetLightingOrigin");
     context->SetLightingOrigin(source_preview::Vector(-65.f, 10.f, 100.f));
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.SetIntRenderingParameter");
     context->SetIntRenderingParameter(10, 0);
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.view.Push3DView");
     source_preview::Frustum dummy_frustum;
     render_view->Push3DView(context, view_setup,
         source_preview::VIEW_CLEAR_COLOR | source_preview::VIEW_CLEAR_DEPTH |
@@ -355,21 +392,32 @@ void paint_locked(preview_state& s) {
         source_preview::Vector4D(0.68f, 1.53f, 1.7f, 1.f),
     };
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.ClearColor4ub");
     context->ClearColor4ub(0, 0, 0, 0);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.ClearBuffers");
     context->ClearBuffers(true, true, true);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.SetAmbientLightCube");
     context->SetAmbientLightCube(light_col1.data());
+    AIRFLOW_DEBUG_STAGE("agent_preview.studio.SetAmbientLightColors2");
     studio_render->SetAmbientLightColors2(light_col1.data());
+    AIRFLOW_DEBUG_STAGE("agent_preview.studio.SetLocalLights2");
     studio_render->SetLocalLights2(0, nullptr);
 
     source_preview::matrix3x4_t player_view{};
     angle_matrix(source_preview::QAngle(0.f, 180.f, 0.f), player_view);
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SuppressEngineLighting.true");
     model_render->SuppressEngineLighting(true);
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.Draw");
     s.preview_model->Draw(player_view);
+    AIRFLOW_DEBUG_STAGE("agent_preview.model.SuppressEngineLighting.false");
     model_render->SuppressEngineLighting(false);
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.view.PopView");
     render_view->PopView(context, dummy_frustum);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.UnbindLocalCubemap");
     context->BindLocalCubemap(nullptr);
+    AIRFLOW_DEBUG_STAGE("agent_preview.context.PopRenderTargetAndViewport");
     context->PopRenderTargetAndViewport();
 
     s.is_setup = true;
@@ -383,6 +431,7 @@ void* frame_stage_notify_target() {
 }
 
 void on_frame_stage_render_end() {
+    AIRFLOW_DEBUG_STAGE("agent_preview.frame.lock");
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     paint_locked(s);
@@ -406,8 +455,10 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     if (max.x - min.x < 1.f || max.y - min.y < 1.f)
         return;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.draw.lock");
     auto& s = state();
     std::unique_lock lock(s.mutex);
+    AIRFLOW_DEBUG_STAGE("agent_preview.draw.request");
     s.requested_active = true;
     s.requested_side = side;
     s.requested_agent = selected_agent(side);
@@ -415,16 +466,19 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     if (!s.preview_texture || !s.is_setup)
         return;
 
+    AIRFLOW_DEBUG_STAGE("agent_preview.draw.raw_texture");
     const auto handles = s.preview_texture->pTextureHandles;
     const auto raw = handles && handles[0] ? handles[0]->lpRawTexture : nullptr;
     if (!raw)
         return;
 
     release_display_locked(s);
+    AIRFLOW_DEBUG_STAGE("agent_preview.draw.raw_AddRef");
     raw->AddRef();
     s.display_texture = raw;
 
     const float alpha = ImGui::GetStyle().Alpha;
+    AIRFLOW_DEBUG_STAGE("agent_preview.draw.AddImage");
     ImGui::GetWindowDrawList()->AddImage(reinterpret_cast<ImTextureID>(raw), min, max,
         ImVec2(0.f, 0.f), ImVec2(1.f, 1.f),
         ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, alpha)));
@@ -445,6 +499,7 @@ void end_frame() {
 }
 
 void on_device_reset() {
+    AIRFLOW_DEBUG_STAGE("agent_preview.reset");
     auto& s = state();
     if (s.display_lock.owns_lock())
         release_display_and_unlock(s);
