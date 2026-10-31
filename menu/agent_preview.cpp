@@ -608,6 +608,8 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
     return context;
 }
 
+bool hide_panel_in_context_locked(preview_state& s, void* context);
+
 void* context_for_script_locked(preview_state& s, ULONGLONG now) {
     const bool in_game = visuals_source::is_in_game();
     // synchronize_panel_locked() is reached from the draw path every frame.
@@ -623,6 +625,14 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
         return nullptr;
 
     if (s.context_game_state != static_cast<int>(in_game)) {
+        // The host belongs to the old MainMenu/Hud root. Hide it through that
+        // exact context before selecting the new root; looking it up through
+        // the new context leaves a stale panel over the game/team UI.
+        if (s.panel_created && s.panel_visible && s.panel_context)
+            hide_panel_in_context_locked(s, s.panel_context);
+        s.panel_visible = false;
+        s.panel_hide_sent = false;
+        s.panel_context = nullptr;
         s.context_game_state = static_cast<int>(in_game);
         s.context = nullptr;
         s.next_context_check = 0;
@@ -705,6 +715,20 @@ std::string root_script_prefix() {
            "var parent=r.GetParent();if(!parent)break;r=parent;}if(!root)return;var d=root.Data();";
 }
 
+bool hide_panel_in_context_locked(preview_state& s, void* context) {
+    if (!context)
+        return false;
+    std::string script = root_script_prefix();
+    script +=
+        "var h=d.DarksideEspAgentPreview;if(h&&!h.IsValid())h=null;"
+        "if(!h)h=root.FindChildTraverse('" + std::string(k_host_id) + "');"
+        "if(!h)return;h.visible=false;h.style.zIndex=0;h.style.backgroundColor='transparent';"
+        "var p=d.DarksideEspAgentPreviewModel;if(p&&!p.IsValid())p=null;"
+        "if(!p)p=h.FindChildTraverse('" + k_model_id + "');"
+        "if(p){p.hittest=false;p.EnableRendering(false);p.Pause(true);}})();";
+    return run_script_locked(s, context, script);
+}
+
 std::string panel_script(const RECT& rect, int side, int agent, unsigned background,
                          bool reload, unsigned generation) {
     const int width = rect.right - rect.left;
@@ -745,7 +769,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "h.style.y=((" + y + "-wp.y)/sy)+'px';"
         "h.style.width=((" + w + ")/sx)+'px';"
         "h.style.height=((" + h + ")/sy)+'px';"
-        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;"
+        "h.style.backgroundColor='" + color + "';h.style.zIndex=0;h.visible=true;p.hittest=true;"
         "var acceptedMarker=h.FindChildTraverse('" + accepted_id + "');"
         "var readyMarker=h.FindChildTraverse('" + ready_id + "');";
 
@@ -801,6 +825,11 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
     }
 
     if (reload) {
+        if (s.panel_context != context && s.panel_created && s.panel_visible &&
+            s.panel_context && hide_panel_in_context_locked(s, s.panel_context)) {
+            s.panel_visible = false;
+            s.panel_ready = false;
+        }
         ++s.preload_generation;
         if (!s.preload_generation)
             ++s.preload_generation;
@@ -842,18 +871,15 @@ void hide_panel_locked(preview_state& s) {
         return;
     s.next_hide_attempt = now + k_panel_check_ms;
 
-    void* context = context_for_script_locked(s, now);
+    // Hide in the root that actually owns the host. Only if that panel is
+    // already gone may we fall back to the currently selected Panorama root.
+    void* context = s.panel_context;
+    if (!context || !valid_panel_locked(s, context))
+        context = context_for_script_locked(s, now);
     if (!context || !s.panel_created || !s.panel_visible)
         return;
 
-    std::string script = root_script_prefix();
-    script +=
-        "var h=d.DarksideEspAgentPreview;if(h&&!h.IsValid())h=null;"
-        "if(!h)h=root.FindChildTraverse('" + std::string(k_host_id) + "');if(!h)return;h.visible=false;"
-        "var p=d.DarksideEspAgentPreviewModel;if(p&&!p.IsValid())p=null;"
-        "if(!p)p=h.FindChildTraverse('" + k_model_id + "');"
-        "if(p){p.EnableRendering(false);p.Pause(true);}})();";
-    if (run_script_locked(s, context, script)) {
+    if (hide_panel_in_context_locked(s, context)) {
         s.panel_hide_sent = true;
         s.panel_visible = false;
         s.panel_ready = false;
@@ -1035,6 +1061,13 @@ void begin_frame(IDirect3DDevice9* device) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     s.drawn = false;
+    if (native_ui_visible()) {
+        visuals_chams::set_preview_model(nullptr, false);
+        s.requested_active = false;
+        s.capture_valid = false;
+        hide_panel_locked(s);
+        return;
+    }
     const ULONGLONG now = GetTickCount64();
     prewarm_locked(s, now);
     if (!s.requested_active || !s.panel_ready || !s.panel_visible ||
@@ -1076,6 +1109,14 @@ void begin_frame(IDirect3DDevice9* device) {
 void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
+    if (native_ui_visible()) {
+        s.drawn = false;
+        s.requested_active = false;
+        s.capture_valid = false;
+        visuals_chams::set_preview_model(nullptr, false);
+        hide_panel_locked(s);
+        return;
+    }
     if (!ImGui::GetCurrentContext() || (side != 0 && side != 1) ||
         max.x - min.x < 1.f || max.y - min.y < 1.f) {
         s.drawn = false;
@@ -1133,6 +1174,10 @@ bool is_preloaded() {
     return s.preload_ready;
 }
 
+bool native_ui_visible() {
+    return visuals_source::is_console_visible();
+}
+
 void on_menu_closed() {
     visuals_chams::set_preview_model(nullptr, false);
     auto& s = state();
@@ -1148,6 +1193,8 @@ void on_menu_closed() {
 }
 
 bool contains_point(const ImVec2& point) {
+    if (native_ui_visible())
+        return false;
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     return s.requested_active && point.x >= static_cast<float>(s.requested_rect.left) &&

@@ -699,6 +699,7 @@ bool acquire() {
     if (!checked_virtual<get_all_classes_t>(client, 8, client_module) ||
         !checked_virtual<entity_at_t>(entity_list, 3, client_module) ||
         !checked_virtual<entity_from_handle_t>(entity_list, 4, client_module) ||
+        !checked_virtual<engine_bool_t>(engine, 11, engine_module) ||
         !checked_virtual<local_player_t>(engine, 12, engine_module) ||
         !checked_virtual<engine_bool_t>(engine, 26, engine_module) ||
         !checked_virtual<get_player_info_t>(engine, 8, engine_module) ||
@@ -765,6 +766,16 @@ bool is_in_game() {
     // Interface lifetime matches core_ready. Cache the validated slot instead
     // of VirtualQuery-ing the engine vtable on every preview/model draw.
     static const auto function = virtual_function<engine_bool_t>(engine, 26);
+    return function && function(engine);
+}
+
+bool is_console_visible() {
+    if (!ready())
+        return false;
+    // VEngineClient014: Con_IsVisible is slot 11, immediately before
+    // GetLocalPlayer (12). Native console input/rendering takes priority over
+    // the independent Panorama preview while this returns true.
+    static const auto function = virtual_function<engine_bool_t>(engine, 11);
     return function && function(engine);
 }
 

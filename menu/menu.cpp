@@ -293,6 +293,13 @@ void c_menu::draw_initialization_overlay() {
 
 void c_menu::draw() {
     menu_binds::update();
+    if (agent_preview::native_ui_visible()) {
+        // ImGui is submitted after Panorama and would otherwise cover the
+        // native console even with the agent host hidden. Keep the menu state,
+        // but yield all cheat UI until the console is closed.
+        menu_binds::flush();
+        return;
+    }
     render();
     menu_binds::draw_overlay(m_opened);
     menu_binds::flush();

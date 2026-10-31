@@ -70,6 +70,7 @@ struct frame_data {
 bool initialize();
 bool ready();
 bool is_in_game();
+bool is_console_visible();
 int player_side(int entity_index); // -1 invalid/local, 0 enemy, 1 teammate
 void capture(frame_data& output);
 

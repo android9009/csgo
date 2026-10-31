@@ -640,6 +640,10 @@ void render() {
                 settings.behind_walls_secondary), settings.custom_sprite.c_str());
     }
 
+    // ImGui is composed after Panorama; do not paint game ESP over the native
+    // console simply because it uses the background draw list.
+    if (visuals_source::is_console_visible())
+        return;
     if (!visuals_source::ready())
         return;
     visuals_source::frame_data frame;
@@ -688,13 +692,14 @@ void draw_preview(const ImVec2& min, const ImVec2& max, int side) {
 
     const float width = max.x - min.x;
     const float height = max.y - min.y;
-    // gamesense preview: a tall 0.48-aspect target around 47% of the panel.
-    // Keep it materially larger than the old narrow 42%/58% box while leaving
-    // room for bottom-aligned weapon items.
-    const float box_height = height * 0.70f;
-    const float box_width = std::min(width * 0.72f, box_height * 0.48f);
-    const float center_x = (min.x + max.x) * 0.5f;
-    const float center_y = min.y + height * 0.47f;
+    // Match the current full-body Panorama camera, not the old smaller preset:
+    // the agent occupies roughly 84% of the host height and its silhouette is
+    // slightly below/left of the composition centre. Name, bars, weapon text,
+    // skeleton, hitboxes and all drag slots now share this same target.
+    const float box_height = height * 0.84f;
+    const float box_width = std::min(width * 0.72f, box_height * 0.40f);
+    const float center_x = (min.x + max.x) * 0.5f - width * 0.09f;
+    const float center_y = min.y + height * 0.565f;
     const rect_f box{
         ImVec2(center_x - box_width * 0.5f, center_y - box_height * 0.5f),
         ImVec2(center_x + box_width * 0.5f, center_y + box_height * 0.5f)

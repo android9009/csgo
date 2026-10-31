@@ -15,6 +15,8 @@ void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active = tr
 void end_frame();
 // CS:GO 2023: true after SetScene succeeds and Panorama reports ready for display.
 bool is_preloaded();
+// True while CS:GO's native console is visible; preview/capture must yield to it.
+bool native_ui_visible();
 bool contains_point(const ImVec2& point);
 void on_menu_closed();
 void on_device_reset();
