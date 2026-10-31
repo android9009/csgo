@@ -137,7 +137,9 @@ void drag_handle(ImDrawList* draw, int side, int item, const rect_f& handle,
         draw->AddRect(usable.min - ImVec2(1.f, 1.f), usable.max + ImVec2(1.f, 1.f),
             color(0.65f, 0.78f, 1.f, 0.9f), 0.f, 0, 1.f);
     }
-    ImGui::PopID(3);
+    ImGui::PopID();
+    ImGui::PopID();
+    ImGui::PopID();
     window->DC.CursorPos = saved_cursor;
     window->DC.CursorMaxPos = saved_cursor_max;
 }

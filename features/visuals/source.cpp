@@ -318,7 +318,9 @@ T* resolve_absolute_pointer(const std::uint8_t* operand) {
     std::memcpy(&address, operand, sizeof(address));
     if (!readable_range(reinterpret_cast<const void*>(address), sizeof(void*)))
         return nullptr;
-    return *reinterpret_cast<T**>(reinterpret_cast<const void*>(address));
+    T* result = nullptr;
+    std::memcpy(&result, reinterpret_cast<const void*>(address), sizeof(result));
+    return result;
 }
 
 int find_offset(const recv_table_t* table, const char* name, int depth = 0) {

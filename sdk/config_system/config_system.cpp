@@ -138,7 +138,7 @@ void c_config_system::setup_values( )
 		"unarmored", "defuser", "blind", "scoped", "reload", "immunity", "slowed",
 		"vulnerable", "bomb", "hostage", "defuse", "pin_pulled", "money", "order_priority", "delay"
 	};
-	static const char* weapon_names[player_visuals::weapon_count] = {
+	static const char* weapon_item_names[player_visuals::weapon_count] = {
 		"text", "icon", "readiness_bar", "bomb", "defuser", "taser"
 	};
 	static const char* aimbot_names[player_visuals::aimbot_count] = { "hit_chance", "hitboxes" };
@@ -160,7 +160,7 @@ void c_config_system::setup_values( )
 		for (int i = 0; i < player_visuals::flag_count; ++i)
 			push_item(&side.flags[i], category, std::format("flag_{}", flag_names[i]), side.flags[i]);
 		for (int i = 0; i < player_visuals::weapon_count; ++i)
-			push_item(&side.weapon[i], category, std::format("weapon_{}", weapon_names[i]), side.weapon[i]);
+			push_item(&side.weapon[i], category, std::format("weapon_{}", weapon_item_names[i]), side.weapon[i]);
 		for (int i = 0; i < player_visuals::aimbot_count; ++i)
 			push_item(&side.aimbot[i], category, std::format("aimbot_{}", aimbot_names[i]), side.aimbot[i]);
 		for (int i = 0; i < player_visuals::item_count; ++i) {
