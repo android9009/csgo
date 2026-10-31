@@ -443,16 +443,19 @@ void paint_locked(preview_state& s) {
             render_view_table ? static_cast<void**>(render_view_table)[56] : nullptr,
             s.cubemap_texture, debug_read_pointer(s.cubemap_texture));
         if (render_view_table) {
-            const auto table = static_cast<void* const*>(render_view_table);
-            debug_log_code("render_view_slot43", table[43], 0x100);
-            debug_log_code("render_view_slot45", table[45], 0x80);
-            debug_log_code("render_view_slot55", table[55], 0x80);
-            debug_log_code("render_view_slot56", table[56], 0x40);
+            // Slot 43 is an engine thunk through the forward object at engine+0x7836C8. Capture
+            // its actual implementation, including the epilogue that determines stack cleanup.
+            const auto forward_object = reinterpret_cast<const void*>(
+                source_preview::module_address("engine.dll", 0x7836C8));
+            const auto forward_table = debug_read_pointer(forward_object);
+            const auto push3d_impl = debug_read_pointer(reinterpret_cast<const void*>(
+                reinterpret_cast<std::uintptr_t>(forward_table) + 0x5C));
+            AIRFLOW_DEBUG_LOGF("agent_preview render_view_forward=%p table=%p slot43_impl=%p",
+                forward_object, forward_table, push3d_impl);
+            debug_log_code("render_view_slot43_impl", push3d_impl, 0x400);
         }
-        debug_log_code("engine_128D69", reinterpret_cast<const void*>(
-            source_preview::module_address("engine.dll", 0x128D40)), 0x40);
-        debug_log_code("materialsystem_43E0E", reinterpret_cast<const void*>(
-            source_preview::module_address("materialsystem.dll", 0x43DC0)), 0x60);
+        debug_log_code("shaderapi_2275B", reinterpret_cast<const void*>(
+            source_preview::module_address("shaderapidx9.dll", 0x22700)), 0x100);
     }
 #endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
