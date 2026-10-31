@@ -47,18 +47,20 @@ R call_vfunc(void* instance, std::size_t index, Args... args) {
 
 struct Vector {
     float x, y, z;
-    constexpr Vector(float x = 0.f, float y = 0.f, float z = 0.f) : x(x), y(y), z(z) {}
+    Vector() = default;
+    constexpr Vector(float x, float y, float z) : x(x), y(y), z(z) {}
 };
 
 struct QAngle {
     float x, y, z;
-    constexpr QAngle(float x = 0.f, float y = 0.f, float z = 0.f) : x(x), y(y), z(z) {}
+    QAngle() = default;
+    constexpr QAngle(float x, float y, float z) : x(x), y(y), z(z) {}
 };
 
 struct Vector4D {
     float x, y, z, w;
-    constexpr Vector4D(float x = 0.f, float y = 0.f, float z = 0.f, float w = 0.f)
-        : x(x), y(y), z(z), w(w) {}
+    Vector4D() = default;
+    constexpr Vector4D(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
 };
 
 struct matrix3x4_t {

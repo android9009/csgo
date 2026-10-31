@@ -12,7 +12,9 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <mutex>
+#include <string>
 
 namespace {
 using source_preview::C_MergedMDL;
@@ -22,56 +24,104 @@ constexpr int k_preview_width = 235;
 constexpr int k_preview_height = 370;
 constexpr std::size_t k_merged_mdl_size = 0x75C;
 
-constexpr const char* k_terrorist_models[] = {
-    "models/player/custom_player/legacy/tm_phoenix.mdl",
-    "models/player/custom_player/legacy/tm_anarchist_varianta.mdl",
-    "models/player/custom_player/legacy/tm_anarchist_variantb.mdl",
-    "models/player/custom_player/legacy/tm_anarchist_variantc.mdl",
-    "models/player/custom_player/legacy/tm_anarchist_variantd.mdl",
-    "models/player/custom_player/legacy/tm_balkan_varianta.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variantb.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variantc.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variantd.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variante.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variantf.mdl",
-    "models/player/custom_player/legacy/tm_balkan_variantg.mdl",
-    "models/player/custom_player/legacy/tm_balkan_varianth.mdl",
+// Exact player_model_list indices from Fatality's skinchanger.h. Index zero is deliberately
+// empty: entity_rendering.cpp replaces a zero selection with index 46.
+constexpr const char* k_player_models[] = {
+    nullptr,
+    "models/player/custom_player/legacy/tm_leet_variantf.mdl",
+    "models/player/custom_player/legacy/tm_leet_varianti.mdl",
+    "models/player/custom_player/legacy/tm_leet_varianth.mdl",
+    "models/player/custom_player/legacy/tm_leet_variantg.mdl",
+    "models/player/custom_player/legacy/tm_leet_variantj.mdl",
+    "models/player/custom_player/legacy/ctm_fbi_variantb.mdl",
+    "models/player/custom_player/legacy/ctm_fbi_varianth.mdl",
+    "models/player/custom_player/legacy/ctm_fbi_variantg.mdl",
+    "models/player/custom_player/legacy/ctm_fbi_variantf.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variante.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantm.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantg.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantk.mdl",
+    "models/player/custom_player/legacy/ctm_st6_varianti.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantj.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantl.mdl",
+    "models/player/custom_player/legacy/ctm_st6_variantn.mdl",
+    "models/player/custom_player/legacy/ctm_swat_variante.mdl",
+    "models/player/custom_player/legacy/ctm_swat_variantf.mdl",
+    "models/player/custom_player/legacy/ctm_swat_variantg.mdl",
+    "models/player/custom_player/legacy/ctm_swat_varianth.mdl",
+    "models/player/custom_player/legacy/ctm_swat_varianti.mdl",
+    "models/player/custom_player/legacy/ctm_swat_variantj.mdl",
+    "models/player/custom_player/legacy/ctm_swat_variantk.mdl",
     "models/player/custom_player/legacy/tm_balkan_varianti.mdl",
+    "models/player/custom_player/legacy/tm_balkan_variantf.mdl",
+    "models/player/custom_player/legacy/tm_balkan_varianth.mdl",
+    "models/player/custom_player/legacy/tm_balkan_variantg.mdl",
     "models/player/custom_player/legacy/tm_balkan_variantj.mdl",
     "models/player/custom_player/legacy/tm_balkan_variantk.mdl",
     "models/player/custom_player/legacy/tm_balkan_variantl.mdl",
+    "models/player/custom_player/legacy/ctm_sas_variantg.mdl",
+    "models/player/custom_player/legacy/ctm_sas_variantf.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_varianth.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_variantf.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_variantg.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_varianti.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf1.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf2.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf3.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf4.mdl",
+    "models/player/custom_player/legacy/tm_professional_varf5.mdl",
+    "models/player/custom_player/legacy/tm_professional_varg.mdl",
+    "models/player/custom_player/legacy/tm_professional_varh.mdl",
+    "models/player/custom_player/legacy/tm_professional_vari.mdl",
+    "models/player/custom_player/legacy/tm_professional_varj.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantf2.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantf.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variante.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantd.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantc.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantb2.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_variantb.mdl",
+    "models/player/custom_player/legacy/tm_jungle_raider_varianta.mdl",
+    "models/player/custom_player/legacy/ctm_diver_varianta.mdl",
+    "models/player/custom_player/legacy/ctm_diver_variantb.mdl",
+    "models/player/custom_player/legacy/ctm_diver_variantc.mdl",
+    "models/player/custom_player/legacy/ctm_gendarmerie_varianta.mdl",
+    "models/player/custom_player/legacy/ctm_gendarmerie_variantb.mdl",
+    "models/player/custom_player/legacy/ctm_gendarmerie_variantc.mdl",
+    "models/player/custom_player/legacy/ctm_gendarmerie_variantd.mdl",
+    "models/player/custom_player/legacy/ctm_gendarmerie_variante.mdl",
+    "models/player/custom_player/legacy/tm_jumpsuit_varianta.mdl",
+    "models/player/custom_player/legacy/tm_jumpsuit_variantb.mdl",
+    "models/player/custom_player/legacy/tm_jumpsuit_variantc.mdl",
+    "models/player/custom_player/legacy/tm_pirate.mdl",
+    "models/player/custom_player/legacy/tm_pirate_varianta.mdl",
+    "models/player/custom_player/legacy/tm_pirate_variantb.mdl",
+    "models/player/custom_player/legacy/tm_pirate_variantc.mdl",
+    "models/player/custom_player/legacy/tm_pirate_variantd.mdl",
+    "models/player/custom_player/legacy/tm_separatist.mdl",
+    "models/player/custom_player/legacy/tm_separatist_varianta.mdl",
+    "models/player/custom_player/legacy/tm_separatist_variantb.mdl",
+    "models/player/custom_player/legacy/tm_separatist_variantc.mdl",
+    "models/player/custom_player/legacy/tm_separatist_variantd.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_heavy.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_varianta.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_variantb.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_variantc.mdl",
+    "models/player/custom_player/legacy/tm_phoenix_variantd.mdl",
     "models/player/custom_player/legacy/tm_leet_varianta.mdl",
     "models/player/custom_player/legacy/tm_leet_variantb.mdl",
     "models/player/custom_player/legacy/tm_leet_variantc.mdl",
     "models/player/custom_player/legacy/tm_leet_variantd.mdl",
+    "models/player/custom_player/legacy/tm_leet_variante.mdl",
+    "models/player/custom_player/legacy/tm_professional.mdl",
+    "models/player/custom_player/legacy/tm_professional_var1.mdl",
+    "models/player/custom_player/legacy/tm_professional_var2.mdl",
+    "models/player/custom_player/legacy/tm_professional_var3.mdl",
+    "models/player/custom_player/legacy/tm_professional_var4.mdl",
 };
 
-constexpr const char* k_counter_terrorist_models[] = {
-    "models/player/custom_player/legacy/ctm_sas.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variante.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantf.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantg.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_varianth.mdl",
-    "models/player/custom_player/legacy/ctm_gign_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_st6_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantd.mdl",
-};
-
-static_assert(IM_ARRAYSIZE(k_terrorist_models) == 21);
-static_assert(IM_ARRAYSIZE(k_counter_terrorist_models) == 21);
+static_assert(IM_ARRAYSIZE(k_player_models) == 92);
 
 struct preview_state {
     std::mutex mutex;
@@ -87,8 +137,11 @@ struct preview_state {
     C_MergedMDL* preview_model = nullptr;
     int model_side = -1;
     int model_agent = -1;
-    int rendered_side = -1;
-    int rendered_agent = -1;
+    bool is_setup = false;
+
+    // Match Fatality's namespace-scope lifetime for view state reused by entity_rendering.
+    source_preview::CViewSetup view_setup{};
+    source_preview::VMatrix world_to_projection{};
 
     IDirect3DTexture9* display_texture = nullptr;
 };
@@ -102,11 +155,12 @@ int selected_agent(int side) {
     const int selected = side == 0
         ? g_cfg->skins.m_agents.m_selected
         : g_cfg->skins.m_agents.m_selected_ct;
-    return std::clamp(selected, 0, static_cast<int>(IM_ARRAYSIZE(k_terrorist_models)) - 1);
+    const int agent = std::clamp(selected, 0, static_cast<int>(IM_ARRAYSIZE(k_player_models)) - 1);
+    return agent == 0 ? 46 : agent;
 }
 
-const char* agent_model(int side, int agent) {
-    return side == 0 ? k_terrorist_models[agent] : k_counter_terrorist_models[agent];
+const char* agent_model(int agent) {
+    return k_player_models[agent];
 }
 
 void release_display_locked(preview_state& s) {
@@ -131,8 +185,6 @@ void release_model_locked(preview_state& s) {
     }
     s.model_side = -1;
     s.model_agent = -1;
-    s.rendered_side = -1;
-    s.rendered_agent = -1;
 }
 
 void release_texture_locked(ITexture*& texture) {
@@ -155,6 +207,9 @@ public:
 
     ~render_context_scope() {
         if (context_) {
+            // CMatRenderContextPtr::~CMatRenderContextPtr() calls EndRender(), then its
+            // SafeRelease() calls EndRender() again before releasing the interface.
+            context_->EndRender();
             context_->EndRender();
             context_->Release();
         }
@@ -202,7 +257,7 @@ bool create_model_locked(preview_state& s) {
 
     model->create();
     model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
-    model->SetMergedMDL(agent_model(s.requested_side, s.requested_agent));
+    model->SetMergedMDL(agent_model(s.requested_agent));
     model->SetMergedMDL("models/weapons/w_snip_ssg08.mdl");
     model->SetSequence(113, false);
     model->SetupBonesForAttachmentQueries();
@@ -217,9 +272,6 @@ bool create_model_locked(preview_state& s) {
 // This is Fatality's entity_rendering::paint path, reduced only by excluding its unrelated
 // chams/world-ESP branches. It must run after original FrameStageNotify at FRAME_RENDER_END.
 void paint_locked(preview_state& s) {
-    if (!s.requested_active)
-        return;
-
     const auto material_system = source_preview::material_system();
     const auto render_view = source_preview::render_view();
     const auto model_render = source_preview::model_render();
@@ -229,9 +281,10 @@ void paint_locked(preview_state& s) {
         return;
 
     if (!s.preview_texture) {
+        const auto texture_name = std::to_string(std::rand());
         material_system->ForceBeginRenderTargetAllocation();
         s.preview_texture = material_system->CreateNamedRenderTargetTextureEx(
-            "DarksideESPAgentPreview", k_preview_width, k_preview_height,
+            texture_name.c_str(), k_preview_width, k_preview_height,
             source_preview::RT_SIZE_NO_CHANGE, material_system->GetBackBufferFormat(),
             source_preview::MATERIAL_RT_DEPTH_SHARED,
             source_preview::TEXTUREFLAGS_CLAMPS | source_preview::TEXTUREFLAGS_CLAMPT,
@@ -249,6 +302,9 @@ void paint_locked(preview_state& s) {
         s.preview_model)
         release_model_locked(s);
 
+    if (!s.requested_active)
+        return;
+
     if (!s.preview_model && !create_model_locked(s))
         return;
     if (!s.preview_texture)
@@ -256,7 +312,7 @@ void paint_locked(preview_state& s) {
 
     s.preview_model->RootMDL.flTime += globals->frametime * 0.5f;
 
-    source_preview::CViewSetup view_setup{};
+    auto& view_setup = s.view_setup;
     view_setup.x = 0;
     view_setup.y = 0;
     view_setup.width = k_preview_width;
@@ -269,10 +325,9 @@ void paint_locked(preview_state& s) {
     view_setup.zFar = 1000.f;
     view_setup.m_bDoBloomAndToneMapping = true;
 
-    source_preview::VMatrix world_to_view{}, view_to_projection{};
-    source_preview::VMatrix world_to_projection{}, world_to_pixels{};
+    source_preview::VMatrix world_to_view{}, view_to_projection{}, world_to_pixels{};
     render_view->GetMatricesForView(view_setup, &world_to_view, &view_to_projection,
-        &world_to_projection, &world_to_pixels);
+        &s.world_to_projection, &world_to_pixels);
 
     render_context_scope context_scope(material_system);
     const auto context = context_scope.get();
@@ -285,7 +340,7 @@ void paint_locked(preview_state& s) {
     context->SetLightingOrigin(source_preview::Vector(-65.f, 10.f, 100.f));
     context->SetIntRenderingParameter(10, 0);
 
-    source_preview::Frustum dummy_frustum{};
+    source_preview::Frustum dummy_frustum;
     render_view->Push3DView(context, view_setup,
         source_preview::VIEW_CLEAR_COLOR | source_preview::VIEW_CLEAR_DEPTH |
         source_preview::VIEW_CLEAR_STENCIL,
@@ -317,8 +372,7 @@ void paint_locked(preview_state& s) {
     context->BindLocalCubemap(nullptr);
     context->PopRenderTargetAndViewport();
 
-    s.rendered_side = s.requested_side;
-    s.rendered_agent = s.requested_agent;
+    s.is_setup = true;
 }
 } // namespace
 
@@ -358,8 +412,7 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     s.requested_side = side;
     s.requested_agent = selected_agent(side);
 
-    if (!s.preview_texture || s.rendered_side != side ||
-        s.rendered_agent != s.requested_agent)
+    if (!s.preview_texture || !s.is_setup)
         return;
 
     const auto handles = s.preview_texture->pTextureHandles;
@@ -402,7 +455,6 @@ void on_device_reset() {
     release_model_locked(s);
     release_texture_locked(s.preview_texture);
     release_texture_locked(s.cubemap_texture);
-    s.rendered_side = -1;
-    s.rendered_agent = -1;
+    s.is_setup = false;
 }
 } // namespace agent_preview
