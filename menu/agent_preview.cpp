@@ -396,7 +396,7 @@ void paint_locked(preview_state& s) {
         AIRFLOW_DEBUG_STAGE("agent_preview.context.inspect");
         const auto context_table = *reinterpret_cast<void***>(context);
         AIRFLOW_DEBUG_LOGF(
-            "agent_preview context=%p vtable=%p slot116_six_arg=%p slot119_no_arg=%p slot120=%p",
+            "agent_preview context=%p vtable=%p slot116=%p slot119=%p slot120=%p",
             context, context_table, context_table ? context_table[116] : nullptr,
             context_table ? context_table[119] : nullptr,
             context_table ? context_table[120] : nullptr);
@@ -435,7 +435,7 @@ void paint_locked(preview_state& s) {
     render_view->Push3DView(context, view_setup,
         source_preview::VIEW_CLEAR_COLOR | source_preview::VIEW_CLEAR_DEPTH |
         source_preview::VIEW_CLEAR_STENCIL,
-        s.preview_texture, dummy_frustum, nullptr);
+        s.preview_texture, dummy_frustum);
 
     static constexpr std::array light_col1 = {
         source_preview::Vector4D(0.68f, 1.53f, 1.7f, 1.f),

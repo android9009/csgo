@@ -181,18 +181,24 @@ public:
     void BindLocalCubemap(ITexture* texture) { call_vfunc<void>(this, 5, texture); }
     void SetRenderTarget(ITexture* texture) { call_vfunc<void>(this, 6, texture); }
     ITexture* GetRenderTarget() { return call_vfunc<ITexture*>(this, 7); }
-    void ClearBuffers(bool color, bool depth, bool stencil) {
+    void ClearBuffers(bool color, bool depth, bool stencil = false) {
         call_vfunc<void>(this, 12, color, depth, stencil);
     }
     void SetAmbientLightCube(const Vector4D* cube) { call_vfunc<void>(this, 18, cube); }
     void ClearColor4ub(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
         call_vfunc<void>(this, 79, r, g, b, a);
     }
-    // The game's vtable orders the Push overloads by descending arity: 116 takes six arguments,
-    // 117 takes five, 118 takes one, and 119 is the no-arg current-target/viewport overload.
-    // Slot 116 ends in `ret 0x18`; calling it with no arguments makes it consume caller stack
-    // frames as render-target arguments. Pop remains slot 120.
-    void PushRenderTargetAndViewport() { call_vfunc<void>(this, 119); }
+    void PushRenderTargetAndViewport() { call_vfunc<void>(this, 116); }
+    void PushRenderTargetAndViewport(ITexture* texture) {
+        call_vfunc<void>(this, 117, texture);
+    }
+    void PushRenderTargetAndViewport(ITexture* texture, int x, int y, int width, int height) {
+        call_vfunc<void>(this, 118, texture, x, y, width, height);
+    }
+    void PushRenderTargetAndViewport(ITexture* texture, ITexture* depth_texture,
+        int x, int y, int width, int height) {
+        call_vfunc<void>(this, 119, texture, depth_texture, x, y, width, height);
+    }
     void PopRenderTargetAndViewport() { call_vfunc<void>(this, 120); }
     void SetIntRenderingParameter(int parameter, int value) {
         call_vfunc<void>(this, 126, parameter, value);
@@ -239,13 +245,18 @@ public:
 class IVRenderView {
 public:
     void Push3DView(IMatRenderContext* context, const CViewSetup& view, int flags,
+                    ITexture* render_target, Frustum frustum) {
+        using function_t = void(__thiscall*)(void*, IMatRenderContext*, const CViewSetup&, int,
+            ITexture*, VPlane*);
+        const auto table = *reinterpret_cast<void***>(this);
+        reinterpret_cast<function_t>(table[43])(this, context, view, flags, render_target, frustum);
+    }
+    void Push3DView(IMatRenderContext* context, const CViewSetup& view, int flags,
                     ITexture* render_target, Frustum frustum, ITexture* depth_texture) {
-        // The actual slot-43 implementation reads [ebp+0x1C] and ends in `ret 0x18`: the depth
-        // texture is a required sixth argument. Fatality's five-argument declaration omits it.
         using function_t = void(__thiscall*)(void*, IMatRenderContext*, const CViewSetup&, int,
             ITexture*, VPlane*, ITexture*);
         const auto table = *reinterpret_cast<void***>(this);
-        reinterpret_cast<function_t>(table[43])(this, context, view, flags, render_target, frustum,
+        reinterpret_cast<function_t>(table[55])(this, context, view, flags, render_target, frustum,
             depth_texture);
     }
     void PopView(IMatRenderContext* context, Frustum frustum) {
