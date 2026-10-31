@@ -819,9 +819,9 @@ bool acquire_interfaces() {
     const auto studio_target = virtual_function<studio_draw_t>(studio_render, 29);
     const auto model_target = virtual_function<model_execute_t>(model_render, 21);
     const auto create = virtual_function<create_material_t>(material_system, 83);
-    if (!function_in_module(studio_module, studio_target) ||
-        !function_in_module(engine_module, model_target) ||
-        !function_in_module(material_module, create)) {
+    if (!function_in_module(studio_module, reinterpret_cast<const void*>(studio_target)) ||
+        !function_in_module(engine_module, reinterpret_cast<const void*>(model_target)) ||
+        !function_in_module(material_module, reinterpret_cast<const void*>(create))) {
         return false;
     }
 
@@ -953,29 +953,31 @@ bool initialize() {
     if (!studio_target || !model_target)
         return false;
 
-    if (MH_CreateHook(studio_target, &hooked_studio_draw,
+    auto* studio_address = reinterpret_cast<void*>(studio_target);
+    auto* model_address = reinterpret_cast<void*>(model_target);
+    if (MH_CreateHook(studio_address, reinterpret_cast<void*>(&hooked_studio_draw),
                       reinterpret_cast<void**>(&original_studio_draw)) != MH_OK) {
         return false;
     }
-    if (MH_CreateHook(model_target, &hooked_model_execute,
+    if (MH_CreateHook(model_address, reinterpret_cast<void*>(&hooked_model_execute),
                       reinterpret_cast<void**>(&original_model_execute)) != MH_OK) {
-        MH_RemoveHook(studio_target);
+        MH_RemoveHook(studio_address);
         original_studio_draw = nullptr;
         return false;
     }
-    const MH_STATUS model_enable = MH_EnableHook(model_target);
+    const MH_STATUS model_enable = MH_EnableHook(model_address);
     if (model_enable != MH_OK) {
-        MH_RemoveHook(studio_target);
-        MH_RemoveHook(model_target);
+        MH_RemoveHook(studio_address);
+        MH_RemoveHook(model_address);
         original_studio_draw = nullptr;
         original_model_execute = nullptr;
         return false;
     }
-    const MH_STATUS studio_enable = MH_EnableHook(studio_target);
+    const MH_STATUS studio_enable = MH_EnableHook(studio_address);
     if (studio_enable != MH_OK) {
-        MH_DisableHook(model_target);
-        MH_RemoveHook(studio_target);
-        MH_RemoveHook(model_target);
+        MH_DisableHook(model_address);
+        MH_RemoveHook(studio_address);
+        MH_RemoveHook(model_address);
         original_studio_draw = nullptr;
         original_model_execute = nullptr;
         return false;
