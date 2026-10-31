@@ -11,6 +11,7 @@
 #include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -500,10 +501,19 @@ panel_id_matches scan_panel_ids(void* panel, const std::string& ready_id) {
     const auto base = reinterpret_cast<std::uintptr_t>(panel);
     // The 2023 panel map does not expose the ID through a stable public
     // structure. This bounded scan is the same layout used by the CS:GO 2023
-    // Panorama bridge; every pointer and string read is guarded.
+    // Panorama bridge; every pointer and string read is guarded. Snapshot the
+    // panel in one read instead of issuing 252 tiny ReadProcessMemory calls.
+    // If the object crosses an unreadable page, retain the field-wise fallback.
+    std::array<std::uint8_t, 0x400> snapshot{};
+    const bool has_snapshot = read_process_value(base, snapshot);
     for (std::uintptr_t offset = 0x10; offset < 0x400; offset += sizeof(void*)) {
         std::uintptr_t string_address = 0;
-        if (!read_process_value(base + offset, string_address) || !string_address)
+        if (has_snapshot) {
+            std::memcpy(&string_address, snapshot.data() + offset, sizeof(string_address));
+        } else if (!read_process_value(base + offset, string_address)) {
+            continue;
+        }
+        if (!string_address)
             continue;
         const std::string id = read_process_string(string_address, 48);
         if (id == "CSGOMainMenu" || id == "MainMenu") {
@@ -516,7 +526,7 @@ panel_id_matches scan_panel_ids(void* panel, const std::string& ready_id) {
         }
         if (!ready_id.empty() && id == ready_id)
             matches.ready = true;
-        if (matches.root && (ready_id.empty() || matches.ready))
+        if (matches.ready || (matches.root && ready_id.empty()))
             break;
     }
     return matches;
@@ -550,14 +560,15 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
         if (index < 0 || index > 0x100000)
             continue;
         const auto node = nodes + static_cast<std::uintptr_t>(index) * 24;
+        std::array<std::uint8_t, 24> node_snapshot{};
+        if (!read_process_value(node, node_snapshot))
+            continue;
         int left = -1;
         int right = -1;
         void* panel = nullptr;
-        if (!read_process_value(node, left) ||
-            !read_process_value(node + 4, right) ||
-            !read_process_value(node + 0x10, panel)) {
-            continue;
-        }
+        std::memcpy(&left, node_snapshot.data(), sizeof(left));
+        std::memcpy(&right, node_snapshot.data() + 4, sizeof(right));
+        std::memcpy(&panel, node_snapshot.data() + 0x10, sizeof(panel));
         if (panel && valid_panel_locked(s, panel)) {
             const panel_id_matches ids = scan_panel_ids(panel, expected_ready_id);
             if (ids.main_menu)
@@ -567,7 +578,15 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
             if (ids.ready)
                 ready_found = true;
             void* preferred = in_game ? hud_context : main_menu_context;
-            if (preferred && (!ready_id || ready_found)) {
+            // A readiness query only needs the marker. Do not continue through
+            // thousands of unrelated panels merely to rediscover the root that
+            // synchronize_panel_locked() already used to create the scene.
+            if (ready_id && ready_found) {
+                if (preload_ready)
+                    *preload_ready = true;
+                return preferred ? preferred : s.context;
+            }
+            if (preferred && !ready_id) {
                 if (preload_ready)
                     *preload_ready = ready_found;
                 return preferred;
@@ -590,11 +609,19 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
 }
 
 void* context_for_script_locked(preview_state& s, ULONGLONG now) {
+    const bool in_game = visuals_source::is_in_game();
+    // synchronize_panel_locked() is reached from the draw path every frame.
+    // Do not even query the engine wrapper while both the context and game
+    // state are inside their existing validity window.
+    if (s.abi_valid && s.context && now < s.next_context_check &&
+        s.context_game_state == static_cast<int>(in_game)) {
+        return s.context;
+    }
+
     void* engine = acquire_engine_locked(s, now);
     if (!engine)
         return nullptr;
 
-    const bool in_game = visuals_source::is_in_game();
     if (s.context_game_state != static_cast<int>(in_game)) {
         s.context_game_state = static_cast<int>(in_game);
         s.context = nullptr;
@@ -606,17 +633,15 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
     }
     if (s.context && now < s.next_context_check)
         return s.context;
-    // Legacy has no validated panel map and can keep a healthy last-event
-    // context. The 2023 profile periodically reselects MainMenu/Hud because
-    // the old root may stay valid after a game-state transition.
-    if (s.profile != panorama_profile::csgo_2023 && s.context &&
-        valid_panel_locked(s, s.context)) {
+    // A healthy context must not trigger another full panel-tree/string scan.
+    // MainMenu/Hud transitions are already handled by context_game_state above;
+    // rescan only when the selected panel actually disappears.
+    if (s.context && valid_panel_locked(s, s.context)) {
         s.next_context_check = now + 1000;
         s.context_failure_logged = false;
         return s.context;
     }
-    if (s.context && !valid_panel_locked(s, s.context))
-        s.context = nullptr;
+    s.context = nullptr;
     s.next_context_check = now + 250;
 
     if (s.profile == panorama_profile::csgo_2023) {
@@ -666,8 +691,8 @@ constexpr char k_host_id[] = "DarksideEspAgentPreview";
 constexpr char k_model_id[] = "DarksideEspAgentPreviewModel";
 constexpr char k_manifest[] = "resource/ui/econ/ItemModelPanelCharWeaponInspect.res";
 constexpr ULONGLONG k_panel_check_ms = 1000;
-constexpr ULONGLONG k_panel_preload_check_ms = 100;
-constexpr ULONGLONG k_preload_marker_check_ms = 250;
+constexpr ULONGLONG k_panel_preload_check_ms = 250;
+constexpr ULONGLONG k_preload_marker_check_ms = 500;
 constexpr ULONGLONG k_panel_heartbeat_ms = 5000;
 constexpr ULONGLONG k_capture_retry_ms = 1000;
 constexpr ULONGLONG k_capture_interval_ms = 33;

@@ -762,7 +762,9 @@ bool ready() {
 bool is_in_game() {
     if (!ready())
         return false;
-    const auto function = virtual_function<engine_bool_t>(engine, 26);
+    // Interface lifetime matches core_ready. Cache the validated slot instead
+    // of VirtualQuery-ing the engine vtable on every preview/model draw.
+    static const auto function = virtual_function<engine_bool_t>(engine, 26);
     return function && function(engine);
 }
 

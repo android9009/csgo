@@ -85,6 +85,7 @@ void* key_values_init = nullptr;
 void* key_values_load = nullptr;
 void* materials[visuals_chams::mode_count] = {};
 std::atomic<bool> hooks_ready = false;
+std::atomic<bool> preview_active = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 thread_local int engine_model_draw_depth = 0;
 thread_local bool in_game_chams = false;
@@ -466,85 +467,122 @@ using studio_alpha_t = void(__thiscall*)(void*, float);
 using render_color_t = void(__thiscall*)(void*, const float*);
 using render_alpha_t = void(__thiscall*)(void*, float);
 
+struct cached_variable {
+    void* variable = nullptr;
+    material_var_vec_t set_vector = nullptr;
+    material_var_string_t set_string = nullptr;
+};
+
+struct cached_material {
+    void* material = nullptr;
+    material_float_t set_alpha = nullptr;
+    material_color_t set_color = nullptr;
+    material_flag_t set_flag = nullptr;
+    cached_variable envmap_tint;
+    cached_variable fresnel;
+    cached_variable selfillum_tint;
+    cached_variable base_texture;
+};
+
+cached_material material_apis[visuals_chams::mode_count];
+studio_forced_t studio_force_material = nullptr;
+studio_forced_t game_force_material = nullptr;
+studio_color_t studio_set_color = nullptr;
+studio_alpha_t studio_set_alpha = nullptr;
+render_color_t game_set_color = nullptr;
+render_alpha_t game_set_alpha = nullptr;
+
 void increment_ref(void* material) {
     const auto function = virtual_function<increment_ref_t>(material, 12);
     if (function)
         function(material);
 }
 
-void* find_var(void* material, const char* name) {
-    const auto function = virtual_function<find_var_t>(material, 11);
-    return function ? function(material, name, nullptr, false) : nullptr;
+void cache_variable(cached_variable& cached, find_var_t find, void* material,
+                    const char* name) {
+    if (!find)
+        return;
+    cached.variable = find(material, name, nullptr, false);
+    if (!cached.variable)
+        return;
+    cached.set_vector = virtual_function<material_var_vec_t>(cached.variable, 11);
+    cached.set_string = virtual_function<material_var_string_t>(cached.variable, 6);
 }
 
-void set_var_vector(void* material, const char* name, const float* value) {
-    if (void* variable = find_var(material, name)) {
-        const auto function = virtual_function<material_var_vec_t>(variable, 11);
-        if (function)
-            function(variable, value[0], value[1], value[2]);
+void cache_material_apis() {
+    // Material and variable pointers are owned by the material system and live
+    // for the entire hook lifetime. Resolve their vtables once, not several
+    // dozen times per model pass with VirtualQuery on the render thread.
+    for (int mode = 0; mode < visuals_chams::mode_count; ++mode) {
+        auto& cached = material_apis[mode];
+        cached = {};
+        cached.material = materials[mode];
+        if (!cached.material)
+            continue;
+        cached.set_alpha = virtual_function<material_float_t>(cached.material, 27);
+        cached.set_color = virtual_function<material_color_t>(cached.material, 28);
+        cached.set_flag = virtual_function<material_flag_t>(cached.material, 29);
+        const auto find = virtual_function<find_var_t>(cached.material, 11);
+        cache_variable(cached.envmap_tint, find, cached.material, "$envmaptint");
+        cache_variable(cached.fresnel, find, cached.material, "$envmapfresnelminmaxexp");
+        cache_variable(cached.selfillum_tint, find, cached.material, "$selfillumtint");
+        cache_variable(cached.base_texture, find, cached.material, "$basetexture");
     }
 }
 
-void set_var_string(void* material, const char* name, const char* value) {
-    if (void* variable = find_var(material, name)) {
-        const auto function = virtual_function<material_var_string_t>(variable, 6);
-        if (function)
-            function(variable, value);
-    }
+void set_var_vector(cached_variable& variable, const float* value) {
+    if (variable.variable && variable.set_vector)
+        variable.set_vector(variable.variable, value[0], value[1], value[2]);
 }
 
-void set_material_color(void* material, float r, float g, float b) {
-    const auto function = virtual_function<material_color_t>(material, 28);
-    if (function)
-        function(material, r, g, b);
+void set_var_string(cached_variable& variable, const char* value) {
+    if (variable.variable && variable.set_string)
+        variable.set_string(variable.variable, value);
 }
 
-void set_material_alpha(void* material, float alpha) {
-    const auto function = virtual_function<material_float_t>(material, 27);
-    if (function)
-        function(material, alpha);
+void set_material_color(cached_material& material, float r, float g, float b) {
+    if (material.set_color)
+        material.set_color(material.material, r, g, b);
 }
 
-void set_material_flag(void* material, int flag, bool enabled) {
-    const auto function = virtual_function<material_flag_t>(material, 29);
-    if (function)
-        function(material, flag, enabled);
+void set_material_alpha(cached_material& material, float alpha) {
+    if (material.set_alpha)
+        material.set_alpha(material.material, alpha);
+}
+
+void set_material_flag(cached_material& material, int flag, bool enabled) {
+    if (material.set_flag)
+        material.set_flag(material.material, flag, enabled);
 }
 
 void force_material(void* material, bool game = false) {
     if (game) {
-        const auto function = virtual_function<studio_forced_t>(model_render, 1);
-        if (function)
-            function(model_render, material, 0, 0);
+        if (game_force_material)
+            game_force_material(model_render, material, 0, 0);
         return;
     }
-    const auto function = virtual_function<studio_forced_t>(studio_render, 33);
-    if (function)
-        function(studio_render, material, 0, -1);
+    if (studio_force_material)
+        studio_force_material(studio_render, material, 0, -1);
 }
 
 void set_draw_color(const float* color, bool game = false) {
     if (game) {
-        const auto function = virtual_function<render_color_t>(render_view, 6);
-        if (function)
-            function(render_view, color);
+        if (game_set_color)
+            game_set_color(render_view, color);
         return;
     }
-    const auto function = virtual_function<studio_color_t>(studio_render, 27);
-    if (function)
-        function(studio_render, color);
+    if (studio_set_color)
+        studio_set_color(studio_render, color);
 }
 
 void set_draw_alpha(float alpha, bool game = false) {
     if (game) {
-        const auto function = virtual_function<render_alpha_t>(render_view, 4);
-        if (function)
-            function(render_view, alpha);
+        if (game_set_alpha)
+            game_set_alpha(render_view, alpha);
         return;
     }
-    const auto function = virtual_function<studio_alpha_t>(studio_render, 28);
-    if (function)
-        function(studio_render, alpha);
+    if (studio_set_alpha)
+        studio_set_alpha(studio_render, alpha);
 }
 
 void reset_modulation(bool game = false) {
@@ -580,9 +618,13 @@ void draw_single_material(const draw_call& call,
     const visuals_chams::pass_settings& pass, bool hidden,
     const char* sprite_path) {
     using namespace visuals_chams;
-    void* material = pass.material > disabled && pass.material < mode_count
-        ? materials[pass.material]
-        : nullptr;
+    if (pass.material <= disabled || pass.material >= mode_count) {
+        force_material(nullptr, call.game);
+        draw_original(call);
+        return;
+    }
+    auto& material_api = material_apis[pass.material];
+    void* material = material_api.material;
     if (!material) {
         force_material(nullptr, call.game);
         draw_original(call);
@@ -591,49 +633,49 @@ void draw_single_material(const draw_call& call,
 
     if (pass.material == custom_sprite && sprite_path && sprite_path[0] &&
         std::strncmp(applied_sprite_path, sprite_path, sizeof(applied_sprite_path)) != 0) {
-        set_var_string(material, "$basetexture", sprite_path);
+        set_var_string(material_api.base_texture, sprite_path);
         std::strncpy(applied_sprite_path, sprite_path, sizeof(applied_sprite_path) - 1);
         applied_sprite_path[sizeof(applied_sprite_path) - 1] = '\0';
     }
 
-    set_material_color(material, 1.f, 1.f, 1.f);
+    set_material_color(material_api, 1.f, 1.f, 1.f);
     // Alpha is applied once through IStudioRender, not multiplied by a second
     // material alpha modulation. The shader's own $alpha remains intact.
-    set_material_alpha(material, 1.f);
-    set_material_flag(material, k_material_var_translucent, true);
-    set_material_flag(material, k_material_var_nofog, true);
-    set_material_flag(material, k_material_var_ignorez, hidden);
+    set_material_alpha(material_api, 1.f);
+    set_material_flag(material_api, k_material_var_translucent, true);
+    set_material_flag(material_api, k_material_var_nofog, true);
+    set_material_flag(material_api, k_material_var_ignorez, hidden);
 
     constexpr float white[3] = { 1.f, 1.f, 1.f };
     const float* modulation = pass.color;
     switch (pass.material) {
     case glow: {
-        set_var_vector(material, "$envmaptint", pass.secondary);
+        set_var_vector(material_api.envmap_tint, pass.secondary);
         // Old Airflow's full fill setting: clamp(1.0 - 0.15) -> exponent .75.
         constexpr float fresnel[3] = { 0.f, 1.f, 0.75f };
-        set_var_vector(material, "$envmapfresnelminmaxexp", fresnel);
+        set_var_vector(material_api.fresnel, fresnel);
         break;
     }
     case rim_glow:
-        set_var_vector(material, "$envmaptint", pass.secondary);
-        set_material_color(material, 0.f, 0.f, 0.f);
+        set_var_vector(material_api.envmap_tint, pass.secondary);
+        set_material_color(material_api, 0.f, 0.f, 0.f);
         modulation = white;
         break;
     case contour:
-        set_var_vector(material, "$selfillumtint", pass.secondary);
+        set_var_vector(material_api.selfillum_tint, pass.secondary);
         break;
     case legacy:
-        set_var_vector(material, "$envmaptint", pass.color);
+        set_var_vector(material_api.envmap_tint, pass.color);
         modulation = white;
         break;
     case fade_up:
-        set_var_vector(material, "$envmaptint", pass.color);
-        set_material_color(material, 0.f, 0.f, 0.f);
+        set_var_vector(material_api.envmap_tint, pass.color);
+        set_material_color(material_api, 0.f, 0.f, 0.f);
         break;
     default:
         // Old Airflow also modulates envmap tint for Shaded/Metallic/Bubble,
         // Custom Sprite and Acrylic. Materials without this var simply skip it.
-        set_var_vector(material, "$envmaptint", pass.color);
+        set_var_vector(material_api.envmap_tint, pass.color);
         break;
     }
 
@@ -695,8 +737,10 @@ bool player_model_name(const char* name, std::size_t maximum) {
 void __fastcall hooked_studio_draw(void* self, void*, void* results,
     const draw_model_info_t& info, matrix3x4_t* bones, float* flex_weights,
     float* delayed_flex_weights, const vector3& model_origin, int flags) {
-    if (!hooks_ready.load(std::memory_order_acquire) || engine_model_draw_depth > 0 ||
-        (flags & k_shadow_depth_texture) != 0 || !info.studio_hdr) {
+    if (!hooks_ready.load(std::memory_order_acquire) ||
+        !preview_active.load(std::memory_order_acquire) ||
+        engine_model_draw_depth > 0 || (flags & k_shadow_depth_texture) != 0 ||
+        !info.studio_hdr) {
         original_studio_draw(self, results, info, bones, flex_weights,
             delayed_flex_weights, model_origin, flags);
         return;
@@ -747,11 +791,17 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         return;
     }
 
-    const int side = visuals_source::player_side(info.entity_index);
     const char* model_name = info.model ? info.model->name :
         (state.studio_hdr ? state.studio_hdr->name : nullptr);
     const std::size_t model_name_size = info.model ? MAX_PATH : 64;
-    if (side < 0 || !player_model_name(model_name, model_name_size)) {
+    // Most DME calls are not players. Reject those before entity lookup,
+    // dormancy and team checks, then query only actual player models.
+    if (!player_model_name(model_name, model_name_size)) {
+        original_model_execute(self, context, state, info, bones);
+        return;
+    }
+    const int side = visuals_source::player_side(info.entity_index);
+    if (side < 0) {
         original_model_execute(self, context, state, info, bones);
         return;
     }
@@ -816,6 +866,13 @@ bool acquire_interfaces() {
     if (!function_in_module(vstdlib_module, reinterpret_cast<const void*>(key_values_allocate)) ||
         !function_in_module(vstdlib_module, reinterpret_cast<const void*>(key_values_free)))
         return false;
+
+    studio_force_material = virtual_function<studio_forced_t>(studio_render, 33);
+    studio_set_color = virtual_function<studio_color_t>(studio_render, 27);
+    studio_set_alpha = virtual_function<studio_alpha_t>(studio_render, 28);
+    game_force_material = virtual_function<studio_forced_t>(model_render, 1);
+    game_set_color = virtual_function<render_color_t>(render_view, 6);
+    game_set_alpha = virtual_function<render_alpha_t>(render_view, 4);
 
     const auto studio_target = virtual_function<studio_draw_t>(studio_render, 29);
     const auto model_target = virtual_function<model_execute_t>(model_render, 21);
@@ -925,6 +982,7 @@ void set_preview_model(const char* model_path, bool active) {
         std::strncpy(preview.model, model_path, sizeof(preview.model) - 1);
         preview.model[sizeof(preview.model) - 1] = '\0';
     }
+    preview_active.store(active, std::memory_order_release);
 }
 
 bool initialize() {
@@ -944,6 +1002,7 @@ bool initialize() {
     }
     if (!visuals_source::initialize() || !create_materials())
         return false;
+    cache_material_apis();
 
     const MH_STATUS minhook_status = MH_Initialize();
     if (minhook_status != MH_OK && minhook_status != MH_ERROR_ALREADY_INITIALIZED)
