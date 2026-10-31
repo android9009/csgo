@@ -58,6 +58,12 @@ struct preview_state {
     ULONGLONG next_panel_check = 0;
     ULONGLONG next_hide_attempt = 0;
 
+    // Initialisation is independent of the Visuals page. The generation makes
+    // deferred deletion of an older JS marker unable to acknowledge a new model.
+    bool preload_ready = false;
+    unsigned preload_generation = 0;
+    ULONGLONG next_preload_check = 0;
+
     IDirect3DDevice9* capture_device = nullptr;
     IDirect3DTexture9* capture_texture = nullptr;
     D3DFORMAT capture_format = D3DFMT_UNKNOWN;
@@ -304,6 +310,8 @@ void forget_panel_locked(preview_state& s) {
     s.panel_agent = -1;
     s.next_panel_check = 0;
     s.next_hide_attempt = 0;
+    s.preload_ready = false;
+    s.next_preload_check = 0;
     s.capture_valid = false;
 }
 
@@ -495,9 +503,19 @@ std::string read_process_string(std::uintptr_t address, std::size_t maximum = 32
     return result;
 }
 
-bool panel_has_root_id(void* panel) {
+std::string preload_marker_id(const char* stage, unsigned generation) {
+    return "DarksideEspAgentPreview" + std::string(stage) + std::to_string(generation);
+}
+
+struct panel_id_matches {
+    bool root = false;
+    bool ready = false;
+};
+
+panel_id_matches scan_panel_ids(void* panel, const std::string& ready_id) {
+    panel_id_matches matches;
     if (!panel)
-        return false;
+        return matches;
     const auto base = reinterpret_cast<std::uintptr_t>(panel);
     // The 2023 panel map does not expose the ID through a stable public
     // structure. This bounded scan is the same layout used by the CS:GO 2023
@@ -506,14 +524,21 @@ bool panel_has_root_id(void* panel) {
         std::uintptr_t string_address = 0;
         if (!read_process_value(base + offset, string_address) || !string_address)
             continue;
-        const std::string id = read_process_string(string_address);
+        const std::string id = read_process_string(string_address, 48);
         if (id == "CSGOMainMenu" || id == "MainMenu" || id == "CSGOHud" || id == "Hud")
-            return true;
+            matches.root = true;
+        if (!ready_id.empty() && id == ready_id)
+            matches.ready = true;
+        if (matches.root && (ready_id.empty() || matches.ready))
+            break;
     }
-    return false;
+    return matches;
 }
 
-void* find_2023_context_locked(preview_state& s) {
+void* find_2023_context_locked(preview_state& s, const std::string* ready_id = nullptr,
+                               bool* preload_ready = nullptr) {
+    if (preload_ready)
+        *preload_ready = false;
     // CUIEngine's 2023 panel map: CUtlRBTree nodes are 24 bytes, with left and
     // right child indices at 0/4 and the IUIPanel key at 0x10. The map itself
     // is at engine+0xF0 and its root index at engine+0xFC.
@@ -525,6 +550,8 @@ void* find_2023_context_locked(preview_state& s) {
         return nullptr;
     }
 
+    void* context = nullptr;
+    const std::string expected_ready_id = ready_id ? *ready_id : std::string();
     std::vector<int> pending;
     pending.push_back(root);
     for (std::size_t visited = 0; !pending.empty() && visited < 8192; ++visited) {
@@ -541,15 +568,21 @@ void* find_2023_context_locked(preview_state& s) {
             !read_process_value(node + 0x10, panel)) {
             continue;
         }
-        if (panel && valid_panel_locked(s, panel) && panel_has_root_id(panel)) {
-            return panel;
+        if (panel && valid_panel_locked(s, panel)) {
+            const panel_id_matches ids = scan_panel_ids(panel, expected_ready_id);
+            if (ids.root)
+                context = panel;
+            if (ids.ready && preload_ready)
+                *preload_ready = true;
+            if (context && (!ready_id || (preload_ready && *preload_ready)))
+                return context;
         }
         if (left >= 0)
             pending.push_back(left);
         if (right >= 0)
             pending.push_back(right);
     }
-    return nullptr;
+    return context;
 }
 
 void* context_for_script_locked(preview_state& s, ULONGLONG now) {
@@ -616,6 +649,8 @@ constexpr char k_host_id[] = "DarksideEspAgentPreview";
 constexpr char k_model_id[] = "DarksideEspAgentPreviewModel";
 constexpr char k_manifest[] = "resource/ui/econ/ItemModelPanelCharWeaponInspect.res";
 constexpr ULONGLONG k_panel_check_ms = 1000;
+constexpr ULONGLONG k_panel_preload_check_ms = 100;
+constexpr ULONGLONG k_preload_marker_check_ms = 250;
 constexpr ULONGLONG k_panel_heartbeat_ms = 5000;
 constexpr ULONGLONG k_capture_retry_ms = 1000;
 constexpr ULONGLONG k_capture_interval_ms = 33;
@@ -628,10 +663,15 @@ std::string root_script_prefix() {
            "var parent=r.GetParent();if(!parent)break;r=parent;}if(!root)return;var d=root.Data();";
 }
 
-std::string panel_script(const RECT& rect, int side, int agent, unsigned background, bool reload) {
+std::string panel_script(const RECT& rect, int side, int agent, unsigned background,
+                         bool reload, unsigned generation) {
     const int width = rect.right - rect.left;
     const int height = rect.bottom - rect.top;
     const char* team = side == 0 ? "t" : "ct";
+    const std::string accepted_id = preload_marker_id("Scene", generation);
+    const std::string ready_id = preload_marker_id("Ready", generation);
+    const std::string previous_accepted_id = preload_marker_id("Scene", generation - 1);
+    const std::string previous_ready_id = preload_marker_id("Ready", generation - 1);
 
     char color[16];
     std::snprintf(color, sizeof(color), "#%06X", background & 0xFFFFFFu);
@@ -641,6 +681,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     const std::string h = std::to_string(height);
     const std::string host_style =
         "flow-children:none;overflow:clip;horizontal-align:left;vertical-align:top;";
+    const std::string marker_style = "width:0px;height:0px;horizontal-align:left;vertical-align:top;";
 
     std::string script = root_script_prefix();
     script +=
@@ -662,11 +703,18 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "h.style.y=((" + y + "-wp.y)/sy)+'px';"
         "h.style.width=((" + w + ")/sx)+'px';"
         "h.style.height=((" + h + ")/sy)+'px';"
-        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;";
+        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;"
+        "var acceptedMarker=h.FindChildTraverse('" + accepted_id + "');"
+        "var readyMarker=h.FindChildTraverse('" + ready_id + "');";
 
-    script += "if(made||";
+    script += "var reloading=made||";
     script += reload ? "true" : "false";
-    script += "){p.ResetAnimation(true);p.SetSceneAngles(0,0,0,false);p.SetScene('";
+    script += ";var needsScene=reloading||!acceptedMarker;if(needsScene){";
+    script += "var oldMarker=h.FindChildTraverse('" + previous_accepted_id + "');if(oldMarker)oldMarker.DeleteAsync(0);";
+    script += "oldMarker=h.FindChildTraverse('" + previous_ready_id + "');if(oldMarker)oldMarker.DeleteAsync(0);";
+    script += "if(acceptedMarker){acceptedMarker.DeleteAsync(0);acceptedMarker=null;}";
+    script += "if(readyMarker){readyMarker.DeleteAsync(0);readyMarker=null;}";
+    script += "p.ResetAnimation(true);p.SetSceneAngles(0,0,0,false);var sceneAccepted=p.SetScene('";
     script += k_manifest;
     script += "','";
     script += agent_model(side, agent);
@@ -682,8 +730,16 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     script += "p.SetCameraPosition(198.81,65.08,63.44);";
     script += "p.SetCameraAngles(5.25,-162.13,0.00);";
     script += "p.SetCameraPreset(0,false);";
-    script += "p.SetSceneIntroRotation(-2.0,10.0,true);}";
-    script += "p.EnableRendering(true);p.Pause(false);})();";
+    script += "p.SetSceneIntroRotation(-2.0,10.0,true);";
+    script += "if(sceneAccepted){acceptedMarker=$.CreatePanel('Panel',h,'" + accepted_id +
+              "',{hittest:false,style:'" + marker_style + "'});acceptedMarker.visible=false;}}";
+    script += "p.EnableRendering(true);p.Pause(false);";
+    // SetScene initializes the scene/model synchronously. BReadyForDisplay is
+    // checked on a later script pass, after Panorama has laid out the new panel.
+    script += "if(!needsScene&&acceptedMarker&&p.BReadyForDisplay()&&!readyMarker){";
+    script += "readyMarker=$.CreatePanel('Panel',h,'" + ready_id +
+              "',{hittest:false,style:'" + marker_style + "'});readyMarker.visible=false;}";
+    script += "})();";
     return script;
 }
 
@@ -702,7 +758,16 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
         return;
     }
 
-    if (!run_script_locked(s, context, panel_script(rect, side, agent, background, reload))) {
+    if (reload) {
+        ++s.preload_generation;
+        if (!s.preload_generation)
+            ++s.preload_generation;
+        s.preload_ready = false;
+        s.next_preload_check = 0;
+    }
+    if (!run_script_locked(s, context,
+                           panel_script(rect, side, agent, background, reload,
+                                        s.preload_generation))) {
         s.next_panel_check = now + k_panel_check_ms;
         return;
     }
@@ -720,9 +785,10 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
     s.panel_agent = agent;
     s.panel_background = background;
     s.panel_rect = rect;
-    // Keep a slow heartbeat for panels removed by game UI transitions, but do
-    // not rebuild/render-script an unchanged preview every frame or second.
-    s.next_panel_check = now + k_panel_heartbeat_ms;
+    // While loading, poll the JS readiness marker without rerunning SetScene.
+    // Once ready, keep only the slow heartbeat for game UI panel transitions.
+    s.next_panel_check = now + (s.preload_ready ? k_panel_heartbeat_ms
+                                                : k_panel_preload_check_ms);
 }
 
 void hide_panel_locked(preview_state& s) {
@@ -749,6 +815,63 @@ void hide_panel_locked(preview_state& s) {
         s.panel_visible = false;
         s.panel_ready = false;
     }
+}
+
+RECT warmup_rect() {
+    // Keep the real ItemPreviewPanel laid out and able to load its scene while
+    // placing it outside the desktop/backbuffer. No replacement renderer is used.
+    return RECT{ -4096, -4096, -3840, -3840 };
+}
+
+void refresh_preload_ready_locked(preview_state& s, ULONGLONG now) {
+    if (s.preload_ready || !s.panel_created || !s.panel_ready ||
+        now < s.next_preload_check) {
+        return;
+    }
+    if (!acquire_engine_locked(s, now) || !s.panel_created || !s.panel_ready)
+        return;
+
+    // The legacy compatibility profile has no validated panel-map layout for
+    // observing the JS marker. Its RunScript acknowledgement is retained only
+    // as a fallback; the target 2023 profile below waits for the actual marker.
+    if (s.profile == panorama_profile::legacy_reference) {
+        s.preload_ready = true;
+        s.next_panel_check = now + k_panel_heartbeat_ms;
+        AIRFLOW_DEBUG_LOG("agent_preview legacy Panorama initialization script acknowledged");
+        return;
+    }
+    if (s.profile != panorama_profile::csgo_2023 || !s.engine || !s.preload_generation)
+        return;
+
+    s.next_preload_check = now + k_preload_marker_check_ms;
+    const std::string ready_id = preload_marker_id("Ready", s.preload_generation);
+    bool ready = false;
+    find_2023_context_locked(s, &ready_id, &ready);
+    if (!ready)
+        return;
+
+    s.preload_ready = true;
+    s.next_panel_check = now + k_panel_heartbeat_ms;
+    AIRFLOW_DEBUG_LOG("agent_preview Panorama scene/model reported ready for display");
+}
+
+void prewarm_locked(preview_state& s, ULONGLONG now) {
+    refresh_preload_ready_locked(s, now);
+    if (s.preload_ready) {
+        if (!s.requested_active && s.panel_visible && same_rect(s.panel_rect, warmup_rect()))
+            hide_panel_locked(s);
+        return;
+    }
+    // An on-screen draw owns the rectangle. Otherwise initialize at injection
+    // time off-screen instead of waiting for the first Visuals page visit.
+    if (s.requested_active)
+        return;
+
+    const int side = s.panel_side == 0 || s.panel_side == 1 ? s.panel_side : 0;
+    synchronize_panel_locked(s, warmup_rect(), side, now);
+    refresh_preload_ready_locked(s, now);
+    if (s.preload_ready && s.panel_visible)
+        hide_panel_locked(s);
 }
 
 void release_capture_locked(preview_state& s) {
@@ -869,13 +992,14 @@ void begin_frame(IDirect3DDevice9* device) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     s.drawn = false;
+    const ULONGLONG now = GetTickCount64();
+    prewarm_locked(s, now);
     if (!s.requested_active || !s.panel_ready || !s.panel_visible ||
         s.panel_side != s.requested_side || !same_rect(s.panel_rect, s.requested_rect)) {
         s.capture_valid = false;
         return;
     }
 
-    const ULONGLONG now = GetTickCount64();
     const bool reusable = s.capture_valid && s.capture_texture &&
                           s.captured_side == s.requested_side &&
                           same_rect(s.captured_rect, s.requested_rect);
@@ -927,7 +1051,9 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     s.requested_active = true;
     s.requested_side = side;
     s.requested_rect = rect;
-    synchronize_panel_locked(s, rect, side, GetTickCount64());
+    const ULONGLONG now = GetTickCount64();
+    synchronize_panel_locked(s, rect, side, now);
+    refresh_preload_ready_locked(s, now);
 
     if (s.capture_valid && s.capture_texture && s.captured_side == side &&
         same_size(s.captured_rect, rect)) {
@@ -949,8 +1075,17 @@ void end_frame() {
         return;
     s.requested_active = false;
     s.capture_valid = false;
-    hide_panel_locked(s);
+    const bool keep_offscreen_warmup = !s.preload_ready && s.panel_visible &&
+                                       same_rect(s.panel_rect, warmup_rect());
+    if (!keep_offscreen_warmup)
+        hide_panel_locked(s);
     release_capture_locked(s);
+}
+
+bool is_preloaded() {
+    auto& s = state();
+    std::scoped_lock lock(s.mutex);
+    return s.preload_ready;
 }
 
 void on_menu_closed() {

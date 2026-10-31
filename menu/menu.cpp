@@ -2,6 +2,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "menu.hpp"
 #include "menu_shared.hpp"
+#include "agent_preview.hpp"
 #include "hashes.hpp"
 #include "notification.hpp"
 #include "weapon_presets.hpp"
@@ -187,6 +188,9 @@ void c_menu::init() {
 
     m_initialization_overlay_active = true;
     m_initialization_overlay_time = 0.f;
+    m_initialization_overlay_load_time = 0.f;
+    m_initialization_overlay_finish_time = 0.f;
+    m_initialization_preview_ready = false;
 }
 
 void c_menu::draw_initialization_overlay() {
@@ -197,15 +201,24 @@ void c_menu::draw_initialization_overlay() {
     if (io.DisplaySize.x <= 0.f || io.DisplaySize.y <= 0.f)
         return;
 
-    m_initialization_overlay_time += ImMin(io.DeltaTime, 0.05f);
+    const float dt = ImMin(io.DeltaTime, 0.05f);
+    m_initialization_overlay_time += dt;
+    if (!m_initialization_preview_ready)
+        m_initialization_preview_ready = agent_preview::is_preloaded();
+    if (m_initialization_preview_ready)
+        m_initialization_overlay_load_time += dt;
+
     const float elapsed = m_initialization_overlay_time;
     constexpr float fade_in_duration = 0.20f;
     constexpr float load_duration = 2.80f;
     constexpr float hold_duration = 0.55f;
     constexpr float fade_out_duration = 0.45f;
-    constexpr float fade_out_start = load_duration + hold_duration;
-    constexpr float total_duration = fade_out_start + fade_out_duration;
-    if (elapsed >= total_duration) {
+    const float progress = m_initialization_preview_ready
+        ? ImClamp(m_initialization_overlay_load_time / load_duration, 0.f, 1.f) : 0.f;
+    const bool complete = m_initialization_preview_ready && progress >= 1.f;
+    if (complete)
+        m_initialization_overlay_finish_time += dt;
+    if (m_initialization_overlay_finish_time >= hold_duration + fade_out_duration) {
         m_initialization_overlay_active = false;
         return;
     }
@@ -216,14 +229,18 @@ void c_menu::draw_initialization_overlay() {
     };
 
     float alpha = smoothstep(elapsed / fade_in_duration);
-    if (elapsed > fade_out_start)
-        alpha *= 1.f - smoothstep((elapsed - fade_out_start) / fade_out_duration);
+    if (complete && m_initialization_overlay_finish_time > hold_duration) {
+        alpha *= 1.f - smoothstep((m_initialization_overlay_finish_time - hold_duration) /
+                                  fade_out_duration);
+    }
 
-    const float progress = ImClamp(elapsed / load_duration, 0.f, 1.f);
-    const int stage = ImClamp(1 + static_cast<int>(progress * 10.f), 1, 10);
-    const bool complete = progress >= 1.f;
+    // Do not let the old fixed-duration timer finish initialization while the
+    // injection-time Panorama preload is still waiting for its ready marker.
+    const int stage = complete ? 10 : ImClamp(static_cast<int>(progress * 10.f), 0, 9);
     const std::string counter = std::to_string(stage) + " of 10";
-    const char* status = complete ? "Initialization complete" : "Initialization in progress";
+    const char* status = complete ? "Initialization complete" :
+        (m_initialization_preview_ready ? "Initialization in progress"
+                                        : "Waiting for agent preview");
 
     constexpr float card_w = 330.f;
     constexpr float card_h = 70.f;

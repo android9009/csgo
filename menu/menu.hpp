@@ -32,6 +32,9 @@ public:
 private:
     bool m_initialization_overlay_active = false;
     float m_initialization_overlay_time = 0.f;
+    float m_initialization_overlay_load_time = 0.f;
+    float m_initialization_overlay_finish_time = 0.f;
+    bool m_initialization_preview_ready = false;
 
     void draw_initialization_overlay();
     void draw_rage();
