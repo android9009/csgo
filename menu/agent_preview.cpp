@@ -199,22 +199,51 @@ void release_texture_locked(ITexture*& texture) {
 }
 
 #ifdef _DEBUG
-void* debug_read_pointer(const void* address) {
-    if (!address)
-        return nullptr;
+bool debug_readable(const void* address, std::size_t size) {
+    if (!address || !size)
+        return false;
 
     MEMORY_BASIC_INFORMATION information{};
     if (VirtualQuery(address, &information, sizeof(information)) != sizeof(information) ||
         information.State != MEM_COMMIT ||
         (information.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
-        return nullptr;
+        return false;
     }
+
+    const auto offset = reinterpret_cast<std::uintptr_t>(address) -
+        reinterpret_cast<std::uintptr_t>(information.BaseAddress);
+    return offset <= information.RegionSize && size <= information.RegionSize - offset;
+}
+
+void* debug_read_pointer(const void* address) {
+    if (!debug_readable(address, sizeof(void*)))
+        return nullptr;
     return *static_cast<void* const*>(address);
 }
 
-void* debug_vtable_entry(const void* table, std::size_t index) {
-    return debug_read_pointer(reinterpret_cast<const void*>(
-        reinterpret_cast<std::uintptr_t>(table) + index * sizeof(void*)));
+void debug_log_code(const char* label, const void* address, std::size_t size) {
+    constexpr char digits[] = "0123456789ABCDEF";
+    for (std::size_t offset = 0; offset < size; offset += 16) {
+        const auto count = std::min<std::size_t>(16, size - offset);
+        const auto current = reinterpret_cast<const void*>(
+            reinterpret_cast<std::uintptr_t>(address) + offset);
+        if (!debug_readable(current, count)) {
+            AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: unreadable", label,
+                static_cast<unsigned int>(offset));
+            return;
+        }
+
+        const auto bytes = static_cast<const unsigned char*>(current);
+        char text[16 * 3]{};
+        for (std::size_t i = 0; i < count; ++i) {
+            text[i * 3] = digits[bytes[i] >> 4];
+            text[i * 3 + 1] = digits[bytes[i] & 0xF];
+            text[i * 3 + 2] = ' ';
+        }
+        text[count * 3 - 1] = '\0';
+        AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: %s", label,
+            static_cast<unsigned int>(offset), text);
+    }
 }
 #endif
 
@@ -397,11 +426,21 @@ void paint_locked(preview_state& s) {
         const auto current_target = context->GetRenderTarget();
         const auto current_table = debug_read_pointer(current_target);
         AIRFLOW_DEBUG_LOGF(
-            "agent_preview current_target=%p current_vtable=%p current_slot43=%p "
-            "current_slot47=%p preview_texture=%p preview_vtable=%p",
-            current_target, current_table, debug_vtable_entry(current_table, 43),
-            debug_vtable_entry(current_table, 47), s.preview_texture,
+            "agent_preview current_target=%p current_vtable=%p preview_texture=%p "
+            "preview_vtable=%p",
+            current_target, current_table, s.preview_texture,
             debug_read_pointer(s.preview_texture));
+        if (context_table) {
+            AIRFLOW_DEBUG_LOGF(
+                "agent_preview push_slots 115=%p 116=%p 117=%p 118=%p 119=%p 120=%p",
+                context_table[115], context_table[116], context_table[117], context_table[118],
+                context_table[119], context_table[120]);
+            debug_log_code("slot116", context_table[116], 0x90);
+            // The three dumps have the same nested callsite at slot116+0x127E. Include its bytes
+            // so the exact indirect-call operand can be decoded without a full-process dump.
+            debug_log_code("slot116_helper", reinterpret_cast<const void*>(
+                reinterpret_cast<std::uintptr_t>(context_table[116]) + 0x1270), 0x20);
+        }
     }
 #endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
