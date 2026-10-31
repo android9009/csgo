@@ -75,7 +75,8 @@ bool read_embedded_resource(int resource_id, std::vector<unsigned char>& bytes) 
         return false;
     }
 
-    const auto resource = FindResourceW(module, MAKEINTRESOURCEW(resource_id), RT_RCDATA);
+    const auto resource = FindResourceW(module, MAKEINTRESOURCEW(resource_id),
+        MAKEINTRESOURCEW(10)); // RT_RCDATA, kept wide for the MultiByte project configuration.
     if (!resource)
         return false;
 
