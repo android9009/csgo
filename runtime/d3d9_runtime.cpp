@@ -32,8 +32,21 @@ namespace {
 using present_t = HRESULT(WINAPI*)(IDirect3DDevice9*, const RECT*, const RECT*, HWND,
     const RGNDATA*);
 using reset_t = HRESULT(WINAPI*)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
+enum ClientFrameStage_t : int {
+    FRAME_UNDEFINED = -1,
+    FRAME_START,
+    FRAME_NET_UPDATE_START,
+    FRAME_NET_UPDATE_POSTDATAUPDATE_START,
+    FRAME_NET_UPDATE_POSTDATAUPDATE_END,
+    FRAME_NET_UPDATE_END,
+    FRAME_RENDER_START,
+    FRAME_RENDER_END
+};
+using frame_stage_notify_t = void(__thiscall*)(void*, ClientFrameStage_t);
+
 present_t original_present = nullptr;
 reset_t original_reset = nullptr;
+frame_stage_notify_t original_frame_stage_notify = nullptr;
 
 WNDPROC original_wndproc = nullptr;
 IDirect3DDevice9* device = nullptr;
@@ -160,6 +173,10 @@ void render_frame(IDirect3DDevice9* present_device) {
     }
 #endif
 
+    // The hybrid preview's Fatality model has already been rendered by FrameStageNotify.
+    // This pass starts the ImGui-side request/display lifetime and its Legendware VPK fallback.
+    AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");
+    agent_preview::begin_frame(present_device);
     AIRFLOW_DEBUG_STAGE("ImGui frame setup");
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -184,6 +201,18 @@ void render_frame(IDirect3DDevice9* present_device) {
     AIRFLOW_DEBUG_STAGE("ImGui render");
     ImGui::Render();
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+    AIRFLOW_DEBUG_STAGE("agent_preview.end_frame");
+    agent_preview::end_frame();
+}
+
+void __fastcall hooked_frame_stage_notify(void* client, void*, ClientFrameStage_t stage) {
+    // Fatality ordering is significant: the game completes its own stage first, then the merged
+    // model is drawn to its material target at FRAME_RENDER_END.
+    if (stage == FRAME_RENDER_END)
+        AIRFLOW_DEBUG_STAGE("FrameStageNotify.original.FRAME_RENDER_END");
+    original_frame_stage_notify(client, stage);
+    if (stage == FRAME_RENDER_END)
+        agent_preview::on_frame_stage_render_end();
 }
 
 HRESULT WINAPI hooked_present(IDirect3DDevice9* present_device, const RECT* source,
@@ -267,6 +296,7 @@ bool install_hooks() {
     void** vtable = *reinterpret_cast<void***>(probe_device);
     void* reset_target = vtable[16];
     void* present_target = vtable[17];
+    void* frame_stage_target = agent_preview::frame_stage_notify_target();
 
     bool success = MH_Initialize() == MH_OK;
     if (success)
@@ -275,10 +305,21 @@ bool install_hooks() {
     if (success)
         success = MH_CreateHook(present_target, &hooked_present,
             reinterpret_cast<void**>(&original_present)) == MH_OK;
+    // The 3D stage is an enhancement, not a prerequisite for the D3D9 menu. If the Source
+    // hook cannot be installed, keep Present/Reset alive so the VPK fallback can still draw.
+    if (success && frame_stage_target &&
+        MH_CreateHook(frame_stage_target, &hooked_frame_stage_notify,
+            reinterpret_cast<void**>(&original_frame_stage_notify)) != MH_OK) {
+        AIRFLOW_DEBUG_LOG("agent_preview FrameStageNotify hook unavailable; using VPK fallback");
+        original_frame_stage_notify = nullptr;
+        frame_stage_target = nullptr;
+    }
     if (success)
         success = MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
 
     if (!success) {
+        if (frame_stage_target && original_frame_stage_notify)
+            MH_RemoveHook(frame_stage_target);
         if (original_present)
             MH_RemoveHook(present_target);
         if (original_reset)
@@ -286,6 +327,7 @@ bool install_hooks() {
         MH_Uninitialize();
         original_present = nullptr;
         original_reset = nullptr;
+        original_frame_stage_notify = nullptr;
     }
 
     probe_device->Release();
