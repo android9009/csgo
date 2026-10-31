@@ -147,6 +147,10 @@ void render_frame(IDirect3DDevice9* present_device) {
     if (present_device != device)
         return;
 
+    // Panorama has already composed into the backbuffer here. Capture before ImGui draws.
+    AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");
+    agent_preview::begin_frame(present_device);
+
 #ifdef _DEBUG
     static bool menu_state_initialized = false;
     static bool previous_menu_open = false;
@@ -181,6 +185,8 @@ void render_frame(IDirect3DDevice9* present_device) {
     }
 #endif
     AIRFLOW_DEBUG_STAGE("c_menu.draw returned");
+    AIRFLOW_DEBUG_STAGE("agent_preview.end_frame");
+    agent_preview::end_frame();
     AIRFLOW_DEBUG_STAGE("ImGui render");
     ImGui::Render();
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
