@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <d3d9.h>
 
+#include <cfloat>
 #include <mutex>
 
 #include "MinHook.h"
@@ -42,7 +43,60 @@ bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
 bool panorama_mouse_drag = false;
+void* game_surface = nullptr;
+ULONGLONG next_surface_probe = 0;
 std::mutex frame_mutex;
+
+using unlock_cursor_t = void(__thiscall*)(void*);
+
+void unlock_game_cursor() {
+    if (!g_menu->is_opened())
+        return;
+    const ULONGLONG now = GetTickCount64();
+    if (!game_surface && now >= next_surface_probe) {
+        next_surface_probe = now + 1000;
+        const HMODULE module = GetModuleHandleW(L"vguimatsurface.dll");
+        using create_interface_t = void* (__cdecl*)(const char*, int*);
+        const auto factory = module ? reinterpret_cast<create_interface_t>(
+            GetProcAddress(module, "CreateInterface")) : nullptr;
+        game_surface = factory ? factory("VGUI_Surface031", nullptr) : nullptr;
+    }
+    if (!game_surface)
+        return;
+    // ISurface inherits nine IAppSystem methods. UnlockCursor is slot 66;
+    // keep reasserting it while the menu is open because gameplay may lock it
+    // again. On close the game/MainMenu regains ownership of its own cursor.
+    const auto unlock = (*reinterpret_cast<unlock_cursor_t**>(game_surface))[66];
+    if (unlock)
+        unlock(game_surface);
+}
+
+bool mouse_message(UINT message) {
+    return message >= WM_MOUSEFIRST && message <= WM_MOUSELAST;
+}
+
+bool keyboard_message(UINT message) {
+    return message >= WM_KEYFIRST && message <= WM_KEYLAST;
+}
+
+bool movement_key(WPARAM key) {
+    switch (key) {
+    case 'W': case 'A': case 'S': case 'D':
+    case 'w': case 'a': case 's': case 'd':
+    case VK_SPACE: case VK_SHIFT: case VK_LSHIFT: case VK_RSHIFT:
+    case VK_CONTROL: case VK_LCONTROL: case VK_RCONTROL:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool imgui_owns_mouse() {
+    if (!ImGui::GetCurrentContext())
+        return false;
+    return ImGui::GetIO().WantCaptureMouse || ImGui::IsAnyItemActive() ||
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
+}
 
 LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
     if (!original_wndproc)
@@ -95,12 +149,26 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
         return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
 
     if (g_menu->is_opened()) {
-        if (message == WM_INPUT)
-            return 0;
-        if (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)
-            return 0;
+        // Only the menu owns its own mouse area. Clicks outside it must still
+        // reach Panorama (including team selection) and the game. Raw input is
+        // blocked only while the cursor/menu drag belongs to ImGui; native
+        // preview rotation was forwarded above.
+        if (message == WM_INPUT) {
+            if (imgui_owns_mouse())
+                return 0;
+            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+        }
+        if (mouse_message(message)) {
+            const ImVec2 point = ImGui::GetCurrentContext()
+                ? ImGui::GetIO().MousePos : ImVec2(-FLT_MAX, -FLT_MAX);
+            if (imgui_owns_mouse() || player_esp::preview_drag_hit(point))
+                return 0;
+            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+        }
+        // Text fields still own editing keys, but movement must not be taken
+        // away from a live player merely because the menu is open.
         if (ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput &&
-            message >= WM_KEYFIRST && message <= WM_KEYLAST)
+            keyboard_message(message) && !movement_key(wparam))
             return 0;
     }
 
@@ -178,6 +246,8 @@ void render_frame(IDirect3DDevice9* present_device) {
         return;
     if (present_device != device)
         return;
+
+    unlock_game_cursor();
 
     // Panorama has already composed into the backbuffer here. Capture before ImGui draws.
     AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");

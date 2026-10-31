@@ -77,6 +77,8 @@ struct side_settings {
     bool weapon[weapon_count] = {};
     bool aimbot[aimbot_count] = {};
     layout_offset offsets[item_count] = {};
+    // -1 keeps the legacy/default anchor; 0..11 are gamesense-style slots.
+    int slots[item_count] = {};
 
     int player_material = 0;
     int behind_walls_material = 0;
@@ -92,6 +94,8 @@ struct side_settings {
 inline std::array<side_settings, side_count> make_default_settings() {
     std::array<side_settings, side_count> result{};
     for (auto& side : result) {
+        for (int item = 0; item < item_count; ++item)
+            side.slots[item] = -1;
         side.main[main_bounding_box] = true;
         side.main[main_name] = true;
         side.main[main_health_bar] = true;

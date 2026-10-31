@@ -7,6 +7,7 @@
 #include "menu.hpp"
 #include "../runtime/debug_console.hpp"
 #include "../features/visuals/chams.hpp"
+#include "../features/visuals/source.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
@@ -39,6 +40,8 @@ struct preview_state {
     void* panorama_wrapper = nullptr;
     void* engine = nullptr;
     void* context = nullptr;
+    void* panel_context = nullptr;
+    int context_game_state = -1;
     bool abi_valid = false;
     bool abi_failure_logged = false;
     panorama_profile profile = panorama_profile::none;
@@ -285,6 +288,7 @@ void forget_panel_locked(preview_state& s) {
     s.panel_agent = -1;
     s.next_panel_check = 0;
     s.next_hide_attempt = 0;
+    s.panel_context = nullptr;
     s.preload_ready = false;
     s.next_preload_check = 0;
     s.capture_valid = false;
@@ -484,6 +488,8 @@ std::string preload_marker_id(const char* stage, unsigned generation) {
 
 struct panel_id_matches {
     bool root = false;
+    bool main_menu = false;
+    bool hud = false;
     bool ready = false;
 };
 
@@ -500,8 +506,14 @@ panel_id_matches scan_panel_ids(void* panel, const std::string& ready_id) {
         if (!read_process_value(base + offset, string_address) || !string_address)
             continue;
         const std::string id = read_process_string(string_address, 48);
-        if (id == "CSGOMainMenu" || id == "MainMenu" || id == "CSGOHud" || id == "Hud")
+        if (id == "CSGOMainMenu" || id == "MainMenu") {
             matches.root = true;
+            matches.main_menu = true;
+        }
+        if (id == "CSGOHud" || id == "Hud") {
+            matches.root = true;
+            matches.hud = true;
+        }
         if (!ready_id.empty() && id == ready_id)
             matches.ready = true;
         if (matches.root && (ready_id.empty() || matches.ready))
@@ -525,7 +537,10 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
         return nullptr;
     }
 
-    void* context = nullptr;
+    void* main_menu_context = nullptr;
+    void* hud_context = nullptr;
+    bool ready_found = false;
+    const bool in_game = visuals_source::is_in_game();
     const std::string expected_ready_id = ready_id ? *ready_id : std::string();
     std::vector<int> pending;
     pending.push_back(root);
@@ -545,18 +560,32 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
         }
         if (panel && valid_panel_locked(s, panel)) {
             const panel_id_matches ids = scan_panel_ids(panel, expected_ready_id);
-            if (ids.root)
-                context = panel;
-            if (ids.ready && preload_ready)
-                *preload_ready = true;
-            if (context && (!ready_id || (preload_ready && *preload_ready)))
-                return context;
+            if (ids.main_menu)
+                main_menu_context = panel;
+            if (ids.hud)
+                hud_context = panel;
+            if (ids.ready)
+                ready_found = true;
+            void* preferred = in_game ? hud_context : main_menu_context;
+            if (preferred && (!ready_id || ready_found)) {
+                if (preload_ready)
+                    *preload_ready = ready_found;
+                return preferred;
+            }
         }
         if (left >= 0)
             pending.push_back(left);
         if (right >= 0)
             pending.push_back(right);
     }
+
+    // A MainMenu panel can remain valid after the transition into a match. It
+    // is not a valid capture/script target while playing; wait for the HUD root
+    // instead of drawing a stale MainMenu scene over the game.
+    void* context = in_game ? hud_context
+        : (main_menu_context ? main_menu_context : hud_context);
+    if (preload_ready)
+        *preload_ready = ready_found && context != nullptr;
     return context;
 }
 
@@ -565,16 +594,29 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
     if (!engine)
         return nullptr;
 
+    const bool in_game = visuals_source::is_in_game();
+    if (s.context_game_state != static_cast<int>(in_game)) {
+        s.context_game_state = static_cast<int>(in_game);
+        s.context = nullptr;
+        s.next_context_check = 0;
+        s.capture_valid = false;
+        s.panel_ready = false;
+        s.preload_ready = false;
+        s.next_preload_check = 0;
+    }
     if (s.context && now < s.next_context_check)
         return s.context;
-    // A healthy context is cheap to revalidate and must not trigger another
-    // full panel-tree/string scan. Scan only after it actually disappears.
-    if (s.context && valid_panel_locked(s, s.context)) {
+    // Legacy has no validated panel map and can keep a healthy last-event
+    // context. The 2023 profile periodically reselects MainMenu/Hud because
+    // the old root may stay valid after a game-state transition.
+    if (s.profile != panorama_profile::csgo_2023 && s.context &&
+        valid_panel_locked(s, s.context)) {
         s.next_context_check = now + 1000;
         s.context_failure_logged = false;
         return s.context;
     }
-    s.context = nullptr;
+    if (s.context && !valid_panel_locked(s, s.context))
+        s.context = nullptr;
     s.next_context_check = now + 250;
 
     if (s.profile == panorama_profile::csgo_2023) {
@@ -699,10 +741,10 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     script += team;
     script += "');p.PlayActivity('ACT_CSGO_UIPLAYER_IDLE',true);";
     // Preset 18 is the original full-body buymenu framing. Use a slightly
-    // closer custom preset 0 and a little more downward pitch so the head sits
-    // nearer the header while the feet remain inside the preview.
+    // closer custom preset 0 so the agent fills the larger ESP target while
+    // the head and feet remain inside the preview.
     script += "p.SetCameraPreset(18,false);";
-    script += "p.SetCameraPosition(198.81,65.08,63.44);";
+    script += "p.SetCameraPosition(178.93,65.08,63.44);";
     script += "p.SetCameraAngles(5.25,-162.13,0.00);";
     script += "p.SetCameraPreset(0,false);";
     script += "p.SetSceneIntroRotation(-2.0,10.0,true);";
@@ -725,7 +767,7 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
 
     const int agent = selected_agent(side);
     const unsigned background = menu_background();
-    const bool reload = s.panel_side != side || s.panel_agent != agent;
+    const bool reload = s.panel_context != context || s.panel_side != side || s.panel_agent != agent;
     const bool changed = reload || !same_rect(s.panel_rect, rect) ||
                          s.panel_background != background;
     if (s.panel_created && s.panel_visible && s.panel_ready && !changed &&
@@ -756,6 +798,7 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
     // A new visible cycle must always be allowed to hide immediately. Do not
     // carry a previous close attempt's one-second retry budget into it.
     s.next_hide_attempt = 0;
+    s.panel_context = context;
     s.panel_side = side;
     s.panel_agent = agent;
     s.panel_background = background;

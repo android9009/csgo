@@ -166,6 +166,7 @@ void c_config_system::setup_values( )
 		for (int i = 0; i < player_visuals::item_count; ++i) {
 			push_item(&side.offsets[i].x, category, std::format("offset_{}_x", i), side.offsets[i].x);
 			push_item(&side.offsets[i].y, category, std::format("offset_{}_y", i), side.offsets[i].y);
+			push_item(&side.slots[i], category, std::format("slot_{}", i), side.slots[i]);
 		}
 	}
 }

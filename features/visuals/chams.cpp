@@ -461,7 +461,6 @@ using material_flag_t = void(__thiscall*)(void*, int, bool);
 using material_var_vec_t = void(__thiscall*)(void*, float, float, float);
 using material_var_string_t = void(__thiscall*)(void*, const char*);
 using studio_forced_t = void(__thiscall*)(void*, void*, int, int);
-using studio_is_forced_t = bool(__thiscall*)(void*);
 using studio_color_t = void(__thiscall*)(void*, const float*);
 using studio_alpha_t = void(__thiscall*)(void*, float);
 using render_color_t = void(__thiscall*)(void*, const float*);
@@ -522,11 +521,6 @@ void force_material(void* material, bool game = false) {
     const auto function = virtual_function<studio_forced_t>(studio_render, 33);
     if (function)
         function(studio_render, material, 0, -1);
-}
-
-bool has_forced_material() {
-    const auto function = virtual_function<studio_is_forced_t>(studio_render, 34);
-    return function && function(studio_render);
 }
 
 void set_draw_color(const float* color, bool game = false) {
@@ -702,7 +696,7 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
     const draw_model_info_t& info, matrix3x4_t* bones, float* flex_weights,
     float* delayed_flex_weights, const vector3& model_origin, int flags) {
     if (!hooks_ready.load(std::memory_order_acquire) || engine_model_draw_depth > 0 ||
-        (flags & k_shadow_depth_texture) != 0 || !info.studio_hdr || info.client_entity) {
+        (flags & k_shadow_depth_texture) != 0 || !info.studio_hdr) {
         original_studio_draw(self, results, info, bones, flex_weights,
             delayed_flex_weights, model_origin, flags);
         return;
@@ -717,7 +711,7 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
     if (!snapshot.active || !passes.configured ||
         !model_name_matches(info.studio_hdr->name, snapshot.model) ||
         (passes.player.material == visuals_chams::disabled &&
-         passes.behind_walls.material == visuals_chams::disabled) || has_forced_material()) {
+         passes.behind_walls.material == visuals_chams::disabled)) {
         original_studio_draw(self, results, info, bones, flex_weights,
             delayed_flex_weights, model_origin, flags);
         return;

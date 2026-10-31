@@ -41,17 +41,16 @@ struct drag_rect {
 struct active_drag_t {
     int side = -1;
     int item = -1;
-    ImVec2 base_min{};
-    ImVec2 start_offset{};
+    int nearest_slot = -1;
     ImVec2 handle_size{};
-    ImVec2 preview_min{};
-    ImVec2 preview_max{};
+    rect_f target_box{};
     float scale = 1.f;
 };
 
 std::mutex drag_mutex;
 std::vector<drag_rect> preview_drag_rects;
 active_drag_t active_drag;
+rect_f current_preview_box;
 std::atomic<int> active_drag_item = -1;
 
 ImU32 color(float r, float g, float b, float a = 1.f) {
@@ -72,13 +71,84 @@ ImVec2 offset_for(const side_settings& settings, int item, float scale) {
     return ImVec2(x * scale, y * scale);
 }
 
+ImVec2 slot_center(int slot, const rect_f& box, float scale) {
+    const float width = box.max.x - box.min.x;
+    const float height = box.max.y - box.min.y;
+    const float gap = 9.f * scale;
+    const float horizontal[3] = { box.min.x + width * 0.10f,
+        (box.min.x + box.max.x) * 0.5f, box.min.x + width * 0.90f };
+    switch (slot) {
+    case 0: return { horizontal[0], box.min.y - gap }; // Top Left
+    case 1: return { horizontal[1], box.min.y - gap }; // Top Center
+    case 2: return { horizontal[2], box.min.y - gap }; // Top Right
+    case 3: return { horizontal[0], box.max.y + gap }; // Bottom Left
+    case 4: return { horizontal[1], box.max.y + gap }; // Bottom Center
+    case 5: return { horizontal[2], box.max.y + gap }; // Bottom Right
+    case 6: return { box.min.x - gap, box.min.y }; // Left Top
+    case 7: return { box.min.x - gap, box.min.y + height * 0.5f }; // Left Middle
+    case 8: return { box.min.x - gap, box.max.y }; // Left Bottom
+    case 9: return { box.max.x + gap, box.min.y }; // Right Top
+    case 10: return { box.max.x + gap, box.min.y + height * 0.5f }; // Right Middle
+    case 11: return { box.max.x + gap, box.max.y }; // Right Bottom
+    default: return { horizontal[1], box.min.y + height * 0.5f };
+    }
+}
+
+ImVec2 placement_offset(const side_settings& settings, int item,
+                        const ImVec2& default_anchor, const rect_f& box, float scale) {
+    if (item >= 0 && item < player_visuals::item_count && settings.slots[item] >= 0 &&
+        settings.slots[item] < 12) {
+        return slot_center(settings.slots[item], box, scale) - default_anchor;
+    }
+    return offset_for(settings, item, scale);
+}
+
+int closest_slot(const ImVec2& point, const rect_f& box, float scale) {
+    int result = 0;
+    float best = FLT_MAX;
+    for (int slot = 0; slot < 12; ++slot) {
+        const float distance = ImLengthSqr(point - slot_center(slot, box, scale));
+        if (distance < best) {
+            best = distance;
+            result = slot;
+        }
+    }
+    return result;
+}
+
+const char* drag_item_name(int item) {
+    static const char* names[player_visuals::item_count] = {
+        "Box", "Name", "Distance", "Health", "Ammo", "Skeleton",
+        "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
+        "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Priority", "Delay",
+        "Weapon", "Weapon Icon", "Readiness", "C4", "Kit", "Zeus", "Hit Chance", "Hitboxes"
+    };
+    return item >= 0 && item < player_visuals::item_count ? names[item] : "ESP";
+}
+
+void finish_preview_drag() {
+    if (active_drag.side < 0 || active_drag.item < 0)
+        return;
+    if (active_drag.side >= 0 && active_drag.side < player_visuals::side_count &&
+        active_drag.item >= 0 && active_drag.item < player_visuals::item_count &&
+        active_drag.nearest_slot >= 0 && active_drag.nearest_slot < 12) {
+        auto& settings = player_visuals::settings(active_drag.side);
+        settings.slots[active_drag.item] = active_drag.nearest_slot;
+        // Slot anchoring is resolution independent. Keep the old offset fields
+        // for legacy configs, but do not apply a preview-pixel delta on top.
+        settings.offsets[active_drag.item] = {};
+    }
+    active_drag = {};
+    active_drag_item.store(-1, std::memory_order_release);
+}
+
 void register_drag_rect(int side, int item, const rect_f& rect) {
     std::scoped_lock lock(drag_mutex);
     preview_drag_rects.push_back({ side, item, rect });
 }
 
 void drag_handle(ImDrawList* draw, int side, int item, const rect_f& handle,
-                 const ImVec2& preview_min, const ImVec2& preview_max, float scale) {
+                 const ImVec2&, const ImVec2&, float scale) {
     if (!ImGui::GetCurrentWindow())
         return;
     rect_f usable = handle;
@@ -104,35 +174,33 @@ void drag_handle(ImDrawList* draw, int side, int item, const rect_f& handle,
     ImGui::InvisibleButton("##move", usable.max - usable.min);
     const bool hovered = ImGui::IsItemHovered();
     if (ImGui::IsItemActivated()) {
+        active_drag = {};
         active_drag.side = side;
         active_drag.item = item;
-        active_drag.base_min = usable.min - offset_for(player_visuals::settings(side), item, scale);
-        active_drag.start_offset = offset_for(player_visuals::settings(side), item, scale) / scale;
         active_drag.handle_size = usable.max - usable.min;
-        active_drag.preview_min = preview_min;
-        active_drag.preview_max = preview_max;
+        active_drag.target_box = current_preview_box;
         active_drag.scale = scale;
+        active_drag.nearest_slot = closest_slot(ImGui::GetIO().MousePos, current_preview_box, scale);
         active_drag_item.store(item, std::memory_order_release);
     }
     if (ImGui::IsItemActive() && active_drag.side == side && active_drag.item == item) {
         const auto& io = ImGui::GetIO();
-        const ImVec2 delta = (io.MousePos - io.MouseClickedPos[0]) / active_drag.scale;
-        ImVec2 desired = active_drag.start_offset + delta;
-        ImVec2 handle_min = active_drag.base_min + desired * active_drag.scale;
-        const ImVec2 clamped(
-            std::clamp(handle_min.x, active_drag.preview_min.x,
-                std::max(active_drag.preview_min.x, active_drag.preview_max.x - active_drag.handle_size.x)),
-            std::clamp(handle_min.y, active_drag.preview_min.y,
-                std::max(active_drag.preview_min.y, active_drag.preview_max.y - active_drag.handle_size.y)));
-        desired = (clamped - active_drag.base_min) / active_drag.scale;
-        auto& offset = player_visuals::settings(side).offsets[item];
-        offset.x = std::clamp(desired.x, -2048.f, 2048.f);
-        offset.y = std::clamp(desired.y, -2048.f, 2048.f);
+        active_drag.nearest_slot = closest_slot(io.MousePos, active_drag.target_box,
+            active_drag.scale);
+        const ImVec2 ghost_min = io.MousePos - active_drag.handle_size * 0.5f;
+        const ImVec2 ghost_max = io.MousePos + active_drag.handle_size * 0.5f;
+        draw->AddRectFilled(ghost_min, ghost_max, color(0.65f, 0.78f, 1.f, 0.18f));
+        draw->AddRect(ghost_min, ghost_max, color(0.65f, 0.78f, 1.f, 0.95f));
+        if (active_drag.handle_size.y >= 9.f) {
+            draw->AddText(ghost_min + ImVec2(3.f, 1.f), color(0.94f, 0.96f, 1.f),
+                drag_item_name(item));
+        }
+        const ImVec2 target = slot_center(active_drag.nearest_slot, active_drag.target_box,
+            active_drag.scale);
+        draw->AddCircleFilled(target, 3.f * scale, color(0.65f, 0.78f, 1.f, 0.95f));
     }
-    if (ImGui::IsItemDeactivated() && active_drag.side == side && active_drag.item == item) {
-        active_drag.side = active_drag.item = -1;
-        active_drag_item.store(-1, std::memory_order_release);
-    }
+    if (ImGui::IsItemDeactivated() && active_drag.side == side && active_drag.item == item)
+        finish_preview_drag();
     if (hovered || (active_drag.side == side && active_drag.item == item)) {
         draw->AddRect(usable.min - ImVec2(1.f, 1.f), usable.max + ImVec2(1.f, 1.f),
             color(0.65f, 0.78f, 1.f, 0.9f), 0.f, 0, 1.f);
@@ -252,11 +320,16 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         return;
     const ImU32 side_color = color(settings.player_color);
     const ImU32 text_color = color(0.94f, 0.96f, 1.f);
+    const auto placement = [&](int item, const ImVec2& default_anchor) {
+        return placement_offset(settings, item, default_anchor, box, scale);
+    };
 
     if (settings.main[player_visuals::main_bounding_box]) {
-        const ImVec2 offset = offset_for(settings, player_visuals::main_bounding_box, scale);
+        const ImVec2 offset = placement(player_visuals::main_bounding_box, box_center);
         rect_f moved{ box.min + offset, box.max + offset };
         draw->AddRect(moved.min - ImVec2(1.f, 1.f), moved.max + ImVec2(1.f, 1.f),
+            color(0.f, 0.f, 0.f, 0.8f));
+        draw->AddRect(moved.min + ImVec2(1.f, 1.f), moved.max - ImVec2(1.f, 1.f),
             color(0.f, 0.f, 0.f, 0.8f));
         draw->AddRect(moved.min, moved.max, side_color);
         if (preview_side >= 0) {
@@ -268,7 +341,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     if (settings.main[player_visuals::main_skeleton]) {
-        const ImVec2 offset = offset_for(settings, player_visuals::main_skeleton, scale);
+        const ImVec2 offset = placement(player_visuals::main_skeleton, box_center);
         for (const auto& line : skeleton)
             draw->AddLine(line.from + offset, line.to + offset, side_color, std::max(1.f, scale));
         if (preview_side >= 0) {
@@ -280,8 +353,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     if (settings.aimbot[player_visuals::aimbot_hitboxes]) {
-        const ImVec2 offset = offset_for(settings,
-            player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), scale);
+        const ImVec2 offset = placement(
+            player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), box_center);
         const ImU32 hitbox_color = color(1.f, 0.35f, 0.55f, 0.9f);
         for (const auto& line : hitboxes)
             draw->AddLine(line.from + offset, line.to + offset, hitbox_color, std::max(1.f, scale));
@@ -297,14 +370,15 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         std::string name = data.name;
         if (name.size() > 26)
             name = name.substr(0, 23) + "...";
-        const ImVec2 center = ImVec2(box_center.x, box.min.y - 9.f * scale) +
-            offset_for(settings, player_visuals::main_name, scale);
+        const ImVec2 anchor(box_center.x, box.min.y - 9.f * scale);
+        const ImVec2 center = anchor + placement(player_visuals::main_name, anchor);
         const rect_f text = draw_text(draw, center, name, text_color, scale);
         maybe_drag(draw, preview_side, player_visuals::main_name, text, preview_min, preview_max, scale);
     }
 
     if (settings.main[player_visuals::main_health_bar]) {
-        const ImVec2 offset = offset_for(settings, player_visuals::main_health_bar, scale);
+        const ImVec2 anchor(box.min.x - 5.f * scale, box_center.y);
+        const ImVec2 offset = placement(player_visuals::main_health_bar, anchor);
         const rect_f bar{ ImVec2(box.min.x - 7.f * scale, box.min.y) + offset,
             ImVec2(box.min.x - 3.f * scale, box.max.y) + offset };
         const float health = std::clamp(data.health / 100.f, 0.f, 1.f);
@@ -315,7 +389,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     if (settings.main[player_visuals::main_ammo_bar] && data.clip >= 0 && data.max_clip > 0) {
-        const ImVec2 offset = offset_for(settings, player_visuals::main_ammo_bar, scale);
+        const ImVec2 anchor(box_center.x, box.max.y + 4.f * scale);
+        const ImVec2 offset = placement(player_visuals::main_ammo_bar, anchor);
         const rect_f bar{ ImVec2(box.min.x, box.max.y + 3.f * scale) + offset,
             ImVec2(box.max.x, box.max.y + 5.f * scale) + offset };
         const float ammo = std::clamp(static_cast<float>(data.clip) / data.max_clip, 0.f, 1.f);
@@ -326,8 +401,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
 
     if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_readiness_bar);
-        const ImVec2 offset = offset_for(settings, item, scale);
         const float extra = settings.main[player_visuals::main_ammo_bar] ? 5.f : 0.f;
+        const ImVec2 anchor(box_center.x, box.max.y + (7.f + extra) * scale);
+        const ImVec2 offset = placement(item, anchor);
         const rect_f bar{ ImVec2(box.min.x, box.max.y + (6.f + extra) * scale) + offset,
             ImVec2(box.max.x, box.max.y + (8.f + extra) * scale) + offset };
         const rect_f handle = draw_bar(draw, bar, data.readiness, color(0.50f, 1.f, 0.72f), false);
@@ -342,8 +418,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         if (text.empty())
             continue;
         const int item = player_visuals::flag_item_id(flag);
-        const ImVec2 center = ImVec2(box.max.x + 5.f * scale,
-            box.min.y + (6.f + 12.f * flag_row) * scale) + offset_for(settings, item, scale);
+        const ImVec2 anchor(box.max.x + 5.f * scale,
+            box.min.y + (6.f + 12.f * flag_row) * scale);
+        const ImVec2 center = anchor + placement(item, anchor);
         const rect_f text_rect = draw_text(draw, center, text, flag_color(flag), scale, 1);
         maybe_drag(draw, preview_side, item, text_rect, preview_min, preview_max, scale);
         ++flag_row;
@@ -353,8 +430,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         char buffer[48];
         std::snprintf(buffer, sizeof(buffer), "HC %.0f%%", data.hit_chance);
         const int item = player_visuals::aimbot_item_id(player_visuals::aimbot_hit_chance);
-        const ImVec2 center = ImVec2(box.min.x - 5.f * scale, box.min.y + 6.f * scale) +
-            offset_for(settings, item, scale);
+        const ImVec2 anchor(box.min.x - 5.f * scale, box.min.y + 6.f * scale);
+        const ImVec2 center = anchor + placement(item, anchor);
         const rect_f text = draw_text(draw, center, buffer, color(0.70f, 0.86f, 1.f), scale, -1);
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
     }
@@ -365,8 +442,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     if (settings.main[player_visuals::main_distance]) {
         char buffer[48];
         std::snprintf(buffer, sizeof(buffer), "%.1f m", data.distance);
-        const ImVec2 center = ImVec2(box_center.x, bottom_y) +
-            offset_for(settings, player_visuals::main_distance, scale);
+        const ImVec2 anchor(box_center.x, bottom_y);
+        const ImVec2 center = anchor + placement(player_visuals::main_distance, anchor);
         const rect_f text = draw_text(draw, center, buffer, text_color, scale);
         maybe_drag(draw, preview_side, player_visuals::main_distance, text,
             preview_min, preview_max, scale);
@@ -374,7 +451,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
     if (settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_text);
-        const ImVec2 center = ImVec2(box_center.x, bottom_y) + offset_for(settings, item, scale);
+        const ImVec2 anchor(box_center.x, bottom_y);
+        const ImVec2 center = anchor + placement(item, anchor);
         const rect_f text = draw_text(draw, center, data.weapon_name, text_color, scale);
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
@@ -383,8 +461,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_icon);
         const int atlas = visuals_source::atlas_weapon_id(data.weapon_id);
         if (atlas >= 0) {
-            const ImVec2 offset = offset_for(settings, item, scale);
-            const ImVec2 center = ImVec2(box_center.x, bottom_y + 3.f * scale) + offset;
+            const ImVec2 anchor(box_center.x, bottom_y + 3.f * scale);
+            const ImVec2 center = anchor + placement(item, anchor);
             const ImVec2 maximum(std::min(72.f * scale, box_width * 1.8f), 20.f * scale);
             weapon_icons::draw(draw, atlas, center, maximum, text_color);
             maybe_drag(draw, preview_side, item,
@@ -398,7 +476,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         if (!settings.weapon[weapon_item] || !available)
             return;
         const int item = player_visuals::weapon_item_id(weapon_item);
-        const ImVec2 center = ImVec2(box_center.x, bottom_y) + offset_for(settings, item, scale);
+        const ImVec2 anchor(box_center.x, bottom_y);
+        const ImVec2 center = anchor + placement(item, anchor);
         const rect_f text = draw_text(draw, center, label, ink, scale);
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 12.f * scale;
@@ -599,10 +678,8 @@ void draw_preview(const ImVec2& min, const ImVec2& max, int side) {
         std::scoped_lock lock(drag_mutex);
         preview_drag_rects.clear();
     }
-    if (active_drag_item.load(std::memory_order_acquire) >= 0 && !ImGui::IsMouseDown(0)) {
-        active_drag.side = active_drag.item = -1;
-        active_drag_item.store(-1, std::memory_order_release);
-    }
+    if (active_drag_item.load(std::memory_order_acquire) >= 0 && !ImGui::IsMouseDown(0))
+        finish_preview_drag();
     if ((side != 0 && side != 1) || max.x - min.x < 32.f || max.y - min.y < 32.f)
         return;
     const auto& settings = player_visuals::settings(side);
@@ -611,15 +688,18 @@ void draw_preview(const ImVec2& min, const ImVec2& max, int side) {
 
     const float width = max.x - min.x;
     const float height = max.y - min.y;
-    const float box_width = std::min(width * 0.42f, 128.f);
-    // Reserve enough space below the model for all bottom-aligned weapon items
-    // when every chip is enabled at once.
-    const float box_height = height * 0.58f;
+    // gamesense preview: a tall 0.48-aspect target around 47% of the panel.
+    // Keep it materially larger than the old narrow 42%/58% box while leaving
+    // room for bottom-aligned weapon items.
+    const float box_height = height * 0.70f;
+    const float box_width = std::min(width * 0.72f, box_height * 0.48f);
     const float center_x = (min.x + max.x) * 0.5f;
+    const float center_y = min.y + height * 0.47f;
     const rect_f box{
-        ImVec2(center_x - box_width * 0.5f, min.y + height * 0.12f),
-        ImVec2(center_x + box_width * 0.5f, min.y + height * 0.12f + box_height)
+        ImVec2(center_x - box_width * 0.5f, center_y - box_height * 0.5f),
+        ImVec2(center_x + box_width * 0.5f, center_y + box_height * 0.5f)
     };
+    current_preview_box = box;
     std::vector<line2> skeleton, hitboxes;
     preview_geometry(box, skeleton, hitboxes);
     const player_data data = preview_data(side);
