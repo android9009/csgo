@@ -96,7 +96,7 @@ bool reportable_first_chance(DWORD code) {
 
 void write_minidump(EXCEPTION_POINTERS* exception) {
     CreateDirectoryW(L"C:\\dev\\csgo\\Bins", nullptr);
-    HANDLE file = CreateFileW(L"C:\\dev\\csgo\\Bins\\crash_last.dmp", GENERIC_WRITE,
+    HANDLE file = CreateFileW(L"C:\\dev\\csgo\\Bins\\crash_last.dmp.txt", GENERIC_WRITE,
         FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
         logf("minidump: CreateFile failed, error=%lu", GetLastError());
@@ -117,7 +117,7 @@ void write_minidump(EXCEPTION_POINTERS* exception) {
     const DWORD error = dumped ? ERROR_SUCCESS : GetLastError();
     CloseHandle(file);
     if (dumped)
-        log("minidump: C:\\dev\\csgo\\Bins\\crash_last.dmp");
+        log("minidump: C:\\dev\\csgo\\Bins\\crash_last.dmp.txt");
     else
         logf("minidump: MiniDumpWriteDump failed, error=%lu", error);
 }
@@ -239,7 +239,7 @@ void start() {
     previous_crt_hook = _CrtSetReportHook(&crt_report_hook);
     std::signal(SIGABRT, &abort_signal);
     current_stage = "runtime worker";
-    log("debug console ready; log=C:\\dev\\csgo\\Bins\\debug.log; dump=C:\\dev\\csgo\\Bins\\crash_last.dmp");
+    log("debug console ready; log=C:\\dev\\csgo\\Bins\\debug.log; dump=C:\\dev\\csgo\\Bins\\crash_last.dmp.txt");
     logf("debug handlers: vectored=%s; CRT reports and SIGABRT enabled",
         vectored_registration ? "yes" : "no");
 }
