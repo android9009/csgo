@@ -50,6 +50,9 @@ struct player_side_ui_state {
 struct players_ui_state {
     int active_side = 0; // 0 = Enemies, 1 = Teammates
     player_side_ui_state sides[2];
+    // Screen-independent reference height for the right column. Enemies is the
+    // design reference even while the Teammates tab is selected.
+    float enemies_right_height = 0.f;
 
     players_ui_state() {
         for (auto& side : sides) {
@@ -135,7 +138,7 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
 
     // A content-width card directly under the header, not a cursor-relative popup. Its top edge
-    // stays fixed while the opening fade runs; its bottom is aligned with the left column below.
+    // stays fixed while the opening fade runs; its bottom uses the shared Enemies height.
     bool wants_open = false;
     const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
     const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
@@ -150,7 +153,7 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     ImGui::PopFont();
     ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
 
-    // Match the visible bottom of the left column exactly. The card has a fixed
+    // Match the shared Enemies reference bottom exactly. The card has a fixed
     // height and the child keeps all chip sections available through scrolling.
     const float sections_y = ImGui::GetCursorScreenPos().y;
     const float sections_h = ImMax(1.f * gui.m_scale,
@@ -266,7 +269,7 @@ void draw_visuals_players() {
         draw_enemy_side(ui.sides[0]);
     else
         draw_teammate_side(ui.sides[1]);
-    const float left_content_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
+    const float active_left_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
     // The right column displays only the live Panorama agent. ESP Items remains a card
     // above the same column.
@@ -275,15 +278,20 @@ void draw_visuals_players() {
     const ImVec2 right_column_origin = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
     const ImVec2 preview_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
-    // One shared right-column rectangle: the live preview and ESP Items card
-    // both end at the measured bottom of Enemies instead of sizing independently.
-    const float right_column_height = ImMax(1.f, left_content_bottom - preview_origin.y);
+    const float active_right_height = ImMax(1.f, active_left_bottom - preview_origin.y);
+    if (ui.active_side == 0)
+        ui.enemies_right_height = active_right_height / gui.m_scale;
+    // Do not let the shorter Teammates controls shrink the right column. Keep
+    // the Enemies reference in design units so Menu Scale changes still work.
+    const float right_column_height = ui.enemies_right_height > 0.f
+        ? ui.enemies_right_height * gui.m_scale
+        : active_right_height;
+    const float right_column_bottom = preview_origin.y + right_column_height;
     agent_preview::draw(preview_origin,
-                        ImVec2(right_column_origin.x + column_width,
-                               preview_origin.y + right_column_height),
+                        ImVec2(right_column_origin.x + column_width, right_column_bottom),
                         ui.active_side);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
-                         right_column_origin, column_width, left_content_bottom);
+                         right_column_origin, column_width, right_column_bottom);
     if (ui.active_side == 0) {
         esp.m_bounding_box = enemy_items.main_items[0];
         esp.m_name = enemy_items.main_items[1];
