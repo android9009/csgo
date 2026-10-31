@@ -43,6 +43,7 @@ struct preview_state {
     panorama_profile profile = panorama_profile::none;
     std::string abi_failure_reason;
     ULONGLONG next_engine_retry = 0;
+    ULONGLONG next_engine_check = 0;
     ULONGLONG next_context_check = 0;
     bool context_failure_logged = false;
 
@@ -64,6 +65,7 @@ struct preview_state {
     int capture_height = 0;
     bool prefer_full_frame = false;
     ULONGLONG capture_retry_after = 0;
+    ULONGLONG last_capture = 0;
     bool capture_success_logged = false;
     bool capture_failure_logged = false;
 
@@ -355,10 +357,17 @@ bool validate_engine_locked(preview_state& s, void* engine) {
 
 void* acquire_engine_locked(preview_state& s, ULONGLONG now) {
     if (s.abi_valid) {
+        // Fingerprinting PE sections and querying vtable pages is validation,
+        // not per-frame work. Still fetch the current engine pointer so a
+        // Panorama reload cannot leave us calling a stale cached object.
+        const bool cached_validation = s.engine && now < s.next_engine_check;
         const auto access = virtual_function<access_ui_engine_t>(s.panorama_wrapper, 11);
         if (!access)
             return nullptr;
         void* current = access(s.panorama_wrapper);
+        if (cached_validation && current == s.engine)
+            return s.engine;
+        s.next_engine_check = now + 1000;
         if (!current || !validate_engine_locked(s, current)) {
             note_abi_failure_locked(s, "engine ABI changed");
             s.abi_valid = false;
@@ -426,6 +435,7 @@ void* acquire_engine_locked(preview_state& s, ULONGLONG now) {
         s.panorama_wrapper = wrapper;
         s.engine = engine;
         s.abi_valid = true;
+        s.next_engine_check = now + 1000;
         s.abi_failure_logged = false;
         s.abi_failure_reason.clear();
         AIRFLOW_DEBUG_LOGF("agent_preview Panorama ABI validated (%s)",
@@ -549,6 +559,14 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
 
     if (s.context && now < s.next_context_check)
         return s.context;
+    // A healthy context is cheap to revalidate and must not trigger another
+    // full panel-tree/string scan. Scan only after it actually disappears.
+    if (s.context && valid_panel_locked(s, s.context)) {
+        s.next_context_check = now + 1000;
+        s.context_failure_logged = false;
+        return s.context;
+    }
+    s.context = nullptr;
     s.next_context_check = now + 250;
 
     if (s.profile == panorama_profile::csgo_2023) {
@@ -559,6 +577,7 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
             if (s.context != panel)
                 AIRFLOW_DEBUG_LOG("agent_preview Panorama context acquired from panel map");
             s.context = panel;
+            s.next_context_check = now + 1000;
             s.context_failure_logged = false;
             return panel;
         }
@@ -567,13 +586,10 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
         void* last = get_last ? get_last(engine) : nullptr;
         if (last && valid_panel_locked(s, last)) {
             s.context = last;
+            s.next_context_check = now + 1000;
             s.context_failure_logged = false;
             return last;
         }
-    }
-    if (s.context && valid_panel_locked(s, s.context)) {
-        s.context_failure_logged = false;
-        return s.context;
     }
     s.context = nullptr;
     if (!s.context_failure_logged) {
@@ -600,7 +616,9 @@ constexpr char k_host_id[] = "DarksideEspAgentPreview";
 constexpr char k_model_id[] = "DarksideEspAgentPreviewModel";
 constexpr char k_manifest[] = "resource/ui/econ/ItemModelPanelCharWeaponInspect.res";
 constexpr ULONGLONG k_panel_check_ms = 1000;
+constexpr ULONGLONG k_panel_heartbeat_ms = 5000;
 constexpr ULONGLONG k_capture_retry_ms = 1000;
+constexpr ULONGLONG k_capture_interval_ms = 33;
 
 std::string root_script_prefix() {
     // RunScript needs a valid panel context, but the parent walk belongs in JS:
@@ -622,9 +640,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     const std::string w = std::to_string(width);
     const std::string h = std::to_string(height);
     const std::string host_style =
-        "flow-children:none;position:" + x + "px " + y + "px 0px;" +
-        "horizontal-align:left;vertical-align:top;width:" + w + "px;height:" + h + "px;" +
-        "overflow:clip;z-index:100000;background-color:" + color + ";";
+        "flow-children:none;overflow:clip;horizontal-align:left;vertical-align:top;";
 
     std::string script = root_script_prefix();
     script +=
@@ -637,8 +653,15 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:false,mouse_rotate:false,"
         "'require-composition-layer':true,style:'width:100%;height:100%;horizontal-align:left;vertical-align:top;'});made=true;}"
         "if(!p)return;d.DarksideEspAgentPreview=h;d.DarksideEspAgentPreviewModel=p;"
-        "h.style.position='" + x + "px " + y + "px 0px';"
-        "h.style.width='" + w + "px';h.style.height='" + h + "px';"
+        // ImGui rects are in backbuffer pixels; Panorama style lengths are in
+        // the root's scaled UI coordinates. Convert through the actual root
+        // transform instead of assuming a 1:1 CSS/screen mapping.
+        "var wp=root.GetPositionWithinWindow();var sx=root.actualuiscale_x;var sy=root.actualuiscale_y;"
+        "if(!(sx>0))sx=1;if(!(sy>0))sy=1;"
+        "h.style.x=((" + x + "-wp.x)/sx)+'px';"
+        "h.style.y=((" + y + "-wp.y)/sy)+'px';"
+        "h.style.width=((" + w + ")/sx)+'px';"
+        "h.style.height=((" + h + ")/sy)+'px';"
         "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;";
 
     script += "if(made||";
@@ -686,7 +709,9 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
     s.panel_agent = agent;
     s.panel_background = background;
     s.panel_rect = rect;
-    s.next_panel_check = now + k_panel_check_ms;
+    // Keep a slow heartbeat for panels removed by game UI transitions, but do
+    // not rebuild/render-script an unchanged preview every frame or second.
+    s.next_panel_check = now + k_panel_heartbeat_ms;
 }
 
 void hide_panel_locked(preview_state& s) {
@@ -724,6 +749,7 @@ void release_capture_locked(preview_state& s) {
     s.capture_width = 0;
     s.capture_height = 0;
     s.capture_valid = false;
+    s.last_capture = 0;
 }
 
 bool ensure_capture_texture_locked(preview_state& s, IDirect3DDevice9* device,
@@ -832,17 +858,27 @@ void begin_frame(IDirect3DDevice9* device) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     s.drawn = false;
-    s.capture_valid = false;
     if (!s.requested_active || !s.panel_ready || !s.panel_visible ||
         s.panel_side != s.requested_side || !same_rect(s.panel_rect, s.requested_rect)) {
+        s.capture_valid = false;
         return;
     }
 
     const ULONGLONG now = GetTickCount64();
+    const bool reusable = s.capture_valid && s.capture_texture &&
+                          s.captured_side == s.requested_side &&
+                          same_rect(s.captured_rect, s.requested_rect);
+    // A live preview does not need a second full GPU copy at the game's full
+    // frame rate. Reuse the last texture for ~30 Hz capture and keep it valid
+    // on skipped frames instead of blanking the image.
+    if (reusable && now - s.last_capture < k_capture_interval_ms)
+        return;
+    s.capture_valid = false;
     if (now < s.capture_retry_after)
         return;
     if (capture_backbuffer_locked(s, device)) {
         s.capture_valid = true;
+        s.last_capture = now;
         s.capture_retry_after = 0;
         if (!s.capture_success_logged) {
             s.capture_success_logged = true;
