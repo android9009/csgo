@@ -267,7 +267,7 @@ void draw_visuals_players() {
         draw_teammate_side(ui.sides[1]);
     const float left_content_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
-    // The right column displays the active side's full-body character preview,
+    // The right column displays the fixed full-body image for the active side,
     // not a separate CT/T settings panel. ESP Items remains a card above the same column.
     gui.end_grid();
 

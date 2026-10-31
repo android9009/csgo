@@ -139,8 +139,6 @@
     <ClInclude Include="runtime\runtime.hpp" />
     <ClInclude Include="runtime\steam_avatar.hpp" />
     <ClInclude Include="sdk\config_system\config_system.hpp" />
-    <ClInclude Include="sdk\source_files.hpp" />
-    <ClInclude Include="sdk\source_preview.hpp" />
     <ClInclude Include="sdk\weapon_definitions.hpp" />
     <ClInclude Include="sdk\includes\imgui\imconfig.h" />
     <ClInclude Include="sdk\includes\imgui\imgui.h" />
@@ -219,6 +217,8 @@
     <None Include="menu\fonts\SSTBold.TTF" />
     <None Include="menu\fonts\SpaceGrotesk-SemiBold.ttf" />
     <None Include="menu\fonts\fa-solid-900.ttf" />
+    <None Include="menu\assets\agent_enemies.png" />
+    <None Include="menu\assets\agent_teammates.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

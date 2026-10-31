@@ -287,12 +287,6 @@
     <ClInclude Include="sdk\config_system\config_system.hpp">
       <Filter>Header Files\sdk\config_system</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\source_files.hpp">
-      <Filter>Header Files\sdk</Filter>
-    </ClInclude>
-    <ClInclude Include="sdk\source_preview.hpp">
-      <Filter>Header Files\sdk</Filter>
-    </ClInclude>
     <ClInclude Include="sdk\weapon_definitions.hpp">
       <Filter>Header Files\sdk</Filter>
     </ClInclude>
@@ -518,6 +512,12 @@
     </None>
     <None Include="menu\fonts\fa-solid-900.ttf">
       <Filter>Resource Files\fonts</Filter>
+    </None>
+    <None Include="menu\assets\agent_enemies.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="menu\assets\agent_teammates.png">
+      <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>
 </Project>
