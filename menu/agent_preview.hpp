@@ -13,5 +13,6 @@ namespace agent_preview {
 void begin_frame(IDirect3DDevice9* device);
 void draw(const ImVec2& min, const ImVec2& max, int side);
 void end_frame();
+void on_menu_closed();
 void on_device_reset();
 }

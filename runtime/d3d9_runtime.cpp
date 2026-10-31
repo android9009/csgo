@@ -52,6 +52,8 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
     if (message == WM_KEYUP && wparam == VK_INSERT &&
         GetForegroundWindow() == hwnd) {
         g_menu->toggle();
+        if (!g_menu->is_opened())
+            agent_preview::on_menu_closed();
         return 0;
     }
     if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)

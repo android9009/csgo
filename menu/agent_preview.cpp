@@ -713,6 +713,9 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
     s.panel_visible = true;
     s.panel_ready = true;
     s.panel_hide_sent = false;
+    // A new visible cycle must always be allowed to hide immediately. Do not
+    // carry a previous close attempt's one-second retry budget into it.
+    s.next_hide_attempt = 0;
     s.panel_side = side;
     s.panel_agent = agent;
     s.panel_background = background;
@@ -948,6 +951,19 @@ void end_frame() {
     s.capture_valid = false;
     hide_panel_locked(s);
     release_capture_locked(s);
+}
+
+void on_menu_closed() {
+    auto& s = state();
+    std::scoped_lock lock(s.mutex);
+    // Closing the menu is a lifecycle edge, not a capture retry. Submit the
+    // hide before the next Panorama composition so the independent panel does
+    // not linger while ImGui is already gone. Keep the current draw/texture
+    // lifetime for end_frame(): an input callback can race a queued ImGui image.
+    s.requested_active = false;
+    s.capture_valid = false;
+    s.next_hide_attempt = 0;
+    hide_panel_locked(s);
 }
 
 void on_device_reset() {
