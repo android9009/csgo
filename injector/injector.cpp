@@ -183,8 +183,8 @@ int wmain(int argc, wchar_t** argv) {
 
         std::printf("[+] Injected successfully, module base=0x%08lX\n",
             static_cast<unsigned long>(remote_module));
-        std::puts("[+] Debug log: C:\\airflow\\debug.log");
-        std::puts("[+] Crash dump: C:\\airflow\\crash_last.dmp");
+        std::puts("[+] Debug log: C:\\dev\\csgo\\Bins\\debug.log");
+        std::puts("[+] Crash dump: C:\\dev\\csgo\\Bins\\crash_last.dmp");
         result = 0;
 
     } while (false);

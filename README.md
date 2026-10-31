@@ -25,13 +25,13 @@ Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Re
 1. Соберите всё решение в `Debug | x86` и запустите CS:GO. После замены уже загруженной DLL перезапустите игру, чтобы в процессе не осталась старая копия.
 2. Запустите `Bins\airflow_injector.exe`. Он найдёт `csgo.exe` и загрузит `airflow_shell.dll` из своей директории через `LoadLibraryW`.
 3. При необходимости путь к DLL можно передать явно: `airflow_injector.exe "C:\full\path\airflow_shell.dll"`.
-4. Откройте **Visuals**. После вылета нужны `C:\airflow\debug.log` и `C:\airflow\crash_last.dmp`.
+4. Откройте **Visuals**. После вылета нужны `C:\dev\csgo\Bins\debug.log` и `C:\dev\csgo\Bins\crash_last.dmp`.
 
 Инжектор входит только в Debug-конфигурацию решения; Release-сборка DLL по-прежнему не получает консоль или crash-инструменты.
 
 ## Debug-диагностика
 
-Только сборка `Debug | x86` открывает консоль при запуске runtime и регистрирует SEH/CRT/SIGABRT-диагностику. Этапы renderer, меню и отдельных вызовов agent preview, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\airflow\debug.log`; стадия сохраняется отдельно для каждого потока. Для необработанного SEH и `abort()` также создаётся `C:\airflow\crash_last.dmp`. Строка `FIRST-CHANCE` описывает исключение, которое игра ещё может обработать; `CRASH` или `CRT report` важнее для итогового анализа. В `Release` консоль, файловые debug-логи, обработчики и DbgHelp полностью исключены препроцессором.
+Только сборка `Debug | x86` открывает консоль при запуске runtime и регистрирует SEH/CRT/SIGABRT-диагностику. Этапы renderer, меню и отдельных вызовов agent preview, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\dev\csgo\Bins\debug.log`; стадия сохраняется отдельно для каждого потока. Для необработанного SEH и `abort()` также создаётся `C:\dev\csgo\Bins\crash_last.dmp`. Строка `FIRST-CHANCE` описывает исключение, которое игра ещё может обработать; `CRASH` или `CRT report` важнее для итогового анализа. В `Release` консоль, файловые debug-логи, обработчики и DbgHelp полностью исключены препроцессором.
 
 ## CMake (Windows)
 
