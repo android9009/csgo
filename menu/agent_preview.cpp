@@ -674,7 +674,15 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     script += agent_model(side, agent);
     script += "');p.ResetActivityModifiers();p.ApplyActivityModifier('";
     script += team;
-    script += "');p.PlayActivity('ACT_CSGO_UIPLAYER_BUYMENU',true);p.SetCameraPreset(18,false);}";
+    script += "');p.PlayActivity('ACT_CSGO_UIPLAYER_IDLE',true);";
+    // Preset 18 is the original full-body buymenu framing. Use a slightly
+    // closer custom preset 0 and a little more downward pitch so the head sits
+    // nearer the header while the feet remain inside the preview.
+    script += "p.SetCameraPreset(18,false);";
+    script += "p.SetCameraPosition(198.81,65.08,63.44);";
+    script += "p.SetCameraAngles(5.25,-162.13,0.00);";
+    script += "p.SetCameraPreset(0,false);";
+    script += "p.SetSceneIntroRotation(-2.0,10.0,true);}";
     script += "p.EnableRendering(true);p.Pause(false);})();";
     return script;
 }
