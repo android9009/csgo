@@ -220,6 +220,31 @@ void* debug_read_pointer(const void* address) {
         return nullptr;
     return *static_cast<void* const*>(address);
 }
+
+void debug_log_code(const char* label, const void* address, std::size_t size) {
+    constexpr char digits[] = "0123456789ABCDEF";
+    for (std::size_t offset = 0; offset < size; offset += 16) {
+        const auto count = std::min<std::size_t>(16, size - offset);
+        const auto current = reinterpret_cast<const void*>(
+            reinterpret_cast<std::uintptr_t>(address) + offset);
+        if (!debug_readable(current, count)) {
+            AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: unreadable", label,
+                static_cast<unsigned int>(offset));
+            return;
+        }
+
+        const auto bytes = static_cast<const unsigned char*>(current);
+        char text[16 * 3]{};
+        for (std::size_t i = 0; i < count; ++i) {
+            text[i * 3] = digits[bytes[i] >> 4];
+            text[i * 3 + 1] = digits[bytes[i] & 0xF];
+            text[i * 3 + 2] = ' ';
+        }
+        text[count * 3 - 1] = '\0';
+        AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: %s", label,
+            static_cast<unsigned int>(offset), text);
+    }
+}
 #endif
 
 class render_context_scope {
@@ -407,6 +432,27 @@ void paint_locked(preview_state& s) {
             "preview_vtable=%p",
             current_target, current_table, s.preview_texture,
             debug_read_pointer(s.preview_texture));
+        const auto render_view_table = debug_read_pointer(render_view);
+        AIRFLOW_DEBUG_LOGF(
+            "agent_preview render_view=%p vtable=%p slot43=%p slot45=%p slot55=%p slot56=%p "
+            "cubemap=%p cubemap_vtable=%p",
+            render_view, render_view_table,
+            render_view_table ? static_cast<void**>(render_view_table)[43] : nullptr,
+            render_view_table ? static_cast<void**>(render_view_table)[45] : nullptr,
+            render_view_table ? static_cast<void**>(render_view_table)[55] : nullptr,
+            render_view_table ? static_cast<void**>(render_view_table)[56] : nullptr,
+            s.cubemap_texture, debug_read_pointer(s.cubemap_texture));
+        if (render_view_table) {
+            const auto table = static_cast<void* const*>(render_view_table);
+            debug_log_code("render_view_slot43", table[43], 0x100);
+            debug_log_code("render_view_slot45", table[45], 0x80);
+            debug_log_code("render_view_slot55", table[55], 0x80);
+            debug_log_code("render_view_slot56", table[56], 0x40);
+        }
+        debug_log_code("engine_128D69", reinterpret_cast<const void*>(
+            source_preview::module_address("engine.dll", 0x128D40)), 0x40);
+        debug_log_code("materialsystem_43E0E", reinterpret_cast<const void*>(
+            source_preview::module_address("materialsystem.dll", 0x43DC0)), 0x60);
     }
 #endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
