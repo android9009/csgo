@@ -220,31 +220,6 @@ void* debug_read_pointer(const void* address) {
         return nullptr;
     return *static_cast<void* const*>(address);
 }
-
-void debug_log_code(const char* label, const void* address, std::size_t size) {
-    constexpr char digits[] = "0123456789ABCDEF";
-    for (std::size_t offset = 0; offset < size; offset += 16) {
-        const auto count = std::min<std::size_t>(16, size - offset);
-        const auto current = reinterpret_cast<const void*>(
-            reinterpret_cast<std::uintptr_t>(address) + offset);
-        if (!debug_readable(current, count)) {
-            AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: unreadable", label,
-                static_cast<unsigned int>(offset));
-            return;
-        }
-
-        const auto bytes = static_cast<const unsigned char*>(current);
-        char text[16 * 3]{};
-        for (std::size_t i = 0; i < count; ++i) {
-            text[i * 3] = digits[bytes[i] >> 4];
-            text[i * 3 + 1] = digits[bytes[i] & 0xF];
-            text[i * 3 + 2] = ' ';
-        }
-        text[count * 3 - 1] = '\0';
-        AIRFLOW_DEBUG_LOGF("agent_preview %s+0x%04X: %s", label,
-            static_cast<unsigned int>(offset), text);
-    }
-}
 #endif
 
 class render_context_scope {
@@ -442,20 +417,6 @@ void paint_locked(preview_state& s) {
             render_view_table ? static_cast<void**>(render_view_table)[55] : nullptr,
             render_view_table ? static_cast<void**>(render_view_table)[56] : nullptr,
             s.cubemap_texture, debug_read_pointer(s.cubemap_texture));
-        if (render_view_table) {
-            // Slot 43 is an engine thunk through the forward object at engine+0x7836C8. Capture
-            // its actual implementation, including the epilogue that determines stack cleanup.
-            const auto forward_object = reinterpret_cast<const void*>(
-                source_preview::module_address("engine.dll", 0x7836C8));
-            const auto forward_table = debug_read_pointer(forward_object);
-            const auto push3d_impl = debug_read_pointer(reinterpret_cast<const void*>(
-                reinterpret_cast<std::uintptr_t>(forward_table) + 0x5C));
-            AIRFLOW_DEBUG_LOGF("agent_preview render_view_forward=%p table=%p slot43_impl=%p",
-                forward_object, forward_table, push3d_impl);
-            debug_log_code("render_view_slot43_impl", push3d_impl, 0x400);
-        }
-        debug_log_code("shaderapi_2275B", reinterpret_cast<const void*>(
-            source_preview::module_address("shaderapidx9.dll", 0x22700)), 0x100);
     }
 #endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
@@ -474,7 +435,7 @@ void paint_locked(preview_state& s) {
     render_view->Push3DView(context, view_setup,
         source_preview::VIEW_CLEAR_COLOR | source_preview::VIEW_CLEAR_DEPTH |
         source_preview::VIEW_CLEAR_STENCIL,
-        s.preview_texture, dummy_frustum);
+        s.preview_texture, dummy_frustum, nullptr);
 
     static constexpr std::array light_col1 = {
         source_preview::Vector4D(0.68f, 1.53f, 1.7f, 1.f),

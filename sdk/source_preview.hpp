@@ -239,11 +239,14 @@ public:
 class IVRenderView {
 public:
     void Push3DView(IMatRenderContext* context, const CViewSetup& view, int flags,
-                    ITexture* render_target, Frustum frustum) {
+                    ITexture* render_target, Frustum frustum, ITexture* depth_texture) {
+        // The actual slot-43 implementation reads [ebp+0x1C] and ends in `ret 0x18`: the depth
+        // texture is a required sixth argument. Fatality's five-argument declaration omits it.
         using function_t = void(__thiscall*)(void*, IMatRenderContext*, const CViewSetup&, int,
-            ITexture*, VPlane*);
+            ITexture*, VPlane*, ITexture*);
         const auto table = *reinterpret_cast<void***>(this);
-        reinterpret_cast<function_t>(table[43])(this, context, view, flags, render_target, frustum);
+        reinterpret_cast<function_t>(table[43])(this, context, view, flags, render_target, frustum,
+            depth_texture);
     }
     void PopView(IMatRenderContext* context, Frustum frustum) {
         using function_t = void(__thiscall*)(void*, IMatRenderContext*, VPlane*);
