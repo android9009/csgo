@@ -20,8 +20,8 @@ struct esp_items_ui_state {
 };
 
 struct player_side_ui_state {
-    // Missing backends stay in per-side UI state, so Enemies and Teammates never overwrite
-    // one another while the other page is hidden.
+    // Missing backends stay in per-side UI state, so Enemies, Teammates and Self never
+    // overwrite one another while another page is hidden.
     bool offscreen_arrow = false;
     bool sounds = false;
     int player_model = 0;
@@ -48,10 +48,10 @@ struct player_side_ui_state {
 };
 
 struct players_ui_state {
-    int active_side = 0; // 0 = Enemies, 1 = Teammates
-    player_side_ui_state sides[2];
+    int active_side = 0; // 0 = Enemies, 1 = Teammates, 2 = Self
+    player_side_ui_state sides[3];
     // Screen-independent reference height for the right column. Enemies is the
-    // design reference even while the Teammates tab is selected.
+    // design reference even while the Teammates or Self tab is selected.
     float enemies_right_height = 0.f;
 
     players_ui_state() {
@@ -195,8 +195,6 @@ void draw_enemy_side(player_side_ui_state& side) {
 
 void draw_teammate_side(player_side_ui_state& side) {
     static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
-    static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
-    static const char* local_weapons[] = { "Default", "Current Weapon" };
 
     gui.grid_box("TEAMMATE", k_auto_height);
     gui.row_checkbox("Enabled", &g_cfg->visuals.m_player_esp.m_teammates);
@@ -208,6 +206,11 @@ void draw_teammate_side(player_side_ui_state& side) {
     gui.row_checkbox("Disable Model Rendering", &side.disable_model_rendering);
     gui.row_checkbox("Glow", &side.glow, &side.glow_color);
     gui.end_group_box();
+}
+
+void draw_self_side(player_side_ui_state& side) {
+    static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
+    static const char* local_weapons[] = { "Default", "Current Weapon" };
 
     gui.grid_box("LOCAL PLAYER MODEL", k_auto_height);
     if (gui.row_popup("Model")) {
@@ -228,13 +231,15 @@ void draw_teammate_side(player_side_ui_state& side) {
 void draw_visuals_players() {
     auto& esp = g_cfg->visuals.m_player_esp;
     auto& ui = player_ui();
-    static const char* header_icons[] = { ICON_FA_USER, ICON_FA_USER_MINUS, ICON_FA_LIST_ALT };
-    static const char* header_labels[] = { "Enemies", "Teammates", "ESP Items" };
+    static const char* header_icons[] = {
+        ICON_FA_USER, ICON_FA_USER_MINUS, ICON_FA_USER_CIRCLE, ICON_FA_LIST_ALT
+    };
+    static const char* header_labels[] = { "Enemies", "Teammates", "Self", "ESP Items" };
 
     const ImVec2 content_origin = ImGui::GetCursorScreenPos();
     const float content_width = ImGui::GetContentRegionAvail().x;
     const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
-    ui.active_side = ImClamp(ui.active_side, 0, 1);
+    ui.active_side = ImClamp(ui.active_side, 0, 2);
     const int previous_side = ui.active_side;
     const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
     const bool customize_visible = ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) ||
@@ -243,12 +248,12 @@ void draw_visuals_players() {
         column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
     const int header_clicked = gui.icon_tabs("##players_header", header_icons, header_labels,
         IM_ARRAYSIZE(header_icons), &ui.active_side, header_center, nullptr,
-        customize_visible ? 2 : -1, true, 2);
-    const bool customize_clicked = header_clicked == 2;
+        customize_visible ? 3 : -1, true, 3);
+    const bool customize_clicked = header_clicked == 3;
     if (customize_clicked)
-        ui.active_side = previous_side; // ESP Items is an action, not a third player side
+        ui.active_side = previous_side; // ESP Items is an action, not a player side
     else
-        ui.active_side = ImClamp(ui.active_side, 0, 1);
+        ui.active_side = ImClamp(ui.active_side, 0, 2);
 
     // The original config has one enemy ESP set. Keep its existing controls live while the
     // additional per-side customize options remain UI state in the standalone shell.
@@ -267,8 +272,10 @@ void draw_visuals_players() {
     gui.grid_col(0);
     if (ui.active_side == 0)
         draw_enemy_side(ui.sides[0]);
-    else
+    else if (ui.active_side == 1)
         draw_teammate_side(ui.sides[1]);
+    else
+        draw_self_side(ui.sides[2]);
     const float active_left_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
     // The right column displays only the live Panorama agent. ESP Items remains a card
@@ -281,15 +288,17 @@ void draw_visuals_players() {
     const float active_right_height = ImMax(1.f, active_left_bottom - preview_origin.y);
     if (ui.active_side == 0)
         ui.enemies_right_height = active_right_height / gui.m_scale;
-    // Do not let the shorter Teammates controls shrink the right column. Keep
-    // the Enemies reference in design units so Menu Scale changes still work.
+    // Do not let the shorter Teammates or Self controls shrink the right column.
+    // Keep the Enemies reference in design units so Menu Scale changes still work.
     const float right_column_height = ui.enemies_right_height > 0.f
         ? ui.enemies_right_height * gui.m_scale
         : active_right_height;
     const float right_column_bottom = preview_origin.y + right_column_height;
+    const int preview_side = ui.active_side == 2
+        ? (ui.sides[2].local_model == 1 ? 1 : 0) : ui.active_side;
     agent_preview::draw(preview_origin,
                         ImVec2(right_column_origin.x + column_width, right_column_bottom),
-                        ui.active_side);
+                        preview_side);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
                          right_column_origin, column_width, right_column_bottom);
     if (ui.active_side == 0) {
