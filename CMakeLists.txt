@@ -65,8 +65,6 @@ target_link_libraries(airflow_shell PRIVATE
   dwmapi
   gdi32
   user32
-  windowscodecs
-  ole32
 )
 
 set_target_properties(airflow_shell PROPERTIES

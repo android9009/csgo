@@ -7,5 +7,3 @@ IDR_FONT_SST_BOLD       RCDATA "menu\\fonts\\SSTBold.TTF"
 IDR_FONT_SPACE_GROTESK  RCDATA "menu\\fonts\\SpaceGrotesk-SemiBold.ttf"
 IDR_FONT_FA_SOLID       RCDATA "menu\\fonts\\fa-solid-900.ttf"
 
-IDR_AGENT_ENEMIES       RCDATA "menu\\assets\\agent_enemies.png"
-IDR_AGENT_TEAMMATES     RCDATA "menu\\assets\\agent_teammates.png"

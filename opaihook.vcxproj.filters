@@ -513,11 +513,5 @@
     <None Include="menu\fonts\fa-solid-900.ttf">
       <Filter>Resource Files\fonts</Filter>
     </None>
-    <None Include="menu\assets\agent_enemies.png">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="menu\assets\agent_teammates.png">
-      <Filter>Resource Files</Filter>
-    </None>
   </ItemGroup>
 </Project>
