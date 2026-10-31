@@ -196,7 +196,7 @@ bool readable_range(const void* address, std::size_t size) {
         const auto region_end = region_begin + information.RegionSize;
         if (region_end <= region_begin || current < region_begin || current >= region_end)
             return false;
-        current = std::min(end, region_end);
+        current = std::min<std::uintptr_t>(end, static_cast<std::uintptr_t>(region_end));
     }
     return true;
 }
