@@ -235,19 +235,19 @@ public:
                     ITexture* render_target, Frustum frustum) {
         using function_t = void(__thiscall*)(void*, IMatRenderContext*, const CViewSetup&, int,
             ITexture*, VPlane*);
-        const auto table = *static_cast<void***>(this);
+        const auto table = *reinterpret_cast<void***>(this);
         reinterpret_cast<function_t>(table[43])(this, context, view, flags, render_target, frustum);
     }
     void PopView(IMatRenderContext* context, Frustum frustum) {
         using function_t = void(__thiscall*)(void*, IMatRenderContext*, VPlane*);
-        const auto table = *static_cast<void***>(this);
+        const auto table = *reinterpret_cast<void***>(this);
         reinterpret_cast<function_t>(table[45])(this, context, frustum);
     }
     void GetMatricesForView(const CViewSetup& view, VMatrix* world_to_view,
         VMatrix* view_to_projection, VMatrix* world_to_projection, VMatrix* world_to_pixels) {
         using function_t = void(__thiscall*)(void*, const CViewSetup&, VMatrix*, VMatrix*, VMatrix*,
             VMatrix*);
-        const auto table = *static_cast<void***>(this);
+        const auto table = *reinterpret_cast<void***>(this);
         reinterpret_cast<function_t>(table[56])(this, view, world_to_view, view_to_projection,
             world_to_projection, world_to_pixels);
     }
@@ -286,13 +286,19 @@ public:
 using MDLHandle_t = unsigned short;
 inline constexpr int MAXSTUDIOFLEXCTRL = 96;
 
+// Fatality's Color is four byte-sized channels. A uint32_t here has alignment 4 and would insert
+// two extra bytes both before Color and before nSkin, shifting the rest of CMDL by four bytes.
+struct color_rgba {
+    std::uint8_t r, g, b, a;
+};
+
 class CCustomMaterialOwner;
 class CMDL {
 public:
     std::byte pad[0x3C];
     MDLHandle_t hModelHandle;
     std::byte pad0[0x8];
-    std::uint32_t Color;
+    color_rgba Color;
     std::byte pad1[0x2];
     int nSkin;
     int nBody;
@@ -383,10 +389,16 @@ static_assert(offsetof(CViewSetup, zNear) == 0xD0);
 static_assert(offsetof(Texture_t, lpRawTexture) == 0x0C);
 static_assert(offsetof(ITexture, pTextureHandles) == 0x50);
 static_assert(offsetof(IGlobalVarsBase, frametime) == 0x14);
+static_assert(sizeof(color_rgba) == 0x4);
+static_assert(alignof(color_rgba) == 0x1);
 static_assert(offsetof(CMDL, hModelHandle) == 0x3C);
+static_assert(offsetof(CMDL, Color) == 0x46);
+static_assert(offsetof(CMDL, nSkin) == 0x4C);
 static_assert(offsetof(CMDL, nSequence) == 0x54);
 static_assert(offsetof(CMDL, flTime) == 0x60);
+static_assert(offsetof(CMDL, arrFlexControls) == 0x68);
 static_assert(offsetof(CMDL, bUseSequencePlaybackFPS) == 0x675);
+static_assert(offsetof(CMDL, pProxyData) == 0x678);
 static_assert(offsetof(CMDL, flTimeBasisAdjustment) == 0x67C);
 static_assert(sizeof(CMDL) == 0x680);
 } // namespace source_preview
