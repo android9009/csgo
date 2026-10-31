@@ -180,6 +180,7 @@ public:
     void EndRender() { call_vfunc<void>(this, 3); }
     void BindLocalCubemap(ITexture* texture) { call_vfunc<void>(this, 5, texture); }
     void SetRenderTarget(ITexture* texture) { call_vfunc<void>(this, 6, texture); }
+    ITexture* GetRenderTarget() { return call_vfunc<ITexture*>(this, 7); }
     void ClearBuffers(bool color, bool depth, bool stencil) {
         call_vfunc<void>(this, 12, color, depth, stencil);
     }

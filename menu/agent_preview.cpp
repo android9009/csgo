@@ -198,6 +198,26 @@ void release_texture_locked(ITexture*& texture) {
     }
 }
 
+#ifdef _DEBUG
+void* debug_read_pointer(const void* address) {
+    if (!address)
+        return nullptr;
+
+    MEMORY_BASIC_INFORMATION information{};
+    if (VirtualQuery(address, &information, sizeof(information)) != sizeof(information) ||
+        information.State != MEM_COMMIT ||
+        (information.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+        return nullptr;
+    }
+    return *static_cast<void* const*>(address);
+}
+
+void* debug_vtable_entry(const void* table, std::size_t index) {
+    return debug_read_pointer(reinterpret_cast<const void*>(
+        reinterpret_cast<std::uintptr_t>(table) + index * sizeof(void*)));
+}
+#endif
+
 class render_context_scope {
 public:
     explicit render_context_scope(source_preview::IMaterialSystem* material_system) {
@@ -374,6 +394,14 @@ void paint_locked(preview_state& s) {
         AIRFLOW_DEBUG_LOGF("agent_preview context=%p vtable=%p slot116=%p slot120=%p",
             context, context_table, context_table ? context_table[116] : nullptr,
             context_table ? context_table[120] : nullptr);
+        const auto current_target = context->GetRenderTarget();
+        const auto current_table = debug_read_pointer(current_target);
+        AIRFLOW_DEBUG_LOGF(
+            "agent_preview current_target=%p current_vtable=%p current_slot43=%p "
+            "current_slot47=%p preview_texture=%p preview_vtable=%p",
+            current_target, current_table, debug_vtable_entry(current_table, 43),
+            debug_vtable_entry(current_table, 47), s.preview_texture,
+            debug_read_pointer(s.preview_texture));
     }
 #endif
     AIRFLOW_DEBUG_STAGE("agent_preview.context.PushRenderTargetAndViewport");
