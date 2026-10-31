@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 
 #include "../../sdk/includes/json/json.h"
+#include "../../features/visuals/settings.hpp"
 
 void c_config_system::setup_values( )
 {
@@ -127,6 +128,46 @@ void c_config_system::setup_values( )
 
 	push_item( &g_cfg->skins.m_knives.m_selected, "knife_changer", "selected", g_cfg->skins.m_knives.m_selected );
 	push_item( &g_cfg->skins.m_gloves.m_selected, "glove_changer", "selected", g_cfg->skins.m_gloves.m_selected );
+
+	// Independent game/preview visuals. The arrays are shared with the renderer, so these
+	// entries also persist every user-dragged ESP offset instead of saving only the menu toggles.
+	static const char* main_names[player_visuals::main_count] = {
+		"bounding_box", "name", "distance", "health_bar", "ammo_bar", "skeleton"
+	};
+	static const char* flag_names[player_visuals::flag_count] = {
+		"unarmored", "defuser", "blind", "scoped", "reload", "immunity", "slowed",
+		"vulnerable", "bomb", "hostage", "defuse", "pin_pulled", "money", "order_priority", "delay"
+	};
+	static const char* weapon_names[player_visuals::weapon_count] = {
+		"text", "icon", "readiness_bar", "bomb", "defuser", "taser"
+	};
+	static const char* aimbot_names[player_visuals::aimbot_count] = { "hit_chance", "hitboxes" };
+	for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
+		auto& side = player_visuals::settings(side_index);
+		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
+		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
+		push_item(&side.player_material, category, "player_material", side.player_material);
+		push_item(&side.behind_walls_material, category, "behind_walls_material", side.behind_walls_material);
+		push_item(&side.player_color, category, "player_color", side.player_color);
+		push_item(&side.player_secondary, category, "player_secondary", side.player_secondary);
+		push_item(&side.behind_walls_color, category, "behind_walls_color", side.behind_walls_color);
+		push_item(&side.behind_walls_secondary, category, "behind_walls_secondary", side.behind_walls_secondary);
+		push_item(&side.player_gradient, category, "player_gradient", side.player_gradient);
+		push_item(&side.behind_walls_gradient, category, "behind_walls_gradient", side.behind_walls_gradient);
+		push_item(&side.custom_sprite, category, "custom_sprite", side.custom_sprite);
+		for (int i = 0; i < player_visuals::main_count; ++i)
+			push_item(&side.main[i], category, std::format("main_{}", main_names[i]), side.main[i]);
+		for (int i = 0; i < player_visuals::flag_count; ++i)
+			push_item(&side.flags[i], category, std::format("flag_{}", flag_names[i]), side.flags[i]);
+		for (int i = 0; i < player_visuals::weapon_count; ++i)
+			push_item(&side.weapon[i], category, std::format("weapon_{}", weapon_names[i]), side.weapon[i]);
+		for (int i = 0; i < player_visuals::aimbot_count; ++i)
+			push_item(&side.aimbot[i], category, std::format("aimbot_{}", aimbot_names[i]), side.aimbot[i]);
+		for (int i = 0; i < player_visuals::item_count; ++i) {
+			push_item(&side.offsets[i].x, category, std::format("offset_{}_x", i), side.offsets[i].x);
+			push_item(&side.offsets[i].y, category, std::format("offset_{}_y", i), side.offsets[i].y);
+		}
+	}
 }
 
 void c_config_system::push_item( bool* pointer, std::string category, std::string name, bool def_value )

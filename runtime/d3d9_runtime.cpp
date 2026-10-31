@@ -17,6 +17,7 @@
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
 #include "../menu/agent_preview.hpp"
+#include "../features/visuals/esp.hpp"
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"
 #include "../menu/menu.hpp"
@@ -40,6 +41,7 @@ IDirect3DDevice9* device = nullptr;
 bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
+bool panorama_mouse_drag = false;
 std::mutex frame_mutex;
 
 LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -52,8 +54,10 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
     if (message == WM_KEYUP && wparam == VK_INSERT &&
         GetForegroundWindow() == hwnd) {
         g_menu->toggle();
-        if (!g_menu->is_opened())
+        if (!g_menu->is_opened()) {
+            panorama_mouse_drag = false;
             agent_preview::on_menu_closed();
+        }
         return 0;
     }
     if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)
@@ -63,6 +67,32 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
         ((message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
          (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)))
         return TRUE;
+
+    if (g_menu->is_opened() &&
+        (message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN ||
+         message == WM_LBUTTONUP || message == WM_LBUTTONDBLCLK)) {
+        const ImVec2 point(static_cast<float>(static_cast<short>(lparam & 0xFFFF)),
+            static_cast<float>(static_cast<short>((lparam >> 16) & 0xFFFF)));
+        const bool press = message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK;
+        const bool imgui_hovered = ImGui::GetCurrentContext() && ImGui::IsAnyItemHovered();
+        const bool imgui_active = ImGui::GetCurrentContext() && ImGui::IsAnyItemActive();
+        if (press) {
+            panorama_mouse_drag = agent_preview::contains_point(point) &&
+                !player_esp::preview_drag_hit(point) && !imgui_hovered;
+        }
+        bool forward = panorama_mouse_drag;
+        if (message == WM_MOUSEMOVE && !panorama_mouse_drag) {
+            forward = agent_preview::contains_point(point) && !player_esp::preview_drag_hit(point) &&
+                !imgui_hovered && !imgui_active;
+        }
+        if (message == WM_LBUTTONUP)
+            panorama_mouse_drag = false;
+        if (forward)
+            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+    }
+
+    if (g_menu->is_opened() && message == WM_INPUT && panorama_mouse_drag)
+        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
 
     if (g_menu->is_opened()) {
         if (message == WM_INPUT)
@@ -174,6 +204,8 @@ void render_frame(IDirect3DDevice9* present_device) {
     // width there. Doing it after Begin() leaves popup controls using the previous DPI metrics.
     ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
+    AIRFLOW_DEBUG_STAGE("player_esp.render");
+    player_esp::render();
     AIRFLOW_DEBUG_STAGE("c_menu.draw");
 #ifdef _DEBUG
     if (trace_menu_draw)
@@ -312,6 +344,8 @@ DWORD WINAPI worker(LPVOID) {
     } else {
         AIRFLOW_DEBUG_LOG("D3D9 hooks installed");
     }
+    // Source interfaces/materials are initialized by player_esp::render() on the
+    // game's render thread, not on this background worker.
     AIRFLOW_DEBUG_STAGE("runtime worker idle");
     return 0;
 }

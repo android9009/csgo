@@ -2,7 +2,14 @@
 #include "menu.hpp"
 #include "hashes.hpp"
 #include "agent_preview.hpp"
+#include "../features/visuals/chams.hpp"
+#include "../features/visuals/esp.hpp"
+#include "../features/visuals/settings.hpp"
 #include "../sdk/config_system/config_system.hpp"
+
+#include <algorithm>
+#include <cstring>
+#include <iterator>
 
 namespace {
 color_value make_ui_color(float r, float g, float b) {
@@ -44,6 +51,7 @@ struct player_side_ui_state {
     color_value ragdolls_color = make_ui_color(0.65f, 0.63f, 0.75f);
     color_value kill_effect_color = make_ui_color(1.f, 0.20f, 0.30f);
     color_value glow_color = make_ui_color(0.80f, 0.75f, 1.f);
+    char custom_sprite[128] = "models/weapons/customization/paints/custom/money";
     esp_items_ui_state esp_items;
 };
 
@@ -71,6 +79,67 @@ struct players_ui_state {
 players_ui_state& player_ui() {
     static players_ui_state state;
     return state;
+}
+
+ImVec4 to_vec4(const c_color& color) {
+    return ImVec4(color.r, color.g, color.b, color.a);
+}
+
+c_color to_config_color(const ImVec4& color) {
+    return c_color(color.x, color.y, color.z, color.w);
+}
+
+void load_shared_player_views(players_ui_state& ui) {
+    for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
+        const auto& config = player_visuals::settings(side_index);
+        auto& view = ui.sides[side_index];
+        view.player_model = std::clamp(config.player_material, 0, visuals_chams::mode_count - 1);
+        view.behind_walls_model = std::clamp(config.behind_walls_material, 0, visuals_chams::mode_count - 1);
+        view.player_color.a = to_vec4(config.player_color);
+        view.player_color.b = to_vec4(config.player_secondary);
+        view.player_color.gradient = config.player_gradient;
+        view.behind_walls_color.a = to_vec4(config.behind_walls_color);
+        view.behind_walls_color.b = to_vec4(config.behind_walls_secondary);
+        view.behind_walls_color.gradient = config.behind_walls_gradient;
+        std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
+        view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
+        std::copy(std::begin(config.main), std::end(config.main), std::begin(view.esp_items.main_items));
+        std::copy(std::begin(config.flags), std::end(config.flags), std::begin(view.esp_items.flags));
+        std::copy(std::begin(config.weapon), std::end(config.weapon), std::begin(view.esp_items.weapon_items));
+        std::copy(std::begin(config.aimbot), std::end(config.aimbot), std::begin(view.esp_items.aimbot_items));
+    }
+}
+
+void store_shared_player_views(players_ui_state& ui) {
+    for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
+        auto& config = player_visuals::settings(side_index);
+        const auto& view = ui.sides[side_index];
+        config.player_material = view.player_model;
+        config.behind_walls_material = view.behind_walls_model;
+        config.player_color = to_config_color(view.player_color.a);
+        config.player_secondary = to_config_color(view.player_color.b);
+        config.player_gradient = view.player_color.gradient;
+        config.behind_walls_color = to_config_color(view.behind_walls_color.a);
+        config.behind_walls_secondary = to_config_color(view.behind_walls_color.b);
+        config.behind_walls_gradient = view.behind_walls_color.gradient;
+        config.custom_sprite = view.custom_sprite;
+        std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(config.main));
+        std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
+        std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(config.weapon));
+        std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(config.aimbot));
+    }
+}
+
+void draw_custom_sprite_row(player_side_ui_state& side) {
+    if (side.player_model != visuals_chams::custom_sprite &&
+        side.behind_walls_model != visuals_chams::custom_sprite) {
+        return;
+    }
+    if (gui.row_popup("Custom Sprite")) {
+        gui.row_begin();
+        ImGui::InputText("Texture", side.custom_sprite, IM_ARRAYSIZE(side.custom_sprite));
+        gui.popup_end();
+    }
 }
 
 // Kept with the UI settings, but deliberately unreachable: the Visuals parent only expands to
@@ -171,20 +240,20 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
 }
 
 void draw_enemy_side(player_side_ui_state& side) {
-    auto& esp = g_cfg->visuals.m_player_esp;
     auto& effects = g_cfg->visuals.m_effects;
     auto& glow = g_cfg->visuals.m_glow;
     static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
 
     gui.grid_box("ENEMY", k_auto_height);
-    gui.row_checkbox("Enabled", &esp.m_enabled);
+    gui.row_checkbox("Enabled", &player_visuals::settings(0).esp_enabled);
     gui.row_checkbox("Offscreen Arrow", &side.offscreen_arrow, &side.offscreen_color);
     gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color);
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
-    gui.row_combo("Player", &side.player_color, &side.player_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Player", &side.player_color, &side.player_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_custom_sprite_row(side);
     gui.row_combo("On Shot", &side.on_shot_color, &side.on_shot_model, model_modes, IM_ARRAYSIZE(model_modes));
     gui.row_combo("History", &side.history_color, &side.history_model, model_modes, IM_ARRAYSIZE(model_modes));
     gui.row_combo("Ragdolls", &side.ragdolls_color, &side.ragdolls_model, model_modes, IM_ARRAYSIZE(model_modes));
@@ -194,15 +263,14 @@ void draw_enemy_side(player_side_ui_state& side) {
 }
 
 void draw_teammate_side(player_side_ui_state& side) {
-    static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
-
     gui.grid_box("TEAMMATE", k_auto_height);
-    gui.row_checkbox("Enabled", &g_cfg->visuals.m_player_esp.m_teammates);
+    gui.row_checkbox("Enabled", &player_visuals::settings(1).esp_enabled);
     gui.end_group_box();
 
     gui.grid_box("TEAMMATE MODEL", k_auto_height);
-    gui.row_combo("Player", &side.player_color, &side.player_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Player", &side.player_color, &side.player_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_custom_sprite_row(side);
     gui.row_checkbox("Disable Model Rendering", &side.disable_model_rendering);
     gui.row_checkbox("Glow", &side.glow, &side.glow_color);
     gui.end_group_box();
@@ -303,32 +371,20 @@ bool draw_esp_items_header_button(ImVec2 center, bool held) {
 }
 
 void draw_visuals_players() {
-    auto& esp = g_cfg->visuals.m_player_esp;
     auto& ui = player_ui();
+    load_shared_player_views(ui);
 
     const ImVec2 content_origin = ImGui::GetCursorScreenPos();
     const float content_width = ImGui::GetContentRegionAvail().x;
     const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
     ui.active_side = ImClamp(ui.active_side, 0, 2);
     const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
-    const bool customize_visible = ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) ||
-                                   gui.popup_fade_visible(customize_id);
+    const bool customize_visible = ui.active_side < 2 &&
+        (ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) || gui.popup_fade_visible(customize_id));
     const ImVec2 header_center = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
-    const bool customize_clicked = draw_esp_items_header_button(header_center, customize_visible);
-
-    // The original config has one enemy ESP set. Keep its existing controls live while the
-    // additional per-side customize options remain UI state in the standalone shell.
-    auto& enemy_items = ui.sides[0].esp_items;
-    if (ui.active_side == 0) {
-        enemy_items.main_items[0] = esp.m_bounding_box;
-        enemy_items.main_items[1] = esp.m_name;
-        enemy_items.main_items[2] = esp.m_distance;
-        enemy_items.main_items[3] = esp.m_health_bar;
-        enemy_items.main_items[4] = esp.m_ammo_bar;
-        enemy_items.main_items[5] = esp.m_skeleton;
-        enemy_items.weapon_items[0] = esp.m_weapon;
-    }
+    const bool customize_clicked = ui.active_side < 2 &&
+        draw_esp_items_header_button(header_center, customize_visible);
 
     gui.begin_grid(2);
     gui.grid_col(0);
@@ -356,22 +412,33 @@ void draw_visuals_players() {
         ? ui.enemies_right_height * gui.m_scale
         : active_right_height;
     const float right_column_bottom = preview_origin.y + right_column_height;
-    // Enemies, Teammates and Self share one agent skin. Keeping the same side
-    // prevents Panorama from rebuilding the scene on every tab switch.
-    agent_preview::draw(preview_origin,
-                        ImVec2(right_column_origin.x + column_width, right_column_bottom),
-                        0);
-    draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
-                         right_column_origin, column_width, right_column_bottom);
-    if (ui.active_side == 0) {
-        esp.m_bounding_box = enemy_items.main_items[0];
-        esp.m_name = enemy_items.main_items[1];
-        esp.m_distance = enemy_items.main_items[2];
-        esp.m_health_bar = enemy_items.main_items[3];
-        esp.m_ammo_bar = enemy_items.main_items[4];
-        esp.m_skeleton = enemy_items.main_items[5];
-        esp.m_weapon = enemy_items.weapon_items[0];
+    // Enemies, Teammates and Self share the canonical Agents T skin. Chams and
+    // ESP settings still come from the selected Enemies/Teammates tab.
+    const ImVec2 preview_max(right_column_origin.x + column_width, right_column_bottom);
+    const bool has_side_preview = ui.active_side < 2;
+    if (has_side_preview)
+        player_esp::prepare_preview(ui.active_side);
+    agent_preview::draw(preview_origin, preview_max, 0, has_side_preview);
+    player_esp::draw_preview(preview_origin, preview_max, has_side_preview ? ui.active_side : -1);
+    if (has_side_preview) {
+        draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
+                             right_column_origin, column_width, right_column_bottom);
     }
+    store_shared_player_views(ui);
+
+    // Keep the legacy config fields coherent for older config consumers; the
+    // active renderer reads only the independent shared per-side settings.
+    auto& legacy = g_cfg->visuals.m_player_esp;
+    const auto& enemy = player_visuals::settings(0);
+    legacy.m_enabled = enemy.esp_enabled;
+    legacy.m_teammates = player_visuals::settings(1).esp_enabled;
+    legacy.m_bounding_box = enemy.main[player_visuals::main_bounding_box];
+    legacy.m_name = enemy.main[player_visuals::main_name];
+    legacy.m_distance = enemy.main[player_visuals::main_distance];
+    legacy.m_health_bar = enemy.main[player_visuals::main_health_bar];
+    legacy.m_ammo_bar = enemy.main[player_visuals::main_ammo_bar];
+    legacy.m_skeleton = enemy.main[player_visuals::main_skeleton];
+    legacy.m_weapon = enemy.weapon[player_visuals::weapon_text];
 }
 
 void draw_visuals_world() {

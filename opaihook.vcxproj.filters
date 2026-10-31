@@ -31,6 +31,12 @@
     <Filter Include="Source Files\features\visuals">
       <UniqueIdentifier>{F432CCAC-2BAE-5DEC-9587-B6B60F9B2BDB}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\features">
+      <UniqueIdentifier>{B405A982-6101-4A0D-8CB4-D65E4D77A811}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\visuals">
+      <UniqueIdentifier>{45D206B4-69C4-4B42-8F0D-69CDB1568B72}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\menu">
       <UniqueIdentifier>{D348432D-B1F1-5599-8C28-B36CB56A76E7}</UniqueIdentifier>
     </Filter>
@@ -138,6 +144,15 @@
     <ClCompile Include="features\skins\skins.cpp">
       <Filter>Source Files\features\skins</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\chams.cpp">
+      <Filter>Source Files\features\visuals</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\esp.cpp">
+      <Filter>Source Files\features\visuals</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\source.cpp">
+      <Filter>Source Files\features\visuals</Filter>
+    </ClCompile>
     <ClCompile Include="menu\agent_preview.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
@@ -224,6 +239,18 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="features\visuals\chams.hpp">
+      <Filter>Header Files\features\visuals</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\esp.hpp">
+      <Filter>Header Files\features\visuals</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\settings.hpp">
+      <Filter>Header Files\features\visuals</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\source.hpp">
+      <Filter>Header Files\features\visuals</Filter>
+    </ClInclude>
     <ClInclude Include="menu\agent_preview.hpp">
       <Filter>Header Files\menu</Filter>
     </ClInclude>

@@ -6,6 +6,7 @@
 
 #include "menu.hpp"
 #include "../runtime/debug_console.hpp"
+#include "../features/visuals/chams.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
@@ -134,42 +135,16 @@ constexpr const char* k_terrorist_models[] = {
     "models/player/custom_player/legacy/tm_leet_variantd.mdl",
 };
 
-constexpr const char* k_counter_terrorist_models[] = {
-    "models/player/custom_player/legacy/ctm_sas.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variante.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantf.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_variantg.mdl",
-    "models/player/custom_player/legacy/ctm_fbi_varianth.mdl",
-    "models/player/custom_player/legacy/ctm_gign_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_gign_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_gsg9_variantd.mdl",
-    "models/player/custom_player/legacy/ctm_st6_varianta.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantb.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantc.mdl",
-    "models/player/custom_player/legacy/ctm_st6_variantd.mdl",
-};
-
 static_assert(IM_ARRAYSIZE(k_terrorist_models) == 21);
-static_assert(IM_ARRAYSIZE(k_counter_terrorist_models) == 21);
 
-int selected_agent(int side) {
-    const int selected = side == 0
-        ? g_cfg->skins.m_agents.m_selected
-        : g_cfg->skins.m_agents.m_selected_ct;
+int selected_agent(int) {
+    // Agents T is the single canonical skin for Enemies, Teammates and Self.
+    const int selected = g_cfg->skins.m_agents.m_selected;
     return std::clamp(selected, 0, static_cast<int>(IM_ARRAYSIZE(k_terrorist_models)) - 1);
 }
 
-const char* agent_model(int side, int agent) {
-    return side == 0 ? k_terrorist_models[agent] : k_counter_terrorist_models[agent];
+const char* agent_model(int, int agent) {
+    return k_terrorist_models[agent];
 }
 
 unsigned menu_background() {
@@ -691,7 +666,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "if(!h){h=$.CreatePanel('Panel',root,'" + k_host_id + "',{hittest:false,style:'" + host_style + "'});made=true;}"
         "if(!h)return;"
         "if(!p)p=h.FindChildTraverse('" + k_model_id + "');"
-        "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:false,mouse_rotate:false,"
+        "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:true,mouse_rotate:true,"
         "'require-composition-layer':true,style:'width:100%;height:100%;horizontal-align:left;vertical-align:top;'});made=true;}"
         "if(!p)return;d.DarksideEspAgentPreview=h;d.DarksideEspAgentPreviewModel=p;"
         // ImGui rects are in backbuffer pixels; Panorama style lengths are in
@@ -1030,7 +1005,7 @@ void begin_frame(IDirect3DDevice9* device) {
     }
 }
 
-void draw(const ImVec2& min, const ImVec2& max, int side) {
+void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     if (!ImGui::GetCurrentContext() || (side != 0 && side != 1) ||
@@ -1051,6 +1026,7 @@ void draw(const ImVec2& min, const ImVec2& max, int side) {
     s.requested_active = true;
     s.requested_side = side;
     s.requested_rect = rect;
+    visuals_chams::set_preview_model(agent_model(side, selected_agent(side)), chams_active);
     const ULONGLONG now = GetTickCount64();
     synchronize_panel_locked(s, rect, side, now);
     refresh_preload_ready_locked(s, now);
@@ -1073,6 +1049,7 @@ void end_frame() {
     std::scoped_lock lock(s.mutex);
     if (s.drawn)
         return;
+    visuals_chams::set_preview_model(nullptr, false);
     s.requested_active = false;
     s.capture_valid = false;
     const bool keep_offscreen_warmup = !s.preload_ready && s.panel_visible &&
@@ -1089,6 +1066,7 @@ bool is_preloaded() {
 }
 
 void on_menu_closed() {
+    visuals_chams::set_preview_model(nullptr, false);
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     // Closing the menu is a lifecycle edge, not a capture retry. Submit the
@@ -1099,6 +1077,15 @@ void on_menu_closed() {
     s.capture_valid = false;
     s.next_hide_attempt = 0;
     hide_panel_locked(s);
+}
+
+bool contains_point(const ImVec2& point) {
+    auto& s = state();
+    std::scoped_lock lock(s.mutex);
+    return s.requested_active && point.x >= static_cast<float>(s.requested_rect.left) &&
+        point.x <= static_cast<float>(s.requested_rect.right) &&
+        point.y >= static_cast<float>(s.requested_rect.top) &&
+        point.y <= static_cast<float>(s.requested_rect.bottom);
 }
 
 void on_device_reset() {
