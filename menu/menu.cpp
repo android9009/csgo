@@ -170,6 +170,8 @@ void draw_top_bar(ImGuiWindow* window) {
 
     if (gui.m_tab == 0)
         weapon_presets_ui::draw(button_pos);
+    else if (gui.m_tab == 3 && gui.m_visuals_subtab == 1)
+        visuals_ui::draw_top_bar(button_pos);
 
     const int search_tab = gui.search_bar(pos + ImVec2(size.x - 15.f * s, 15.f * s));
     if (search_tab >= 0)

@@ -46,4 +46,8 @@ private:
     void draw_configs();
 };
 
+namespace visuals_ui {
+void draw_top_bar(ImVec2 button_pos);
+}
+
 inline auto g_menu = std::make_unique<c_menu>();

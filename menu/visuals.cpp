@@ -228,32 +228,94 @@ void draw_self_side(player_side_ui_state& side) {
     gui.end_group_box();
 }
 
+void draw_player_side_tabs(players_ui_state& ui, ImVec2 pos) {
+    static const char* labels[] = { "Enemies", "Teammates", "Self" };
+    static float hover[3] = {};
+    static float selected[3] = {};
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    const ImVec2 saved_cursor = window->DC.CursorPos;
+    const ImVec2 saved_cursor_max = window->DC.CursorMaxPos;
+    const float s = gui.m_scale;
+    const float ease = ImClamp(ImGui::GetIO().DeltaTime * 15.f, 0.f, 1.f);
+    ImDrawList* draw = window->DrawList;
+
+    ImGui::PushID("##players_top_side_tabs");
+    for (int i = 0; i < 3; ++i) {
+        const char* label = gui.tr(labels[i]);
+        const ImVec2 text_size = ImGui::CalcTextSize(label);
+        const ImVec2 size(text_size.x + 26.f * s, 30.f * s);
+        ImGui::PushID(i);
+        ImGui::SetCursorScreenPos(pos);
+        if (ImGui::InvisibleButton("##side", size))
+            ui.active_side = i;
+        hover[i] = ImLerp(hover[i], ImGui::IsItemHovered() ? 1.f : 0.f, ease);
+        selected[i] = ImLerp(selected[i], ui.active_side == i ? 1.f : 0.f, ease);
+        const float plate = ImMax(hover[i] * 0.5f, selected[i]);
+        if (plate > 0.01f) {
+            draw->AddRectFilled(pos, pos + size,
+                gui.frame_inactive.to_im_color(0.35f + 0.55f * plate), 6.f * s);
+        }
+        ImVec4 ink = ImLerp(gui.text_disabled.to_vec4(1.f, false),
+                            gui.text.to_vec4(1.f, false), hover[i]);
+        ink = ImLerp(ink, gui.accent_color.to_vec4(1.f, false), selected[i]);
+        draw->AddText(ImVec2(IM_ROUND(pos.x + (size.x - text_size.x) * 0.5f),
+            IM_ROUND(pos.y + (size.y - text_size.y) * 0.5f)),
+            ImGui::GetColorU32(ink), label);
+        ImGui::PopID();
+        pos.x += size.x + 4.f * s;
+    }
+    ImGui::PopID();
+    window->DC.CursorPos = saved_cursor;
+    window->DC.CursorMaxPos = saved_cursor_max;
+}
+
+bool draw_esp_items_header_button(ImVec2 center, bool held) {
+    static float hover = 0.f;
+    const float s = gui.m_scale;
+    const float font_size = ImGui::GetFontSize();
+    ImFont* font = ImGui::GetFont();
+    const ImVec2 icon_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, ICON_FA_LIST_ALT);
+    const ImVec2 text_size = ImGui::CalcTextSize("ESP Items");
+    const ImVec2 size(icon_size.x + text_size.x + 31.f * s, 26.f * s);
+    const ImVec2 pos(center.x - size.x * 0.5f, center.y);
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    const ImVec2 saved_cursor = window->DC.CursorPos;
+    const ImVec2 saved_cursor_max = window->DC.CursorMaxPos;
+    ImGui::SetCursorScreenPos(pos);
+    const bool clicked = ImGui::InvisibleButton("##players_esp_items_header", size);
+    hover = ImLerp(hover, ImGui::IsItemHovered() ? 1.f : 0.f,
+                   ImClamp(ImGui::GetIO().DeltaTime * 15.f, 0.f, 1.f));
+    const float plate = ImMax(hover, held ? 1.f : 0.f);
+    ImDrawList* draw = window->DrawList;
+    if (plate > 0.01f)
+        draw->AddRectFilled(pos, pos + size, gui.frame_inactive.to_im_color(0.45f + 0.45f * plate), 8.f * s);
+    const ImU32 ink = held ? gui.accent_color.to_im_color() : gui.text.to_im_color();
+    const ImVec2 icon_pos = pos + ImVec2(9.f * s,
+        (size.y - 2.f * TextInkCenterY(font, font_size, ICON_FA_LIST_ALT)) * 0.5f);
+    draw->AddText(font, font_size, icon_pos, ink, ICON_FA_LIST_ALT);
+    draw->AddText(ImVec2(IM_ROUND(icon_pos.x + icon_size.x + 7.f * s),
+        IM_ROUND(pos.y + (size.y - text_size.y) * 0.5f)), ink, "ESP Items");
+    window->DC.CursorPos = saved_cursor;
+    window->DC.CursorMaxPos = saved_cursor_max;
+    return clicked;
+}
+
 void draw_visuals_players() {
     auto& esp = g_cfg->visuals.m_player_esp;
     auto& ui = player_ui();
-    static const char* header_icons[] = {
-        ICON_FA_USER, ICON_FA_USER_MINUS, ICON_FA_USER_CIRCLE, ICON_FA_LIST_ALT
-    };
-    static const char* header_labels[] = { "Enemies", "Teammates", "Self", "ESP Items" };
 
     const ImVec2 content_origin = ImGui::GetCursorScreenPos();
     const float content_width = ImGui::GetContentRegionAvail().x;
     const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
     ui.active_side = ImClamp(ui.active_side, 0, 2);
-    const int previous_side = ui.active_side;
     const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
     const bool customize_visible = ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) ||
                                    gui.popup_fade_visible(customize_id);
     const ImVec2 header_center = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
-    const int header_clicked = gui.icon_tabs("##players_header", header_icons, header_labels,
-        IM_ARRAYSIZE(header_icons), &ui.active_side, header_center, nullptr,
-        customize_visible ? 3 : -1, true, 3);
-    const bool customize_clicked = header_clicked == 3;
-    if (customize_clicked)
-        ui.active_side = previous_side; // ESP Items is an action, not a player side
-    else
-        ui.active_side = ImClamp(ui.active_side, 0, 2);
+    const bool customize_clicked = draw_esp_items_header_button(header_center, customize_visible);
 
     // The original config has one enemy ESP set. Keep its existing controls live while the
     // additional per-side customize options remain UI state in the standalone shell.
@@ -294,11 +356,11 @@ void draw_visuals_players() {
         ? ui.enemies_right_height * gui.m_scale
         : active_right_height;
     const float right_column_bottom = preview_origin.y + right_column_height;
-    const int preview_side = ui.active_side == 2
-        ? (ui.sides[2].local_model == 1 ? 1 : 0) : ui.active_side;
+    // Enemies, Teammates and Self share one agent skin. Keeping the same side
+    // prevents Panorama from rebuilding the scene on every tab switch.
     agent_preview::draw(preview_origin,
                         ImVec2(right_column_origin.x + column_width, right_column_bottom),
-                        preview_side);
+                        0);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
                          right_column_origin, column_width, right_column_bottom);
     if (ui.active_side == 0) {
@@ -329,6 +391,14 @@ void draw_visuals_world() {
     gui.end_grid();
 }
 } // namespace
+
+namespace visuals_ui {
+void draw_top_bar(ImVec2 button_pos) {
+    auto& ui = player_ui();
+    ui.active_side = ImClamp(ui.active_side, 0, 2);
+    draw_player_side_tabs(ui, button_pos);
+}
+} // namespace visuals_ui
 
 void c_menu::draw_visuals() {
     gui.m_visuals_subtab = ImClamp(gui.m_visuals_subtab, 1, 2);
