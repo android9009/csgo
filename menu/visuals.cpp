@@ -139,8 +139,9 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     bool wants_open = false;
     const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
     const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
+    const float card_height = ImMax(1.f, content_bottom - anchor.y);
     if (!gui.begin_popup_card_at("ESP ItemsPopup", wants_open, anim, anchor, ImVec2(0.f, 0.f),
-                                 content_width / gui.m_scale))
+                                 content_width / gui.m_scale, 10.f, card_height / gui.m_scale))
         return;
 
     ImFontAtlas* fonts = ImGui::GetIO().Fonts;
@@ -149,11 +150,11 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
     ImGui::PopFont();
     ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
 
-    // Match the visible bottom of the left column exactly. The child keeps all chip sections
-    // available through scrolling instead of letting the auto-height card protrude below Glow.
+    // Match the visible bottom of the left column exactly. The card has a fixed
+    // height and the child keeps all chip sections available through scrolling.
     const float sections_y = ImGui::GetCursorScreenPos().y;
-    const float sections_h = ImMax(60.f * gui.m_scale,
-        content_bottom - sections_y - 10.f * gui.m_scale); // outer card's bottom padding
+    const float sections_h = ImMax(1.f * gui.m_scale,
+        card_height - (sections_y - anchor.y) - 10.f * gui.m_scale); // outer card's bottom padding
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
     ImGui::BeginChild("##esp_items_sections", ImVec2(0.f, sections_h), false,
                       ImGuiWindowFlags_NoBackground);
@@ -274,8 +275,12 @@ void draw_visuals_players() {
     const ImVec2 right_column_origin = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
     const ImVec2 preview_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
+    // One shared right-column rectangle: the live preview and ESP Items card
+    // both end at the measured bottom of Enemies instead of sizing independently.
+    const float right_column_height = ImMax(1.f, left_content_bottom - preview_origin.y);
     agent_preview::draw(preview_origin,
-                        ImVec2(right_column_origin.x + column_width, left_content_bottom),
+                        ImVec2(right_column_origin.x + column_width,
+                               preview_origin.y + right_column_height),
                         ui.active_side);
     draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
                          right_column_origin, column_width, left_content_bottom);

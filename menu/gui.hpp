@@ -184,7 +184,7 @@ public:
     bool begin_popup_card(const char* name, bool& wants_open, float anim, ImVec2 click_pos, float width, bool allow_outside = false, bool exact_pos = false);
     // Card placed by anchor + pivot (pivot (0,1) = the anchor is the card's bottom-left corner,
     // (1,0) = its top-right, ...), kept on screen. For cards that belong to a specific widget.
-    bool begin_popup_card_at(const char* name, bool& wants_open, float anim, ImVec2 anchor, ImVec2 pivot, float width, float padding = 10.f);
+    bool begin_popup_card_at(const char* name, bool& wants_open, float anim, ImVec2 anchor, ImVec2 pivot, float width, float padding = 10.f, float height = 0.f);
     void end_popup_card();
 
     // --- Account block ---
@@ -479,7 +479,7 @@ private:
     char  m_config_rename[64] = "";
     std::vector<config_entry> m_config_trash; // deleted presets, restorable from the bin
 
-    bool begin_popup_card_body(const char* name, ImGuiID id, float anim, float width, float padding = 10.f);
+    bool begin_popup_card_body(const char* name, ImGuiID id, float anim, float width, float padding = 10.f, float height = 0.f);
 
     // Color picker editing state, one per (picker, color). HSV is kept here rather than derived
     // from the RGB every frame: grays and black carry no hue/saturation, so re-deriving would

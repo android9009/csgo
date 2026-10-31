@@ -935,7 +935,7 @@ bool c_gui::begin_popup_card(const char* popup_name, bool& wants_open, float ani
     return begin_popup_card_body(popup_name, id, anim, width);
 }
 
-bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float anim, ImVec2 anchor, ImVec2 pivot, float width, float padding) {
+bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float anim, ImVec2 anchor, ImVec2 pivot, float width, float padding, float height) {
     if (!wants_open && anim <= 0.f) return false;
 
     const ImGuiID id = ImGui::GetID(popup_name);
@@ -945,7 +945,8 @@ bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float 
         // resolves the pivot against the real size, so the anchor itself is always exact).
         const ImVec2 display = ImGui::GetIO().DisplaySize;
         const auto it = m_popup_animations.find(id);
-        const ImVec2 known(width * m_scale, (it != m_popup_animations.end()) ? it->second.size.y : 0.f);
+        const ImVec2 known(width * m_scale, height > 0.f ? height * m_scale :
+            ((it != m_popup_animations.end()) ? it->second.size.y : 0.f));
         const float margin = 10.f * m_scale;
         ImVec2 top_left = anchor - known * pivot;
         top_left.x = ImClamp(top_left.x, margin, ImMax(margin, display.x - known.x - margin));
@@ -955,13 +956,13 @@ bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float 
                                 ImGuiCond_Always, pivot);
     }
 
-    return begin_popup_card_body(popup_name, id, anim, width, padding);
+    return begin_popup_card_body(popup_name, id, anim, width, padding, height);
 }
 
-bool c_gui::begin_popup_card_body(const char* popup_name, ImGuiID id, float anim, float width, float padding) {
+bool c_gui::begin_popup_card_body(const char* popup_name, ImGuiID id, float anim, float width, float padding, float height) {
     ImGuiContext& g = *GImGui;
     const float popup_w = width * m_scale;
-    ImGui::SetNextWindowSize(ImVec2(popup_w, 0)); // Fixed width, auto height fit
+    ImGui::SetNextWindowSize(ImVec2(popup_w, height > 0.f ? height * m_scale : 0.f));
     const float surface_alpha = g.Style.Alpha * anim;
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, surface_alpha);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding * m_scale, padding * m_scale));
@@ -972,8 +973,12 @@ bool c_gui::begin_popup_card_body(const char* popup_name, ImGuiID id, float anim
     
     char window_name[32];
     ImFormatString(window_name, IM_ARRAYSIZE(window_name), "##Popup_%08x", id);
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove;
+    if (height > 0.f)
+        flags |= ImGuiWindowFlags_NoResize;
+    else
+        flags |= ImGuiWindowFlags_AlwaysAutoResize;
     const bool open = begin_animated_popup(id, window_name, flags, anim);
     if (open) {
         ImGuiWindow* window = ImGui::GetCurrentWindow();
