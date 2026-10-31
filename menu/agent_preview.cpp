@@ -15,8 +15,15 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace {
+enum class panorama_profile {
+    none,
+    legacy_reference,
+    csgo_2023,
+};
+
 struct preview_state {
     std::mutex mutex;
     bool drawn = false;
@@ -31,11 +38,13 @@ struct preview_state {
     void* panorama_wrapper = nullptr;
     void* engine = nullptr;
     void* context = nullptr;
-    bool abi_checked = false;
     bool abi_valid = false;
     bool abi_failure_logged = false;
+    panorama_profile profile = panorama_profile::none;
+    std::string abi_failure_reason;
     ULONGLONG next_engine_retry = 0;
     ULONGLONG next_context_check = 0;
+    bool context_failure_logged = false;
 
     bool panel_created = false;
     bool panel_visible = false;
@@ -55,6 +64,8 @@ struct preview_state {
     int capture_height = 0;
     bool prefer_full_frame = false;
     ULONGLONG capture_retry_after = 0;
+    bool capture_success_logged = false;
+    bool capture_failure_logged = false;
 
     bool capture_valid = false;
     bool capture_full_frame = false;
@@ -165,17 +176,29 @@ unsigned menu_background() {
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
-    MEMORY_BASIC_INFORMATION information{};
-    if (!VirtualQuery(address, &information, sizeof(information)) ||
-        information.State != MEM_COMMIT ||
-        (information.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+
+    // VirtualQuery describes one protection region, not necessarily a whole PE
+    // section. Walk all regions covered by the range instead of rejecting a
+    // valid vtable/function merely because it crosses a region boundary.
+    auto current = reinterpret_cast<std::uintptr_t>(address);
+    const auto end = current + size;
+    if (end < current)
         return false;
+    while (current < end) {
+        MEMORY_BASIC_INFORMATION information{};
+        if (!VirtualQuery(reinterpret_cast<const void*>(current), &information,
+                          sizeof(information)) ||
+            information.State != MEM_COMMIT ||
+            (information.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+            return false;
+        }
+        const auto region_begin = reinterpret_cast<std::uintptr_t>(information.BaseAddress);
+        const auto region_end = region_begin + information.RegionSize;
+        if (region_end <= region_begin || current < region_begin || current >= region_end)
+            return false;
+        current = std::min(end, region_end);
     }
-    const auto begin = reinterpret_cast<std::uintptr_t>(address);
-    const auto end = begin + size;
-    const auto region_begin = reinterpret_cast<std::uintptr_t>(information.BaseAddress);
-    const auto region_end = region_begin + information.RegionSize;
-    return end >= begin && end <= region_end;
+    return true;
 }
 
 template <typename Fn>
@@ -212,9 +235,22 @@ bool module_text(HMODULE module, const std::uint8_t*& text, std::size_t& size) {
         size = virtual_size && raw_size ? std::min(virtual_size, raw_size)
                                         : std::max(virtual_size, raw_size);
         text = base + section->VirtualAddress;
-        return text && size && readable_range(text, size);
+        // The section can contain several VirtualQuery protection regions.
+        // Validate the particular function bytes in function_matches instead of
+        // requiring the entire .text section to be one readable region.
+        return text && size;
     }
     return false;
+}
+
+bool function_in_module(HMODULE module, const void* function) {
+    const std::uint8_t* text = nullptr;
+    std::size_t size = 0;
+    if (!module_text(module, text, size) || !function)
+        return false;
+    const auto address = reinterpret_cast<std::uintptr_t>(function);
+    const auto begin = reinterpret_cast<std::uintptr_t>(text);
+    return address >= begin && address - begin < size && readable_range(function, 1);
 }
 
 template <std::size_t N>
@@ -228,6 +264,8 @@ bool function_matches(HMODULE module, const void* function, const int (&pattern)
     if (address < begin || address - begin > size || N > size - (address - begin))
         return false;
     const auto* bytes = reinterpret_cast<const std::uint8_t*>(address);
+    if (!readable_range(bytes, N))
+        return false;
     for (std::size_t i = 0; i < N; ++i) {
         if (pattern[i] >= 0 && bytes[i] != static_cast<std::uint8_t>(pattern[i]))
             return false;
@@ -274,10 +312,10 @@ using run_script_t = void(__thiscall*)(void*, void*, const char*, const char*,
     int, int, bool, bool);
 
 void note_abi_failure_locked(preview_state& s, const char* reason) {
-    if (s.abi_failure_logged)
+    if (s.abi_failure_logged && s.abi_failure_reason == reason)
         return;
     s.abi_failure_logged = true;
-    (void)reason;
+    s.abi_failure_reason = reason;
     AIRFLOW_DEBUG_LOGF("agent_preview Panorama unavailable: %s", reason);
 }
 
@@ -287,9 +325,32 @@ bool validate_engine_locked(preview_state& s, void* engine) {
     const auto run = virtual_function<run_script_t>(engine, 113);
     const auto last = virtual_function<get_last_target_t>(engine, 56);
     const auto valid = virtual_function<is_valid_panel_t>(engine, 36);
-    return function_matches(s.core_module, run, k_run_script_pattern) &&
-           function_matches(s.core_module, last, k_last_target_pattern) &&
-           function_matches(s.core_module, valid, k_valid_panel_pattern);
+    if (!run || !valid)
+        return false;
+
+    // The final 2023 CS:GO build exposes the factory from panorama.dll and
+    // places RunScript at this RVA. The older reversed reference uses the same
+    // public slots but registers its factory in panoramauiclient.dll. Keep both
+    // profiles explicit; never accept an arbitrary vtable as ABI validation
+    // merely because a pointer is non-null.
+    const auto run_address = reinterpret_cast<std::uintptr_t>(run);
+    const auto core_address = reinterpret_cast<std::uintptr_t>(s.core_module);
+    if (s.client_module == s.core_module && run_address == core_address + 0x4BC20) {
+        if (!function_in_module(s.core_module, valid) &&
+            !function_in_module(s.client_module, valid)) {
+            return false;
+        }
+        s.profile = panorama_profile::csgo_2023;
+        return true;
+    }
+
+    if (last && function_matches(s.core_module, run, k_run_script_pattern) &&
+        function_matches(s.core_module, last, k_last_target_pattern) &&
+        function_matches(s.core_module, valid, k_valid_panel_pattern)) {
+        s.profile = panorama_profile::legacy_reference;
+        return true;
+    }
+    return false;
 }
 
 void* acquire_engine_locked(preview_state& s, ULONGLONG now) {
@@ -301,7 +362,7 @@ void* acquire_engine_locked(preview_state& s, ULONGLONG now) {
         if (!current || !validate_engine_locked(s, current)) {
             note_abi_failure_locked(s, "engine ABI changed");
             s.abi_valid = false;
-            s.abi_checked = true;
+            s.profile = panorama_profile::none;
             s.engine = nullptr;
             s.context = nullptr;
             forget_panel_locked(s);
@@ -315,56 +376,71 @@ void* acquire_engine_locked(preview_state& s, ULONGLONG now) {
         return s.engine;
     }
 
-    if (s.abi_checked || now < s.next_engine_retry)
+    // Do not latch an early startup failure: Panorama can finish registering
+    // its interfaces after the first ImGui frame.
+    if (now < s.next_engine_retry)
         return nullptr;
     s.next_engine_retry = now + 1000;
 
-    // PanoramaUIEngine001 is exposed by panoramauiclient.dll. panorama.dll contains
-    // the IUIEngine implementation and is deliberately not used as the factory here.
-    const HMODULE client = GetModuleHandleW(L"panoramauiclient.dll");
     const HMODULE core = GetModuleHandleW(L"panorama.dll");
-    if (!client || !core) {
+    const HMODULE client = GetModuleHandleW(L"panoramauiclient.dll");
+    if (!core && !client) {
         note_abi_failure_locked(s, "Panorama modules are not loaded");
         return nullptr;
     }
 
     using create_interface_t = void* (__cdecl*)(const char*, int*);
-    const auto create_interface = reinterpret_cast<create_interface_t>(
-        GetProcAddress(client, "CreateInterface"));
-    if (!create_interface) {
+    // 2023 CS:GO registers PanoramaUIEngine001 in panorama.dll. Older CS:GO
+    // builds registered it in panoramauiclient.dll, so retain that as a
+    // compatibility candidate rather than assuming one module layout.
+    const HMODULE candidates[] = { core, client };
+    bool saw_factory = false;
+    bool saw_wrapper = false;
+    for (const HMODULE factory : candidates) {
+        if (!factory)
+            continue;
+        const auto create_interface = reinterpret_cast<create_interface_t>(
+            GetProcAddress(factory, "CreateInterface"));
+        if (!create_interface)
+            continue;
+        saw_factory = true;
+        void* wrapper = create_interface("PanoramaUIEngine001", nullptr);
+        if (!wrapper)
+            continue;
+        saw_wrapper = true;
+
+        const auto access = virtual_function<access_ui_engine_t>(wrapper, 11);
+        const bool access_matches = factory == core
+            ? (function_in_module(core, access) || function_in_module(client, access))
+            : function_matches(factory, access, k_access_engine_pattern);
+        if (!access_matches)
+            continue;
+
+        s.client_module = factory;
+        s.core_module = core;
+        s.profile = panorama_profile::none;
+        void* engine = access(wrapper);
+        if (!engine || !validate_engine_locked(s, engine))
+            continue;
+
+        s.panorama_wrapper = wrapper;
+        s.engine = engine;
+        s.abi_valid = true;
+        s.abi_failure_logged = false;
+        s.abi_failure_reason.clear();
+        AIRFLOW_DEBUG_LOGF("agent_preview Panorama ABI validated (%s)",
+            s.profile == panorama_profile::csgo_2023 ? "CS:GO 2023 panorama.dll" :
+            "legacy Panorama reference");
+        return engine;
+    }
+
+    if (!saw_factory)
         note_abi_failure_locked(s, "CreateInterface export is missing");
-        s.abi_checked = true;
-        return nullptr;
-    }
-
-    void* wrapper = create_interface("PanoramaUIEngine001", nullptr);
-    if (!wrapper) {
-        note_abi_failure_locked(s, "PanoramaUIEngine001 is unavailable");
-        return nullptr;
-    }
-
-    const auto access = virtual_function<access_ui_engine_t>(wrapper, 11);
-    if (!function_matches(client, access, k_access_engine_pattern)) {
-        note_abi_failure_locked(s, "AccessUIEngine fingerprint mismatch");
-        s.abi_checked = true;
-        return nullptr;
-    }
-
-    void* engine = access(wrapper);
-    s.client_module = client;
-    s.core_module = core;
-    if (!engine || !validate_engine_locked(s, engine)) {
-        note_abi_failure_locked(s, "IUIEngine fingerprint mismatch");
-        s.abi_checked = true;
-        return nullptr;
-    }
-
-    s.panorama_wrapper = wrapper;
-    s.engine = engine;
-    s.abi_valid = true;
-    s.abi_failure_logged = false;
-    AIRFLOW_DEBUG_LOG("agent_preview Panorama ABI validated");
-    return engine;
+    else if (!saw_wrapper)
+        note_abi_failure_locked(s, "PanoramaUIEngine001 is unavailable in panorama.dll/panoramauiclient.dll");
+    else
+        note_abi_failure_locked(s, "IUIEngine ABI validation failed for all factory candidates");
+    return nullptr;
 }
 
 bool valid_panel_locked(preview_state& s, void* panel) {
@@ -372,6 +448,98 @@ bool valid_panel_locked(preview_state& s, void* panel) {
         return false;
     const auto is_valid = virtual_function<is_valid_panel_t>(s.engine, 36);
     return is_valid && is_valid(s.engine, panel);
+}
+
+template <typename T>
+bool read_process_value(std::uintptr_t address, T& value) {
+    if (address < 0x10000)
+        return false;
+    SIZE_T bytes_read = 0;
+    return ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address),
+                             &value, sizeof(value), &bytes_read) &&
+           bytes_read == sizeof(value);
+}
+
+std::string read_process_string(std::uintptr_t address, std::size_t maximum = 32) {
+    if (address < 0x10000 || !maximum)
+        return {};
+    maximum = std::min<std::size_t>(maximum, 128);
+    std::string result(maximum, '\0');
+    SIZE_T bytes_read = 0;
+    if (ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address),
+                          result.data(), maximum, &bytes_read) && bytes_read == maximum) {
+        const auto terminator = result.find('\0');
+        result.resize(terminator == std::string::npos ? maximum : terminator);
+        return result;
+    }
+
+    // A short string can straddle an unreadable page. Read it bytewise in that
+    // case instead of treating the failed bulk read as an empty panel ID.
+    result.clear();
+    for (std::size_t i = 0; i < maximum; ++i) {
+        char character = '\0';
+        if (!read_process_value(address + i, character) || !character)
+            break;
+        result.push_back(character);
+    }
+    return result;
+}
+
+bool panel_has_root_id(void* panel) {
+    if (!panel)
+        return false;
+    const auto base = reinterpret_cast<std::uintptr_t>(panel);
+    // The 2023 panel map does not expose the ID through a stable public
+    // structure. This bounded scan is the same layout used by the CS:GO 2023
+    // Panorama bridge; every pointer and string read is guarded.
+    for (std::uintptr_t offset = 0x10; offset < 0x400; offset += sizeof(void*)) {
+        std::uintptr_t string_address = 0;
+        if (!read_process_value(base + offset, string_address) || !string_address)
+            continue;
+        const std::string id = read_process_string(string_address);
+        if (id == "CSGOMainMenu" || id == "MainMenu" || id == "CSGOHud" || id == "Hud")
+            return true;
+    }
+    return false;
+}
+
+void* find_2023_context_locked(preview_state& s) {
+    // CUIEngine's 2023 panel map: CUtlRBTree nodes are 24 bytes, with left and
+    // right child indices at 0/4 and the IUIPanel key at 0x10. The map itself
+    // is at engine+0xF0 and its root index at engine+0xFC.
+    const auto engine = reinterpret_cast<std::uintptr_t>(s.engine);
+    std::uintptr_t nodes = 0;
+    int root = -1;
+    if (!read_process_value(engine + 0xF0, nodes) ||
+        !read_process_value(engine + 0xFC, root) || !nodes || root < 0) {
+        return nullptr;
+    }
+
+    std::vector<int> pending;
+    pending.push_back(root);
+    for (std::size_t visited = 0; !pending.empty() && visited < 8192; ++visited) {
+        const int index = pending.back();
+        pending.pop_back();
+        if (index < 0 || index > 0x100000)
+            continue;
+        const auto node = nodes + static_cast<std::uintptr_t>(index) * 24;
+        int left = -1;
+        int right = -1;
+        void* panel = nullptr;
+        if (!read_process_value(node, left) ||
+            !read_process_value(node + 4, right) ||
+            !read_process_value(node + 0x10, panel)) {
+            continue;
+        }
+        if (panel && valid_panel_locked(s, panel) && panel_has_root_id(panel)) {
+            return panel;
+        }
+        if (left >= 0)
+            pending.push_back(left);
+        if (right >= 0)
+            pending.push_back(right);
+    }
+    return nullptr;
 }
 
 void* context_for_script_locked(preview_state& s, ULONGLONG now) {
@@ -383,15 +551,35 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
         return s.context;
     s.next_context_check = now + 250;
 
-    const auto get_last = virtual_function<get_last_target_t>(engine, 56);
-    void* last = get_last ? get_last(engine) : nullptr;
-    if (last && valid_panel_locked(s, last)) {
-        s.context = last;
-        return last;
+    if (s.profile == panorama_profile::csgo_2023) {
+        // The 2023 map walk is preferable to the last-event target: opening an
+        // ImGui menu does not dispatch a Panorama event, so that target can be
+        // null or belong to an unrelated popup.
+        if (void* panel = find_2023_context_locked(s)) {
+            if (s.context != panel)
+                AIRFLOW_DEBUG_LOG("agent_preview Panorama context acquired from panel map");
+            s.context = panel;
+            s.context_failure_logged = false;
+            return panel;
+        }
+    } else {
+        const auto get_last = virtual_function<get_last_target_t>(engine, 56);
+        void* last = get_last ? get_last(engine) : nullptr;
+        if (last && valid_panel_locked(s, last)) {
+            s.context = last;
+            s.context_failure_logged = false;
+            return last;
+        }
     }
-    if (s.context && valid_panel_locked(s, s.context))
+    if (s.context && valid_panel_locked(s, s.context)) {
+        s.context_failure_logged = false;
         return s.context;
+    }
     s.context = nullptr;
+    if (!s.context_failure_logged) {
+        s.context_failure_logged = true;
+        AIRFLOW_DEBUG_LOG("agent_preview Panorama has no valid MainMenu/Hud context yet");
+    }
     return nullptr;
 }
 
@@ -418,7 +606,7 @@ std::string root_script_prefix() {
     // RunScript needs a valid panel context, but the parent walk belongs in JS:
     // it avoids depending on another private IUIPanel vtable layout in C++.
     return "(function(){var c=$.GetContextPanel();if(!c)return;var r=c;var root=null;"
-           "for(var i=0;i<32&&r;i++){if(r.id==='CSGOHud'||r.id==='CSGOMainMenu')root=r;"
+           "for(var i=0;i<32&&r;i++){if(r.id==='Hud'||r.id==='MainMenu'||r.id==='CSGOHud'||r.id==='CSGOMainMenu')root=r;"
            "var parent=r.GetParent();if(!parent)break;r=parent;}if(!root)return;var d=root.Data();";
 }
 
@@ -447,7 +635,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "if(!h)return;"
         "if(!p)p=h.FindChildTraverse('" + k_model_id + "');"
         "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:false,mouse_rotate:false,"
-        "'force-no-composition-layer':true,style:'width:100%;height:100%;horizontal-align:left;vertical-align:top;'});made=true;}"
+        "'require-composition-layer':true,style:'width:100%;height:100%;horizontal-align:left;vertical-align:top;'});made=true;}"
         "if(!p)return;d.DarksideEspAgentPreview=h;d.DarksideEspAgentPreviewModel=p;"
         "h.style.position='" + x + "px " + y + "px 0px';"
         "h.style.width='" + w + "px';h.style.height='" + h + "px';"
@@ -463,7 +651,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
     script += agent_model(side, agent);
     script += "');p.ResetActivityModifiers();p.ApplyActivityModifier('";
     script += team;
-    script += "');p.PlayActivity('ACT_CSGO_UIPLAYER_BUYMENU',true);p.SetCameraPreset(5,false);}";
+    script += "');p.PlayActivity('ACT_CSGO_UIPLAYER_BUYMENU',true);p.SetCameraPreset(18,false);}";
     script += "p.EnableRendering(true);p.Pause(false);})();";
     return script;
 }
@@ -488,6 +676,8 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
         return;
     }
 
+    if (!s.panel_created)
+        AIRFLOW_DEBUG_LOG("agent_preview Panorama ItemPreviewPanel script submitted");
     s.panel_created = true;
     s.panel_visible = true;
     s.panel_ready = true;
@@ -654,8 +844,18 @@ void begin_frame(IDirect3DDevice9* device) {
     if (capture_backbuffer_locked(s, device)) {
         s.capture_valid = true;
         s.capture_retry_after = 0;
+        if (!s.capture_success_logged) {
+            s.capture_success_logged = true;
+            AIRFLOW_DEBUG_LOGF("agent_preview D3D9 capture succeeded (%dx%d%s)",
+                s.capture_width, s.capture_height, s.capture_full_frame ? ", full frame" : "");
+        }
+        s.capture_failure_logged = false;
     } else {
         s.capture_retry_after = now + k_capture_retry_ms;
+        if (!s.capture_failure_logged) {
+            s.capture_failure_logged = true;
+            AIRFLOW_DEBUG_LOG("agent_preview D3D9 backbuffer capture failed");
+        }
     }
 }
 
