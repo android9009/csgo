@@ -769,7 +769,9 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "h.style.y=((" + y + "-wp.y)/sy)+'px';"
         "h.style.width=((" + w + ")/sx)+'px';"
         "h.style.height=((" + h + ")/sy)+'px';"
-        "h.style.backgroundColor='" + color + "';h.style.zIndex=0;h.visible=true;p.hittest=true;"
+        // The clipped capture host must stay above native console/HUD popups;
+        // ImGui is drawn afterwards, so the agent and menu remain one foreground layer.
+        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;p.hittest=true;"
         "var acceptedMarker=h.FindChildTraverse('" + accepted_id + "');"
         "var readyMarker=h.FindChildTraverse('" + ready_id + "');";
 
@@ -1061,15 +1063,14 @@ void begin_frame(IDirect3DDevice9* device) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     s.drawn = false;
-    if (native_ui_visible()) {
-        visuals_chams::set_preview_model(nullptr, false);
-        s.requested_active = false;
-        s.capture_valid = false;
-        hide_panel_locked(s);
-        return;
-    }
     const ULONGLONG now = GetTickCount64();
     prewarm_locked(s, now);
+    if (visuals_source::is_console_visible()) {
+        // The native console can be composed above Panorama. Never bake its
+        // text into the agent texture: keep the last clean capture visible in
+        // the still-open ImGui menu and resume live capture when it closes.
+        return;
+    }
     if (!s.requested_active || !s.panel_ready || !s.panel_visible ||
         s.panel_side != s.requested_side || !same_rect(s.panel_rect, s.requested_rect)) {
         s.capture_valid = false;
@@ -1109,14 +1110,6 @@ void begin_frame(IDirect3DDevice9* device) {
 void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active) {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
-    if (native_ui_visible()) {
-        s.drawn = false;
-        s.requested_active = false;
-        s.capture_valid = false;
-        visuals_chams::set_preview_model(nullptr, false);
-        hide_panel_locked(s);
-        return;
-    }
     if (!ImGui::GetCurrentContext() || (side != 0 && side != 1) ||
         max.x - min.x < 1.f || max.y - min.y < 1.f) {
         s.drawn = false;
@@ -1174,10 +1167,6 @@ bool is_preloaded() {
     return s.preload_ready;
 }
 
-bool native_ui_visible() {
-    return visuals_source::is_console_visible();
-}
-
 void on_menu_closed() {
     visuals_chams::set_preview_model(nullptr, false);
     auto& s = state();
@@ -1193,8 +1182,6 @@ void on_menu_closed() {
 }
 
 bool contains_point(const ImVec2& point) {
-    if (native_ui_visible())
-        return false;
     auto& s = state();
     std::scoped_lock lock(s.mutex);
     return s.requested_active && point.x >= static_cast<float>(s.requested_rect.left) &&

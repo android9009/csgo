@@ -640,10 +640,6 @@ void render() {
                 settings.behind_walls_secondary), settings.custom_sprite.c_str());
     }
 
-    // ImGui is composed after Panorama; do not paint game ESP over the native
-    // console simply because it uses the background draw list.
-    if (visuals_source::is_console_visible())
-        return;
     if (!visuals_source::ready())
         return;
     visuals_source::frame_data frame;

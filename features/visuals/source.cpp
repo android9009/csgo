@@ -773,8 +773,8 @@ bool is_console_visible() {
     if (!ready())
         return false;
     // VEngineClient014: Con_IsVisible is slot 11, immediately before
-    // GetLocalPlayer (12). Native console input/rendering takes priority over
-    // the independent Panorama preview while this returns true.
+    // GetLocalPlayer (12). Used only to avoid capturing console pixels into
+    // the foreground preview texture; it never hides the menu.
     static const auto function = virtual_function<engine_bool_t>(engine, 11);
     return function && function(engine);
 }

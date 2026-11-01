@@ -117,12 +117,6 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
     if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)
         return 0;
 
-    // The native console is part of Panorama, not an ImGui popup. While it is
-    // visible, do not steal its mouse, raw input, text or movement keys merely
-    // because the cheat menu was open when the console appeared.
-    if (agent_preview::native_ui_visible())
-        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-
     if (menu_binds::is_capturing() &&
         ((message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
          (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)))

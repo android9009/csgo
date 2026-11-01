@@ -416,18 +416,10 @@ void draw_visuals_players() {
     // ESP settings still come from the selected Enemies/Teammates tab.
     const ImVec2 preview_max(right_column_origin.x + column_width, right_column_bottom);
     const bool has_side_preview = ui.active_side < 2;
-    const bool show_agent_preview = !agent_preview::native_ui_visible();
-    if (has_side_preview && show_agent_preview)
+    if (has_side_preview)
         player_esp::prepare_preview(ui.active_side);
-    if (show_agent_preview) {
-        agent_preview::draw(preview_origin, preview_max, 0, has_side_preview);
-        player_esp::draw_preview(preview_origin, preview_max,
-            has_side_preview ? ui.active_side : -1);
-    } else {
-        // Keep drag state bounded, but do not draw ESP text/bars over the
-        // native console capture area while Panorama owns the screen.
-        player_esp::draw_preview(preview_origin, preview_max, -1);
-    }
+    agent_preview::draw(preview_origin, preview_max, 0, has_side_preview);
+    player_esp::draw_preview(preview_origin, preview_max, has_side_preview ? ui.active_side : -1);
     if (has_side_preview) {
         draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
                              right_column_origin, column_width, right_column_bottom);
