@@ -8,8 +8,9 @@
 struct IDirect3DDevice9;
 
 namespace agent_preview {
-// The D3D9 frame hook captures Panorama before ImGui covers the backbuffer.
-// draw() presents only the current Panorama capture; no static image fallback is used.
+// begin_frame() resolves the ItemPreviewPanel's isolated Panorama composition RT.
+// draw() presents that D3D9 texture without reading the game backbuffer; there is
+// deliberately no static image or alternate-renderer fallback.
 void begin_frame(IDirect3DDevice9* device);
 void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active = true);
 void end_frame();

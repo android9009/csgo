@@ -69,23 +69,30 @@ struct preview_state {
     unsigned preload_generation = 0;
     ULONGLONG next_preload_check = 0;
 
-    IDirect3DDevice9* capture_device = nullptr;
-    IDirect3DTexture9* capture_texture = nullptr;
-    D3DFORMAT capture_format = D3DFMT_UNKNOWN;
-    int capture_width = 0;
-    int capture_height = 0;
-    bool prefer_full_frame = false;
-    ULONGLONG capture_retry_after = 0;
-    ULONGLONG last_capture = 0;
-    bool capture_success_logged = false;
-    bool capture_failure_logged = false;
+    HMODULE material_module = nullptr;
+    void* material_system = nullptr;
+    bool material_abi_valid = false;
+    ULONGLONG next_material_retry = 0;
 
-    bool capture_valid = false;
-    bool capture_full_frame = false;
-    int captured_side = -1;
-    RECT captured_rect{};
-    ImVec2 captured_uv0{ 0.f, 0.f };
-    ImVec2 captured_uv1{ 1.f, 1.f };
+    void* find_child_function = nullptr;
+    void* composition_name_function = nullptr;
+    bool panel_methods_valid = false;
+
+    // This is Panorama's own composition RT, not a copy of the game backbuffer.
+    // AddRef only maintains the D3D9 resource until ImGui has submitted its draw.
+    IDirect3DDevice9* texture_device = nullptr;
+    IDirect3DTexture9* panel_texture = nullptr;
+    int panel_texture_width = 0;
+    int panel_texture_height = 0;
+    std::string panel_texture_name;
+    ULONGLONG texture_retry_after = 0;
+    bool texture_success_logged = false;
+    bool texture_failure_logged = false;
+
+    bool panel_texture_valid = false;
+    int textured_side = -1;
+    RECT textured_rect{};
+    ImVec2 textured_uv1{ 1.f, 1.f };
 };
 
 preview_state& state() {
@@ -106,7 +113,7 @@ bool same_size(const RECT& a, const RECT& b) {
 }
 
 RECT make_rect(const ImVec2& min, const ImVec2& max) {
-    // Panorama layout and the D3D9 copy must use the same integer rectangle.
+    // Panorama layout and the D3D9 texture crop use the same integer rectangle.
     return RECT{
         static_cast<LONG>(std::floor(min.x)),
         static_cast<LONG>(std::floor(min.y)),
@@ -279,6 +286,22 @@ constexpr int k_run_script_pattern[] = {
     0x8B, 0x0D, -1, -1, -1, -1, 0x56, 0x57,
     0x89, 0x5C, 0x24, 0x0C, 0x8B, 0x81, 0x0C, 0x10, 0x00, 0x00
 };
+// Public IUIPanel methods in the same validated 2023 panorama.dll. Slot 39
+// finds our model below the saved root; slot 323 returns the isolated layer's
+// Source 1 texture name. The RVAs and prologues are both checked before use.
+constexpr int k_find_child_traverse_pattern[] = {
+    0x55, 0x8B, 0xEC, 0x53, 0x8B, 0x5D, 0x08, 0x57,
+    0x8B, 0xF9, 0x53, 0x8B, 0x07, 0xFF, 0x90, 0x94,
+    0x00, 0x00, 0x00, 0x85, 0xC0, 0x75, 0x25, 0x56,
+    0x33, 0xF6, 0x39, 0x77, 0x2C
+};
+constexpr int k_composition_name_pattern[] = {
+    0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x83, 0xEC,
+    0x0C, 0x53, 0x56, 0x8B, 0xF1, 0x57, 0x85, 0xF6,
+    0x74, 0x1B, 0x8B, 0x0D, -1, -1, -1, -1,
+    0x8D, 0x54, 0x24, 0x10, 0x56, 0x52, 0x8B, 0x01,
+    0xFF, 0x90, 0x94, 0x00, 0x00, 0x00
+};
 
 void forget_panel_locked(preview_state& s) {
     s.panel_created = false;
@@ -292,7 +315,11 @@ void forget_panel_locked(preview_state& s) {
     s.panel_context = nullptr;
     s.preload_ready = false;
     s.next_preload_check = 0;
-    s.capture_valid = false;
+    s.panel_texture_valid = false;
+    s.panel_texture_name.clear();
+    s.find_child_function = nullptr;
+    s.composition_name_function = nullptr;
+    s.panel_methods_valid = false;
 }
 
 using access_ui_engine_t = void* (__thiscall*)(void*);
@@ -300,6 +327,12 @@ using is_valid_panel_t = bool(__thiscall*)(void*, void*);
 using get_last_target_t = void* (__thiscall*)(void*);
 using run_script_t = void(__thiscall*)(void*, void*, const char*, const char*,
     int, int, bool, bool);
+using find_child_traverse_t = void* (__thiscall*)(void*, const char*);
+using composition_layer_name_t = const char* (__thiscall*)(void*);
+using find_texture_t = void* (__thiscall*)(void*, const char*, const char*, bool, int);
+using panorama_texture_ptr_t = void* (__thiscall*)(void*, void*);
+using texture_int_t = int(__thiscall*)(void*);
+using texture_bool_t = bool(__thiscall*)(void*);
 
 void note_abi_failure_locked(preview_state& s, const char* reason) {
     if (s.abi_failure_logged && s.abi_failure_reason == reason)
@@ -599,7 +632,7 @@ void* find_2023_context_locked(preview_state& s, const std::string* ready_id = n
     }
 
     // A MainMenu panel can remain valid after the transition into a match. It
-    // is not a valid capture/script target while playing; wait for the HUD root
+    // is not a valid texture/script target while playing; wait for the HUD root
     // instead of drawing a stale MainMenu scene over the game.
     void* context = in_game ? hud_context
         : (main_menu_context ? main_menu_context : hud_context);
@@ -636,7 +669,9 @@ void* context_for_script_locked(preview_state& s, ULONGLONG now) {
         s.context_game_state = static_cast<int>(in_game);
         s.context = nullptr;
         s.next_context_check = 0;
-        s.capture_valid = false;
+        s.panel_texture_valid = false;
+        s.panel_texture_name.clear();
+        s.panel_methods_valid = false;
         s.panel_ready = false;
         s.preload_ready = false;
         s.next_preload_check = 0;
@@ -704,8 +739,7 @@ constexpr ULONGLONG k_panel_check_ms = 1000;
 constexpr ULONGLONG k_panel_preload_check_ms = 250;
 constexpr ULONGLONG k_preload_marker_check_ms = 500;
 constexpr ULONGLONG k_panel_heartbeat_ms = 5000;
-constexpr ULONGLONG k_capture_retry_ms = 1000;
-constexpr ULONGLONG k_capture_interval_ms = 33;
+constexpr ULONGLONG k_texture_retry_ms = 250;
 
 std::string root_script_prefix() {
     // RunScript needs a valid panel context, but the parent walk belongs in JS:
@@ -769,8 +803,8 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "h.style.y=((" + y + "-wp.y)/sy)+'px';"
         "h.style.width=((" + w + ")/sx)+'px';"
         "h.style.height=((" + h + ")/sy)+'px';"
-        // The clipped capture host must stay above native console/HUD popups;
-        // ImGui is drawn afterwards, so the agent and menu remain one foreground layer.
+        // The native host retains its own composition layer above native popups;
+        // ImGui samples that isolated layer afterwards in the same foreground menu.
         "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;p.hittest=true;"
         "var acceptedMarker=h.FindChildTraverse('" + accepted_id + "');"
         "var readyMarker=h.FindChildTraverse('" + ready_id + "');";
@@ -837,6 +871,8 @@ void synchronize_panel_locked(preview_state& s, const RECT& rect, int side, ULON
             ++s.preload_generation;
         s.preload_ready = false;
         s.next_preload_check = 0;
+        s.panel_texture_valid = false;
+        s.panel_texture_name.clear();
     }
     if (!run_script_locked(s, context,
                            panel_script(rect, side, agent, background, reload,
@@ -945,116 +981,168 @@ void prewarm_locked(preview_state& s, ULONGLONG now) {
         hide_panel_locked(s);
 }
 
-void release_capture_locked(preview_state& s) {
-    if (s.capture_texture)
-        s.capture_texture->Release();
-    s.capture_texture = nullptr;
-    s.capture_device = nullptr;
-    s.capture_format = D3DFMT_UNKNOWN;
-    s.capture_width = 0;
-    s.capture_height = 0;
-    s.capture_valid = false;
-    s.last_capture = 0;
+void release_panel_texture_locked(preview_state& s) {
+    if (s.panel_texture)
+        s.panel_texture->Release();
+    s.panel_texture = nullptr;
+    s.texture_device = nullptr;
+    s.panel_texture_width = 0;
+    s.panel_texture_height = 0;
+    s.panel_texture_name.clear();
+    s.panel_texture_valid = false;
+    s.textured_side = -1;
+    s.textured_rect = RECT{};
+    s.textured_uv1 = ImVec2(1.f, 1.f);
 }
 
-bool ensure_capture_texture_locked(preview_state& s, IDirect3DDevice9* device,
-                                   int width, int height, D3DFORMAT format) {
-    if (width <= 0 || height <= 0 || width > 4096 || height > 4096)
+bool acquire_material_locked(preview_state& s, ULONGLONG now) {
+    if (s.material_abi_valid)
+        return s.material_system != nullptr;
+    if (now < s.next_material_retry)
         return false;
-    if (s.capture_texture && s.capture_device == device && s.capture_width == width &&
-        s.capture_height == height && s.capture_format == format) {
+    s.next_material_retry = now + 1000;
+
+    const HMODULE module = GetModuleHandleW(L"materialsystem.dll");
+    if (!module)
+        return false;
+    using create_interface_t = void* (__cdecl*)(const char*, int*);
+    const auto create_interface = reinterpret_cast<create_interface_t>(
+        GetProcAddress(module, "CreateInterface"));
+    if (!create_interface)
+        return false;
+    void* material_system = create_interface("VMaterialSystem080", nullptr);
+    if (!material_system)
+        return false;
+
+    // VMaterialSystem080's public Source 1 ABI: FindTexture is slot 91 and
+    // GetPanormaTexturePtr is slot 156. The validated 2023 Panorama binary's
+    // engine-RT wrapper calls through byte offsets 0x16c (91 * 4) and its D3D9
+    // backend through 0x270 (156 * 4), respectively; these are not CS2 slots.
+    const auto find = virtual_function<find_texture_t>(material_system, 91);
+    const auto native = virtual_function<panorama_texture_ptr_t>(material_system, 156);
+    if (!find || !native || !function_in_module(module, find) ||
+        !function_in_module(module, native)) {
+        return false;
+    }
+
+    s.material_module = module;
+    s.material_system = material_system;
+    s.material_abi_valid = true;
+    return true;
+}
+
+bool validate_panel_methods_locked(preview_state& s, void* context) {
+    if (s.panel_methods_valid)
         return true;
-    }
+    if (s.profile != panorama_profile::csgo_2023 || !s.core_module || !context)
+        return false;
 
-    release_capture_locked(s);
-    IDirect3DTexture9* texture = nullptr;
-    if (FAILED(device->CreateTexture(width, height, 1, D3DUSAGE_RENDERTARGET, format,
-                                     D3DPOOL_DEFAULT, &texture, nullptr)) || !texture) {
+    const auto find = virtual_function<find_child_traverse_t>(context, 39);
+    const auto composition = virtual_function<composition_layer_name_t>(context, 323);
+    const auto base = reinterpret_cast<std::uintptr_t>(s.core_module);
+    if (!find || !composition ||
+        reinterpret_cast<std::uintptr_t>(find) != base + 0x87070 ||
+        reinterpret_cast<std::uintptr_t>(composition) != base + 0x90FE0 ||
+        !function_matches(s.core_module, find, k_find_child_traverse_pattern) ||
+        !function_matches(s.core_module, composition, k_composition_name_pattern)) {
         return false;
     }
 
-    s.capture_device = device;
-    s.capture_texture = texture;
-    s.capture_format = format;
-    s.capture_width = width;
-    s.capture_height = height;
+    s.find_child_function = reinterpret_cast<void*>(find);
+    s.composition_name_function = reinterpret_cast<void*>(composition);
+    s.panel_methods_valid = true;
     return true;
 }
 
-bool capture_backbuffer_locked(preview_state& s, IDirect3DDevice9* device) {
-    if (!device || !valid_rect(s.requested_rect))
+bool acquire_panel_texture_locked(preview_state& s, IDirect3DDevice9* device,
+                                  ULONGLONG now) {
+    if (!device || !valid_rect(s.requested_rect) || !s.preload_ready ||
+        !validate_panel_methods_locked(s, s.panel_context) ||
+        !acquire_material_locked(s, now)) {
+        return false;
+    }
+
+    const auto find_child = reinterpret_cast<find_child_traverse_t>(s.find_child_function);
+    const auto composition_name = reinterpret_cast<composition_layer_name_t>(
+        s.composition_name_function);
+    void* model = find_child(s.panel_context, k_model_id);
+    if (!model || !valid_panel_locked(s, model))
         return false;
 
-    IDirect3DSurface9* backbuffer = nullptr;
-    if (FAILED(device->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer)) || !backbuffer)
+    // Unlike the backbuffer, this layer is allocated by Panorama specifically
+    // for the ItemPreviewPanel. Console/VGUI pixels are composed elsewhere and
+    // can never become part of this texture.
+    const char* raw_name = composition_name(model);
+    const std::string name = read_process_string(
+        reinterpret_cast<std::uintptr_t>(raw_name), 128);
+    if (name.empty() || name.size() >= 128)
         return false;
 
+    const auto find_texture = virtual_function<find_texture_t>(s.material_system, 91);
+    const auto panorama_texture = virtual_function<panorama_texture_ptr_t>(
+        s.material_system, 156);
+    if (!find_texture || !panorama_texture)
+        return false;
+    void* source_texture = find_texture(s.material_system, name.c_str(),
+        "RenderTargets", false, 0);
+    if (!source_texture)
+        return false;
+
+    const auto is_error = virtual_function<texture_bool_t>(source_texture, 15);
+    const auto is_render_target = virtual_function<texture_bool_t>(source_texture, 20);
+    const auto actual_width = virtual_function<texture_int_t>(source_texture, 3);
+    const auto actual_height = virtual_function<texture_int_t>(source_texture, 4);
+    if (!is_error || !is_render_target || !actual_width || !actual_height ||
+        is_error(source_texture) || !is_render_target(source_texture) ||
+        actual_width(source_texture) <= 0 || actual_height(source_texture) <= 0) {
+        return false;
+    }
+
+    auto* native = reinterpret_cast<IDirect3DTexture9*>(
+        panorama_texture(s.material_system, source_texture));
+    if (!native)
+        return false;
     D3DSURFACE_DESC description{};
-    HRESULT result = backbuffer->GetDesc(&description);
-    if (FAILED(result) || !description.Width || !description.Height) {
-        backbuffer->Release();
+    if (FAILED(native->GetLevelDesc(0, &description)) ||
+        !description.Width || !description.Height ||
+        description.Width > 16384 || description.Height > 16384) {
         return false;
     }
 
-    RECT source_rect = s.requested_rect;
-    source_rect.left = std::clamp(source_rect.left, 0L, static_cast<LONG>(description.Width));
-    source_rect.top = std::clamp(source_rect.top, 0L, static_cast<LONG>(description.Height));
-    source_rect.right = std::clamp(source_rect.right, 0L, static_cast<LONG>(description.Width));
-    source_rect.bottom = std::clamp(source_rect.bottom, 0L, static_cast<LONG>(description.Height));
-    if (!valid_rect(source_rect) || !same_rect(source_rect, s.requested_rect)) {
-        backbuffer->Release();
+    const int width = s.requested_rect.right - s.requested_rect.left;
+    const int height = s.requested_rect.bottom - s.requested_rect.top;
+    if (description.Width < static_cast<UINT>(width) ||
+        description.Height < static_cast<UINT>(height)) {
         return false;
     }
 
-    bool full_frame = s.prefer_full_frame;
-    const int copy_width = full_frame ? static_cast<int>(description.Width)
-                                      : static_cast<int>(source_rect.right - source_rect.left);
-    const int copy_height = full_frame ? static_cast<int>(description.Height)
-                                       : static_cast<int>(source_rect.bottom - source_rect.top);
-    if (!ensure_capture_texture_locked(s, device, copy_width, copy_height, description.Format)) {
-        backbuffer->Release();
-        return false;
+    if (s.panel_texture != native) {
+        native->AddRef();
+        if (s.panel_texture)
+            s.panel_texture->Release();
+        s.panel_texture = native;
     }
-
-    IDirect3DSurface9* target = nullptr;
-    result = s.capture_texture->GetSurfaceLevel(0, &target);
-    if (SUCCEEDED(result) && target) {
-        result = device->StretchRect(backbuffer, full_frame ? nullptr : &source_rect,
-                                     target, nullptr, D3DTEXF_NONE);
-        target->Release();
-    }
-
-    // Some multisampled D3D9 drivers only permit a whole-frame resolve.
-    if (FAILED(result) && !full_frame &&
-        ensure_capture_texture_locked(s, device, static_cast<int>(description.Width),
-                                      static_cast<int>(description.Height), description.Format)) {
-        target = nullptr;
-        result = s.capture_texture->GetSurfaceLevel(0, &target);
-        if (SUCCEEDED(result) && target) {
-            result = device->StretchRect(backbuffer, nullptr, target, nullptr, D3DTEXF_NONE);
-            target->Release();
-        }
-        full_frame = SUCCEEDED(result);
-    }
-    backbuffer->Release();
-
-    if (FAILED(result))
-        return false;
-
-    s.prefer_full_frame = full_frame;
-    s.capture_full_frame = full_frame;
-    if (full_frame) {
-        s.captured_uv0 = ImVec2(static_cast<float>(source_rect.left) / description.Width,
-                                static_cast<float>(source_rect.top) / description.Height);
-        s.captured_uv1 = ImVec2(static_cast<float>(source_rect.right) / description.Width,
-                                static_cast<float>(source_rect.bottom) / description.Height);
-    } else {
-        s.captured_uv0 = ImVec2(0.f, 0.f);
-        s.captured_uv1 = ImVec2(1.f, 1.f);
-    }
-    s.captured_rect = s.requested_rect;
-    s.captured_side = s.requested_side;
+    s.texture_device = device;
+    s.panel_texture_width = static_cast<int>(description.Width);
+    s.panel_texture_height = static_cast<int>(description.Height);
+    s.panel_texture_name = name;
+    s.textured_uv1 = ImVec2(
+        std::min(1.f, static_cast<float>(width) / description.Width),
+        std::min(1.f, static_cast<float>(height) / description.Height));
+    s.textured_rect = s.requested_rect;
+    s.textured_side = s.requested_side;
+    s.panel_texture_valid = true;
     return true;
+}
+
+void premultiplied_image_callback(const ImDrawList*, const ImDrawCmd* command) {
+    auto* device = command && command->UserCallbackData
+        ? static_cast<IDirect3DDevice9*>(command->UserCallbackData) : nullptr;
+    if (device) {
+        // Panorama composition layers are premultiplied. ONE/INVSRCALPHA avoids
+        // multiplying their edge alpha a second time in ImGui's D3D9 renderer.
+        device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
+    }
 }
 } // namespace
 
@@ -1065,44 +1153,31 @@ void begin_frame(IDirect3DDevice9* device) {
     s.drawn = false;
     const ULONGLONG now = GetTickCount64();
     prewarm_locked(s, now);
-    if (visuals_source::is_console_visible()) {
-        // The native console can be composed above Panorama. Never bake its
-        // text into the agent texture: keep the last clean capture visible in
-        // the still-open ImGui menu and resume live capture when it closes.
-        return;
-    }
-    if (!s.requested_active || !s.panel_ready || !s.panel_visible ||
+    if (!s.requested_active || !s.panel_ready || !s.panel_visible || !s.preload_ready ||
         s.panel_side != s.requested_side || !same_rect(s.panel_rect, s.requested_rect)) {
-        s.capture_valid = false;
+        s.panel_texture_valid = false;
         return;
     }
+    // A retry delay must not blank an already acquired isolated texture. The
+    // native RT continues to update even when no resource lookup is needed.
+    if (now < s.texture_retry_after)
+        return;
 
-    const bool reusable = s.capture_valid && s.capture_texture &&
-                          s.captured_side == s.requested_side &&
-                          same_rect(s.captured_rect, s.requested_rect);
-    // A live preview does not need a second full GPU copy at the game's full
-    // frame rate. Reuse the last texture for ~30 Hz capture and keep it valid
-    // on skipped frames instead of blanking the image.
-    if (reusable && now - s.last_capture < k_capture_interval_ms)
-        return;
-    s.capture_valid = false;
-    if (now < s.capture_retry_after)
-        return;
-    if (capture_backbuffer_locked(s, device)) {
-        s.capture_valid = true;
-        s.last_capture = now;
-        s.capture_retry_after = 0;
-        if (!s.capture_success_logged) {
-            s.capture_success_logged = true;
-            AIRFLOW_DEBUG_LOGF("agent_preview D3D9 capture succeeded (%dx%d%s)",
-                s.capture_width, s.capture_height, s.capture_full_frame ? ", full frame" : "");
+    // No console gate and no backbuffer read: the native menu stays open while
+    // ImGui samples only the isolated RT belonging to our ItemPreviewPanel.
+    if (acquire_panel_texture_locked(s, device, now)) {
+        s.texture_retry_after = 0;
+        if (!s.texture_success_logged) {
+            s.texture_success_logged = true;
+            AIRFLOW_DEBUG_LOGF("agent_preview isolated Panorama RT acquired (%dx%d)",
+                s.panel_texture_width, s.panel_texture_height);
         }
-        s.capture_failure_logged = false;
+        s.texture_failure_logged = false;
     } else {
-        s.capture_retry_after = now + k_capture_retry_ms;
-        if (!s.capture_failure_logged) {
-            s.capture_failure_logged = true;
-            AIRFLOW_DEBUG_LOG("agent_preview D3D9 backbuffer capture failed");
+        s.texture_retry_after = now + k_texture_retry_ms;
+        if (!s.texture_failure_logged) {
+            s.texture_failure_logged = true;
+            AIRFLOW_DEBUG_LOG("agent_preview isolated Panorama RT is not ready");
         }
     }
 }
@@ -1133,13 +1208,18 @@ void draw(const ImVec2& min, const ImVec2& max, int side, bool chams_active) {
     synchronize_panel_locked(s, rect, side, now);
     refresh_preload_ready_locked(s, now);
 
-    if (s.capture_valid && s.capture_texture && s.captured_side == side &&
-        same_size(s.captured_rect, rect)) {
+    if (s.panel_texture_valid && s.panel_texture && s.texture_device &&
+        s.textured_side == side && same_size(s.textured_rect, rect)) {
         const float alpha = ImGui::GetStyle().Alpha;
-        ImGui::GetWindowDrawList()->AddImage(
-            reinterpret_cast<ImTextureID>(s.capture_texture), min, max,
-            s.captured_uv0, s.captured_uv1,
-            ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, alpha)));
+        auto* draw_list = ImGui::GetWindowDrawList();
+        draw_list->AddCallback(premultiplied_image_callback, s.texture_device);
+        draw_list->AddImage(
+            reinterpret_cast<ImTextureID>(s.panel_texture), min, max,
+            ImVec2(0.f, 0.f), s.textured_uv1,
+            // Modulating RGB by the global alpha preserves premultiplication
+            // during menu fades as well as during the normal opaque display.
+            ImGui::GetColorU32(ImVec4(alpha, alpha, alpha, alpha)));
+        draw_list->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
         return;
     }
 
@@ -1153,12 +1233,12 @@ void end_frame() {
         return;
     visuals_chams::set_preview_model(nullptr, false);
     s.requested_active = false;
-    s.capture_valid = false;
+    s.panel_texture_valid = false;
     const bool keep_offscreen_warmup = !s.preload_ready && s.panel_visible &&
                                        same_rect(s.panel_rect, warmup_rect());
     if (!keep_offscreen_warmup)
         hide_panel_locked(s);
-    release_capture_locked(s);
+    release_panel_texture_locked(s);
 }
 
 bool is_preloaded() {
@@ -1171,12 +1251,12 @@ void on_menu_closed() {
     visuals_chams::set_preview_model(nullptr, false);
     auto& s = state();
     std::scoped_lock lock(s.mutex);
-    // Closing the menu is a lifecycle edge, not a capture retry. Submit the
-    // hide before the next Panorama composition so the independent panel does
-    // not linger while ImGui is already gone. Keep the current draw/texture
-    // lifetime for end_frame(): an input callback can race a queued ImGui image.
+    // Closing the menu is a lifecycle edge. Submit the hide before the next
+    // Panorama composition so the independent panel does not linger while
+    // ImGui is already gone. Keep the current draw/texture lifetime for
+    // end_frame(): an input callback can race a queued ImGui image.
     s.requested_active = false;
-    s.capture_valid = false;
+    s.panel_texture_valid = false;
     s.next_hide_attempt = 0;
     hide_panel_locked(s);
 }
@@ -1193,9 +1273,8 @@ bool contains_point(const ImVec2& point) {
 void on_device_reset() {
     auto& s = state();
     std::scoped_lock lock(s.mutex);
-    release_capture_locked(s);
-    s.prefer_full_frame = false;
-    s.capture_retry_after = 0;
+    release_panel_texture_locked(s);
+    s.texture_retry_after = 0;
     s.panel_ready = false;
     s.next_panel_check = 0;
 }

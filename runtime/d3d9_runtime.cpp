@@ -249,7 +249,7 @@ void render_frame(IDirect3DDevice9* present_device) {
 
     unlock_game_cursor();
 
-    // Panorama has already composed into the backbuffer here. Capture before ImGui draws.
+    // Panorama has rendered its isolated panel layers; bind the preview RT before ImGui draws.
     AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");
     agent_preview::begin_frame(present_device);
 
