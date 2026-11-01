@@ -48,10 +48,18 @@ struct pass_settings {
     float secondary[4] = { 1.f, 1.f, 1.f, 1.f };
 };
 
+struct special_passes {
+    pass_settings hitboxes;
+    pass_settings on_shot;
+    pass_settings history;
+    pass_settings ragdolls;
+};
+
 // side: 0 = Enemies, 1 = Teammates. Game settings persist independently of the
 // currently selected preview tab.
 void set_side_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                      const char* sprite_path);
+void set_side_special_passes(int side, const special_passes& passes);
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                         const char* sprite_path);
 void set_preview_model(const char* model_path, bool active);

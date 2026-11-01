@@ -59,10 +59,9 @@ Index of this file:
 
 //-------------------------------------------------------------------------
 // Warnings
-// Global maps for combo state (selected index and item count)
-static std::unordered_map<ImGuiID, int> g_combo_selected_idx; // selected index per combo popup
-static std::unordered_map<ImGuiID, int> g_combo_item_counter; // item count per combo popup
-static std::unordered_map<ImGuiID, bool> g_combo_is_multi;    // multi-combo popups open to the side, not below
+// Item count is used only to centre the very first popup frame, before an
+// ImGuiWindow has a previous auto-fit size. Selection never affects position.
+static std::unordered_map<ImGuiID, int> g_combo_item_count;
 
 
 // Visual Studio warnings
@@ -2226,65 +2225,39 @@ bool ImGui::BeginComboPopup(ImGuiID popup_id, const ImRect& bb, ImGuiComboFlags 
     // Set position given a custom constraint (peak into expected window size so we can position it)
     // FIXME: This might be easier to express with an hypothetical SetNextWindowPosConstraints() function?
     // FIXME: This might be moved to Begin() or at least around the same spot where Tooltips and other Popups are calling FindBestWindowPosForPopupEx()?
-    if (ImGuiWindow* popup_window = FindWindowByName(name))
-        if (popup_window->WasActive)
-        {
-            ImVec2 size_expected = CalcWindowNextAutoFitSize(popup_window);
-            popup_window->AutoPosLastDirection = (flags & ImGuiComboFlags_PopupAlignLeft) ? ImGuiDir_Left : ImGuiDir_Down;
-            ImRect r_outer = GetPopupAllowedExtentRect(popup_window);
-            ImVec2 base_pos = bb.GetBL();
-            ImVec2 final_pos = base_pos;
-
-            const bool is_multi = g_combo_is_multi.find(popup_id) != g_combo_is_multi.end() && g_combo_is_multi[popup_id];
-
-            // Neverlose anchors both list kinds to the field itself. Using the host window's
-            // right edge detached the popup from right-aligned Combo/MultiCombo controls.
-            final_pos.x = bb.Min.x;
-
-            if (is_multi)
-            {
-                // A multi-select list stays open while you tick items - center it on the row.
-                final_pos.y = bb.GetCenter().y - size_expected.y * 0.5f;
-            }
-            // Dynamic centering based on selected item
-            else if (g_combo_item_counter.find(popup_id) != g_combo_item_counter.end() && g_combo_item_counter[popup_id] > 0)
-            {
-                const int sel_idx = g_combo_selected_idx[popup_id];
-                const int count = g_combo_item_counter[popup_id];
-                // Items live inside the window padding, so per-item height comes from the content
-                // area - dividing the padded window height overestimates it and drifts the centering.
-                const float content_h = ImMax(0.f, size_expected.y - popup_padding.y * 2.f);
-                const float item_height = content_h / ImMax(1.f, (float)count);
-
-                // The target Y offset to center the selected item on the combo row
-                const float target_offset = popup_padding.y + (sel_idx + 0.5f) * item_height;
-
-                static std::unordered_map<ImGuiID, float> current_offset;
-                static std::unordered_map<ImGuiID, bool> was_open;
-
-                // Snap on the closed->open transition. Keying this off the fade alpha missed it:
-                // by the first frame this code runs the alpha is already well past any threshold,
-                // so every reopen slid in from wherever the previous selection had left it.
-                bool& prev_open = was_open[popup_id];
-                const bool just_opened = popup_open && !prev_open;
-                prev_open = popup_open;
-
-                if (just_opened || current_offset.find(popup_id) == current_offset.end())
-                    current_offset[popup_id] = target_offset;
-                else if (popup_open) // while fading out, hold position instead of sliding
-                    current_offset[popup_id] = ImLerp(current_offset[popup_id], target_offset, 1.f - expf(-12.f * g.IO.DeltaTime));
-
-                final_pos.y = bb.GetCenter().y - current_offset[popup_id];
-            }
-            
-            // Clamp to screen
-            ImVec2 display_min = r_outer.Min;
-            ImVec2 display_max = r_outer.Max;
-            final_pos.x = ImClamp(final_pos.x, display_min.x, ImMax(display_min.x, display_max.x - size_expected.x));
-            final_pos.y = ImClamp(final_pos.y, display_min.y, ImMax(display_min.y, display_max.y - size_expected.y));
-            final_pos.y += (1.f - ImSaturate(popup_anim)) * 8.f * gui.m_scale;
-            SetNextWindowPos(final_pos);
-        }
+    ImGuiWindow* popup_window = FindWindowByName(name);
+    ImVec2 size_expected(bb.GetWidth(), 0.f);
+    bool has_expected_size = false;
+    if (popup_window)
+    {
+        size_expected = CalcWindowNextAutoFitSize(popup_window);
+        has_expected_size = true;
+        popup_window->AutoPosLastDirection = (flags & ImGuiComboFlags_PopupAlignLeft) ? ImGuiDir_Left : ImGuiDir_Down;
+    }
+    else if (const auto it = g_combo_item_count.find(popup_id); it != g_combo_item_count.end())
+    {
+        // Combo and MultiCombo both use 25 px rows, 4 px spacing and the
+        // popup_padding above. This covers the first ever opening as well;
+        // subsequent frames use the actual auto-fit size.
+        const float rows = ImMax(0, it->second) * 25.f * gui.m_scale;
+        const float spacing = ImMax(0, it->second - 1) * 4.f * gui.m_scale;
+        size_expected.y = rows + spacing + popup_padding.y * 2.f;
+        if (g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint)
+            size_expected.y = ImMin(size_expected.y, g.NextWindowData.SizeConstraintRect.Max.y);
+        has_expected_size = true;
+    }
+    if (has_expected_size)
+    {
+        // Combo and MultiCombo share one invariant: the whole popup is centred
+        // on the field. Selection and opening fade never participate in Y.
+        ImRect r_outer = GetPopupAllowedExtentRect(popup_window ? popup_window : GetCurrentWindow());
+        ImVec2 final_pos(bb.Min.x, bb.GetCenter().y - size_expected.y * 0.5f);
+        const ImVec2 display_min = r_outer.Min;
+        const ImVec2 display_max = r_outer.Max;
+        final_pos.x = ImClamp(final_pos.x, display_min.x, ImMax(display_min.x, display_max.x - size_expected.x));
+        final_pos.y = ImClamp(final_pos.y, display_min.y, ImMax(display_min.y, display_max.y - size_expected.y));
+        SetNextWindowPos(final_pos);
+    }
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
@@ -2417,14 +2390,9 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
     if (popup_max_height_in_items != -1 && !(g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint))
         SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, CalcMaxPopupHeightFromItemCount(popup_max_height_in_items)));
 
-    // Store state for dynamic popup positioning
     ImGuiWindow* window = GetCurrentWindow();
     const ImGuiID id = window->GetID(label);
-    ImGuiID popup_id = ImHashStr("##ComboPopup", 0, id);
-    g_combo_selected_idx[popup_id] = *current_item;
-    g_combo_item_counter[popup_id] = items_count;
-    g_combo_is_multi[popup_id] = false;
-
+    g_combo_item_count[ImHashStr("##ComboPopup", 0, id)] = items_count;
     const bool combo_open = BeginCombo(label, preview_value, ImGuiComboFlags_None);
     const ImGuiLastItemData bind_item_data = g.LastItemData;
     const auto register_bind = [&]() -> menu_binds::target_id {
@@ -2505,10 +2473,7 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
         SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, CalcMaxPopupHeightFromItemCount(popup_max_height_in_items)));
 
     const ImGuiID id = window->GetID(label);
-    const ImGuiID popup_id = ImHashStr("##ComboPopup", 0, id);
-    // Multiple selections must not move the popup underneath the pointer.
-    g_combo_item_counter[popup_id] = 0;
-    g_combo_is_multi[popup_id] = true;
+    g_combo_item_count[ImHashStr("##ComboPopup", 0, id)] = items_count;
     const bool combo_open = BeginCombo(label, preview.c_str());
     const ImGuiLastItemData bind_item_data = g.LastItemData;
     const auto register_bind = [&]() -> menu_binds::target_id {

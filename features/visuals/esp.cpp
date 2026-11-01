@@ -309,6 +309,40 @@ void maybe_drag(ImDrawList* draw, int preview_side, int item, const rect_f& rect
         drag_handle(draw, preview_side, item, rect, preview_min, preview_max, scale);
 }
 
+void chams_hitbox_circle(ImDrawList* draw, const ImVec2& center, float radius,
+                         const side_settings& settings, float scale) {
+    const ImU32 primary = color(settings.hitbox_color);
+    const ImU32 secondary = color(settings.hitbox_secondary);
+    const int material = settings.hitbox_material;
+    if (material == visuals_chams::glow || material == visuals_chams::rim_glow ||
+        material == visuals_chams::legacy || material == visuals_chams::bubble) {
+        ImU32 glow = secondary;
+        if (!settings.hitbox_gradient)
+            glow = color(settings.hitbox_color, 0.30f);
+        draw->AddCircle(center, radius + 2.f * scale, glow, 32, 3.f * scale);
+    }
+    if (material == visuals_chams::textured || material == visuals_chams::normal ||
+        material == visuals_chams::flat || material == visuals_chams::metallic ||
+        material == visuals_chams::acrylic) {
+        draw->AddCircleFilled(center, radius, color(settings.hitbox_color, 0.16f), 32);
+    }
+    draw->AddCircle(center, radius, primary, 32, std::max(1.f, scale));
+    if (settings.hitbox_gradient)
+        draw->AddCircle(center, std::max(1.f, radius - 2.f * scale), secondary, 32,
+            std::max(1.f, scale));
+}
+
+void chams_hitbox_preview(ImDrawList* draw, const side_settings& settings,
+                          const rect_f& box, float scale) {
+    const float width = box.max.x - box.min.x;
+    const float height = box.max.y - box.min.y;
+    const float center_x = (box.min.x + box.max.x) * 0.5f;
+    chams_hitbox_circle(draw, ImVec2(center_x, box.min.y + height * 0.11f),
+        std::max(3.f, width * 0.15f), settings, scale);
+    chams_hitbox_circle(draw, ImVec2(center_x, box.min.y + height * 0.38f),
+        std::max(4.f, width * 0.22f), settings, scale);
+}
+
 void render_player(ImDrawList* draw, const side_settings& settings, const player_data& data,
                    const rect_f& box, const std::vector<line2>& skeleton,
                    const std::vector<line2>& hitboxes, float scale, int preview_side,
@@ -352,7 +386,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         }
     }
 
-    if (settings.aimbot[player_visuals::aimbot_hitboxes]) {
+    if (settings.aimbot[player_visuals::aimbot_hitboxes] &&
+        (settings.hitbox_material == 0 || preview_side >= 0)) {
         const ImVec2 offset = placement(
             player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), box_center);
         const ImU32 hitbox_color = color(1.f, 0.35f, 0.55f, 0.9f);
@@ -365,6 +400,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
                 preview_min, preview_max, scale);
         }
     }
+
+    if (preview_side >= 0 && settings.hitbox_material > 0)
+        chams_hitbox_preview(draw, settings, box, scale);
 
     if (settings.main[player_visuals::main_name] && !data.name.empty()) {
         std::string name = data.name;
@@ -543,6 +581,41 @@ std::vector<line2> project_lines(const visuals_source::frame_data& frame,
     return projected;
 }
 
+void render_chams_hitboxes(ImDrawList* draw, const side_settings& settings,
+                           const player_data& player,
+                           const visuals_source::frame_data& frame, const ImVec2& display,
+                           const std::vector<line2>& lines) {
+    if (settings.hitbox_material <= 0)
+        return;
+    const ImU32 primary = color(settings.hitbox_color);
+    for (const auto& line : lines)
+        draw->AddLine(line.from, line.to, primary, 1.f);
+    for (const auto& marker : player.hitbox_markers) {
+        // Osiris' StudioHitbox enum: 0 is head and 6 is upper chest. These are
+        // centres of the real transformed capsules, not screen-space guesses.
+        if (marker.hitbox != 0 && marker.hitbox != 6)
+            continue;
+        ImVec2 center;
+        if (!world_to_screen(frame.view_matrix, marker.center, display, center))
+            continue;
+        float radius = 2.f;
+        for (int axis = 0; axis < 3; ++axis) {
+            for (int sign = -1; sign <= 1; sign += 2) {
+                vector3 point = marker.center;
+                if (axis == 0) point.x += marker.radius * sign;
+                if (axis == 1) point.y += marker.radius * sign;
+                if (axis == 2) point.z += marker.radius * sign;
+                ImVec2 projected;
+                if (world_to_screen(frame.view_matrix, point, display, projected)) {
+                    const ImVec2 delta = projected - center;
+                    radius = std::max(radius, std::sqrt(ImLengthSqr(delta)));
+                }
+            }
+        }
+        chams_hitbox_circle(draw, center, std::clamp(radius, 2.f, 64.f), settings, 1.f);
+    }
+}
+
 visuals_chams::pass_settings chams_pass(int material, const c_color& primary,
                                         const c_color& secondary) {
     visuals_chams::pass_settings pass;
@@ -638,6 +711,16 @@ void render() {
             chams_pass(settings.player_material, settings.player_color, settings.player_secondary),
             chams_pass(settings.behind_walls_material, settings.behind_walls_color,
                 settings.behind_walls_secondary), settings.custom_sprite.c_str());
+        visuals_chams::special_passes special;
+        special.hitboxes = chams_pass(settings.hitbox_material, settings.hitbox_color,
+            settings.hitbox_secondary);
+        special.on_shot = chams_pass(settings.on_shot_material, settings.on_shot_color,
+            settings.on_shot_secondary);
+        special.history = chams_pass(settings.history_material, settings.history_color,
+            settings.history_secondary);
+        special.ragdolls = chams_pass(settings.ragdoll_material, settings.ragdoll_color,
+            settings.ragdoll_secondary);
+        visuals_chams::set_side_special_passes(side, special);
     }
 
     if (!visuals_source::ready())
@@ -652,13 +735,16 @@ void render() {
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     for (const auto& player : frame.players) {
         const auto& settings = player_visuals::settings(player.side);
-        if (!settings.esp_enabled)
+        if (!settings.esp_enabled && settings.hitbox_material <= 0)
             continue;
         rect_f box;
         if (!screen_box(frame, player, display, box))
             continue;
-        const auto skeleton = project_lines(frame, player.skeleton, display);
         const auto hitboxes = project_lines(frame, player.hitboxes, display);
+        render_chams_hitboxes(draw, settings, player, frame, display, hitboxes);
+        if (!settings.esp_enabled)
+            continue;
+        const auto skeleton = project_lines(frame, player.skeleton, display);
         render_player(draw, settings, player, box, skeleton, hitboxes, 1.f, -1, {}, {});
     }
 }
@@ -683,7 +769,7 @@ void draw_preview(const ImVec2& min, const ImVec2& max, int side) {
     if ((side != 0 && side != 1) || max.x - min.x < 32.f || max.y - min.y < 32.f)
         return;
     const auto& settings = player_visuals::settings(side);
-    if (!settings.esp_enabled)
+    if (!settings.esp_enabled && settings.hitbox_material <= 0)
         return;
 
     const float width = max.x - min.x;
@@ -706,7 +792,12 @@ void draw_preview(const ImVec2& min, const ImVec2& max, int side) {
     const player_data data = preview_data(side);
     ImDrawList* draw = ImGui::GetWindowDrawList();
     draw->PushClipRect(min, max, true);
-    render_player(draw, settings, data, box, skeleton, hitboxes, 1.f, side, min, max);
+    if (!settings.esp_enabled) {
+        if (settings.hitbox_material > 0)
+            chams_hitbox_preview(draw, settings, box, 1.f);
+    } else {
+        render_player(draw, settings, data, box, skeleton, hitboxes, 1.f, side, min, max);
+    }
     draw->PopClipRect();
 }
 

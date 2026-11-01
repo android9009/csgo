@@ -33,6 +33,7 @@ struct player_side_ui_state {
     bool sounds = false;
     int player_model = 0;
     int behind_walls_model = 0;
+    int hitbox_model = 0;
     int on_shot_model = 0;
     int history_model = 0;
     int ragdolls_model = 0;
@@ -46,6 +47,7 @@ struct player_side_ui_state {
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
     color_value player_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value behind_walls_color = make_ui_color(0.35f, 0.90f, 1.f);
+    color_value hitbox_color = make_ui_color(1.f, 0.35f, 0.55f);
     color_value on_shot_color = make_ui_color(0.90f, 0.95f, 0.95f);
     color_value history_color = make_ui_color(0.75f, 0.75f, 0.78f);
     color_value ragdolls_color = make_ui_color(0.65f, 0.63f, 0.75f);
@@ -101,6 +103,22 @@ void load_shared_player_views(players_ui_state& ui) {
         view.behind_walls_color.a = to_vec4(config.behind_walls_color);
         view.behind_walls_color.b = to_vec4(config.behind_walls_secondary);
         view.behind_walls_color.gradient = config.behind_walls_gradient;
+        view.hitbox_model = std::clamp(config.hitbox_material, 0, visuals_chams::mode_count - 1);
+        view.on_shot_model = std::clamp(config.on_shot_material, 0, visuals_chams::mode_count - 1);
+        view.history_model = std::clamp(config.history_material, 0, visuals_chams::mode_count - 1);
+        view.ragdolls_model = std::clamp(config.ragdoll_material, 0, visuals_chams::mode_count - 1);
+        view.hitbox_color.a = to_vec4(config.hitbox_color);
+        view.hitbox_color.b = to_vec4(config.hitbox_secondary);
+        view.hitbox_color.gradient = config.hitbox_gradient;
+        view.on_shot_color.a = to_vec4(config.on_shot_color);
+        view.on_shot_color.b = to_vec4(config.on_shot_secondary);
+        view.on_shot_color.gradient = config.on_shot_gradient;
+        view.history_color.a = to_vec4(config.history_color);
+        view.history_color.b = to_vec4(config.history_secondary);
+        view.history_color.gradient = config.history_gradient;
+        view.ragdolls_color.a = to_vec4(config.ragdoll_color);
+        view.ragdolls_color.b = to_vec4(config.ragdoll_secondary);
+        view.ragdolls_color.gradient = config.ragdoll_gradient;
         std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
         view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
         std::copy(std::begin(config.main), std::end(config.main), std::begin(view.esp_items.main_items));
@@ -122,6 +140,22 @@ void store_shared_player_views(players_ui_state& ui) {
         config.behind_walls_color = to_config_color(view.behind_walls_color.a);
         config.behind_walls_secondary = to_config_color(view.behind_walls_color.b);
         config.behind_walls_gradient = view.behind_walls_color.gradient;
+        config.hitbox_material = view.hitbox_model;
+        config.on_shot_material = view.on_shot_model;
+        config.history_material = view.history_model;
+        config.ragdoll_material = view.ragdolls_model;
+        config.hitbox_color = to_config_color(view.hitbox_color.a);
+        config.hitbox_secondary = to_config_color(view.hitbox_color.b);
+        config.hitbox_gradient = view.hitbox_color.gradient;
+        config.on_shot_color = to_config_color(view.on_shot_color.a);
+        config.on_shot_secondary = to_config_color(view.on_shot_color.b);
+        config.on_shot_gradient = view.on_shot_color.gradient;
+        config.history_color = to_config_color(view.history_color.a);
+        config.history_secondary = to_config_color(view.history_color.b);
+        config.history_gradient = view.history_color.gradient;
+        config.ragdoll_color = to_config_color(view.ragdolls_color.a);
+        config.ragdoll_secondary = to_config_color(view.ragdolls_color.b);
+        config.ragdoll_gradient = view.ragdolls_color.gradient;
         config.custom_sprite = view.custom_sprite;
         std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(config.main));
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
@@ -132,7 +166,11 @@ void store_shared_player_views(players_ui_state& ui) {
 
 void draw_custom_sprite_row(player_side_ui_state& side) {
     if (side.player_model != visuals_chams::custom_sprite &&
-        side.behind_walls_model != visuals_chams::custom_sprite) {
+        side.behind_walls_model != visuals_chams::custom_sprite &&
+        side.hitbox_model != visuals_chams::custom_sprite &&
+        side.on_shot_model != visuals_chams::custom_sprite &&
+        side.history_model != visuals_chams::custom_sprite &&
+        side.ragdolls_model != visuals_chams::custom_sprite) {
         return;
     }
     if (gui.row_popup("Custom Sprite")) {
@@ -242,7 +280,6 @@ void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
 void draw_enemy_side(player_side_ui_state& side) {
     auto& effects = g_cfg->visuals.m_effects;
     auto& glow = g_cfg->visuals.m_glow;
-    static const char* model_modes[] = { "Disabled", "Chams", "Flat", "Glow" };
 
     gui.grid_box("ENEMY", k_auto_height);
     gui.row_checkbox("Enabled", &player_visuals::settings(0).esp_enabled);
@@ -254,9 +291,10 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.row_combo("Player", &side.player_color, &side.player_model, visuals_chams::mode_names, visuals_chams::mode_count);
     gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, visuals_chams::mode_names, visuals_chams::mode_count);
     draw_custom_sprite_row(side);
-    gui.row_combo("On Shot", &side.on_shot_color, &side.on_shot_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("History", &side.history_color, &side.history_model, model_modes, IM_ARRAYSIZE(model_modes));
-    gui.row_combo("Ragdolls", &side.ragdolls_color, &side.ragdolls_model, model_modes, IM_ARRAYSIZE(model_modes));
+    gui.row_combo("Hitboxes", &side.hitbox_color, &side.hitbox_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("On Shot", &side.on_shot_color, &side.on_shot_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("History", &side.history_color, &side.history_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Ragdolls", &side.ragdolls_color, &side.ragdolls_model, visuals_chams::mode_names, visuals_chams::mode_count);
     gui.row_checkbox("Kill Effect", &effects.m_kill_effect, &side.kill_effect_color);
     gui.row_checkbox("Glow", &glow.m_enabled, &side.glow_color);
     gui.end_group_box();

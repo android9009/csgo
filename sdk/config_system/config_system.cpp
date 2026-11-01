@@ -154,6 +154,22 @@ void c_config_system::setup_values( )
 		push_item(&side.behind_walls_secondary, category, "behind_walls_secondary", side.behind_walls_secondary);
 		push_item(&side.player_gradient, category, "player_gradient", side.player_gradient);
 		push_item(&side.behind_walls_gradient, category, "behind_walls_gradient", side.behind_walls_gradient);
+		push_item(&side.hitbox_material, category, "hitbox_material", side.hitbox_material);
+		push_item(&side.hitbox_color, category, "hitbox_color", side.hitbox_color);
+		push_item(&side.hitbox_secondary, category, "hitbox_secondary", side.hitbox_secondary);
+		push_item(&side.hitbox_gradient, category, "hitbox_gradient", side.hitbox_gradient);
+		push_item(&side.on_shot_material, category, "on_shot_material", side.on_shot_material);
+		push_item(&side.on_shot_color, category, "on_shot_color", side.on_shot_color);
+		push_item(&side.on_shot_secondary, category, "on_shot_secondary", side.on_shot_secondary);
+		push_item(&side.on_shot_gradient, category, "on_shot_gradient", side.on_shot_gradient);
+		push_item(&side.history_material, category, "history_material", side.history_material);
+		push_item(&side.history_color, category, "history_color", side.history_color);
+		push_item(&side.history_secondary, category, "history_secondary", side.history_secondary);
+		push_item(&side.history_gradient, category, "history_gradient", side.history_gradient);
+		push_item(&side.ragdoll_material, category, "ragdoll_material", side.ragdoll_material);
+		push_item(&side.ragdoll_color, category, "ragdoll_color", side.ragdoll_color);
+		push_item(&side.ragdoll_secondary, category, "ragdoll_secondary", side.ragdoll_secondary);
+		push_item(&side.ragdoll_gradient, category, "ragdoll_gradient", side.ragdoll_gradient);
 		push_item(&side.custom_sprite, category, "custom_sprite", side.custom_sprite);
 		for (int i = 0; i < player_visuals::main_count; ++i)
 			push_item(&side.main[i], category, std::format("main_{}", main_names[i]), side.main[i]);

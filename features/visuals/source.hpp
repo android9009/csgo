@@ -15,6 +15,19 @@ struct line3 {
     vector3 to;
 };
 
+struct hitbox_marker {
+    vector3 center;
+    float radius = 0.f;
+    int hitbox = -1;
+    int group = 0;
+};
+
+struct renderable_entity_data {
+    void* entity = nullptr;
+    int class_id = -1;
+    bool ragdoll = false;
+};
+
 struct player_data {
     int index = 0;
     int side = 0; // 0 = enemy, 1 = teammate
@@ -55,6 +68,7 @@ struct player_data {
     std::vector<line3> skeleton;
     // Twelve edges per hitbox, already transformed by the current bone matrix.
     std::vector<line3> hitboxes;
+    std::vector<hitbox_marker> hitbox_markers;
 };
 
 struct frame_data {
@@ -72,6 +86,12 @@ bool ready();
 bool is_in_game();
 bool is_console_visible();
 int player_side(int entity_index); // -1 invalid/local, 0 enemy, 1 teammate
+bool resolve_renderable_entity(void* renderable, renderable_entity_data& output);
+int entity_team_side(void* entity); // -1 invalid, 0 enemy, 1 teammate
+int local_user_id();
+int aimed_player_index(); // enemy nearest to the local shot ray, 0 when none
+int frame_number();
+bool entity_exists(int entity_index);
 void capture(frame_data& output);
 
 int atlas_weapon_id(int item_definition_index); // -1 when no embedded glyph exists

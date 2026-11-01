@@ -18,6 +18,7 @@ static_assert(sizeof(void*) == 4, "Source 1 player visuals require the x86 ABI")
 
 using visuals_source::line3;
 using visuals_source::player_data;
+using visuals_source::renderable_entity_data;
 using visuals_source::vector3;
 
 struct matrix3x4_t {
@@ -165,6 +166,8 @@ struct netvars_t {
     int health = -1;
     int life_state = -1;
     int origin = -1;
+    int view_offset = -1;
+    int aim_punch = -1;
     int mins = -1;
     int maxs = -1;
     int simulation_time = -1;
@@ -375,6 +378,10 @@ void resolve_netvars() {
     nv.health = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_iHealth");
     nv.life_state = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_lifeState");
     nv.origin = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecOrigin");
+    nv.view_offset = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_vecViewOffset[0]");
+    if (nv.view_offset < 0)
+        nv.view_offset = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_vecViewOffset");
+    nv.aim_punch = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_aimPunchAngle");
     nv.mins = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMins");
     nv.maxs = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMaxs");
     nv.simulation_time = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_flSimulationTime");
@@ -419,7 +426,10 @@ using entity_from_handle_t = void* (__thiscall*)(void*, unsigned int);
 using local_player_t = int(__thiscall*)(void*);
 using engine_bool_t = bool(__thiscall*)(void*);
 using get_player_info_t = bool(__thiscall*)(void*, int, void*);
+using get_view_angles_t = void (__thiscall*)(void*, vector3&);
 using world_matrix_t = const float* (__thiscall*)(void*);
+using entity_void_t = void* (__thiscall*)(void*);
+using get_client_class_t = client_class_t* (__thiscall*)(void*);
 using setup_bones_t = bool(__thiscall*)(void*, matrix3x4_t*, int, int, float);
 using dormant_t = bool(__thiscall*)(void*);
 using weapon_float_t = float(__thiscall*)(void*);
@@ -437,6 +447,14 @@ int local_index() {
     return function ? function(engine) : 0;
 }
 
+vector3 view_angles() {
+    vector3 result{};
+    const auto function = virtual_function<get_view_angles_t>(engine, 18);
+    if (function)
+        function(engine, result);
+    return result;
+}
+
 void* entity_from_handle(unsigned int handle) {
     if (handle == 0 || handle == 0xFFFFFFFFu)
         return nullptr;
@@ -448,6 +466,44 @@ bool dormant(void* entity) {
     void* networkable = reinterpret_cast<unsigned char*>(entity) + 8;
     const auto function = virtual_function<dormant_t>(networkable, 9);
     return !function || function(networkable);
+}
+
+bool renderable_entity(void* renderable, renderable_entity_data& output) {
+    output = {};
+    if (!renderable || !client_module)
+        return false;
+    const auto get_unknown = virtual_function<entity_void_t>(renderable, 0);
+    if (!get_unknown || !function_in_module(client_module, reinterpret_cast<const void*>(get_unknown)))
+        return false;
+    void* unknown = get_unknown(renderable);
+    if (!unknown)
+        return false;
+    // IClientUnknown inherits IHandleEntity's destructor: networkable=4,
+    // base entity=7. IClientNetworkable::GetClientClass is slot 2.
+    const auto get_networkable = virtual_function<entity_void_t>(unknown, 4);
+    const auto get_base_entity = virtual_function<entity_void_t>(unknown, 7);
+    if (!get_networkable || !get_base_entity ||
+        !function_in_module(client_module, reinterpret_cast<const void*>(get_networkable)) ||
+        !function_in_module(client_module, reinterpret_cast<const void*>(get_base_entity))) {
+        return false;
+    }
+    void* networkable = get_networkable(unknown);
+    void* entity = get_base_entity(unknown);
+    if (!networkable || !entity)
+        return false;
+    const auto get_class = virtual_function<get_client_class_t>(networkable, 2);
+    if (!get_class || !function_in_module(client_module, reinterpret_cast<const void*>(get_class)))
+        return false;
+    const auto* client_class = get_class(networkable);
+    if (!readable_range(client_class, sizeof(client_class_t)))
+        return false;
+    output.entity = entity;
+    output.class_id = client_class->class_id;
+    output.ragdoll = readable_range(client_class->name, 1) &&
+        (std::strcmp(client_class->name, "CCSRagdoll") == 0 ||
+         std::strcmp(client_class->name, "C_CSRagdoll") == 0 ||
+         std::strcmp(client_class->name, "DT_CSRagdoll") == 0);
+    return true;
 }
 
 int item_definition(void* weapon) {
@@ -577,14 +633,14 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
         return;
     }
     const auto* studio = studio_wrapper->studio;
-    if (studio->bone_count <= 0 || studio->bone_count > 128 || studio->bone_index <= 0)
+    if (studio->bone_count <= 0 || studio->bone_count > 256 || studio->bone_index <= 0)
         return;
     const auto setup = virtual_function<setup_bones_t>(entity, 197);
     if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
         return;
-    matrix3x4_t bones[128]{};
+    alignas(16) matrix3x4_t bones[256]{};
     const float time = global_vars ? global_vars->current_time : 0.f;
-    if (!setup(entity, bones, 128, 0x0007FF00, time))
+    if (!setup(entity, bones, 256, 0x0007FF00, time))
         return;
 
     const auto* bone_array = reinterpret_cast<const mstudiobone_t*>(
@@ -628,6 +684,18 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
             };
             points[corner] = transform(local, bones[box->bone]);
         }
+        const vector3 local_center{
+            (box->mins.x + box->maxs.x) * 0.5f,
+            (box->mins.y + box->maxs.y) * 0.5f,
+            (box->mins.z + box->maxs.z) * 0.5f
+        };
+        float radius = box->radius;
+        if (!std::isfinite(radius) || radius <= 0.f) {
+            radius = std::min(box->maxs.x - box->mins.x,
+                box->maxs.y - box->mins.y) * 0.5f;
+        }
+        output.hitbox_markers.push_back({ transform(local_center, bones[box->bone]),
+            std::clamp(radius, 0.5f, 16.f), i, box->group });
         for (const auto& edge : edges)
             output.hitboxes.push_back({ points[edge[0]], points[edge[1]] });
     }
@@ -670,14 +738,16 @@ float calculate_hit_chance(void* local_weapon, float distance, bool immunity) {
     return std::clamp(target_angle / cone, 0.f, 1.f) * 100.f;
 }
 
-std::string player_name(int index) {
+bool read_player_info(int index, unsigned char (&info)[512]) {
     const auto get_info = virtual_function<get_player_info_t>(engine, 8);
-    if (!get_info)
-        return {};
+    return get_info && get_info(engine, index, info);
+}
+
+std::string player_name(int index) {
     // The final Source 1 player_info_t is below 512 bytes. Name follows the two
     // 64-bit fields at offset 16; the oversized buffer prevents layout overflow.
     unsigned char info[512]{};
-    if (!get_info(engine, index, info))
+    if (!read_player_info(index, info))
         return {};
     const char* name = reinterpret_cast<const char*>(info + 16);
     std::size_t length = 0;
@@ -702,6 +772,7 @@ bool acquire() {
         !checked_virtual<engine_bool_t>(engine, 11, engine_module) ||
         !checked_virtual<local_player_t>(engine, 12, engine_module) ||
         !checked_virtual<engine_bool_t>(engine, 26, engine_module) ||
+        !checked_virtual<get_view_angles_t>(engine, 18, engine_module) ||
         !checked_virtual<get_player_info_t>(engine, 8, engine_module) ||
         !checked_virtual<world_matrix_t>(engine, 37, engine_module)) {
         return false;
@@ -798,6 +869,104 @@ int player_side(int entity_index) {
     return team == local_team ? 1 : 0;
 }
 
+bool resolve_renderable_entity(void* renderable, renderable_entity_data& output) {
+    if (!ready())
+        return false;
+    return renderable_entity(renderable, output);
+}
+
+int entity_team_side(void* entity) {
+    if (!entity || !is_in_game())
+        return -1;
+    void* local = entity_at(local_index());
+    if (!local)
+        return -1;
+    const int team = value<int>(entity, nv.team, 0);
+    const int local_team = value<int>(local, nv.team, 0);
+    if ((team != 2 && team != 3) || (local_team != 2 && local_team != 3))
+        return -1;
+    return team == local_team ? 1 : 0;
+}
+
+int local_user_id() {
+    unsigned char info[512]{};
+    if (!is_in_game() || !read_player_info(local_index(), info))
+        return -1;
+    int user_id = -1;
+    std::memcpy(&user_id, info + 144, sizeof(user_id));
+    return user_id;
+}
+
+int aimed_player_index() {
+    if (!is_in_game())
+        return 0;
+    const int local_idx = local_index();
+    void* local = entity_at(local_idx);
+    if (!local)
+        return 0;
+    const int local_team = value<int>(local, nv.team, 0);
+    if (local_team != 2 && local_team != 3)
+        return 0;
+    const vector3 origin = value<vector3>(local, nv.origin);
+    const vector3 view_offset = value<vector3>(local, nv.view_offset, { 0.f, 0.f, 64.f });
+    const vector3 eye{ origin.x + view_offset.x, origin.y + view_offset.y,
+        origin.z + view_offset.z };
+    vector3 angles = view_angles();
+    const vector3 punch = value<vector3>(local, nv.aim_punch);
+    angles.x += punch.x;
+    angles.y += punch.y;
+    angles.z += punch.z;
+    constexpr float deg_to_rad = 3.14159265358979323846f / 180.f;
+    const float pitch = angles.x * deg_to_rad;
+    const float yaw = angles.y * deg_to_rad;
+    const vector3 forward{ std::cos(pitch) * std::cos(yaw),
+        std::cos(pitch) * std::sin(yaw), -std::sin(pitch) };
+    float best_angle = 0.20f;
+    int best_index = 0;
+    for (int index = 1; index <= 64; ++index) {
+        if (index == local_idx)
+            continue;
+        void* player = entity_at(index);
+        if (!player || dormant(player) || value<unsigned char>(player, nv.life_state, 0) != 0 ||
+            value<int>(player, nv.health, 0) <= 0) {
+            continue;
+        }
+        const int team = value<int>(player, nv.team, 0);
+        if ((team != 2 && team != 3) || team == local_team)
+            continue;
+        player_data geometry;
+        collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), geometry, false, true);
+        vector3 point = value<vector3>(player, nv.origin);
+        point.z += 64.f;
+        for (const auto& marker : geometry.hitbox_markers) {
+            if (marker.hitbox == 0) {
+                point = marker.center;
+                break;
+            }
+        }
+        const vector3 delta{ point.x - eye.x, point.y - eye.y, point.z - eye.z };
+        const float along = delta.x * forward.x + delta.y * forward.y + delta.z * forward.z;
+        if (along < 1.f || along > 8192.f)
+            continue;
+        const float length_squared = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+        const float perpendicular = std::sqrt(std::max(0.f, length_squared - along * along));
+        const float angle = std::atan2(perpendicular, along);
+        if (std::isfinite(angle) && angle < best_angle) {
+            best_angle = angle;
+            best_index = index;
+        }
+    }
+    return best_index;
+}
+
+int frame_number() {
+    return global_vars ? global_vars->frame_count : 0;
+}
+
+bool entity_exists(int entity_index) {
+    return entity_index > 0 && entity_index <= 64 && entity_at(entity_index) != nullptr;
+}
+
 void capture(frame_data& output) {
     output = {};
     if (!is_in_game())
@@ -837,7 +1006,8 @@ void capture(frame_data& output) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        if (!side_settings.esp_enabled)
+        const bool chams_hitboxes = side_settings.hitbox_material > 0;
+        if (!side_settings.esp_enabled && !chams_hitboxes)
             continue;
         data.origin = value<vector3>(player, nv.origin);
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
@@ -901,7 +1071,7 @@ void capture(frame_data& output) {
         }
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
             side_settings.main[player_visuals::main_skeleton],
-            side_settings.aimbot[player_visuals::aimbot_hitboxes]);
+            side_settings.aimbot[player_visuals::aimbot_hitboxes] || chams_hitboxes);
         output.players.push_back(std::move(data));
     }
 

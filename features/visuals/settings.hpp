@@ -88,6 +88,24 @@ struct side_settings {
     c_color behind_walls_secondary{ 0.35f, 0.90f, 1.f, 1.f };
     bool player_gradient = false;
     bool behind_walls_gradient = false;
+
+    int hitbox_material = 0;
+    int on_shot_material = 0;
+    int history_material = 0;
+    int ragdoll_material = 0;
+    c_color hitbox_color{ 1.f, 0.35f, 0.55f, 1.f };
+    c_color hitbox_secondary = hitbox_color;
+    c_color on_shot_color{ 0.90f, 0.95f, 0.95f, 1.f };
+    c_color on_shot_secondary = on_shot_color;
+    c_color history_color{ 0.75f, 0.75f, 0.78f, 1.f };
+    c_color history_secondary = history_color;
+    c_color ragdoll_color{ 0.65f, 0.63f, 0.75f, 1.f };
+    c_color ragdoll_secondary = ragdoll_color;
+    bool hitbox_gradient = false;
+    bool on_shot_gradient = false;
+    bool history_gradient = false;
+    bool ragdoll_gradient = false;
+
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
 };
 

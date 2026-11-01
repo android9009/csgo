@@ -6,10 +6,13 @@
 #include "../../runtime/debug_console.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
+#include <deque>
 #include <mutex>
 
 namespace {
@@ -63,11 +66,21 @@ struct model_render_info_t {
     int hitbox_set;
     unsigned short instance;
 };
+static_assert(sizeof(model_render_info_t) == 72, "Source 1 x86 ModelRenderInfo_t layout");
 
-// Only the leading StudioRender field is needed by the engine-DME filter.
+// Source 1 DrawModelState_t. The complete value is required for history and
+// on-shot records; drawing with only studio_hdr would leave the other fields
+// pointing into an expired stack frame.
 struct draw_model_state_t {
     studiohdr_t* studio_hdr;
+    void* hardware_data;
+    void* renderable;
+    const matrix3x4_t* model_to_world;
+    void* decals;
+    int draw_flags;
+    int lod;
 };
+static_assert(sizeof(draw_model_state_t) == 28, "Source 1 x86 DrawModelState_t layout");
 
 using studio_draw_t = void(__thiscall*)(void*, void*, const draw_model_info_t&,
     matrix3x4_t*, float*, float*, const vector3&, int);
@@ -80,6 +93,7 @@ void* studio_render = nullptr;
 void* model_render = nullptr;
 void* render_view = nullptr;
 void* material_system = nullptr;
+void* game_event_manager = nullptr;
 void* key_values_system = nullptr;
 void* key_values_init = nullptr;
 void* key_values_load = nullptr;
@@ -99,6 +113,7 @@ struct pass_pair {
     bool configured = false;
     visuals_chams::pass_settings player;
     visuals_chams::pass_settings behind_walls;
+    visuals_chams::special_passes special;
     char sprite_path[128] = "models/weapons/customization/paints/custom/money";
 };
 
@@ -114,6 +129,65 @@ std::mutex hook_initialize_mutex;
 pass_pair game_settings[2];
 preview_settings preview;
 char applied_sprite_path[128] = {};
+
+struct model_record {
+    draw_model_state_t state{};
+    model_render_info_t info{};
+    alignas(16) matrix3x4_t model_to_world{};
+    alignas(16) std::array<matrix3x4_t, 256> bones{};
+    ULONGLONG time = 0;
+};
+
+struct shot_record {
+    model_record model;
+    ULONGLONG time = 0;
+    int entity_index = -1;
+};
+
+std::mutex records_mutex;
+std::deque<model_record> history_records[65];
+std::deque<shot_record> shot_records;
+bool events_registered = false;
+
+void fix_record_pointers(model_record& record) {
+    record.state.model_to_world = &record.model_to_world;
+    record.info.model_to_world = &record.model_to_world;
+}
+
+model_record clone_record(const model_record& source) {
+    model_record result;
+    result.state = source.state;
+    result.info = source.info;
+    result.model_to_world = source.model_to_world;
+    result.bones = source.bones;
+    result.time = source.time;
+    fix_record_pointers(result);
+    return result;
+}
+
+matrix3x4_t angle_matrix(const vector3& angles, const vector3& origin) {
+    constexpr float pi = 3.14159265358979323846f;
+    const auto radians = [pi](float value) { return value * (pi / 180.f); };
+    const float sy = std::sin(radians(angles.y)), cy = std::cos(radians(angles.y));
+    const float sp = std::sin(radians(angles.x)), cp = std::cos(radians(angles.x));
+    const float sr = std::sin(radians(angles.z)), cr = std::cos(radians(angles.z));
+    matrix3x4_t result{};
+    result.m[0][0] = cp * cy;
+    result.m[1][0] = cp * sy;
+    result.m[2][0] = -sp;
+    const float crcy = cr * cy, crsy = cr * sy;
+    const float srcy = sr * cy, srsy = sr * sy;
+    result.m[0][1] = sp * srcy - crsy;
+    result.m[1][1] = sp * srsy + crcy;
+    result.m[2][1] = sr * cp;
+    result.m[0][2] = sp * crcy + srsy;
+    result.m[1][2] = sp * crsy - srcy;
+    result.m[2][2] = cr * cp;
+    result.m[0][3] = origin.x;
+    result.m[1][3] = origin.y;
+    result.m[2][3] = origin.z;
+    return result;
+}
 
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
@@ -614,6 +688,138 @@ void draw_original(const draw_call& call) {
         call.flex_weights, call.delayed_flex_weights, *call.model_origin, call.flags);
 }
 
+bool fill_record(model_record& record, const draw_model_state_t& state,
+                 const model_render_info_t& info, const matrix3x4_t* bones,
+                 ULONGLONG now) {
+    if (!readable_range(bones, sizeof(record.bones)))
+        return false;
+    record.state = state;
+    record.info = info;
+    std::memcpy(record.bones.data(), bones, sizeof(record.bones));
+    // These pointers belong to the current renderer stack. Cached hardware and
+    // model pointers persist, but lighting/decal scratch pointers do not.
+    record.state.decals = nullptr;
+    record.info.lighting_offset = nullptr;
+    record.info.lighting_origin = nullptr;
+    if (readable_range(info.model_to_world, sizeof(matrix3x4_t))) {
+        record.model_to_world = *info.model_to_world;
+    } else if (readable_range(state.model_to_world, sizeof(matrix3x4_t))) {
+        record.model_to_world = *state.model_to_world;
+    } else {
+        record.model_to_world = angle_matrix(info.angles, info.origin);
+    }
+    record.time = now;
+    fix_record_pointers(record);
+    return true;
+}
+
+void capture_history(int entity_index, const draw_model_state_t& state,
+                     const model_render_info_t& info, const matrix3x4_t* bones,
+                     ULONGLONG now) {
+    if (entity_index < 1 || entity_index > 64)
+        return;
+    std::scoped_lock lock(records_mutex);
+    auto& records = history_records[entity_index];
+    while (!records.empty() && now - records.front().time > 600)
+        records.pop_front();
+    if (!records.empty() && now - records.back().time < 33)
+        return;
+    records.emplace_back();
+    if (!fill_record(records.back(), state, info, bones, now)) {
+        records.pop_back();
+        return;
+    }
+    fix_record_pointers(records.back());
+    while (records.size() > 20)
+        records.pop_front();
+}
+
+void add_on_shot_record(int entity_index) {
+    if (entity_index < 1 || entity_index > 64)
+        return;
+    const ULONGLONG now = GetTickCount64();
+    std::scoped_lock lock(records_mutex);
+    auto& history = history_records[entity_index];
+    if (history.empty())
+        return;
+    shot_records.erase(std::remove_if(shot_records.begin(), shot_records.end(),
+        [entity_index](const shot_record& shot) { return shot.entity_index == entity_index; }),
+        shot_records.end());
+    for (auto& shot : shot_records)
+        fix_record_pointers(shot.model);
+    shot_records.emplace_back();
+    auto& shot = shot_records.back();
+    shot.entity_index = entity_index;
+    shot.time = now;
+    shot.model = clone_record(history.back());
+    fix_record_pointers(shot.model);
+    while (shot_records.size() > 4)
+        shot_records.pop_front();
+}
+
+void clear_model_records() {
+    std::scoped_lock lock(records_mutex);
+    for (auto& records : history_records)
+        records.clear();
+    shot_records.clear();
+}
+
+using event_name_t = const char* (__thiscall*)(const void*);
+using event_get_int_t = int (__thiscall*)(const void*, const char*, int);
+using event_add_listener_t = bool (__thiscall*)(void*, void*, const char*, bool);
+using event_remove_listener_t = void (__thiscall*)(void*, void*);
+
+class chams_event_listener {
+public:
+    virtual ~chams_event_listener() = default;
+
+    virtual void fire_game_event(void* event) {
+        if (!event)
+            return;
+        const auto get_name = virtual_function<event_name_t>(event, 1);
+        const char* name = get_name ? get_name(event) : nullptr;
+        if (!name)
+            return;
+        if (std::strcmp(name, "weapon_fire") == 0) {
+            // IGameEvent: GetName is slot 1 and GetInt is slot 6;
+            // slot 0 is the virtual destructor, not an event-data method.
+            const auto get_int = virtual_function<event_get_int_t>(event, 6);
+            if (!get_int || get_int(event, "userid", 0) != visuals_source::local_user_id())
+                return;
+            const int target = visuals_source::aimed_player_index();
+            if (target > 0)
+                add_on_shot_record(target);
+        } else if (std::strcmp(name, "round_start") == 0 ||
+                   std::strcmp(name, "game_newmap") == 0) {
+            clear_model_records();
+        }
+    }
+
+    virtual int get_event_debug_id() { return 42; }
+};
+
+chams_event_listener event_listener;
+
+bool register_events() {
+    if (events_registered)
+        return true;
+    if (!game_event_manager)
+        return false;
+    const auto add_listener = virtual_function<event_add_listener_t>(game_event_manager, 3);
+    if (!add_listener)
+        return false;
+    if (!add_listener(game_event_manager, &event_listener, "weapon_fire", false) ||
+        !add_listener(game_event_manager, &event_listener, "round_start", false) ||
+        !add_listener(game_event_manager, &event_listener, "game_newmap", false)) {
+        const auto remove_listener = virtual_function<event_remove_listener_t>(game_event_manager, 5);
+        if (remove_listener)
+            remove_listener(game_event_manager, &event_listener);
+        return false;
+    }
+    events_registered = true;
+    return true;
+}
+
 void draw_single_material(const draw_call& call,
     const visuals_chams::pass_settings& pass, bool hidden,
     const char* sprite_path) {
@@ -695,6 +901,74 @@ void draw_pass(const draw_call& call, const visuals_chams::pass_settings& pass,
         draw_single_material(call, base, hidden, sprite_path);
     }
     draw_single_material(call, pass, hidden, sprite_path);
+}
+
+void draw_record(void* context, const model_record& record,
+                 const visuals_chams::pass_settings& pass, const char* sprite_path) {
+    if (pass.material == visuals_chams::disabled)
+        return;
+    draw_call call;
+    call.game = true;
+    call.context = context;
+    call.state = &record.state;
+    call.render_info = &record.info;
+    call.bones = const_cast<matrix3x4_t*>(record.bones.data());
+    draw_pass(call, pass, true, sprite_path);
+    force_material(nullptr, true);
+}
+
+void draw_on_shot_records(void* context) {
+    if (!context || !visuals_source::is_in_game())
+        return;
+    int frame = visuals_source::frame_number();
+    if (frame <= 0)
+        frame = static_cast<int>(GetTickCount64() / 16);
+    static int last_frame = -1;
+    if (frame == last_frame)
+        return;
+    pass_pair snapshot;
+    {
+        std::scoped_lock lock(settings_mutex);
+        snapshot = game_settings[0];
+    }
+    if (!snapshot.configured || snapshot.special.on_shot.material == visuals_chams::disabled)
+        return;
+    last_frame = frame;
+    const ULONGLONG now = GetTickCount64();
+    std::array<model_record, 4> records;
+    std::array<float, 4> alphas{};
+    std::size_t count = 0;
+    {
+        std::scoped_lock lock(records_mutex);
+        shot_records.erase(std::remove_if(shot_records.begin(), shot_records.end(),
+            [now](const shot_record& shot) { return now - shot.time > 1200; }),
+            shot_records.end());
+        for (auto& shot : shot_records)
+            fix_record_pointers(shot.model);
+        for (const auto& shot : shot_records) {
+            if (count >= records.size() || !visuals_source::entity_exists(shot.entity_index))
+                continue;
+            records[count] = clone_record(shot.model);
+            fix_record_pointers(records[count]);
+            const ULONGLONG age = now - shot.time;
+            alphas[count] = age <= 700 ? 1.f :
+                1.f - static_cast<float>(age - 700) / 500.f;
+            ++count;
+        }
+    }
+    if (!count)
+        return;
+    in_game_chams = true;
+    reset_modulation(true);
+    for (std::size_t i = 0; i < count; ++i) {
+        auto pass = snapshot.special.on_shot;
+        pass.color[3] *= alphas[i];
+        pass.secondary[3] *= alphas[i];
+        draw_record(context, records[i], pass, snapshot.sprite_path);
+    }
+    force_material(nullptr, true);
+    reset_modulation(true);
+    in_game_chams = false;
 }
 
 char normalized_character(char value) {
@@ -790,6 +1064,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         original_model_execute(self, context, state, info, bones);
         return;
     }
+    draw_on_shot_records(context);
 
     const char* model_name = info.model ? info.model->name :
         (state.studio_hdr ? state.studio_hdr->name : nullptr);
@@ -800,7 +1075,19 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         original_model_execute(self, context, state, info, bones);
         return;
     }
-    const int side = visuals_source::player_side(info.entity_index);
+
+    int side = visuals_source::player_side(info.entity_index);
+    bool ragdoll = false;
+    if (side < 0) {
+        visuals_source::renderable_entity_data entity;
+        if (visuals_source::resolve_renderable_entity(info.renderable, entity) && entity.ragdoll) {
+            const int ragdoll_side = visuals_source::entity_team_side(entity.entity);
+            if (ragdoll_side == 0 || ragdoll_side == 1) {
+                side = ragdoll_side;
+                ragdoll = true;
+            }
+        }
+    }
     if (side < 0) {
         original_model_execute(self, context, state, info, bones);
         return;
@@ -811,9 +1098,13 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         std::scoped_lock lock(settings_mutex);
         snapshot = game_settings[side];
     }
+    const bool normal_pass_enabled = snapshot.player.material != visuals_chams::disabled ||
+        snapshot.behind_walls.material != visuals_chams::disabled ||
+        snapshot.special.history.material != visuals_chams::disabled ||
+        snapshot.special.on_shot.material != visuals_chams::disabled;
     if (!snapshot.configured ||
-        (snapshot.player.material == visuals_chams::disabled &&
-         snapshot.behind_walls.material == visuals_chams::disabled)) {
+        (ragdoll && snapshot.special.ragdolls.material == visuals_chams::disabled) ||
+        (!ragdoll && !normal_pass_enabled)) {
         original_model_execute(self, context, state, info, bones);
         return;
     }
@@ -826,6 +1117,47 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     call.state = &state;
     call.render_info = &info;
     reset_modulation(true);
+
+    if (ragdoll) {
+        if (snapshot.special.ragdolls.material != visuals_chams::disabled)
+            draw_pass(call, snapshot.special.ragdolls, true, snapshot.sprite_path);
+        else {
+            force_material(nullptr, true);
+            draw_original(call);
+        }
+        force_material(nullptr, true);
+        reset_modulation(true);
+        in_game_chams = false;
+        return;
+    }
+
+    const ULONGLONG now = GetTickCount64();
+    if (snapshot.special.history.material != visuals_chams::disabled) {
+        model_record record;
+        bool found = false;
+        {
+            std::scoped_lock lock(records_mutex);
+            auto& records = history_records[info.entity_index];
+            while (!records.empty() && now - records.front().time > 600)
+                records.pop_front();
+            for (auto it = records.rbegin(); it != records.rend(); ++it) {
+                if (now - it->time < 180)
+                    continue;
+                record = clone_record(*it);
+                fix_record_pointers(record);
+                found = true;
+                break;
+            }
+        }
+        if (found)
+            draw_record(context, record, snapshot.special.history, snapshot.sprite_path);
+    }
+
+    if (snapshot.special.history.material != visuals_chams::disabled ||
+        snapshot.special.on_shot.material != visuals_chams::disabled) {
+        capture_history(info.entity_index, state, info, bones, now);
+    }
+
     if (snapshot.behind_walls.material != visuals_chams::disabled)
         draw_pass(call, snapshot.behind_walls, true, snapshot.sprite_path);
     if (snapshot.player.material != visuals_chams::disabled)
@@ -853,6 +1185,7 @@ bool acquire_interfaces() {
     studio_render = create_interface(studio_module, "VStudioRender026");
     model_render = create_interface(engine_module, "VEngineModel016");
     render_view = create_interface(engine_module, "VEngineRenderView014");
+    game_event_manager = create_interface(engine_module, "GAMEEVENTSMANAGER002");
     material_system = create_interface(material_module, "VMaterialSystem080");
     using key_values_system_factory_t = void* (__cdecl*)();
     const auto key_values_factory = reinterpret_cast<key_values_system_factory_t>(
@@ -966,6 +1299,25 @@ void set_side_passes(int side, const pass_settings& player, const pass_settings&
     configure_pair(game_settings[side], side, player, behind_walls, sprite_path);
 }
 
+void set_side_special_passes(int side, const special_passes& passes) {
+    if (side != 0 && side != 1)
+        return;
+    std::scoped_lock lock(settings_mutex);
+    auto& target = game_settings[side];
+    target.special = passes;
+    const auto sanitize = [](pass_settings& pass) {
+        if (pass.material <= disabled || pass.material >= mode_count)
+            pass.material = disabled;
+        for (int i = 0; i < 4; ++i) {
+            pass.color[i] = std::clamp(pass.color[i], 0.f, 1.f);
+            pass.secondary[i] = std::clamp(pass.secondary[i], 0.f, 1.f);
+        }
+    };
+    for (auto* pass : {&target.special.hitboxes, &target.special.on_shot,
+                       &target.special.history, &target.special.ragdolls})
+        sanitize(*pass);
+}
+
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                         const char* sprite_path) {
     if (side != 0 && side != 1)
@@ -986,8 +1338,10 @@ void set_preview_model(const char* model_path, bool active) {
 }
 
 bool initialize() {
-    if (hooks_ready.load(std::memory_order_acquire))
+    if (hooks_ready.load(std::memory_order_acquire)) {
+        register_events();
         return true;
+    }
     const ULONGLONG now = GetTickCount64();
     if (now < next_initialize_attempt.load(std::memory_order_relaxed))
         return false;
@@ -1044,7 +1398,10 @@ bool initialize() {
     }
 
     hooks_ready.store(true, std::memory_order_release);
-    AIRFLOW_DEBUG_LOG("visuals game DME and Panorama StudioRender chams hooks installed");
+    if (register_events())
+        AIRFLOW_DEBUG_LOG("visuals game DME, Panorama chams and weapon-fire events installed");
+    else
+        AIRFLOW_DEBUG_LOG("visuals chams hooks installed; game-event registration is pending");
     return true;
 }
 } // namespace visuals_chams
