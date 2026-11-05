@@ -153,6 +153,8 @@ void c_config_system::setup_values( )
 		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
 		push_item(&side.flags_enabled, category, "flags_enabled", side.flags_enabled);
 		push_esp_color(side.flags_color, category, "flags_color");
+		push_item(&side.weapon_enabled, category, "weapon_enabled", side.weapon_enabled);
+		push_esp_color(side.weapon_color, category, "weapon_color");
 		push_item(&side.player_material, category, "player_material", side.player_material);
 		push_item(&side.behind_walls_material, category, "behind_walls_material", side.behind_walls_material);
 		push_item(&side.player_color, category, "player_color", side.player_color);

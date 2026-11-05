@@ -55,6 +55,8 @@ struct player_side_ui_state {
     esp_items_ui_state esp_items;
     bool flags_enabled = true;
     color_value flags_color;
+    bool weapon_enabled = true;
+    color_value weapon_color;
     color_value main_colors[player_visuals::main_count];
     color_value flag_colors[player_visuals::flag_count];
     color_value weapon_colors[player_visuals::weapon_count];
@@ -154,6 +156,10 @@ void load_shared_player_views(players_ui_state& ui) {
         view.flags_color.a = to_vec4(config.flags_color.primary);
         view.flags_color.b = to_vec4(config.flags_color.secondary);
         view.flags_color.gradient = config.flags_color.gradient;
+        view.weapon_enabled = config.weapon_enabled;
+        view.weapon_color.a = to_vec4(config.weapon_color.primary);
+        view.weapon_color.b = to_vec4(config.weapon_color.secondary);
+        view.weapon_color.gradient = config.weapon_color.gradient;
         load_esp_colors(view.main_colors, config.main_colors);
         load_esp_colors(view.flag_colors, config.flag_colors);
         load_esp_colors(view.weapon_colors, config.weapon_colors);
@@ -198,6 +204,10 @@ void store_shared_player_views(players_ui_state& ui) {
         config.flags_color.primary = to_config_color(view.flags_color.a);
         config.flags_color.secondary = to_config_color(view.flags_color.b);
         config.flags_color.gradient = view.flags_color.gradient;
+        config.weapon_enabled = view.weapon_enabled;
+        config.weapon_color.primary = to_config_color(view.weapon_color.a);
+        config.weapon_color.secondary = to_config_color(view.weapon_color.b);
+        config.weapon_color.gradient = view.weapon_color.gradient;
         store_esp_colors(config.main_colors, view.main_colors);
         store_esp_colors(config.flag_colors, view.flag_colors);
         store_esp_colors(config.weapon_colors, view.weapon_colors);
@@ -273,7 +283,7 @@ void draw_esp_settings(player_side_ui_state& side) {
         "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Order Priority", "Delay"
     };
     static const char* weapon_items[player_visuals::weapon_count] = {
-        "Weapon Text", "Weapon Icon", "Readiness Bar", "C4", "Defuse Kit", "Zeus"
+        "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"
     };
     static const char* aimbot_items[player_visuals::aimbot_count] = { "Hit Chance", "Hitboxes" };
 
@@ -294,9 +304,15 @@ void draw_esp_settings(player_side_ui_state& side) {
     gui.row_multibox("Flag Selection", flags, side.esp_items.flags, side.flag_colors,
         player_visuals::flag_count, "Select flags; each list entry has its own color picker.");
 
-    draw_esp_section_title("WEAPON");
-    for (int i = 0; i < player_visuals::weapon_count; ++i)
-        gui.row_checkbox(weapon_items[i], &side.esp_items.weapon_items[i], &side.weapon_colors[i]);
+    const color_value previous_weapon_color = side.weapon_color;
+    gui.row_checkbox("Weapon", &side.weapon_enabled, &side.weapon_color,
+        "Toggle all weapon ESP. The swatch applies one color to every weapon item; use the list for individual colors.");
+    if (!same_ui_color(previous_weapon_color, side.weapon_color)) {
+        for (auto& weapon_color : side.weapon_colors)
+            weapon_color = side.weapon_color;
+    }
+    gui.row_multibox("Weapon Selection", weapon_items, side.esp_items.weapon_items, side.weapon_colors,
+        player_visuals::weapon_count, "Select weapon items; each list entry has its own color picker.");
 
     draw_esp_section_title("AIMBOT");
     for (int i = 0; i < player_visuals::aimbot_count; ++i)
@@ -437,7 +453,7 @@ void draw_visuals_players() {
     legacy.m_health_bar = enemy.main[player_visuals::main_health_bar];
     legacy.m_ammo_bar = enemy.main[player_visuals::main_ammo_bar];
     legacy.m_skeleton = enemy.main[player_visuals::main_skeleton];
-    legacy.m_weapon = enemy.weapon[player_visuals::weapon_text];
+    legacy.m_weapon = enemy.weapon_enabled && enemy.weapon[player_visuals::weapon_text];
 }
 
 void draw_visuals_world() {

@@ -431,7 +431,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             preview_min, preview_max, scale);
     }
 
-    if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
+    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_readiness_bar);
         const float extra = settings.main[player_visuals::main_ammo_bar] ? 5.f : 0.f;
         const ImVec2 anchor(box_center.x, box.max.y + (7.f + extra) * scale);
@@ -472,7 +472,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     const bool bars = settings.main[player_visuals::main_ammo_bar] ||
-        (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f);
+        (settings.weapon_enabled && settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f);
     float bottom_y = box.max.y + (bars ? 15.f : 7.f) * scale;
     if (settings.main[player_visuals::main_distance]) {
         char buffer[48];
@@ -485,7 +485,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
     }
-    if (settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
+    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_text);
         const ImVec2 anchor(box_center.x, bottom_y);
         const ImVec2 center = anchor + placement(item, anchor);
@@ -494,7 +494,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
     }
-    if (settings.weapon[player_visuals::weapon_icon]) {
+    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_icon]) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_icon);
         const int atlas = visuals_source::atlas_weapon_id(data.weapon_id);
         if (atlas >= 0) {
@@ -511,7 +511,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     const auto equipment = [&](int weapon_item, bool available, const char* label, ImU32 ink) {
-        if (!settings.weapon[weapon_item] || !available)
+        if (!settings.weapon_enabled || !settings.weapon[weapon_item] || !available)
             return;
         const int item = player_visuals::weapon_item_id(weapon_item);
         const ImVec2 anchor(box_center.x, bottom_y);
