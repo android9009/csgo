@@ -18,6 +18,7 @@ static_assert(sizeof(void*) == 4, "Source 1 player visuals require the x86 ABI")
 
 using visuals_source::line3;
 using visuals_source::player_data;
+using visuals_source::world_data;
 using visuals_source::renderable_entity_data;
 using visuals_source::vector3;
 
@@ -185,6 +186,8 @@ struct netvars_t {
     int carried_hostage = -1;
     int hitbox_set = -1;
     int force_bone = -1;
+    int pose_parameters = -1;
+    int move_parent = -1;
     int weapon_id = -1;
     int clip = -1;
     int reserve_ammo = -1;
@@ -192,6 +195,15 @@ struct netvars_t {
     int postpone_fire_ready = -1;
     int reloading = -1;
     int pin_pulled = -1;
+    int owner = -1;
+    int smoke_effect = -1;
+    int smoke_tick = -1;
+    int explode_tick = -1;
+    int fire_count = -1;
+    int fire_burning = -1;
+    int fire_x = -1;
+    int fire_y = -1;
+    int fire_z = -1;
 };
 
 void* client = nullptr;
@@ -206,6 +218,14 @@ std::size_t studio_hdr_offset = 0;
 std::atomic<bool> core_ready = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 std::mutex initialize_mutex;
+
+struct cached_player {
+    player_data data;
+    ULONGLONG last_seen = 0;
+    bool valid = false;
+};
+cached_player player_cache[65];
+ULONGLONG last_capture_time = 0;
 
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
@@ -403,6 +423,12 @@ void resolve_netvars() {
         nv.carried_hostage = table_offset(classes, { "DT_CSPlayer" }, "m_hCarriedHostageProp");
     nv.hitbox_set = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_nHitboxSet");
     nv.force_bone = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_nForceBone");
+    nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter");
+    if (nv.pose_parameters < 0)
+        nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter[0]");
+    nv.move_parent = table_offset(classes, { "DT_BaseEntity" }, "m_hMoveParent");
+    if (nv.move_parent < 0)
+        nv.move_parent = table_offset(classes, { "DT_BaseEntity" }, "moveparent");
     nv.weapon_id = table_offset(classes, { "DT_BaseAttributableItem" }, "m_iItemDefinitionIndex");
     nv.clip = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iClip1");
     nv.reserve_ammo = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iPrimaryReserveAmmoCount");
@@ -410,6 +436,15 @@ void resolve_netvars() {
     nv.postpone_fire_ready = table_offset(classes, { "DT_WeaponCSBase" }, "m_flPostponeFireReadyTime");
     nv.reloading = table_offset(classes, { "DT_WeaponCSBase", "DT_BaseCombatWeapon" }, "m_bInReload");
     nv.pin_pulled = table_offset(classes, { "DT_BaseCSGrenade" }, "m_bPinPulled");
+    nv.owner = table_offset(classes, { "DT_BaseEntity" }, "m_hOwnerEntity");
+    nv.smoke_effect = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_bDidSmokeEffect");
+    nv.smoke_tick = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_nSmokeEffectTickBegin");
+    nv.explode_tick = table_offset(classes, { "DT_BaseCSGrenadeProjectile" }, "m_nExplodeEffectTickBegin");
+    nv.fire_count = table_offset(classes, { "DT_Inferno" }, "m_fireCount");
+    nv.fire_burning = table_offset(classes, { "DT_Inferno" }, "m_bFireIsBurning");
+    nv.fire_x = table_offset(classes, { "DT_Inferno" }, "m_fireXDelta");
+    nv.fire_y = table_offset(classes, { "DT_Inferno" }, "m_fireYDelta");
+    nv.fire_z = table_offset(classes, { "DT_Inferno" }, "m_fireZDelta");
 }
 
 template <typename T>
@@ -450,7 +485,7 @@ int local_index() {
 vector3 view_angles() {
     vector3 result{};
     const auto function = virtual_function<get_view_angles_t>(engine, 18);
-    if (function)
+    if (function && function_in_module(engine_module, reinterpret_cast<const void*>(function)))
         function(engine, result);
     return result;
 }
@@ -466,6 +501,17 @@ bool dormant(void* entity) {
     void* networkable = reinterpret_cast<unsigned char*>(entity) + 8;
     const auto function = virtual_function<dormant_t>(networkable, 9);
     return !function || function(networkable);
+}
+
+client_class_t* entity_class(void* entity) {
+    if (!entity)
+        return nullptr;
+    void* networkable = reinterpret_cast<unsigned char*>(entity) + 8;
+    const auto get_class = virtual_function<get_client_class_t>(networkable, 2);
+    if (!get_class || !function_in_module(client_module, reinterpret_cast<const void*>(get_class)))
+        return nullptr;
+    auto* client_class = get_class(networkable);
+    return readable_range(client_class, sizeof(client_class_t)) ? client_class : nullptr;
 }
 
 bool renderable_entity(void* renderable, renderable_entity_data& output) {
@@ -499,10 +545,11 @@ bool renderable_entity(void* renderable, renderable_entity_data& output) {
         return false;
     output.entity = entity;
     output.class_id = client_class->class_id;
-    output.ragdoll = readable_range(client_class->name, 1) &&
-        (std::strcmp(client_class->name, "CCSRagdoll") == 0 ||
-         std::strcmp(client_class->name, "C_CSRagdoll") == 0 ||
-         std::strcmp(client_class->name, "DT_CSRagdoll") == 0);
+    if (readable_range(client_class->name, 1)) {
+        output.is_player = std::strstr(client_class->name, "CSPlayer") != nullptr;
+        output.viewmodel = std::strstr(client_class->name, "ViewModel") != nullptr;
+        output.ragdoll = std::strstr(client_class->name, "CSRagdoll") != nullptr;
+    }
     return true;
 }
 
@@ -740,7 +787,8 @@ float calculate_hit_chance(void* local_weapon, float distance, bool immunity) {
 
 bool read_player_info(int index, unsigned char (&info)[512]) {
     const auto get_info = virtual_function<get_player_info_t>(engine, 8);
-    return get_info && get_info(engine, index, info);
+    return get_info && function_in_module(engine_module, reinterpret_cast<const void*>(get_info)) &&
+        get_info(engine, index, info);
 }
 
 std::string player_name(int index) {
@@ -766,15 +814,14 @@ bool acquire() {
     entity_list = create_interface(client_module, "VClientEntityList003");
     if (!client || !engine || !entity_list)
         return false;
+    // DME/chams need only the core entity and local-player interfaces. ESP-only
+    // methods are validated at their call sites so a missing projection/name
+    // helper cannot disable chams as a side effect.
     if (!checked_virtual<get_all_classes_t>(client, 8, client_module) ||
         !checked_virtual<entity_at_t>(entity_list, 3, client_module) ||
         !checked_virtual<entity_from_handle_t>(entity_list, 4, client_module) ||
-        !checked_virtual<engine_bool_t>(engine, 11, engine_module) ||
         !checked_virtual<local_player_t>(engine, 12, engine_module) ||
-        !checked_virtual<engine_bool_t>(engine, 26, engine_module) ||
-        !checked_virtual<get_view_angles_t>(engine, 18, engine_module) ||
-        !checked_virtual<get_player_info_t>(engine, 8, engine_module) ||
-        !checked_virtual<world_matrix_t>(engine, 37, engine_module)) {
+        !checked_virtual<engine_bool_t>(engine, 26, engine_module)) {
         return false;
     }
 
@@ -847,26 +894,32 @@ bool is_console_visible() {
     // GetLocalPlayer (12). Used only to avoid capturing console pixels into
     // the foreground preview texture; it never hides the menu.
     static const auto function = virtual_function<engine_bool_t>(engine, 11);
-    return function && function(engine);
+    static const bool validated = function &&
+        function_in_module(engine_module, reinterpret_cast<const void*>(function));
+    return validated && function(engine);
 }
 
-int player_side(int entity_index) {
-    if (entity_index < 1 || entity_index > 64 || !is_in_game())
+int player_side_from_entity(void* player) {
+    if (!player || !is_in_game())
         return -1;
-    const int local = local_index();
-    if (entity_index == local)
+    void* local_player = entity_at(local_index());
+    if (!local_player || player == local_player || dormant(player))
         return -1;
-    void* player = entity_at(entity_index);
-    void* local_player = entity_at(local);
-    if (!player || !local_player || dormant(player))
+    if (value<unsigned char>(player, nv.life_state, 0) != 0 ||
+        value<int>(player, nv.health, 0) <= 0) {
         return -1;
-    if (value<unsigned char>(player, nv.life_state, 0) != 0 || value<int>(player, nv.health, 0) <= 0)
-        return -1;
+    }
     const int team = value<int>(player, nv.team, 0);
     const int local_team = value<int>(local_player, nv.team, 0);
     if ((team != 2 && team != 3) || (local_team != 2 && local_team != 3))
         return -1;
     return team == local_team ? 1 : 0;
+}
+
+int player_side(int entity_index) {
+    if (entity_index < 1 || entity_index > 64)
+        return -1;
+    return player_side_from_entity(entity_at(entity_index));
 }
 
 bool resolve_renderable_entity(void* renderable, renderable_entity_data& output) {
@@ -886,6 +939,25 @@ int entity_team_side(void* entity) {
     if ((team != 2 && team != 3) || (local_team != 2 && local_team != 3))
         return -1;
     return team == local_team ? 1 : 0;
+}
+
+bool is_local_entity(void* entity) {
+    return entity && is_in_game() && entity == entity_at(local_index());
+}
+
+bool local_player_alive() {
+    if (!is_in_game())
+        return false;
+    void* local = entity_at(local_index());
+    return local && value<unsigned char>(local, nv.life_state, 0) == 0 &&
+        value<int>(local, nv.health, 0) > 0;
+}
+
+bool entity_parented_to_local(void* entity) {
+    if (!entity || nv.move_parent < 0 || !local_player_alive())
+        return false;
+    void* parent = entity_from_handle(value<unsigned int>(entity, nv.move_parent, 0xFFFFFFFFu));
+    return parent && is_local_entity(parent);
 }
 
 int local_user_id() {
@@ -967,10 +1039,117 @@ bool entity_exists(int entity_index) {
     return entity_index > 0 && entity_index <= 64 && entity_at(entity_index) != nullptr;
 }
 
+void capture_world(frame_data& output, const vector3& local_origin) {
+    if (!player_visuals::world_settings().enabled)
+        return;
+    output.world.reserve(64);
+    for (int index = 65; index < 2048; ++index) {
+        void* entity = entity_at(index);
+        if (!entity || dormant(entity))
+            continue;
+        const auto* client_class = entity_class(entity);
+        if (!client_class || !readable_range(client_class->name, 1))
+            continue;
+        const char* class_name = client_class->name;
+        const bool smoke_projectile = std::strstr(class_name, "SmokeGrenadeProjectile") != nullptr;
+        const bool inferno = std::strcmp(class_name, "CInferno") == 0 ||
+            std::strcmp(class_name, "C_Inferno") == 0;
+        const bool planted_c4 = std::strstr(class_name, "PlantedC4") != nullptr;
+        const bool projectile = std::strstr(class_name, "Projectile") != nullptr;
+        const int definition = item_definition(entity);
+        if (definition <= 0 && !smoke_projectile && !inferno && !planted_c4 && !projectile)
+            continue;
+
+        const bool smoke_active = smoke_projectile && value<bool>(entity, nv.smoke_effect, false);
+        if (projectile && !smoke_active && nv.explode_tick >= 0 &&
+            value<bool>(entity, nv.explode_tick + 4, false)) {
+            continue;
+        }
+        const bool special = smoke_projectile || inferno || planted_c4 || projectile;
+        const unsigned int owner = value<unsigned int>(entity, nv.owner, 0xFFFFFFFFu);
+        if (!special && owner != 0 && owner != 0xFFFFFFFFu)
+            continue;
+
+        world_data data;
+        data.index = index;
+        data.weapon_id = definition;
+        data.kind = inferno ? visuals_source::world_inferno :
+            (planted_c4 ? visuals_source::world_planted_c4 :
+            (smoke_active ? visuals_source::world_smoke :
+                (projectile || smoke_projectile ? visuals_source::world_projectile
+                    : visuals_source::world_weapon)));
+        data.origin = value<vector3>(entity, nv.origin);
+        data.mins = value<vector3>(entity, nv.mins, { -4.f, -4.f, -4.f });
+        data.maxs = value<vector3>(entity, nv.maxs, { 4.f, 4.f, 4.f });
+        data.distance = vector_length({ data.origin.x - local_origin.x,
+            data.origin.y - local_origin.y, data.origin.z - local_origin.z });
+        data.alpha = 1.f - std::clamp(data.distance / 1500.f, 0.f, 1.f);
+        if (data.alpha <= 0.f)
+            continue;
+        data.name = planted_c4 ? "C4" : (definition > 0 ? weapon_name(definition) : "Grenade");
+        if (data.kind == visuals_source::world_weapon) {
+            data.clip = value<int>(entity, nv.clip, -1);
+            if (const auto* info = weapon_info(definition))
+                data.max_clip = info->max_clip1;
+            if (data.max_clip <= 0)
+                data.max_clip = fallback_max_clip(definition);
+        }
+
+        if (data.kind == visuals_source::world_smoke) {
+            data.range = 160.5f;
+            if (global_vars && nv.smoke_tick >= 0) {
+                const int tick = value<int>(entity, nv.smoke_tick, 0);
+                data.time_remaining = tick * global_vars->interval_per_tick + 17.5f -
+                    global_vars->current_time;
+            }
+        } else if (data.kind == visuals_source::world_inferno) {
+            // Airflow derives the visible inferno radius from active fire cells,
+            // not from a fixed guess. The arrays are bounded to their network
+            // schema limit so a malformed server value cannot cause a walk.
+            const bool fire_arrays_valid = nv.fire_count >= 0 && nv.fire_burning >= 0 &&
+                nv.fire_x >= 0 && nv.fire_y >= 0 && nv.fire_z >= 0;
+            const int count = fire_arrays_valid
+                ? std::clamp(value<int>(entity, nv.fire_count, 0), 0, 63) : 0;
+            float radius = -1.f;
+            vector3 average{};
+            if (fire_arrays_valid) {
+                for (int fire = 0; fire <= count; ++fire) {
+                    if (!value<bool>(entity, nv.fire_burning + fire, false))
+                        continue;
+                    const float x = static_cast<float>(value<int>(entity, nv.fire_x + fire * 4, 0));
+                    const float y = static_cast<float>(value<int>(entity, nv.fire_y + fire * 4, 0));
+                    const float z = static_cast<float>(value<int>(entity, nv.fire_z + fire * 4, 0));
+                    radius = std::max(radius, std::sqrt(x * x + y * y) + 14.4f);
+                    average.x += x;
+                    average.y += y;
+                    average.z += z;
+                }
+            }
+            if (count > 1) {
+                data.origin.x += average.x / count;
+                data.origin.y += average.y / count;
+                data.origin.z += average.z / count;
+            }
+            data.range = std::max(100.f, radius);
+            data.time_remaining = -1.f;
+        }
+        output.world.push_back(std::move(data));
+    }
+}
+
 void capture(frame_data& output) {
     output = {};
-    if (!is_in_game())
+    if (!is_in_game()) {
+        for (auto& cached : player_cache)
+            cached.valid = false;
+        last_capture_time = 0;
         return;
+    }
+    const ULONGLONG now = GetTickCount64();
+    const float delta_time = last_capture_time
+        ? std::clamp(static_cast<float>(now - last_capture_time) / 1000.f, 0.f, 0.25f)
+        : 1.f / 60.f;
+    last_capture_time = now;
     output.in_game = true;
     output.local_index = local_index();
     void* local = entity_at(output.local_index);
@@ -978,7 +1157,8 @@ void capture(frame_data& output) {
         output.in_game = false;
         return;
     }
-    if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37)) {
+    if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37);
+        matrix_fn && function_in_module(engine_module, reinterpret_cast<const void*>(matrix_fn))) {
         const float* matrix = matrix_fn(engine);
         if (matrix) {
             std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
@@ -986,22 +1166,72 @@ void capture(frame_data& output) {
         }
     }
 
+    output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
+        value<int>(local, nv.health, 0) > 0;
     const int local_team = value<int>(local, nv.team, 0);
     const vector3 local_origin = value<vector3>(local, nv.origin);
+    output.local_origin = local_origin;
+    output.view_angles = view_angles();
     void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
+
+    // Keep the last complete snapshot for dormant players, as Airflow does.
+    // No entity pointers are retained in this cache, only value-type ESP data.
+    const auto append_cached = [&](int index, bool is_dormant, bool dead) {
+        if (index < 1 || index > 64)
+            return;
+        auto& cached = player_cache[index];
+        if (!cached.valid)
+            return;
+        const ULONGLONG age = now - cached.last_seen;
+        if ((is_dormant && age > 5000) || dead) {
+            const float target = dead || age > 5000 ? 0.f : 0.45f;
+            const float blend = std::clamp(delta_time * 5.f, 0.f, 1.f);
+            cached.data.alpha += (target - cached.data.alpha) * blend;
+        } else if (is_dormant) {
+            const float blend = std::clamp(delta_time * 5.f, 0.f, 1.f);
+            cached.data.alpha += (0.45f - cached.data.alpha) * blend;
+        }
+        cached.data.dormant = is_dormant;
+        if (dead)
+            cached.data.health = 0;
+        const auto& side = player_visuals::settings(cached.data.side);
+        if (cached.data.alpha > 0.01f &&
+            (side.esp_enabled || side.hitbox_material > 0)) {
+            output.players.push_back(cached.data);
+        }
+        if (cached.data.alpha <= 0.01f && (dead || age > 5000))
+            cached.valid = false;
+    };
+
     output.players.reserve(32);
     for (int index = 1; index <= 64; ++index) {
         if (index == output.local_index)
             continue;
         void* player = entity_at(index);
-        if (!player || dormant(player) || value<unsigned char>(player, nv.life_state, 0) != 0)
+        if (!player) {
+            append_cached(index, false, true);
             continue;
+        }
+        if (dormant(player)) {
+            append_cached(index, true, false);
+            continue;
+        }
+        if (value<unsigned char>(player, nv.life_state, 0) != 0) {
+            append_cached(index, false, true);
+            continue;
+        }
         player_data data;
         data.index = index;
         data.team = value<int>(player, nv.team, 0);
         data.health = value<int>(player, nv.health, 0);
-        if (data.health <= 0 || (data.team != 2 && data.team != 3))
+        if (data.health <= 0) {
+            append_cached(index, false, true);
             continue;
+        }
+        if (data.team != 2 && data.team != 3) {
+            player_cache[index].valid = false;
+            continue;
+        }
         if (local_team != 2 && local_team != 3)
             continue;
         data.side = data.team == local_team ? 1 : 0;
@@ -1012,6 +1242,13 @@ void capture(frame_data& output) {
         data.origin = value<vector3>(player, nv.origin);
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
+        if (nv.pose_parameters >= 0) {
+            data.poses_valid = true;
+            for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
+                data.poses[pose] = value<float>(player,
+                    nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
+            }
+        }
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z }) * 0.0254f;
         data.name = player_name(index);
@@ -1071,6 +1308,14 @@ void capture(frame_data& output) {
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
             side_settings.main[player_visuals::main_skeleton],
             side_settings.aimbot[player_visuals::aimbot_hitboxes] || chams_hitboxes);
+        auto& cached = player_cache[index];
+        data.dormant = false;
+        data.alpha = cached.valid
+            ? cached.data.alpha + (1.f - cached.data.alpha) * std::clamp(delta_time * 5.f, 0.f, 1.f)
+            : 1.f;
+        cached.data = data;
+        cached.last_seen = now;
+        cached.valid = true;
         output.players.push_back(std::move(data));
     }
 
@@ -1089,6 +1334,7 @@ void capture(frame_data& output) {
         for (std::size_t i = 0; i < ordered.size(); ++i)
             ordered[i]->order_priority = static_cast<int>(i + 1);
     }
+    capture_world(output, local_origin);
 }
 
 int atlas_weapon_id(int id) {

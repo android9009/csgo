@@ -40,6 +40,10 @@ struct player_side_ui_state {
     int local_model = 0;
     int local_weapon = 0;
     int local_transparency = 100;
+    int local_chams_model = 0;
+    int viewmodel_chams_model = 0;
+    int weapon_chams_model = 0;
+    int attachments_chams_model = 0;
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
@@ -112,6 +116,10 @@ void load_shared_player_views(players_ui_state& ui) {
     for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
         const auto& config = player_visuals::settings(side_index);
         auto& view = ui.sides[side_index];
+        view.offscreen_arrow = config.offscreen_arrow;
+        view.offscreen_color.a = to_vec4(config.offscreen_color);
+        view.offscreen_color.b = view.offscreen_color.a;
+        view.offscreen_color.gradient = false;
         view.player_model = std::clamp(config.player_material, 0, visuals_chams::mode_count - 1);
         view.behind_walls_model = std::clamp(config.behind_walls_material, 0, visuals_chams::mode_count - 1);
         view.player_color.a = to_vec4(config.player_color);
@@ -153,6 +161,8 @@ void store_shared_player_views(players_ui_state& ui) {
     for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
         auto& config = player_visuals::settings(side_index);
         const auto& view = ui.sides[side_index];
+        config.offscreen_arrow = view.offscreen_arrow;
+        config.offscreen_color = to_config_color(view.offscreen_color.a);
         config.player_material = view.player_model;
         config.behind_walls_material = view.behind_walls_model;
         config.player_color = to_config_color(view.player_color.a);
@@ -189,13 +199,52 @@ void store_shared_player_views(players_ui_state& ui) {
     }
 }
 
+void load_shared_self_view(player_side_ui_state& view) {
+    const auto& config = player_visuals::self_settings();
+    view.local_chams_model = std::clamp(config.local_material, 0, visuals_chams::mode_count - 1);
+    view.viewmodel_chams_model = std::clamp(config.viewmodel_material, 0, visuals_chams::mode_count - 1);
+    view.weapon_chams_model = std::clamp(config.weapon_material, 0, visuals_chams::mode_count - 1);
+    view.attachments_chams_model = std::clamp(config.attachments_material, 0, visuals_chams::mode_count - 1);
+    view.player_color.a = to_vec4(config.local_color);
+    view.player_color.b = to_vec4(config.local_secondary);
+    view.behind_walls_color.a = to_vec4(config.viewmodel_color);
+    view.behind_walls_color.b = to_vec4(config.viewmodel_secondary);
+    view.hitbox_color.a = to_vec4(config.weapon_color);
+    view.hitbox_color.b = to_vec4(config.weapon_secondary);
+    view.on_shot_color.a = to_vec4(config.attachments_color);
+    view.on_shot_color.b = to_vec4(config.attachments_secondary);
+    std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
+    view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
+}
+
+void store_shared_self_view(player_side_ui_state& view) {
+    auto& config = player_visuals::self_settings();
+    config.local_material = view.local_chams_model;
+    config.viewmodel_material = view.viewmodel_chams_model;
+    config.weapon_material = view.weapon_chams_model;
+    config.attachments_material = view.attachments_chams_model;
+    config.local_color = to_config_color(view.player_color.a);
+    config.local_secondary = to_config_color(view.player_color.b);
+    config.viewmodel_color = to_config_color(view.behind_walls_color.a);
+    config.viewmodel_secondary = to_config_color(view.behind_walls_color.b);
+    config.weapon_color = to_config_color(view.hitbox_color.a);
+    config.weapon_secondary = to_config_color(view.hitbox_color.b);
+    config.attachments_color = to_config_color(view.on_shot_color.a);
+    config.attachments_secondary = to_config_color(view.on_shot_color.b);
+    config.custom_sprite = view.custom_sprite;
+}
+
 void draw_custom_sprite_row(player_side_ui_state& side) {
     if (side.player_model != visuals_chams::custom_sprite &&
         side.behind_walls_model != visuals_chams::custom_sprite &&
         side.hitbox_model != visuals_chams::custom_sprite &&
         side.on_shot_model != visuals_chams::custom_sprite &&
         side.history_model != visuals_chams::custom_sprite &&
-        side.ragdolls_model != visuals_chams::custom_sprite) {
+        side.ragdolls_model != visuals_chams::custom_sprite &&
+        side.local_chams_model != visuals_chams::custom_sprite &&
+        side.viewmodel_chams_model != visuals_chams::custom_sprite &&
+        side.weapon_chams_model != visuals_chams::custom_sprite &&
+        side.attachments_chams_model != visuals_chams::custom_sprite) {
         return;
     }
     if (gui.row_popup("Custom Sprite")) {
@@ -334,6 +383,18 @@ void draw_self_side(player_side_ui_state& side) {
         gui.popup_end();
     }
     gui.end_group_box();
+
+    gui.grid_box("LOCAL CHAMS", k_auto_height);
+    gui.row_combo("Player", &side.player_color, &side.local_chams_model,
+        visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Viewmodel / Arms", &side.behind_walls_color, &side.viewmodel_chams_model,
+        visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Weapon", &side.hitbox_color, &side.weapon_chams_model,
+        visuals_chams::mode_names, visuals_chams::mode_count);
+    gui.row_combo("Attachments", &side.on_shot_color, &side.attachments_chams_model,
+        visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_custom_sprite_row(side);
+    gui.end_group_box();
 }
 
 void draw_player_side_tabs(players_ui_state& ui, ImVec2 pos) {
@@ -381,6 +442,7 @@ void draw_player_side_tabs(players_ui_state& ui, ImVec2 pos) {
 void draw_visuals_players() {
     auto& ui = player_ui();
     load_shared_player_views(ui);
+    load_shared_self_view(ui.sides[2]);
     ui.active_side = ImClamp(ui.active_side, 0, 2);
 
     gui.begin_grid(2);
@@ -399,6 +461,7 @@ void draw_visuals_players() {
         draw_esp_settings(ui.sides[ui.active_side]);
     gui.end_grid();
     store_shared_player_views(ui);
+    store_shared_self_view(ui.sides[2]);
 
     // Keep the legacy config fields coherent for older config consumers; the
     // active renderer reads only the independent shared per-side settings.
@@ -416,6 +479,20 @@ void draw_visuals_players() {
 }
 
 void draw_visuals_world() {
+    auto& world = player_visuals::world_settings();
+    static color_value box_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value name_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value icon_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value ammo_color = make_ui_color(0.55f, 0.72f, 1.f);
+    static color_value smoke_color = make_ui_color(0.65f, 0.65f, 0.65f);
+    static color_value molotov_color = make_ui_color(1.f, 0.35f, 0.12f);
+    box_color.a = to_vec4(world.box_color);
+    name_color.a = to_vec4(world.name_color);
+    icon_color.a = to_vec4(world.icon_color);
+    ammo_color.a = to_vec4(world.ammo_color);
+    smoke_color.a = to_vec4(world.smoke_color);
+    molotov_color.a = to_vec4(world.molotov_color);
+
     gui.begin_grid(2);
     gui.grid_col(0);
     gui.grid_box("WORLD", k_auto_height);
@@ -424,12 +501,29 @@ void draw_visuals_world() {
     gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
     gui.end_group_box();
 
+    gui.grid_box("WEAPON ESP", k_auto_height);
+    gui.row_checkbox("Enabled", &world.enabled);
+    gui.row_checkbox("Box", &world.box, &box_color);
+    gui.row_checkbox("Name", &world.name, &name_color);
+    gui.row_checkbox("Icon", &world.icon, &icon_color);
+    gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
+    gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
+    gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
+    gui.end_group_box();
+
     gui.grid_col(1);
     gui.grid_box("THIRDPERSON", k_auto_height);
     gui.row_checkbox("Enabled", &g_cfg->world_esp.m_enable_thirdperson);
     gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
     gui.end_group_box();
     gui.end_grid();
+
+    world.box_color = to_config_color(box_color.a);
+    world.name_color = to_config_color(name_color.a);
+    world.icon_color = to_config_color(icon_color.a);
+    world.ammo_color = to_config_color(ammo_color.a);
+    world.smoke_color = to_config_color(smoke_color.a);
+    world.molotov_color = to_config_color(molotov_color.a);
 }
 } // namespace
 

@@ -100,6 +100,7 @@ void* key_values_load = nullptr;
 void* materials[visuals_chams::mode_count] = {};
 std::atomic<bool> hooks_ready = false;
 std::atomic<bool> preview_active = false;
+std::atomic<bool> self_chams_enabled = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 thread_local int engine_model_draw_depth = 0;
 thread_local bool in_game_chams = false;
@@ -127,6 +128,8 @@ struct preview_settings {
 std::mutex settings_mutex;
 std::mutex hook_initialize_mutex;
 pass_pair game_settings[2];
+visuals_chams::self_passes self_game_settings;
+char self_sprite_path[128] = "models/weapons/customization/paints/custom/money";
 preview_settings preview;
 char applied_sprite_path[128] = {};
 
@@ -540,6 +543,8 @@ using studio_color_t = void(__thiscall*)(void*, const float*);
 using studio_alpha_t = void(__thiscall*)(void*, float);
 using render_color_t = void(__thiscall*)(void*, const float*);
 using render_alpha_t = void(__thiscall*)(void*, float);
+using render_get_color_t = void(__thiscall*)(void*, float*);
+using render_get_alpha_t = float(__thiscall*)(void*);
 
 struct cached_variable {
     void* variable = nullptr;
@@ -565,6 +570,8 @@ studio_color_t studio_set_color = nullptr;
 studio_alpha_t studio_set_alpha = nullptr;
 render_color_t game_set_color = nullptr;
 render_alpha_t game_set_alpha = nullptr;
+render_get_color_t game_get_color = nullptr;
+render_get_alpha_t game_get_alpha = nullptr;
 
 void increment_ref(void* material) {
     const auto function = virtual_function<increment_ref_t>(material, 12);
@@ -664,6 +671,30 @@ void reset_modulation(bool game = false) {
     set_draw_color(white, game);
     set_draw_alpha(1.f, game);
 }
+
+// Airflow saves RenderView modulation around every game chams pass. Restoring
+// white at the end is not equivalent: it bleeds into the next world/model draw.
+struct modulation_scope {
+    bool active = false;
+    float alpha = 1.f;
+    float colors[3] = { 1.f, 1.f, 1.f };
+
+    explicit modulation_scope(bool game) {
+        if (game && game_get_alpha && game_get_color) {
+            alpha = game_get_alpha(render_view);
+            game_get_color(render_view, colors);
+            active = true;
+        }
+    }
+    ~modulation_scope() {
+        if (!active)
+            return;
+        if (game_set_alpha)
+            game_set_alpha(render_view, alpha);
+        if (game_set_color)
+            game_set_color(render_view, colors);
+    }
+};
 
 struct draw_call {
     void* results = nullptr;
@@ -832,7 +863,13 @@ void draw_single_material(const draw_call& call,
         draw_original(call);
         return;
     }
-    auto& material_api = material_apis[pass.material];
+    cached_material* selected_material = &material_apis[pass.material];
+    if (!selected_material->material) {
+        const int fallback = material_apis[flat].material ? flat :
+            (material_apis[textured].material ? textured : normal);
+        selected_material = &material_apis[fallback];
+    }
+    auto& material_api = *selected_material;
     void* material = material_api.material;
     if (!material) {
         force_material(nullptr, call.game);
@@ -857,8 +894,13 @@ void draw_single_material(const draw_call& call,
 
     constexpr float white[3] = { 1.f, 1.f, 1.f };
     const float* modulation = pass.color;
+    float modulation_alpha = pass.color[3];
     switch (pass.material) {
     case glow: {
+        // Airflow's Glow is two passes: flat primary followed by the glow
+        // material using the secondary colour and its own alpha.
+        modulation = pass.secondary;
+        modulation_alpha = pass.secondary[3];
         set_var_vector(material_api.envmap_tint, pass.secondary);
         // Old Airflow's full fill setting: clamp(1.0 - 0.15) -> exponent .75.
         constexpr float fresnel[3] = { 0.f, 1.f, 0.75f };
@@ -895,7 +937,7 @@ void draw_single_material(const draw_call& call,
         set_material_color(material_api, modulation[0], modulation[1], modulation[2]);
 
     set_draw_color(modulation, call.game);
-    set_draw_alpha(std::clamp(pass.color[3], 0.f, 1.f), call.game);
+    set_draw_alpha(std::clamp(modulation_alpha, 0.f, 1.f), call.game);
     force_material(material, call.game);
     draw_original(call);
     force_material(nullptr, call.game);
@@ -968,6 +1010,7 @@ void draw_on_shot_records(void* context) {
     if (!count)
         return;
     in_game_chams = true;
+    modulation_scope modulation(true);
     reset_modulation(true);
     for (std::size_t i = 0; i < count; ++i) {
         auto pass = snapshot.special.on_shot;
@@ -1013,7 +1056,9 @@ bool player_model_name(const char* name, std::size_t maximum) {
         ++length;
     }
     normalized[length] = '\0';
-    return std::strncmp(normalized, "models/player/", 14) == 0 &&
+    // Match Airflow's model filter. Player paths are not required to start at
+    // byte zero on every Source 1 render path (some include a leading prefix).
+    return std::strstr(normalized, "models/player") != nullptr &&
            std::strstr(normalized, ".mdl") != nullptr;
 }
 
@@ -1117,6 +1162,60 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     const char* model_name = info.model ? info.model->name :
         (state.studio_hdr ? state.studio_hdr->name : nullptr);
     const std::size_t model_name_size = info.model ? MAX_PATH : 64;
+
+    if (self_chams_enabled.load(std::memory_order_acquire) &&
+        visuals_source::local_player_alive()) {
+        visuals_chams::self_passes self_snapshot;
+        char sprite_path[128] = {};
+        {
+            std::scoped_lock lock(settings_mutex);
+            self_snapshot = self_game_settings;
+            std::strncpy(sprite_path, self_sprite_path, sizeof(sprite_path) - 1);
+            sprite_path[sizeof(sprite_path) - 1] = '\0';
+        }
+        const auto draw_self = [&](const visuals_chams::pass_settings& pass) {
+            in_game_chams = true;
+            {
+                modulation_scope modulation(true);
+                draw_call call;
+                call.bones = bones;
+                call.game = true;
+                call.context = context;
+                call.state = &state;
+                call.render_info = &info;
+                reset_modulation(true);
+                draw_pass(call, pass, false, sprite_path);
+                force_material(nullptr, true);
+                reset_modulation(true);
+            }
+            in_game_chams = false;
+        };
+
+        visuals_source::renderable_entity_data self_entity;
+        void* self_renderable = state.renderable ? state.renderable : info.renderable;
+        if (visuals_source::resolve_renderable_entity(self_renderable, self_entity)) {
+            if (visuals_source::is_local_entity(self_entity.entity) &&
+                player_model_name(model_name, model_name_size) &&
+                self_snapshot.local_player.material != visuals_chams::disabled) {
+                draw_self(self_snapshot.local_player);
+                return;
+            }
+            if (self_entity.viewmodel) {
+                const bool arms = model_name && std::strstr(model_name, "arms");
+                const auto& pass = arms ? self_snapshot.viewmodel : self_snapshot.weapon;
+                if (pass.material != visuals_chams::disabled) {
+                    draw_self(pass);
+                    return;
+                }
+            }
+            if (self_snapshot.attachments.material != visuals_chams::disabled &&
+                visuals_source::entity_parented_to_local(self_entity.entity)) {
+                draw_self(self_snapshot.attachments);
+                return;
+            }
+        }
+    }
+
     // Most DME calls are not players. Reject those before entity lookup,
     // dormancy and team checks, then query only actual player models.
     if (!player_model_name(model_name, model_name_size)) {
@@ -1124,17 +1223,20 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         return;
     }
 
-    int side = visuals_source::player_side(info.entity_index);
-    bool ragdoll = false;
-    if (side < 0) {
-        visuals_source::renderable_entity_data entity;
-        if (visuals_source::resolve_renderable_entity(info.renderable, entity) && entity.ragdoll) {
-            const int ragdoll_side = visuals_source::entity_team_side(entity.entity);
-            if (ragdoll_side == 0 || ragdoll_side == 1) {
-                side = ragdoll_side;
-                ragdoll = true;
-            }
-        }
+    // Airflow resolves the entity from DrawModelState::renderable first. Some
+    // Panorama/engine paths provide a stale or zero ModelRenderInfo entity
+    // index even though the renderable still identifies the actual player.
+    visuals_source::renderable_entity_data entity;
+    void* renderable = state.renderable ? state.renderable : info.renderable;
+    const bool has_entity = visuals_source::resolve_renderable_entity(renderable, entity);
+    const bool ragdoll = has_entity && entity.ragdoll;
+    int side = -1;
+    if (ragdoll) {
+        side = visuals_source::entity_team_side(entity.entity);
+    } else {
+        side = visuals_source::player_side(info.entity_index);
+        if (side < 0 && has_entity && entity.is_player)
+            side = visuals_source::player_side_from_entity(entity.entity);
     }
     if (side < 0) {
         original_model_execute(self, context, state, info, bones);
@@ -1158,6 +1260,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     }
 
     in_game_chams = true;
+    modulation_scope modulation(true);
     draw_call call;
     call.bones = bones;
     call.game = true;
@@ -1254,6 +1357,8 @@ bool acquire_interfaces() {
     game_force_material = virtual_function<studio_forced_t>(model_render, 1);
     game_set_color = virtual_function<render_color_t>(render_view, 6);
     game_set_alpha = virtual_function<render_alpha_t>(render_view, 4);
+    game_get_color = virtual_function<render_get_color_t>(render_view, 7);
+    game_get_alpha = virtual_function<render_get_alpha_t>(render_view, 5);
 
     const auto studio_target = virtual_function<studio_draw_t>(studio_render, 29);
     const auto model_target = virtual_function<model_execute_t>(model_render, 21);
@@ -1290,28 +1395,36 @@ bool acquire_interfaces() {
 
 bool create_materials() {
     using namespace visuals_chams;
+    // Airflow creates each material independently. A missing optional texture or
+    // the built-in legacy material must not prevent the DME hook from being
+    // installed (which previously made every chams mode silently unavailable).
     for (int mode = textured; mode < mode_count; ++mode) {
         if (mode == legacy || materials[mode])
             continue;
         const auto definition = definition_for(mode);
         if (!definition.name)
-            return false;
+            continue;
         materials[mode] = make_material(definition.name, definition.shader, definition.text);
-        if (!materials[mode])
-            return false;
-        increment_ref(materials[mode]);
+        if (materials[mode])
+            increment_ref(materials[mode]);
     }
     if (!materials[legacy]) {
         const auto find = virtual_function<find_material_t>(material_system, 84);
-        if (!find)
-            return false;
-        materials[legacy] = find(material_system, "dev/glow_armsrace", "Model textures",
-            false, nullptr);
-        if (!materials[legacy])
-            return false;
-        increment_ref(materials[legacy]);
+        if (find) {
+            materials[legacy] = find(material_system, "dev/glow_armsrace", "Model textures",
+                false, nullptr);
+            if (materials[legacy])
+                increment_ref(materials[legacy]);
+        }
     }
-    return true;
+    // Flat is the base pass for Airflow's glow materials; any other successfully
+    // created material is also enough to install the hook and retry/fallback
+    // individual modes without disabling the entire renderer.
+    for (int mode = textured; mode < mode_count; ++mode) {
+        if (materials[mode])
+            return true;
+    }
+    return false;
 }
 } // namespace
 
@@ -1366,6 +1479,31 @@ void set_side_special_passes(int side, const special_passes& passes) {
         sanitize(*pass);
 }
 
+void set_self_passes(const self_passes& passes, const char* sprite_path) {
+    std::scoped_lock lock(settings_mutex);
+    self_game_settings = passes;
+    const auto sanitize = [](pass_settings& pass) {
+        if (pass.material <= disabled || pass.material >= mode_count)
+            pass.material = disabled;
+        for (int i = 0; i < 4; ++i) {
+            pass.color[i] = std::clamp(pass.color[i], 0.f, 1.f);
+            pass.secondary[i] = std::clamp(pass.secondary[i], 0.f, 1.f);
+        }
+    };
+    sanitize(self_game_settings.local_player);
+    sanitize(self_game_settings.viewmodel);
+    sanitize(self_game_settings.weapon);
+    sanitize(self_game_settings.attachments);
+    self_chams_enabled.store(self_game_settings.local_player.material != disabled ||
+        self_game_settings.viewmodel.material != disabled ||
+        self_game_settings.weapon.material != disabled ||
+        self_game_settings.attachments.material != disabled, std::memory_order_release);
+    if (sprite_path && sprite_path[0]) {
+        std::strncpy(self_sprite_path, sprite_path, sizeof(self_sprite_path) - 1);
+        self_sprite_path[sizeof(self_sprite_path) - 1] = '\0';
+    }
+}
+
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                         const char* sprite_path) {
     if (side != 0 && side != 1)
@@ -1402,7 +1540,10 @@ bool initialize() {
          !key_values_init || !key_values_load) && !acquire_interfaces()) {
         return false;
     }
-    if (!visuals_source::initialize() || !create_materials())
+    // Entity data is resolved lazily by the hook. Do not make material/DME
+    // initialization depend on the ESP backend being ready on this exact frame.
+    visuals_source::initialize();
+    if (!create_materials())
         return false;
     cache_material_apis();
 

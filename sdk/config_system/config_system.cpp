@@ -151,6 +151,9 @@ void c_config_system::setup_values( )
 		auto& side = player_visuals::settings(side_index);
 		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
 		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
+		push_item(&side.offscreen_arrow, category, "offscreen_arrow", side.offscreen_arrow);
+		push_item(&side.offscreen_color, category, "offscreen_color", side.offscreen_color);
+		push_item(&side.offscreen_outline, category, "offscreen_outline", side.offscreen_outline);
 		push_item(&side.player_material, category, "player_material", side.player_material);
 		push_item(&side.behind_walls_material, category, "behind_walls_material", side.behind_walls_material);
 		push_item(&side.player_color, category, "player_color", side.player_color);
@@ -198,6 +201,34 @@ void c_config_system::setup_values( )
 			push_item(&side.slots[i], category, std::format("slot_{}", i), side.slots[i]);
 		}
 	}
+	auto& self = player_visuals::self_settings();
+	push_item(&self.local_material, "self_visuals", "local_material", self.local_material);
+	push_item(&self.viewmodel_material, "self_visuals", "viewmodel_material", self.viewmodel_material);
+	push_item(&self.weapon_material, "self_visuals", "weapon_material", self.weapon_material);
+	push_item(&self.attachments_material, "self_visuals", "attachments_material", self.attachments_material);
+	push_item(&self.local_color, "self_visuals", "local_color", self.local_color);
+	push_item(&self.local_secondary, "self_visuals", "local_secondary", self.local_secondary);
+	push_item(&self.viewmodel_color, "self_visuals", "viewmodel_color", self.viewmodel_color);
+	push_item(&self.viewmodel_secondary, "self_visuals", "viewmodel_secondary", self.viewmodel_secondary);
+	push_item(&self.weapon_color, "self_visuals", "weapon_color", self.weapon_color);
+	push_item(&self.weapon_secondary, "self_visuals", "weapon_secondary", self.weapon_secondary);
+	push_item(&self.attachments_color, "self_visuals", "attachments_color", self.attachments_color);
+	push_item(&self.attachments_secondary, "self_visuals", "attachments_secondary", self.attachments_secondary);
+	push_item(&self.custom_sprite, "self_visuals", "custom_sprite", self.custom_sprite);
+	auto& world = player_visuals::world_settings();
+	push_item(&world.enabled, "world_esp", "enabled", world.enabled);
+	push_item(&world.box, "world_esp", "box", world.box);
+	push_item(&world.name, "world_esp", "name", world.name);
+	push_item(&world.icon, "world_esp", "icon", world.icon);
+	push_item(&world.ammo_bar, "world_esp", "ammo_bar", world.ammo_bar);
+	push_item(&world.smoke_range, "world_esp", "smoke_range", world.smoke_range);
+	push_item(&world.molotov_range, "world_esp", "molotov_range", world.molotov_range);
+	push_item(&world.box_color, "world_esp", "box_color", world.box_color);
+	push_item(&world.name_color, "world_esp", "name_color", world.name_color);
+	push_item(&world.icon_color, "world_esp", "icon_color", world.icon_color);
+	push_item(&world.ammo_color, "world_esp", "ammo_color", world.ammo_color);
+	push_item(&world.smoke_color, "world_esp", "smoke_color", world.smoke_color);
+	push_item(&world.molotov_color, "world_esp", "molotov_color", world.molotov_color);
 }
 
 void c_config_system::push_item( bool* pointer, std::string category, std::string name, bool def_value )

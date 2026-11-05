@@ -85,6 +85,9 @@ inline void set_esp_color(esp_color& target, const c_color& value) {
 
 struct side_settings {
     bool esp_enabled = false;
+    bool offscreen_arrow = false;
+    c_color offscreen_color{ 0.92f, 0.94f, 1.f, 1.f };
+    c_color offscreen_outline{ 0.f, 0.f, 0.f, 1.f };
     bool main[main_count] = {};
     bool flags[flag_count] = {};
     bool weapon[weapon_count] = {};
@@ -125,6 +128,48 @@ struct side_settings {
 
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
 };
+
+struct self_chams_settings {
+    int local_material = 0;
+    int viewmodel_material = 0;
+    int weapon_material = 0;
+    int attachments_material = 0;
+    c_color local_color{ 0.60f, 0.65f, 1.f, 1.f };
+    c_color local_secondary = local_color;
+    c_color viewmodel_color{ 0.60f, 0.65f, 1.f, 1.f };
+    c_color viewmodel_secondary = viewmodel_color;
+    c_color weapon_color{ 0.60f, 0.65f, 1.f, 1.f };
+    c_color weapon_secondary = weapon_color;
+    c_color attachments_color{ 0.60f, 0.65f, 1.f, 1.f };
+    c_color attachments_secondary = attachments_color;
+    std::string custom_sprite = "models/weapons/customization/paints/custom/money";
+};
+
+inline self_chams_settings& self_settings() {
+    static self_chams_settings value;
+    return value;
+}
+
+struct world_esp_settings {
+    bool enabled = false;
+    bool box = true;
+    bool name = true;
+    bool icon = true;
+    bool ammo_bar = true;
+    bool smoke_range = true;
+    bool molotov_range = true;
+    c_color box_color{ 0.92f, 0.94f, 1.f, 1.f };
+    c_color name_color{ 0.92f, 0.94f, 1.f, 1.f };
+    c_color icon_color{ 0.92f, 0.94f, 1.f, 1.f };
+    c_color ammo_color{ 0.55f, 0.72f, 1.f, 1.f };
+    c_color smoke_color{ 0.65f, 0.65f, 0.65f, 1.f };
+    c_color molotov_color{ 1.f, 0.35f, 0.12f, 1.f };
+};
+
+inline world_esp_settings& world_settings() {
+    static world_esp_settings value;
+    return value;
+}
 
 inline std::array<side_settings, side_count> make_default_settings() {
     std::array<side_settings, side_count> result{};

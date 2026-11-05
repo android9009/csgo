@@ -20,6 +20,7 @@ namespace {
 using player_visuals::side_settings;
 using visuals_source::line3;
 using visuals_source::player_data;
+using visuals_source::world_data;
 using visuals_source::vector3;
 
 struct rect_f {
@@ -53,9 +54,20 @@ active_drag_t active_drag;
 rect_f current_preview_box;
 std::atomic<int> active_drag_item = -1;
 
+// All elements of one Airflow ESP object share its animated alpha, including
+// shadows, bars, flags and hitboxes. The scope keeps preview rendering at 1.0.
+thread_local float esp_render_alpha = 1.f;
+struct alpha_scope {
+    float previous;
+    explicit alpha_scope(float alpha) : previous(esp_render_alpha) {
+        esp_render_alpha = std::clamp(alpha, 0.f, 1.f);
+    }
+    ~alpha_scope() { esp_render_alpha = previous; }
+};
+
 ImU32 color(float r, float g, float b, float a = 1.f) {
     return ImGui::GetColorU32(ImVec4(std::clamp(r, 0.f, 1.f), std::clamp(g, 0.f, 1.f),
-        std::clamp(b, 0.f, 1.f), std::clamp(a, 0.f, 1.f)));
+        std::clamp(b, 0.f, 1.f), std::clamp(a * esp_render_alpha, 0.f, 1.f)));
 }
 
 ImU32 color(const c_color& value, float alpha = 1.f) {
@@ -338,7 +350,8 @@ void chams_hitbox_preview(ImDrawList* draw, const side_settings& settings,
 void render_player(ImDrawList* draw, const side_settings& settings, const player_data& data,
                    const rect_f& box, const std::vector<line2>& skeleton,
                    const std::vector<line2>& hitboxes, float scale, int preview_side,
-                   const ImVec2& preview_min, const ImVec2& preview_max) {
+                   const ImVec2& preview_min, const ImVec2& preview_max, float alpha = 1.f) {
+    alpha_scope alpha_state(alpha);
     const ImVec2 box_center((box.min.x + box.max.x) * 0.5f, (box.min.y + box.max.y) * 0.5f);
     const float box_width = box.max.x - box.min.x;
     const float box_height = box.max.y - box.min.y;
@@ -413,8 +426,24 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const rect_f bar{ ImVec2(box.min.x - 7.f * scale, box.min.y) + offset,
             ImVec2(box.min.x - 3.f * scale, box.max.y) + offset };
         const float health = std::clamp(data.health / 100.f, 0.f, 1.f);
-        const rect_f handle = draw_bar(draw, bar, health,
-            color(settings.main_colors[player_visuals::main_health_bar]), true);
+        // Main Airflow lerps the configured health colour toward red as HP
+        // decreases, and prints the value whenever the bar is not full.
+        const auto& configured = settings.main_colors[player_visuals::main_health_bar].primary;
+        const float damage = 1.f - health;
+        const c_color health_color{
+            configured.r + (1.f - configured.r) * damage,
+            configured.g + (0.13f - configured.g) * damage,
+            configured.b + (0.13f - configured.b) * damage,
+            configured.a
+        };
+        const rect_f handle = draw_bar(draw, bar, health, color(health_color), true);
+        if (data.health > 0 && data.health < 100) {
+            char value[16];
+            std::snprintf(value, sizeof(value), "%d", data.health);
+            const float value_y = bar.max.y - (bar.max.y - bar.min.y) * health;
+            draw_text(draw, ImVec2((bar.min.x + bar.max.x) * 0.5f,
+                value_y - 5.f * scale), value, color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
+        }
         maybe_drag(draw, preview_side, player_visuals::main_health_bar, handle,
             preview_min, preview_max, scale);
     }
@@ -427,6 +456,12 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const float ammo = std::clamp(static_cast<float>(data.clip) / data.max_clip, 0.f, 1.f);
         const rect_f handle = draw_bar(draw, bar, ammo,
             color(settings.main_colors[player_visuals::main_ammo_bar]), false);
+        if (data.clip < data.max_clip) {
+            char value[16];
+            std::snprintf(value, sizeof(value), "%d", data.clip);
+            draw_text(draw, ImVec2(bar.min.x + (bar.max.x - bar.min.x) * ammo,
+                bar.min.y - 5.f * scale), value, color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
+        }
         maybe_drag(draw, preview_side, player_visuals::main_ammo_bar, handle,
             preview_min, preview_max, scale);
     }
@@ -535,6 +570,38 @@ bool world_to_screen(const float matrix[4][4], const vector3& point, const ImVec
 
 bool screen_box(const visuals_source::frame_data& frame, const player_data& player,
                 const ImVec2& display, rect_f& box) {
+    // This is Airflow's pose-based player box, rather than a fixed 72-unit
+    // collision rectangle. It follows crouching and body pitch and avoids the
+    // large empty margins produced by projecting all eight collision corners.
+    if (player.poses_valid) {
+        const vector3 center{
+            player.origin.x + (player.mins.x + player.maxs.x) * 0.5f,
+            player.origin.y + (player.mins.y + player.maxs.y) * 0.5f,
+            player.origin.z + (player.mins.z + player.maxs.z) * 0.5f
+        };
+        const float stand_pose = player.poses[1];
+        const float body_pitch = player.poses[12];
+        const vector3 top{ center.x, center.y,
+            player.origin.z + stand_pose * 18.f + 58.f - body_pitch * 6.f };
+        const vector3 base{ center.x, center.y, center.z - player.maxs.z * 0.6f };
+        ImVec2 screen_top, screen_base;
+        if (world_to_screen(frame.view_matrix, top, display, screen_top) &&
+            world_to_screen(frame.view_matrix, base, display, screen_base)) {
+            const float bottom = screen_top.y + std::abs(screen_top.y - screen_base.y);
+            const float height = bottom - screen_top.y;
+            if (height > 1.f && std::isfinite(height)) {
+                const float width = height * 0.5f;
+                const float center_x = (screen_top.x + screen_base.x) * 0.5f;
+                box.min = { center_x - width * 0.5f, screen_top.y };
+                box.max = { center_x + width * 0.5f, bottom };
+                return box.max.x >= 0.f && box.min.x <= display.x &&
+                    box.max.y >= 0.f && box.min.y <= display.y;
+            }
+        }
+    }
+
+    // Netvar/pose data is optional on a few Source 1 builds. Keep the old
+    // collision-box path as a fallback, but tolerate individual clipped points.
     bool initialized = false;
     for (int corner = 0; corner < 8; ++corner) {
         const vector3 point{
@@ -544,7 +611,7 @@ bool screen_box(const visuals_source::frame_data& frame, const player_data& play
         };
         ImVec2 screen;
         if (!world_to_screen(frame.view_matrix, point, display, screen))
-            return false;
+            continue;
         if (!initialized) {
             box.min = box.max = screen;
             initialized = true;
@@ -557,6 +624,158 @@ bool screen_box(const visuals_source::frame_data& frame, const player_data& play
     }
     return initialized && box.max.x >= 0.f && box.min.x <= display.x &&
         box.max.y >= 0.f && box.min.y <= display.y;
+}
+
+void render_offscreen_arrow(ImDrawList* draw, const side_settings& settings,
+                            const player_data& player, const visuals_source::frame_data& frame,
+                            const ImVec2& display) {
+    if (!settings.offscreen_arrow || player.alpha <= 0.5f || !frame.local_alive)
+        return;
+    const vector3 delta{ player.origin.x - frame.local_origin.x,
+        player.origin.y - frame.local_origin.y, player.origin.z - frame.local_origin.z };
+    if (delta.x * delta.x + delta.y * delta.y < 1.f)
+        return;
+    constexpr float pi = 3.14159265358979323846f;
+    const float target_yaw = std::atan2(delta.y, delta.x) * 180.f / pi;
+    const float rotation = (frame.view_angles.y - target_yaw - 90.f) * pi / 180.f;
+    const float arrow_size = 13.f;
+    const float arrow_distance = std::min(display.x, display.y) * 0.36f;
+    const ImVec2 center(display.x * 0.5f + std::cos(rotation) * arrow_distance,
+        display.y * 0.5f + std::sin(rotation) * arrow_distance);
+    const ImVec2 direction(std::cos(rotation), std::sin(rotation));
+    const ImVec2 perpendicular(-direction.y, direction.x);
+    const ImVec2 tip = center + direction * arrow_size;
+    const ImVec2 base = center - direction * (arrow_size * 0.75f);
+    const ImVec2 left = base + perpendicular * (arrow_size * 0.72f);
+    const ImVec2 right = base - perpendicular * (arrow_size * 0.72f);
+    alpha_scope alpha_state(player.alpha);
+    draw->AddTriangleFilled(tip, left, right, color(settings.offscreen_color));
+    draw->AddTriangle(tip, left, right, color(settings.offscreen_outline), 1.5f);
+}
+
+bool world_box(const visuals_source::frame_data& frame, const world_data& entity,
+               const ImVec2& display, rect_f& box) {
+    bool initialized = false;
+    for (int corner = 0; corner < 8; ++corner) {
+        const vector3 point{
+            entity.origin.x + ((corner & 1) ? entity.maxs.x : entity.mins.x),
+            entity.origin.y + ((corner & 2) ? entity.maxs.y : entity.mins.y),
+            entity.origin.z + ((corner & 4) ? entity.maxs.z : entity.mins.z)
+        };
+        ImVec2 screen;
+        if (!world_to_screen(frame.view_matrix, point, display, screen))
+            continue;
+        if (!initialized) {
+            box.min = box.max = screen;
+            initialized = true;
+        } else {
+            box.min.x = std::min(box.min.x, screen.x);
+            box.min.y = std::min(box.min.y, screen.y);
+            box.max.x = std::max(box.max.x, screen.x);
+            box.max.y = std::max(box.max.y, screen.y);
+        }
+    }
+    return initialized && box.max.x - box.min.x > 1.f && box.max.y - box.min.y > 1.f &&
+        box.max.x >= 0.f && box.min.x <= display.x && box.max.y >= 0.f && box.min.y <= display.y;
+}
+
+void render_world_range(ImDrawList* draw, const world_data& entity,
+                        const visuals_source::frame_data& frame, const ImVec2& display,
+                        const c_color& range_color, float duration) {
+    if (entity.range <= 0.f)
+        return;
+    alpha_scope alpha_state(entity.alpha);
+    constexpr float pi = 3.14159265358979323846f;
+    ImVec2 points[61];
+    int point_count = 0;
+    for (int i = 0; i <= 60; ++i) {
+        const float angle = static_cast<float>(i) * (2.f * pi / 60.f);
+        const vector3 point{ entity.origin.x + std::sin(angle) * entity.range,
+            entity.origin.y + std::cos(angle) * entity.range, entity.origin.z };
+        if (world_to_screen(frame.view_matrix, point, display, points[point_count]))
+            ++point_count;
+    }
+    if (point_count > 2)
+        draw->AddPolyline(points, point_count, color(range_color, 0.85f), false, 2.f);
+
+    ImVec2 origin;
+    if (!world_to_screen(frame.view_matrix, entity.origin, display, origin))
+        return;
+    if (entity.time_remaining >= 0.f && duration > 0.f) {
+        constexpr float timer_width = 60.f;
+        const float fraction = std::clamp(entity.time_remaining / duration, 0.f, 1.f);
+        const float ease = std::sin(static_cast<float>(ImGui::GetTime()) * 2.f * pi) * 5.f;
+        const rect_f outline{ ImVec2(origin.x - timer_width * 0.5f - 1.f, origin.y - 3.f - ease),
+            ImVec2(origin.x + timer_width * 0.5f + 1.f, origin.y + 1.f - ease) };
+        draw->AddRectFilled(outline.min, outline.max, color(0.f, 0.f, 0.f, 0.6f));
+        draw->AddRectFilled(ImVec2(origin.x - timer_width * 0.5f, origin.y - 2.f - ease),
+            ImVec2(origin.x - timer_width * 0.5f + timer_width * fraction, origin.y - 0.f - ease),
+            color(range_color));
+        char timer[24];
+        std::snprintf(timer, sizeof(timer), "%.1f", std::max(0.f, entity.time_remaining));
+        draw_text(draw, ImVec2(origin.x, origin.y - 18.f - ease), timer,
+            color(1.f, 1.f, 1.f, 0.9f), 0.85f);
+    }
+}
+
+void render_world(ImDrawList* draw, const visuals_source::frame_data& frame,
+                  const ImVec2& display) {
+    const auto& settings = player_visuals::world_settings();
+    if (!settings.enabled)
+        return;
+    for (const auto& entity : frame.world) {
+        if (entity.kind == visuals_source::world_smoke) {
+            if (settings.smoke_range)
+                render_world_range(draw, entity, frame, display, settings.smoke_color, 18.f);
+            continue;
+        }
+        if (entity.kind == visuals_source::world_inferno) {
+            if (settings.molotov_range)
+                render_world_range(draw, entity, frame, display, settings.molotov_color, 7.03125f);
+            continue;
+        }
+
+        rect_f box;
+        if (!world_box(frame, entity, display, box))
+            continue;
+        alpha_scope alpha_state(entity.alpha);
+        if (settings.box) {
+            draw->AddRect(box.min - ImVec2(1.f, 1.f), box.max + ImVec2(1.f, 1.f),
+                color(0.f, 0.f, 0.f, 0.8f));
+            draw->AddRect(box.min + ImVec2(1.f, 1.f), box.max - ImVec2(1.f, 1.f),
+                color(0.f, 0.f, 0.f, 0.8f));
+            draw->AddRect(box.min, box.max, color(settings.box_color));
+        }
+
+        float bottom = box.max.y + 4.f;
+        if (settings.ammo_bar && entity.clip >= 0 && entity.max_clip > 0) {
+            const rect_f bar{ ImVec2(box.min.x, bottom), ImVec2(box.max.x, bottom + 2.f) };
+            const float fraction = std::clamp(static_cast<float>(entity.clip) / entity.max_clip,
+                0.f, 1.f);
+            draw_bar(draw, bar, fraction, color(settings.ammo_color), false);
+            if (entity.clip < entity.max_clip) {
+                char ammo[16];
+                std::snprintf(ammo, sizeof(ammo), "%d", entity.clip);
+                draw_text(draw, ImVec2(bar.min.x + (bar.max.x - bar.min.x) * fraction,
+                    bar.min.y - 5.f), ammo, color(1.f, 1.f, 1.f, 0.9f), 0.8f);
+            }
+            bottom += 8.f;
+        }
+        if (settings.name && !entity.name.empty()) {
+            draw_text(draw, ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 4.f),
+                entity.name, color(settings.name_color), 0.9f);
+            bottom += 13.f;
+        }
+        if (settings.icon) {
+            const int atlas = visuals_source::atlas_weapon_id(entity.weapon_id);
+            if (atlas >= 0) {
+                const ImVec2 size(48.f, 18.f);
+                weapon_icons::draw(draw, atlas,
+                    ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 7.f), size,
+                    color(settings.icon_color));
+            }
+        }
+    }
 }
 
 std::vector<line2> project_lines(const visuals_source::frame_data& frame,
@@ -576,7 +795,8 @@ std::vector<line2> project_lines(const visuals_source::frame_data& frame,
 void render_chams_hitboxes(ImDrawList* draw, const side_settings& settings,
                            const player_data& player,
                            const visuals_source::frame_data& frame, const ImVec2& display,
-                           const std::vector<line2>& lines) {
+                           const std::vector<line2>& lines, float alpha = 1.f) {
+    alpha_scope alpha_state(alpha);
     if (settings.hitbox_material <= 0)
         return;
     const ImU32 primary = color(settings.hitbox_color);
@@ -713,6 +933,17 @@ void render() {
             settings.ragdoll_secondary);
         visuals_chams::set_side_special_passes(side, special);
     }
+    const auto& self = player_visuals::self_settings();
+    visuals_chams::self_passes self_passes;
+    self_passes.local_player = chams_pass(self.local_material, self.local_color,
+        self.local_secondary);
+    self_passes.viewmodel = chams_pass(self.viewmodel_material, self.viewmodel_color,
+        self.viewmodel_secondary);
+    self_passes.weapon = chams_pass(self.weapon_material, self.weapon_color,
+        self.weapon_secondary);
+    self_passes.attachments = chams_pass(self.attachments_material, self.attachments_color,
+        self.attachments_secondary);
+    visuals_chams::set_self_passes(self_passes, self.custom_sprite.c_str());
 
     if (!visuals_source::ready())
         return;
@@ -724,19 +955,24 @@ void render() {
     if (display.x < 1.f || display.y < 1.f)
         return;
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
+    render_world(draw, frame, display);
     for (const auto& player : frame.players) {
         const auto& settings = player_visuals::settings(player.side);
         if (!settings.esp_enabled && settings.hitbox_material <= 0)
             continue;
         rect_f box;
-        if (!screen_box(frame, player, display, box))
+        if (!screen_box(frame, player, display, box)) {
+            if (settings.esp_enabled)
+                render_offscreen_arrow(draw, settings, player, frame, display);
             continue;
+        }
         const auto hitboxes = project_lines(frame, player.hitboxes, display);
-        render_chams_hitboxes(draw, settings, player, frame, display, hitboxes);
-        if (!settings.esp_enabled)
+        render_chams_hitboxes(draw, settings, player, frame, display, hitboxes, player.alpha);
+        if (!settings.esp_enabled || player.alpha <= 0.01f)
             continue;
         const auto skeleton = project_lines(frame, player.skeleton, display);
-        render_player(draw, settings, player, box, skeleton, hitboxes, 1.f, -1, {}, {});
+        render_player(draw, settings, player, box, skeleton, hitboxes, 1.f, -1, {}, {},
+            player.alpha);
     }
 }
 
