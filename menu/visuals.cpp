@@ -45,13 +45,6 @@ struct player_side_ui_state {
     int viewmodel_chams_model = 0;
     int weapon_chams_model = 0;
     int attachments_chams_model = 0;
-    // Persistent storage is required by menu_binds::multibox_item(): it keeps
-    // the pointer after the row returns and reads it on subsequent frames.
-    bool local_chams_selection[visuals_chams::mode_count] = {};
-    bool local_fake_chams_selection[visuals_chams::mode_count] = {};
-    bool viewmodel_chams_selection[visuals_chams::mode_count] = {};
-    bool weapon_chams_selection[visuals_chams::mode_count] = {};
-    bool attachments_chams_selection[visuals_chams::mode_count] = {};
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
@@ -220,15 +213,6 @@ void load_shared_self_view(player_side_ui_state& view) {
     view.viewmodel_chams_model = effective_material(config.viewmodel_enabled, config.viewmodel_material);
     view.weapon_chams_model = effective_material(config.weapon_enabled, config.weapon_material);
     view.attachments_chams_model = effective_material(config.attachments_enabled, config.attachments_material);
-    const auto load_selection = [](bool* selection, int material) {
-        for (int i = 0; i < visuals_chams::mode_count; ++i)
-            selection[i] = i == material;
-    };
-    load_selection(view.local_chams_selection, view.local_chams_model);
-    load_selection(view.local_fake_chams_selection, view.local_fake_chams_model);
-    load_selection(view.viewmodel_chams_selection, view.viewmodel_chams_model);
-    load_selection(view.weapon_chams_selection, view.weapon_chams_model);
-    load_selection(view.attachments_chams_selection, view.attachments_chams_model);
     view.player_color.a = to_vec4(config.local_color);
     view.player_color.b = to_vec4(config.local_secondary);
     view.local_fake_color.a = to_vec4(config.local_fake_color);
@@ -432,57 +416,6 @@ const char* const* self_chams_mode_names() {
     return names;
 }
 
-bool same_self_chams_color(const color_value& lhs, const color_value& rhs) {
-    const auto same_vec = [](const ImVec4& a, const ImVec4& b) {
-        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-    };
-    return same_vec(lhs.a, rhs.a) && same_vec(lhs.b, rhs.b) && lhs.gradient == rhs.gradient;
-}
-
-void draw_self_chams_multibox(const char* label, int* material, bool* selected,
-                              color_value* color, const char* description) {
-    // The renderer takes one material per model. Use the existing Darkside
-    // multibox as a radio-style selector: a newly selected material replaces
-    // the old one, and no selection / Off maps to Disabled.
-    const int current = std::clamp(*material, 0, visuals_chams::mode_count - 1);
-    bool previous[visuals_chams::mode_count] = {};
-    color_value colors[visuals_chams::mode_count];
-    for (int i = 0; i < visuals_chams::mode_count; ++i) {
-        previous[i] = selected[i];
-        colors[i] = *color;
-    }
-
-    gui.row_multibox(label, self_chams_mode_names(), selected, colors,
-        visuals_chams::mode_count, description);
-
-    int next = current;
-    bool picked_material = false;
-    for (int i = 1; i < visuals_chams::mode_count; ++i) {
-        if (selected[i] && !previous[i]) {
-            next = i; // If a bind produced several changes, the last one wins.
-            picked_material = true;
-        }
-    }
-    if (!picked_material) {
-        if (selected[visuals_chams::disabled] && !previous[visuals_chams::disabled])
-            next = visuals_chams::disabled;
-        else if (current == visuals_chams::disabled || !selected[current])
-            next = visuals_chams::disabled;
-    }
-    for (int i = 0; i < visuals_chams::mode_count; ++i)
-        selected[i] = i == next;
-    *material = next;
-
-    // Every entry starts with the category color. If any swatch was edited,
-    // retain that edit as the color of this Self chams category.
-    for (int i = 0; i < visuals_chams::mode_count; ++i) {
-        if (!same_self_chams_color(colors[i], *color)) {
-            *color = colors[i];
-            break;
-        }
-    }
-}
-
 void draw_self_side(player_side_ui_state& side) {
     static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
     static const char* local_weapons[] = { "Default", "Current Weapon" };
@@ -503,16 +436,17 @@ void draw_self_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("LOCAL CHAMS", k_auto_height);
-    draw_self_chams_multibox("Local Player", &side.local_chams_model, side.local_chams_selection,
-        &side.player_color, "Choose a chams material for the local player; Off disables it.");
-    draw_self_chams_multibox("Local Player Fake", &side.local_fake_chams_model, side.local_fake_chams_selection,
-        &side.local_fake_color, "Choose a material; Off disables this placeholder. No fake model is rendered yet.");
-    draw_self_chams_multibox("Viewmodel", &side.viewmodel_chams_model, side.viewmodel_chams_selection,
-        &side.behind_walls_color, "Choose a chams material for the viewmodel arms; Off disables it.");
-    draw_self_chams_multibox("Weapon", &side.weapon_chams_model, side.weapon_chams_selection,
-        &side.hitbox_color, "Choose a chams material for the viewmodel weapon; Off disables it.");
-    draw_self_chams_multibox("Attachments", &side.attachments_chams_model, side.attachments_chams_selection,
-        &side.on_shot_color, "Choose a chams material for local attachments; Off disables it.");
+    gui.row_combo("Local Player", &side.player_color, &side.local_chams_model,
+        self_chams_mode_names(), visuals_chams::mode_count);
+    // Fake remains a UI/config placeholder; no fake model record is rendered.
+    gui.row_combo("Local Player Fake", &side.local_fake_color, &side.local_fake_chams_model,
+        self_chams_mode_names(), visuals_chams::mode_count);
+    gui.row_combo("Viewmodel", &side.behind_walls_color, &side.viewmodel_chams_model,
+        self_chams_mode_names(), visuals_chams::mode_count);
+    gui.row_combo("Weapon", &side.hitbox_color, &side.weapon_chams_model,
+        self_chams_mode_names(), visuals_chams::mode_count);
+    gui.row_combo("Attachments", &side.on_shot_color, &side.attachments_chams_model,
+        self_chams_mode_names(), visuals_chams::mode_count);
     draw_custom_sprite_row(side);
     gui.end_group_box();
 }
