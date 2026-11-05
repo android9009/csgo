@@ -130,8 +130,8 @@ struct side_settings {
 };
 
 struct self_chams_settings {
-    // The enable flags are independent from the selected material so turning a
-    // row off does not discard its Fatality/Airflow material selection.
+    // Kept for compatibility with the checkbox-era config schema. The Self UI
+    // now treats material == Disabled as the canonical Off state.
     bool local_enabled = false;
     bool local_fake_enabled = false; // UI/config placeholder; no fake render record exists yet.
     bool viewmodel_enabled = false;
