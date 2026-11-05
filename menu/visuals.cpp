@@ -263,7 +263,7 @@ void draw_esp_settings(player_side_ui_state& side) {
 
     // This replaces the old agent/ESP preview with real controls. The list is
     // scrollable so every existing ESP item remains reachable at any menu scale.
-    gui.grid_box("PLAYER ESP", 0.f, true);
+    gui.grid_box("PLAYER ESP", k_auto_height, true);
     draw_esp_section_title("MAIN");
     for (int i = 0; i < player_visuals::main_count; ++i)
         gui.row_checkbox(main_items[i], &side.esp_items.main_items[i], &side.main_colors[i]);
