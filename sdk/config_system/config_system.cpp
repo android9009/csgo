@@ -142,10 +142,17 @@ void c_config_system::setup_values( )
 		"text", "icon", "readiness_bar", "bomb", "defuser", "taser"
 	};
 	static const char* aimbot_names[player_visuals::aimbot_count] = { "hit_chance", "hitboxes" };
+	auto push_esp_color = [&]( player_visuals::esp_color& value, const std::string& category, const std::string& name ) {
+		push_item( &value.primary, category, name, value.primary );
+		push_item( &value.secondary, category, name + "_secondary", value.secondary );
+		push_item( &value.gradient, category, name + "_gradient", value.gradient );
+	};
 	for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
 		auto& side = player_visuals::settings(side_index);
 		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
 		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
+		push_item(&side.flags_enabled, category, "flags_enabled", side.flags_enabled);
+		push_esp_color(side.flags_color, category, "flags_color");
 		push_item(&side.player_material, category, "player_material", side.player_material);
 		push_item(&side.behind_walls_material, category, "behind_walls_material", side.behind_walls_material);
 		push_item(&side.player_color, category, "player_color", side.player_color);
@@ -171,14 +178,22 @@ void c_config_system::setup_values( )
 		push_item(&side.ragdoll_secondary, category, "ragdoll_secondary", side.ragdoll_secondary);
 		push_item(&side.ragdoll_gradient, category, "ragdoll_gradient", side.ragdoll_gradient);
 		push_item(&side.custom_sprite, category, "custom_sprite", side.custom_sprite);
-		for (int i = 0; i < player_visuals::main_count; ++i)
+		for (int i = 0; i < player_visuals::main_count; ++i) {
 			push_item(&side.main[i], category, std::format("main_{}", main_names[i]), side.main[i]);
-		for (int i = 0; i < player_visuals::flag_count; ++i)
+			push_esp_color(side.main_colors[i], category, std::format("main_{}_color", main_names[i]));
+		}
+		for (int i = 0; i < player_visuals::flag_count; ++i) {
 			push_item(&side.flags[i], category, std::format("flag_{}", flag_names[i]), side.flags[i]);
-		for (int i = 0; i < player_visuals::weapon_count; ++i)
+			push_esp_color(side.flag_colors[i], category, std::format("flag_{}_color", flag_names[i]));
+		}
+		for (int i = 0; i < player_visuals::weapon_count; ++i) {
 			push_item(&side.weapon[i], category, std::format("weapon_{}", weapon_item_names[i]), side.weapon[i]);
-		for (int i = 0; i < player_visuals::aimbot_count; ++i)
+			push_esp_color(side.weapon_colors[i], category, std::format("weapon_{}_color", weapon_item_names[i]));
+		}
+		for (int i = 0; i < player_visuals::aimbot_count; ++i) {
 			push_item(&side.aimbot[i], category, std::format("aimbot_{}", aimbot_names[i]), side.aimbot[i]);
+			push_esp_color(side.aimbot_colors[i], category, std::format("aimbot_{}_color", aimbot_names[i]));
+		}
 		for (int i = 0; i < player_visuals::item_count; ++i) {
 			push_item(&side.offsets[i].x, category, std::format("offset_{}_x", i), side.offsets[i].x);
 			push_item(&side.offsets[i].y, category, std::format("offset_{}_y", i), side.offsets[i].y);

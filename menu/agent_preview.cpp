@@ -1154,7 +1154,11 @@ void begin_frame(IDirect3DDevice9* device) {
     std::scoped_lock lock(s.mutex);
     s.drawn = false;
     const ULONGLONG now = GetTickCount64();
-    prewarm_locked(s, now);
+    // Players no longer requests an agent preview. Do not create or warm up a
+    // Panorama panel merely because the renderer is ticking; retain the normal
+    // warmup path only for an explicit request from a caller.
+    if (s.requested_active)
+        prewarm_locked(s, now);
     if (!s.requested_active || !s.panel_ready || !s.panel_visible || !s.preload_ready ||
         s.panel_side != s.requested_side || !same_rect(s.panel_rect, s.requested_rect)) {
         s.panel_texture_valid = false;

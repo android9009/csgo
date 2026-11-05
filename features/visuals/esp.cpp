@@ -62,6 +62,10 @@ ImU32 color(const c_color& value, float alpha = 1.f) {
     return color(value.r, value.g, value.b, value.a * alpha);
 }
 
+ImU32 color(const player_visuals::esp_color& value, float alpha = 1.f) {
+    return color(value.primary, alpha);
+}
+
 ImVec2 offset_for(const side_settings& settings, int item, float scale) {
     if (item < 0 || item >= player_visuals::item_count)
         return {};
@@ -291,18 +295,6 @@ std::string flag_text(int flag, const player_data& data) {
     }
 }
 
-ImU32 flag_color(int flag) {
-    if (flag == player_visuals::flag_money)
-        return color(0.45f, 0.95f, 0.45f);
-    if (flag == player_visuals::flag_immunity || flag == player_visuals::flag_defuse)
-        return color(0.40f, 0.75f, 1.f);
-    if (flag == player_visuals::flag_vulnerable || flag == player_visuals::flag_bomb ||
-        flag == player_visuals::flag_pin_pulled) {
-        return color(1.f, 0.48f, 0.42f);
-    }
-    return color(0.92f, 0.94f, 1.f);
-}
-
 void maybe_drag(ImDrawList* draw, int preview_side, int item, const rect_f& rect,
                 const ImVec2& preview_min, const ImVec2& preview_max, float scale) {
     if (preview_side >= 0)
@@ -352,8 +344,6 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     const float box_height = box.max.y - box.min.y;
     if (box_width < 2.f || box_height < 2.f)
         return;
-    const ImU32 side_color = color(settings.player_color);
-    const ImU32 text_color = color(0.94f, 0.96f, 1.f);
     const auto placement = [&](int item, const ImVec2& default_anchor) {
         return placement_offset(settings, item, default_anchor, box, scale);
     };
@@ -365,7 +355,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             color(0.f, 0.f, 0.f, 0.8f));
         draw->AddRect(moved.min + ImVec2(1.f, 1.f), moved.max - ImVec2(1.f, 1.f),
             color(0.f, 0.f, 0.f, 0.8f));
-        draw->AddRect(moved.min, moved.max, side_color);
+        draw->AddRect(moved.min, moved.max,
+            color(settings.main_colors[player_visuals::main_bounding_box]));
         if (preview_side >= 0) {
             const rect_f handle{ moved.min - ImVec2(3.f, 3.f),
                 moved.min + ImVec2(10.f, 10.f) * scale };
@@ -376,8 +367,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
 
     if (settings.main[player_visuals::main_skeleton]) {
         const ImVec2 offset = placement(player_visuals::main_skeleton, box_center);
+        const ImU32 skeleton_color = color(settings.main_colors[player_visuals::main_skeleton]);
         for (const auto& line : skeleton)
-            draw->AddLine(line.from + offset, line.to + offset, side_color, std::max(1.f, scale));
+            draw->AddLine(line.from + offset, line.to + offset, skeleton_color, std::max(1.f, scale));
         if (preview_side >= 0) {
             const ImVec2 center = ImVec2(box_center.x, box.min.y + 8.f * scale) + offset;
             maybe_drag(draw, preview_side, player_visuals::main_skeleton,
@@ -390,7 +382,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         (settings.hitbox_material == 0 || preview_side >= 0)) {
         const ImVec2 offset = placement(
             player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), box_center);
-        const ImU32 hitbox_color = color(1.f, 0.35f, 0.55f, 0.9f);
+        const ImU32 hitbox_color = color(settings.aimbot_colors[player_visuals::aimbot_hitboxes]);
         for (const auto& line : hitboxes)
             draw->AddLine(line.from + offset, line.to + offset, hitbox_color, std::max(1.f, scale));
         if (preview_side >= 0) {
@@ -410,7 +402,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             name = name.substr(0, 23) + "...";
         const ImVec2 anchor(box_center.x, box.min.y - 9.f * scale);
         const ImVec2 center = anchor + placement(player_visuals::main_name, anchor);
-        const rect_f text = draw_text(draw, center, name, text_color, scale);
+        const rect_f text = draw_text(draw, center, name,
+            color(settings.main_colors[player_visuals::main_name]), scale);
         maybe_drag(draw, preview_side, player_visuals::main_name, text, preview_min, preview_max, scale);
     }
 
@@ -421,7 +414,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             ImVec2(box.min.x - 3.f * scale, box.max.y) + offset };
         const float health = std::clamp(data.health / 100.f, 0.f, 1.f);
         const rect_f handle = draw_bar(draw, bar, health,
-            color(1.f - health, health, 0.25f), true);
+            color(settings.main_colors[player_visuals::main_health_bar]), true);
         maybe_drag(draw, preview_side, player_visuals::main_health_bar, handle,
             preview_min, preview_max, scale);
     }
@@ -432,7 +425,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const rect_f bar{ ImVec2(box.min.x, box.max.y + 3.f * scale) + offset,
             ImVec2(box.max.x, box.max.y + 5.f * scale) + offset };
         const float ammo = std::clamp(static_cast<float>(data.clip) / data.max_clip, 0.f, 1.f);
-        const rect_f handle = draw_bar(draw, bar, ammo, color(0.55f, 0.72f, 1.f), false);
+        const rect_f handle = draw_bar(draw, bar, ammo,
+            color(settings.main_colors[player_visuals::main_ammo_bar]), false);
         maybe_drag(draw, preview_side, player_visuals::main_ammo_bar, handle,
             preview_min, preview_max, scale);
     }
@@ -444,13 +438,14 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const ImVec2 offset = placement(item, anchor);
         const rect_f bar{ ImVec2(box.min.x, box.max.y + (6.f + extra) * scale) + offset,
             ImVec2(box.max.x, box.max.y + (8.f + extra) * scale) + offset };
-        const rect_f handle = draw_bar(draw, bar, data.readiness, color(0.50f, 1.f, 0.72f), false);
+        const rect_f handle = draw_bar(draw, bar, data.readiness,
+            color(settings.weapon_colors[player_visuals::weapon_readiness_bar]), false);
         maybe_drag(draw, preview_side, item, handle, preview_min, preview_max, scale);
     }
 
     int flag_row = 0;
     for (int flag = 0; flag < player_visuals::flag_count; ++flag) {
-        if (!settings.flags[flag])
+        if (!settings.flags_enabled || !settings.flags[flag])
             continue;
         const std::string text = flag_text(flag, data);
         if (text.empty())
@@ -459,7 +454,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const ImVec2 anchor(box.max.x + 5.f * scale,
             box.min.y + (6.f + 12.f * flag_row) * scale);
         const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text_rect = draw_text(draw, center, text, flag_color(flag), scale, 1);
+        const rect_f text_rect = draw_text(draw, center, text,
+            color(settings.flag_colors[flag]), scale, 1);
         maybe_drag(draw, preview_side, item, text_rect, preview_min, preview_max, scale);
         ++flag_row;
     }
@@ -470,7 +466,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const int item = player_visuals::aimbot_item_id(player_visuals::aimbot_hit_chance);
         const ImVec2 anchor(box.min.x - 5.f * scale, box.min.y + 6.f * scale);
         const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text = draw_text(draw, center, buffer, color(0.70f, 0.86f, 1.f), scale, -1);
+        const rect_f text = draw_text(draw, center, buffer,
+            color(settings.aimbot_colors[player_visuals::aimbot_hit_chance]), scale, -1);
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
     }
 
@@ -482,7 +479,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         std::snprintf(buffer, sizeof(buffer), "%.1f m", data.distance);
         const ImVec2 anchor(box_center.x, bottom_y);
         const ImVec2 center = anchor + placement(player_visuals::main_distance, anchor);
-        const rect_f text = draw_text(draw, center, buffer, text_color, scale);
+        const rect_f text = draw_text(draw, center, buffer,
+            color(settings.main_colors[player_visuals::main_distance]), scale);
         maybe_drag(draw, preview_side, player_visuals::main_distance, text,
             preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
@@ -491,7 +489,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_text);
         const ImVec2 anchor(box_center.x, bottom_y);
         const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text = draw_text(draw, center, data.weapon_name, text_color, scale);
+        const rect_f text = draw_text(draw, center, data.weapon_name,
+            color(settings.weapon_colors[player_visuals::weapon_text]), scale);
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
     }
@@ -502,7 +501,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             const ImVec2 anchor(box_center.x, bottom_y + 3.f * scale);
             const ImVec2 center = anchor + placement(item, anchor);
             const ImVec2 maximum(std::min(72.f * scale, box_width * 1.8f), 20.f * scale);
-            weapon_icons::draw(draw, atlas, center, maximum, text_color);
+            weapon_icons::draw(draw, atlas, center, maximum,
+                color(settings.weapon_colors[player_visuals::weapon_icon]));
             maybe_drag(draw, preview_side, item,
                 { center - maximum * 0.5f, center + maximum * 0.5f },
                 preview_min, preview_max, scale);
@@ -520,9 +520,12 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 12.f * scale;
     };
-    equipment(player_visuals::weapon_bomb, data.bomb, "C4", color(1.f, 0.55f, 0.35f));
-    equipment(player_visuals::weapon_defuser, data.defuser, "KIT", color(0.45f, 0.80f, 1.f));
-    equipment(player_visuals::weapon_taser, data.taser, "ZEUS", color(1.f, 0.90f, 0.35f));
+    equipment(player_visuals::weapon_bomb, data.bomb, "C4",
+        color(settings.weapon_colors[player_visuals::weapon_bomb]));
+    equipment(player_visuals::weapon_defuser, data.defuser, "KIT",
+        color(settings.weapon_colors[player_visuals::weapon_defuser]));
+    equipment(player_visuals::weapon_taser, data.taser, "ZEUS",
+        color(settings.weapon_colors[player_visuals::weapon_taser]));
 }
 
 bool world_to_screen(const float matrix[4][4], const vector3& point, const ImVec2& display,

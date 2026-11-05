@@ -1278,9 +1278,13 @@ void c_gui::row_options_end( ) {
 }
 
 bool c_gui::row_multibox( const char* label, const char* const* items, bool* values, int count, const char* description ) {
+    return row_multibox( label, items, values, nullptr, count, description );
+}
+
+bool c_gui::row_multibox( const char* label, const char* const* items, bool* values, color_value* colors, int count, const char* description ) {
     // The menu's own Combo, multi-select: ImGui::MultiCombo draws the same row (label left, 130px
     // field right), opens the same popup surface on the same layer, and keeps that popup open while
-    // entries are ticked. Nothing here is hand-drawn, so a multibox can never drift from a combo.
+    // entries are ticked. The optional color array only adds swatches inside those entries.
     row_begin( );
 
     if ( ImGui::GetCurrentWindow( )->SkipItems || count <= 0 || !items || !values ) {
@@ -1289,7 +1293,7 @@ bool c_gui::row_multibox( const char* label, const char* const* items, bool* val
     }
 
     m_defer_widget_tooltip = true;
-    const bool changed = ImGui::MultiCombo( label, values, items, count );
+    const bool changed = ImGui::MultiComboWithColors( label, values, items, colors, count );
     m_defer_widget_tooltip = false;
     info_tooltip( label, description );
     return changed;
@@ -3460,6 +3464,18 @@ bool c_gui::color_picker( const char* id, color_slot* slots, int count ) {
 bool c_gui::color_picker( const char* id, color_value* col ) {
     color_slot one{ nullptr, col };
     return color_picker( id, &one, 1 );
+}
+
+bool c_gui::multibox_color_picker( const char* id, color_value* col, const ImRect& row_rect ) {
+    if ( !col || ImGui::GetCurrentWindow( )->SkipItems )
+        return false;
+    const float s = m_scale;
+    const float sz = 16.f * s;
+    const float right = row_rect.Max.x - 3.f * s;
+    const float top = row_rect.Min.y + IM_ROUND( ( row_rect.GetHeight( ) - sz ) * 0.5f );
+    const ImRect swatch( ImVec2( right - sz, top ), ImVec2( right, top + sz ) );
+    color_slot one{ nullptr, col };
+    return picker_once( &one, 1, [ & ] { return color_begin_at( id, &one, 1, swatch, true ); } );
 }
 
 bool c_gui::row_color_begin( const char* label, color_slot* slots, int count, const char* description ) {

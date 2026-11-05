@@ -6,10 +6,9 @@
 #include <cstddef>
 #include <string>
 
-// Shared by the Darkside Players page, the Panorama preview and the in-game
-// renderer. Keeping these values outside menu-local state is what lets the ESP
-// remain unchanged after the menu is closed and makes config Save/Load cover
-// the complete layout.
+// Shared by the Darkside Players page and the in-game renderer. Keeping these
+// values outside menu-local state is what lets the ESP remain unchanged after
+// the menu is closed and makes config Save/Load cover the complete layout.
 namespace player_visuals {
 inline constexpr int side_count = 2; // Enemies, Teammates. Self intentionally has no ESP set.
 inline constexpr int main_count = 6;
@@ -70,12 +69,33 @@ struct layout_offset {
     float y = 0.f;
 };
 
+// ESP colors use the same primary/secondary/gradient model as the existing chams
+// settings. The renderer uses the primary color for single-color elements; keeping
+// the other two fields means the standard Darkside picker remains fully persistent.
+struct esp_color {
+    c_color primary{ 1.f, 1.f, 1.f, 1.f };
+    c_color secondary{ 1.f, 1.f, 1.f, 1.f };
+    bool gradient = false;
+};
+
+inline void set_esp_color(esp_color& target, const c_color& value) {
+    target.primary = value;
+    target.secondary = value;
+    target.gradient = false;
+}
+
 struct side_settings {
     bool esp_enabled = false;
     bool main[main_count] = {};
     bool flags[flag_count] = {};
+    bool flags_enabled = true;
+    esp_color flags_color; // master swatch: applies its color to all flag entries
     bool weapon[weapon_count] = {};
     bool aimbot[aimbot_count] = {};
+    esp_color main_colors[main_count] = {};
+    esp_color flag_colors[flag_count] = {};
+    esp_color weapon_colors[weapon_count] = {};
+    esp_color aimbot_colors[aimbot_count] = {};
     layout_offset offsets[item_count] = {};
     // -1 keeps the legacy/default anchor; 0..11 are gamesense-style slots.
     int slots[item_count] = {};
@@ -119,12 +139,47 @@ inline std::array<side_settings, side_count> make_default_settings() {
         side.main[main_health_bar] = true;
         side.main[main_ammo_bar] = true;
         side.weapon[weapon_text] = true;
+
+        set_esp_color(side.main_colors[main_name], { 0.94f, 0.96f, 1.f, 1.f });
+        set_esp_color(side.main_colors[main_distance], { 0.94f, 0.96f, 1.f, 1.f });
+        set_esp_color(side.main_colors[main_health_bar], { 0.25f, 1.f, 0.35f, 1.f });
+        set_esp_color(side.main_colors[main_ammo_bar], { 0.55f, 0.72f, 1.f, 1.f });
+
+        set_esp_color(side.flags_color, { 0.92f, 0.94f, 1.f, 1.f });
+        for (auto& flag : side.flag_colors)
+            set_esp_color(flag, { 0.92f, 0.94f, 1.f, 1.f });
+        set_esp_color(side.flag_colors[flag_money], { 0.45f, 0.95f, 0.45f, 1.f });
+        set_esp_color(side.flag_colors[flag_immunity], { 0.40f, 0.75f, 1.f, 1.f });
+        set_esp_color(side.flag_colors[flag_defuse], { 0.40f, 0.75f, 1.f, 1.f });
+        set_esp_color(side.flag_colors[flag_vulnerable], { 1.f, 0.48f, 0.42f, 1.f });
+        set_esp_color(side.flag_colors[flag_bomb], { 1.f, 0.48f, 0.42f, 1.f });
+        set_esp_color(side.flag_colors[flag_pin_pulled], { 1.f, 0.48f, 0.42f, 1.f });
+
+        set_esp_color(side.weapon_colors[weapon_text], { 0.94f, 0.96f, 1.f, 1.f });
+        set_esp_color(side.weapon_colors[weapon_icon], { 0.94f, 0.96f, 1.f, 1.f });
+        set_esp_color(side.weapon_colors[weapon_readiness_bar], { 0.50f, 1.f, 0.72f, 1.f });
+        set_esp_color(side.weapon_colors[weapon_bomb], { 1.f, 0.55f, 0.35f, 1.f });
+        set_esp_color(side.weapon_colors[weapon_defuser], { 0.45f, 0.80f, 1.f, 1.f });
+        set_esp_color(side.weapon_colors[weapon_taser], { 1.f, 0.90f, 0.35f, 1.f });
+        set_esp_color(side.aimbot_colors[aimbot_hit_chance], { 0.70f, 0.86f, 1.f, 1.f });
+        set_esp_color(side.aimbot_colors[aimbot_hitboxes], { 1.f, 0.35f, 0.55f, 0.90f });
     }
     result[0].esp_enabled = true;
     result[1].player_color = { 0.78f, 0.77f, 1.f, 1.f };
     result[1].player_secondary = result[1].player_color;
     result[1].behind_walls_color = { 1.f, 0.78f, 0.60f, 1.f };
     result[1].behind_walls_secondary = result[1].behind_walls_color;
+
+    // Box and skeleton historically followed the side's chams color. Keep those
+    // defaults, but from now on each ESP element owns an independent setting.
+    for (auto& side : result) {
+        side.main_colors[main_bounding_box].primary = side.player_color;
+        side.main_colors[main_bounding_box].secondary = side.player_secondary;
+        side.main_colors[main_bounding_box].gradient = side.player_gradient;
+        side.main_colors[main_skeleton].primary = side.player_color;
+        side.main_colors[main_skeleton].secondary = side.player_secondary;
+        side.main_colors[main_skeleton].gradient = side.player_gradient;
+    }
     return result;
 }
 
@@ -145,7 +200,7 @@ inline bool item_enabled(const side_settings& settings, int item) {
     if (item >= 0 && item < main_count)
         return settings.main[item];
     if (item >= main_count && item < main_count + flag_count)
-        return settings.flags[item - main_count];
+        return settings.flags_enabled && settings.flags[item - main_count];
     if (item >= main_count + flag_count && item < main_count + flag_count + weapon_count)
         return settings.weapon[item - main_count - flag_count];
     if (item >= main_count + flag_count + weapon_count && item < item_count)

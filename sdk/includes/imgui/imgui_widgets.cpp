@@ -2445,8 +2445,10 @@ bool ImGui::Combo(const char* label, int* current_item, bool (*items_getter)(voi
     return value_changed;
 }
 
-bool ImGui::MultiCombo(const char* label, bool* selected, const char* const items[], int items_count, int popup_max_height_in_items)
+static bool multi_combo_impl(const char* label, bool* selected, const char* const items[],
+    color_value* colors, int items_count, int popup_max_height_in_items)
 {
+    using namespace ImGui;
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = GetCurrentWindow();
     IM_ASSERT(items_count >= 0 && (items_count == 0 || (selected && items)));
@@ -2469,7 +2471,15 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
     if (preview.empty())
         preview = gui.tr("Select");
 
-    if (popup_max_height_in_items != -1 && !(g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint))
+    if (colors && !(g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint))
+    {
+        // The colored rows need room for both a readable flag name and a swatch.
+        // Keep the stock eight-row height unless the caller explicitly supplied one.
+        const int height_items = popup_max_height_in_items != -1 ? popup_max_height_in_items : 8;
+        SetNextWindowSizeConstraints(ImVec2(190.f * gui.m_scale, 0.f),
+            ImVec2(FLT_MAX, CalcMaxPopupHeightFromItemCount(height_items)));
+    }
+    else if (popup_max_height_in_items != -1 && !(g.NextWindowData.Flags & ImGuiNextWindowDataFlags_HasSizeConstraint))
         SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, CalcMaxPopupHeightFromItemCount(popup_max_height_in_items)));
 
     const ImGuiID id = window->GetID(label);
@@ -2512,8 +2522,20 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
     {
         PushID(i);
         const char* item = items[i] ? items[i] : "*Unknown item*";
+        const float row_height = 25.f * gui.m_scale;
+        const float row_width = ImMax(0.f, GetContentRegionAvail().x);
+        if (colors)
+        {
+            const ImVec2 row_pos = GetCursorScreenPos();
+            gui.multibox_color_picker("##color", &colors[i],
+                ImRect(row_pos, row_pos + ImVec2(row_width, row_height)));
+        }
+        // Leave a real, non-overlapping slot for the swatch. Selectable() does
+        // not support negative widths, so only the colored variant uses an
+        // explicit positive width; the stock path keeps its original size_arg.
+        const float select_width = colors ? ImMax(1.f, row_width - 23.f * gui.m_scale) : 0.f;
         if (Selectable(item, &selected[i], ImGuiSelectableFlags_NoPadWithHalfSpacing | ImGuiSelectableFlags_DontClosePopups,
-                       ImVec2(0.f, 25.f * gui.m_scale)))
+                       ImVec2(select_width, row_height)))
             value_changed = true;
         if (selected[i] && !focus_set)
         {
@@ -2535,6 +2557,17 @@ bool ImGui::MultiCombo(const char* label, bool* selected, const char* const item
             MarkItemEdited(id);
     }
     return value_changed;
+}
+
+bool ImGui::MultiCombo(const char* label, bool* selected, const char* const items[], int items_count, int popup_max_height_in_items)
+{
+    return multi_combo_impl(label, selected, items, nullptr, items_count, popup_max_height_in_items);
+}
+
+bool ImGui::MultiComboWithColors(const char* label, bool* selected, const char* const items[],
+    color_value* colors, int items_count, int popup_max_height_in_items)
+{
+    return multi_combo_impl(label, selected, items, colors, items_count, popup_max_height_in_items);
 }
 
 // Combo box helper allowing to pass an array of strings.

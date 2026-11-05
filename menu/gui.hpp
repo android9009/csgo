@@ -36,6 +36,13 @@ struct color_value {
     bool   gradient = false;
 };
 
+namespace ImGui {
+// Internal extension used by c_gui::row_multibox(): the regular MultiCombo API
+// stays unchanged, while this overload gives every popup row its own swatch.
+IMGUI_API bool MultiComboWithColors(const char* label, bool* selected, const char* const items[],
+    color_value* colors, int items_count, int popup_max_height_in_items = -1);
+}
+
 // One color of a multi color picker (several colors behind a single swatch).
 struct color_slot {
     const char*  name;
@@ -368,6 +375,10 @@ public:
     // the hood). The preview reads "Select", then the chosen items joined with ", ".
     // labels: array of item names, values: array of bools, count: number of items
     bool row_multibox( const char* label, const char* const* items, bool* values, int count, const char* description = "Click to select multiple options." );
+    // Optional per-item colors: each entry in the open multibox gets the standard
+    // Darkside swatch and picker without changing the stock multibox appearance.
+    bool row_multibox( const char* label, const char* const* items, bool* values, color_value* colors, int count, const char* description = "Click to select multiple options." );
+    bool multibox_color_picker( const char* id, color_value* col, const ImRect& row_rect );
 
     // Sub-menu row + its popup in one call - the row draws itself, clicking it opens the
     // card beside it: `if ( gui.row_popup( "Pitch" ) ) { ...content... gui.popup_end(); }`

@@ -1,9 +1,7 @@
 // Visuals menu page only. Gameplay ESP/rendering code belongs under features/visuals.
 #include "menu.hpp"
 #include "hashes.hpp"
-#include "agent_preview.hpp"
 #include "../features/visuals/chams.hpp"
-#include "../features/visuals/esp.hpp"
 #include "../features/visuals/settings.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
@@ -55,14 +53,17 @@ struct player_side_ui_state {
     color_value glow_color = make_ui_color(0.80f, 0.75f, 1.f);
     char custom_sprite[128] = "models/weapons/customization/paints/custom/money";
     esp_items_ui_state esp_items;
+    bool flags_enabled = true;
+    color_value flags_color;
+    color_value main_colors[player_visuals::main_count];
+    color_value flag_colors[player_visuals::flag_count];
+    color_value weapon_colors[player_visuals::weapon_count];
+    color_value aimbot_colors[player_visuals::aimbot_count];
 };
 
 struct players_ui_state {
     int active_side = 0; // 0 = Enemies, 1 = Teammates, 2 = Self
     player_side_ui_state sides[3];
-    // Screen-independent reference height for the right column. Enemies is the
-    // design reference even while the Teammates or Self tab is selected.
-    float enemies_right_height = 0.f;
 
     players_ui_state() {
         for (auto& side : sides) {
@@ -89,6 +90,30 @@ ImVec4 to_vec4(const c_color& color) {
 
 c_color to_config_color(const ImVec4& color) {
     return c_color(color.x, color.y, color.z, color.w);
+}
+
+template <std::size_t N>
+void load_esp_colors(color_value (&view)[N], const player_visuals::esp_color (&config)[N]) {
+    for (std::size_t i = 0; i < N; ++i) {
+        view[i].a = to_vec4(config[i].primary);
+        view[i].b = to_vec4(config[i].secondary);
+        view[i].gradient = config[i].gradient;
+    }
+}
+
+template <std::size_t N>
+void store_esp_colors(player_visuals::esp_color (&config)[N], const color_value (&view)[N]) {
+    for (std::size_t i = 0; i < N; ++i) {
+        config[i].primary = to_config_color(view[i].a);
+        config[i].secondary = to_config_color(view[i].b);
+        config[i].gradient = view[i].gradient;
+    }
+}
+
+bool same_ui_color(const color_value& a, const color_value& b) {
+    return a.gradient == b.gradient &&
+        a.a.x == b.a.x && a.a.y == b.a.y && a.a.z == b.a.z && a.a.w == b.a.w &&
+        a.b.x == b.b.x && a.b.y == b.b.y && a.b.z == b.b.z && a.b.w == b.b.w;
 }
 
 void load_shared_player_views(players_ui_state& ui) {
@@ -125,6 +150,14 @@ void load_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(config.flags), std::end(config.flags), std::begin(view.esp_items.flags));
         std::copy(std::begin(config.weapon), std::end(config.weapon), std::begin(view.esp_items.weapon_items));
         std::copy(std::begin(config.aimbot), std::end(config.aimbot), std::begin(view.esp_items.aimbot_items));
+        view.flags_enabled = config.flags_enabled;
+        view.flags_color.a = to_vec4(config.flags_color.primary);
+        view.flags_color.b = to_vec4(config.flags_color.secondary);
+        view.flags_color.gradient = config.flags_color.gradient;
+        load_esp_colors(view.main_colors, config.main_colors);
+        load_esp_colors(view.flag_colors, config.flag_colors);
+        load_esp_colors(view.weapon_colors, config.weapon_colors);
+        load_esp_colors(view.aimbot_colors, config.aimbot_colors);
     }
 }
 
@@ -161,6 +194,14 @@ void store_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
         std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(config.weapon));
         std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(config.aimbot));
+        config.flags_enabled = view.flags_enabled;
+        config.flags_color.primary = to_config_color(view.flags_color.a);
+        config.flags_color.secondary = to_config_color(view.flags_color.b);
+        config.flags_color.gradient = view.flags_color.gradient;
+        store_esp_colors(config.main_colors, view.main_colors);
+        store_esp_colors(config.flag_colors, view.flag_colors);
+        store_esp_colors(config.weapon_colors, view.weapon_colors);
+        store_esp_colors(config.aimbot_colors, view.aimbot_colors);
     }
 }
 
@@ -218,63 +259,49 @@ void draw_custom_sprite_row(player_side_ui_state& side) {
     gui.end_grid();
 }
 
-void draw_esp_chip_section(const char* id, const char* title, const char* const* labels,
-                           bool* values, int count) {
-    gui.popup_section_begin(id, true, 10.f);
-    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
-    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
-    ImGui::TextUnformatted(gui.tr(title));
-    ImGui::PopFont();
-    ImGui::Dummy(ImVec2(0.f, 5.f * gui.m_scale));
-    gui.chips(id, labels, values, count);
-    gui.popup_section_end();
+void draw_esp_section_title(const char* title) {
+    gui.row_begin();
+    ImGui::TextColored(gui.text_disabled.to_vec4(1.f, false), "%s", gui.tr(title));
 }
 
-void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
-                          ImVec2 content_origin, float content_width, float content_bottom) {
-    static const char* main_items[] = {
-        "Bounding Box", "Name", "Distance", "Health Bar", "Ammo Bar", "Skeleton"
+void draw_esp_settings(player_side_ui_state& side) {
+    static const char* main_items[player_visuals::main_count] = {
+        "Box", "Name", "Distance", "HP Bar", "Ammo Bar", "Skeleton"
     };
-    static const char* flags[] = {
+    static const char* flags[player_visuals::flag_count] = {
         "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
         "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Order Priority", "Delay"
     };
-    static const char* weapon_items[] = {
-        "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"
+    static const char* weapon_items[player_visuals::weapon_count] = {
+        "Weapon Text", "Weapon Icon", "Readiness Bar", "C4", "Defuse Kit", "Zeus"
     };
-    static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
+    static const char* aimbot_items[player_visuals::aimbot_count] = { "Hit Chance", "Hitboxes" };
 
-    // A content-width card directly under the header, not a cursor-relative popup. Its top edge
-    // stays fixed while the opening fade runs; its bottom uses the shared Enemies height.
-    bool wants_open = false;
-    const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
-    const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
-    const float card_height = ImMax(1.f, content_bottom - anchor.y);
-    if (!gui.begin_popup_card_at("ESP ItemsPopup", wants_open, anim, anchor, ImVec2(0.f, 0.f),
-                                 content_width / gui.m_scale, 10.f, card_height / gui.m_scale))
-        return;
+    // This replaces the old agent/ESP preview with real controls. The list is
+    // scrollable so every existing ESP item remains reachable at any menu scale.
+    gui.grid_box("PLAYER ESP", 0.f, true);
+    draw_esp_section_title("MAIN");
+    for (int i = 0; i < player_visuals::main_count; ++i)
+        gui.row_checkbox(main_items[i], &side.esp_items.main_items[i], &side.main_colors[i]);
 
-    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
-    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
-    ImGui::TextColored(gui.text.to_vec4(1.f, false), "%s", gui.tr("ESP Items"));
-    ImGui::PopFont();
-    ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
+    const color_value previous_flags_color = side.flags_color;
+    gui.row_checkbox("Flags", &side.flags_enabled, &side.flags_color,
+        "Toggle all flags. The swatch applies one color to every flag; use the list for individual colors.");
+    if (!same_ui_color(previous_flags_color, side.flags_color)) {
+        for (auto& flag_color : side.flag_colors)
+            flag_color = side.flags_color;
+    }
+    gui.row_multibox("Flag Selection", flags, side.esp_items.flags, side.flag_colors,
+        player_visuals::flag_count, "Select flags; each list entry has its own color picker.");
 
-    // Match the shared Enemies reference bottom exactly. The card has a fixed
-    // height and the child keeps all chip sections available through scrolling.
-    const float sections_y = ImGui::GetCursorScreenPos().y;
-    const float sections_h = ImMax(1.f * gui.m_scale,
-        card_height - (sections_y - anchor.y) - 10.f * gui.m_scale); // outer card's bottom padding
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
-    ImGui::BeginChild("##esp_items_sections", ImVec2(0.f, sections_h), false,
-                      ImGuiWindowFlags_NoBackground);
-    draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
-    draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
-    draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
-    draw_esp_chip_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
-    ImGui::EndChild();
-    ImGui::PopStyleVar();
-    gui.end_popup_card();
+    draw_esp_section_title("WEAPON");
+    for (int i = 0; i < player_visuals::weapon_count; ++i)
+        gui.row_checkbox(weapon_items[i], &side.esp_items.weapon_items[i], &side.weapon_colors[i]);
+
+    draw_esp_section_title("AIMBOT");
+    for (int i = 0; i < player_visuals::aimbot_count; ++i)
+        gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
+    gui.end_group_box();
 }
 
 void draw_enemy_side(player_side_ui_state& side) {
@@ -376,53 +403,10 @@ void draw_player_side_tabs(players_ui_state& ui, ImVec2 pos) {
     window->DC.CursorMaxPos = saved_cursor_max;
 }
 
-bool draw_esp_items_header_button(ImVec2 center, bool held) {
-    static float hover = 0.f;
-    const float s = gui.m_scale;
-    const float font_size = ImGui::GetFontSize();
-    ImFont* font = ImGui::GetFont();
-    const ImVec2 icon_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, ICON_FA_LIST_ALT);
-    const ImVec2 text_size = ImGui::CalcTextSize("ESP Items");
-    const ImVec2 size(icon_size.x + text_size.x + 31.f * s, 26.f * s);
-    const ImVec2 pos(center.x - size.x * 0.5f, center.y);
-
-    ImGuiWindow* window = ImGui::GetCurrentWindow();
-    const ImVec2 saved_cursor = window->DC.CursorPos;
-    const ImVec2 saved_cursor_max = window->DC.CursorMaxPos;
-    ImGui::SetCursorScreenPos(pos);
-    const bool clicked = ImGui::InvisibleButton("##players_esp_items_header", size);
-    hover = ImLerp(hover, ImGui::IsItemHovered() ? 1.f : 0.f,
-                   ImClamp(ImGui::GetIO().DeltaTime * 15.f, 0.f, 1.f));
-    const float plate = ImMax(hover, held ? 1.f : 0.f);
-    ImDrawList* draw = window->DrawList;
-    if (plate > 0.01f)
-        draw->AddRectFilled(pos, pos + size, gui.frame_inactive.to_im_color(0.45f + 0.45f * plate), 8.f * s);
-    const ImU32 ink = held ? gui.accent_color.to_im_color() : gui.text.to_im_color();
-    const ImVec2 icon_pos = pos + ImVec2(9.f * s,
-        (size.y - 2.f * TextInkCenterY(font, font_size, ICON_FA_LIST_ALT)) * 0.5f);
-    draw->AddText(font, font_size, icon_pos, ink, ICON_FA_LIST_ALT);
-    draw->AddText(ImVec2(IM_ROUND(icon_pos.x + icon_size.x + 7.f * s),
-        IM_ROUND(pos.y + (size.y - text_size.y) * 0.5f)), ink, "ESP Items");
-    window->DC.CursorPos = saved_cursor;
-    window->DC.CursorMaxPos = saved_cursor_max;
-    return clicked;
-}
-
 void draw_visuals_players() {
     auto& ui = player_ui();
     load_shared_player_views(ui);
-
-    const ImVec2 content_origin = ImGui::GetCursorScreenPos();
-    const float content_width = ImGui::GetContentRegionAvail().x;
-    const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
     ui.active_side = ImClamp(ui.active_side, 0, 2);
-    const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
-    const bool customize_visible = ui.active_side < 2 &&
-        (ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) || gui.popup_fade_visible(customize_id));
-    const ImVec2 header_center = content_origin + ImVec2(
-        column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
-    const bool customize_clicked = ui.active_side < 2 &&
-        draw_esp_items_header_button(header_center, customize_visible);
 
     gui.begin_grid(2);
     gui.grid_col(0);
@@ -432,36 +416,13 @@ void draw_visuals_players() {
         draw_teammate_side(ui.sides[1]);
     else
         draw_self_side(ui.sides[2]);
-    const float active_left_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
-    // The right column displays only the live Panorama agent. ESP Items remains a card
-    // above the same column.
+    // No Panorama/agent or ESP preview is created on this page. Enemies and
+    // Teammates edit their actual renderer settings in the former preview column.
+    gui.grid_col(1);
+    if (ui.active_side < player_visuals::side_count)
+        draw_esp_settings(ui.sides[ui.active_side]);
     gui.end_grid();
-
-    const ImVec2 right_column_origin = content_origin + ImVec2(
-        column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
-    const ImVec2 preview_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
-    const float active_right_height = ImMax(1.f, active_left_bottom - preview_origin.y);
-    if (ui.active_side == 0)
-        ui.enemies_right_height = active_right_height / gui.m_scale;
-    // Do not let the shorter Teammates or Self controls shrink the right column.
-    // Keep the Enemies reference in design units so Menu Scale changes still work.
-    const float right_column_height = ui.enemies_right_height > 0.f
-        ? ui.enemies_right_height * gui.m_scale
-        : active_right_height;
-    const float right_column_bottom = preview_origin.y + right_column_height;
-    // Enemies, Teammates and Self share the canonical Agents T skin. Chams and
-    // ESP settings still come from the selected Enemies/Teammates tab.
-    const ImVec2 preview_max(right_column_origin.x + column_width, right_column_bottom);
-    const bool has_side_preview = ui.active_side < 2;
-    if (has_side_preview)
-        player_esp::prepare_preview(ui.active_side);
-    agent_preview::draw(preview_origin, preview_max, 0, has_side_preview);
-    player_esp::draw_preview(preview_origin, preview_max, has_side_preview ? ui.active_side : -1);
-    if (has_side_preview) {
-        draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
-                             right_column_origin, column_width, right_column_bottom);
-    }
     store_shared_player_views(ui);
 
     // Keep the legacy config fields coherent for older config consumers; the
