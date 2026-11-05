@@ -53,8 +53,6 @@ struct player_side_ui_state {
     color_value glow_color = make_ui_color(0.80f, 0.75f, 1.f);
     char custom_sprite[128] = "models/weapons/customization/paints/custom/money";
     esp_items_ui_state esp_items;
-    bool flags_enabled = true;
-    color_value flags_color;
     bool weapon_enabled = true;
     color_value weapon_color;
     color_value main_colors[player_visuals::main_count];
@@ -152,10 +150,6 @@ void load_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(config.flags), std::end(config.flags), std::begin(view.esp_items.flags));
         std::copy(std::begin(config.weapon), std::end(config.weapon), std::begin(view.esp_items.weapon_items));
         std::copy(std::begin(config.aimbot), std::end(config.aimbot), std::begin(view.esp_items.aimbot_items));
-        view.flags_enabled = config.flags_enabled;
-        view.flags_color.a = to_vec4(config.flags_color.primary);
-        view.flags_color.b = to_vec4(config.flags_color.secondary);
-        view.flags_color.gradient = config.flags_color.gradient;
         view.weapon_enabled = config.weapon_enabled;
         view.weapon_color.a = to_vec4(config.weapon_color.primary);
         view.weapon_color.b = to_vec4(config.weapon_color.secondary);
@@ -200,10 +194,6 @@ void store_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
         std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(config.weapon));
         std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(config.aimbot));
-        config.flags_enabled = view.flags_enabled;
-        config.flags_color.primary = to_config_color(view.flags_color.a);
-        config.flags_color.secondary = to_config_color(view.flags_color.b);
-        config.flags_color.gradient = view.flags_color.gradient;
         config.weapon_enabled = view.weapon_enabled;
         config.weapon_color.primary = to_config_color(view.weapon_color.a);
         config.weapon_color.secondary = to_config_color(view.weapon_color.b);
@@ -294,13 +284,6 @@ void draw_esp_settings(player_side_ui_state& side) {
     for (int i = 0; i < player_visuals::main_count; ++i)
         gui.row_checkbox(main_items[i], &side.esp_items.main_items[i], &side.main_colors[i]);
 
-    const color_value previous_flags_color = side.flags_color;
-    gui.row_checkbox("Flags", &side.flags_enabled, &side.flags_color,
-        "Toggle all flags. The swatch applies one color to every flag; use the list for individual colors.");
-    if (!same_ui_color(previous_flags_color, side.flags_color)) {
-        for (auto& flag_color : side.flag_colors)
-            flag_color = side.flags_color;
-    }
     gui.row_multibox("Flag Selection", flags, side.esp_items.flags, side.flag_colors,
         player_visuals::flag_count, "Select flags; each list entry has its own color picker.");
 

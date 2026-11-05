@@ -445,7 +445,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
 
     int flag_row = 0;
     for (int flag = 0; flag < player_visuals::flag_count; ++flag) {
-        if (!settings.flags_enabled || !settings.flags[flag])
+        if (!settings.flags[flag])
             continue;
         const std::string text = flag_text(flag, data);
         if (text.empty())

@@ -88,8 +88,6 @@ struct side_settings {
     bool esp_enabled = false;
     bool main[main_count] = {};
     bool flags[flag_count] = {};
-    bool flags_enabled = true;
-    esp_color flags_color; // master swatch: applies its color to all flag entries
     bool weapon_enabled = true;
     esp_color weapon_color; // master swatch: applies its color to all weapon entries
     bool weapon[weapon_count] = {};
@@ -147,7 +145,6 @@ inline std::array<side_settings, side_count> make_default_settings() {
         set_esp_color(side.main_colors[main_health_bar], { 0.25f, 1.f, 0.35f, 1.f });
         set_esp_color(side.main_colors[main_ammo_bar], { 0.55f, 0.72f, 1.f, 1.f });
 
-        set_esp_color(side.flags_color, { 0.92f, 0.94f, 1.f, 1.f });
         for (auto& flag : side.flag_colors)
             set_esp_color(flag, { 0.92f, 0.94f, 1.f, 1.f });
         set_esp_color(side.flag_colors[flag_money], { 0.45f, 0.95f, 0.45f, 1.f });
@@ -203,7 +200,7 @@ inline bool item_enabled(const side_settings& settings, int item) {
     if (item >= 0 && item < main_count)
         return settings.main[item];
     if (item >= main_count && item < main_count + flag_count)
-        return settings.flags_enabled && settings.flags[item - main_count];
+        return settings.flags[item - main_count];
     if (item >= main_count + flag_count && item < main_count + flag_count + weapon_count)
         return settings.weapon_enabled && settings.weapon[item - main_count - flag_count];
     if (item >= main_count + flag_count + weapon_count && item < item_count)
