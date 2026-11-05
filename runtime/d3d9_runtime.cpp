@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <d3d9.h>
 
+#include <cstring>
 #include <mutex>
 
 #include "MinHook.h"
@@ -42,17 +43,17 @@ bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
 HWND game_window = nullptr;
-void* game_surface = nullptr;
-void* game_engine = nullptr;
-ULONGLONG next_surface_probe = 0;
-ULONGLONG next_engine_probe = 0;
+void* game_panel = nullptr;
+ULONGLONG next_panel_probe = 0;
+unsigned int focus_overlay_panel = 0;
 bool menu_input_open = false;
-bool menu_cursor_unlocked = false;
 std::mutex frame_mutex;
 
-using cursor_action_t = void(__thiscall*)(void*);
-using engine_in_game_t = bool(__thiscall*)(void*);
+using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
+using panel_set_mouse_input_t = void(__thiscall*)(void*, unsigned int, bool);
+using panel_get_name_t = const char*(__thiscall*)(void*, unsigned int);
 using create_interface_t = void* (__cdecl*)(const char*, int*);
+paint_traverse_t original_paint_traverse = nullptr;
 
 void* query_interface(HMODULE module, const char* name) {
     if (!module)
@@ -62,58 +63,52 @@ void* query_interface(HMODULE module, const char* name) {
     return factory ? factory(name, nullptr) : nullptr;
 }
 
-bool acquire_game_surface() {
-    if (game_surface)
+void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool repaint, bool force) {
+    original_paint_traverse(ecx, panel, repaint, force);
+
+    // This is the cursor path used by main: enabling mouse input on the
+    // FocusOverlayPanel releases the game's centred/locked cursor. Do not
+    // replace it with per-frame ISurface::UnlockCursor calls.
+    if (!focus_overlay_panel) {
+        const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
+        const char* name = get_name ? get_name(ecx, panel) : nullptr;
+        if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
+            return;
+        focus_overlay_panel = panel;
+    }
+    if (panel != focus_overlay_panel)
+        return;
+
+    const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
+    if (set_mouse_input)
+        set_mouse_input(ecx, panel, g_menu->is_opened());
+}
+
+bool ensure_panel_hook() {
+    if (original_paint_traverse)
         return true;
     const ULONGLONG now = GetTickCount64();
-    if (now < next_surface_probe)
+    if (now < next_panel_probe)
         return false;
-    next_surface_probe = now + 1000;
-    game_surface = query_interface(GetModuleHandleW(L"vguimatsurface.dll"), "VGUI_Surface031");
-    return game_surface != nullptr;
-}
+    next_panel_probe = now + 1000;
 
-bool acquire_game_engine() {
-    if (game_engine)
-        return true;
-    const ULONGLONG now = GetTickCount64();
-    if (now < next_engine_probe)
+    if (!game_panel)
+        game_panel = query_interface(GetModuleHandleW(L"vgui2.dll"), "VGUI_Panel009");
+    if (!game_panel)
         return false;
-    next_engine_probe = now + 1000;
-    game_engine = query_interface(GetModuleHandleW(L"engine.dll"), "VEngineClient014");
-    return game_engine != nullptr;
-}
 
-bool game_is_in_game() {
-    if (!acquire_game_engine())
+    void** vtable = *reinterpret_cast<void***>(game_panel);
+    if (!vtable || !vtable[41])
         return false;
-    // VEngineClient014::IsInGame is slot 26 in the Source 1 interface used by
-    // the main branch. Do not lock the cursor while the Panorama main menu is up.
-    const auto in_game = (*reinterpret_cast<engine_in_game_t**>(game_engine))[26];
-    return in_game && in_game(game_engine);
-}
-
-void unlock_game_cursor() {
-    if (!g_menu->is_opened() || !acquire_game_surface())
-        return;
-    // ISurface inherits nine IAppSystem methods. UnlockCursor is slot 66.
-    const auto unlock = (*reinterpret_cast<cursor_action_t**>(game_surface))[66];
-    if (unlock) {
-        unlock(game_surface);
-        menu_cursor_unlocked = true;
+    if (MH_CreateHook(vtable[41], reinterpret_cast<void*>(&hooked_paint_traverse),
+                      reinterpret_cast<void**>(&original_paint_traverse)) != MH_OK)
+        return false;
+    if (MH_EnableHook(vtable[41]) != MH_OK) {
+        MH_RemoveHook(vtable[41]);
+        original_paint_traverse = nullptr;
+        return false;
     }
-}
-
-void restore_game_cursor() {
-    if (!menu_cursor_unlocked)
-        return;
-    if (acquire_game_surface() && game_is_in_game()) {
-        // LockCursor is the next ISurface method after UnlockCursor (slot 67).
-        const auto lock = (*reinterpret_cast<cursor_action_t**>(game_surface))[67];
-        if (lock)
-            lock(game_surface);
-    }
-    menu_cursor_unlocked = false;
+    return true;
 }
 
 void release_menu_input(HWND hwnd) {
@@ -136,17 +131,14 @@ void release_menu_input(HWND hwnd) {
     if (hwnd && GetCapture() == hwnd)
         ReleaseCapture();
     agent_preview::on_menu_closed();
-    restore_game_cursor();
     menu_input_open = false;
 }
 
 void synchronize_menu_input() {
-    if (g_menu->is_opened()) {
+    if (g_menu->is_opened())
         menu_input_open = true;
-        unlock_game_cursor();
-    } else if (menu_input_open || menu_cursor_unlocked) {
+    else if (menu_input_open)
         release_menu_input(game_window);
-    }
 }
 
 bool mouse_message(UINT message) {
@@ -292,6 +284,7 @@ void render_frame(IDirect3DDevice9* present_device) {
     if (present_device != device)
         return;
 
+    ensure_panel_hook();
     synchronize_menu_input();
 
     // Panorama has rendered its isolated panel layers; bind the preview RT before ImGui draws.
