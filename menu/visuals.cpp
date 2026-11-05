@@ -21,7 +21,7 @@ struct esp_items_ui_state {
     bool main_items[6] = {};
     bool flags[15] = {};
     bool weapon_items[6] = {};
-    bool aimbot_items[2] = {};
+    bool aimbot_items[player_visuals::aimbot_count] = {};
 };
 
 struct player_side_ui_state {
@@ -53,8 +53,6 @@ struct player_side_ui_state {
     color_value glow_color = make_ui_color(0.80f, 0.75f, 1.f);
     char custom_sprite[128] = "models/weapons/customization/paints/custom/money";
     esp_items_ui_state esp_items;
-    bool weapon_enabled = true;
-    color_value weapon_color;
     color_value main_colors[player_visuals::main_count];
     color_value flag_colors[player_visuals::flag_count];
     color_value weapon_colors[player_visuals::weapon_count];
@@ -110,12 +108,6 @@ void store_esp_colors(player_visuals::esp_color (&config)[N], const color_value 
     }
 }
 
-bool same_ui_color(const color_value& a, const color_value& b) {
-    return a.gradient == b.gradient &&
-        a.a.x == b.a.x && a.a.y == b.a.y && a.a.z == b.a.z && a.a.w == b.a.w &&
-        a.b.x == b.b.x && a.b.y == b.b.y && a.b.z == b.b.z && a.b.w == b.b.w;
-}
-
 void load_shared_player_views(players_ui_state& ui) {
     for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
         const auto& config = player_visuals::settings(side_index);
@@ -150,10 +142,6 @@ void load_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(config.flags), std::end(config.flags), std::begin(view.esp_items.flags));
         std::copy(std::begin(config.weapon), std::end(config.weapon), std::begin(view.esp_items.weapon_items));
         std::copy(std::begin(config.aimbot), std::end(config.aimbot), std::begin(view.esp_items.aimbot_items));
-        view.weapon_enabled = config.weapon_enabled;
-        view.weapon_color.a = to_vec4(config.weapon_color.primary);
-        view.weapon_color.b = to_vec4(config.weapon_color.secondary);
-        view.weapon_color.gradient = config.weapon_color.gradient;
         load_esp_colors(view.main_colors, config.main_colors);
         load_esp_colors(view.flag_colors, config.flag_colors);
         load_esp_colors(view.weapon_colors, config.weapon_colors);
@@ -194,10 +182,6 @@ void store_shared_player_views(players_ui_state& ui) {
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
         std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(config.weapon));
         std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(config.aimbot));
-        config.weapon_enabled = view.weapon_enabled;
-        config.weapon_color.primary = to_config_color(view.weapon_color.a);
-        config.weapon_color.secondary = to_config_color(view.weapon_color.b);
-        config.weapon_color.gradient = view.weapon_color.gradient;
         store_esp_colors(config.main_colors, view.main_colors);
         store_esp_colors(config.flag_colors, view.flag_colors);
         store_esp_colors(config.weapon_colors, view.weapon_colors);
@@ -275,7 +259,7 @@ void draw_esp_settings(player_side_ui_state& side) {
     static const char* weapon_items[player_visuals::weapon_count] = {
         "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"
     };
-    static const char* aimbot_items[player_visuals::aimbot_count] = { "Hit Chance", "Hitboxes" };
+    static const char* aimbot_items[player_visuals::aimbot_count] = { "Hitboxes" };
 
     // This replaces the old agent/ESP preview with real controls. The list is
     // scrollable so every existing ESP item remains reachable at any menu scale.
@@ -287,17 +271,9 @@ void draw_esp_settings(player_side_ui_state& side) {
     gui.row_multibox("Flag Selection", flags, side.esp_items.flags, side.flag_colors,
         player_visuals::flag_count, "Select flags; each list entry has its own color picker.");
 
-    const color_value previous_weapon_color = side.weapon_color;
-    gui.row_checkbox("Weapon", &side.weapon_enabled, &side.weapon_color,
-        "Toggle all weapon ESP. The swatch applies one color to every weapon item; use the list for individual colors.");
-    if (!same_ui_color(previous_weapon_color, side.weapon_color)) {
-        for (auto& weapon_color : side.weapon_colors)
-            weapon_color = side.weapon_color;
-    }
     gui.row_multibox("Weapon Selection", weapon_items, side.esp_items.weapon_items, side.weapon_colors,
         player_visuals::weapon_count, "Select weapon items; each list entry has its own color picker.");
 
-    draw_esp_section_title("AIMBOT");
     for (int i = 0; i < player_visuals::aimbot_count; ++i)
         gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
     gui.end_group_box();
@@ -436,7 +412,7 @@ void draw_visuals_players() {
     legacy.m_health_bar = enemy.main[player_visuals::main_health_bar];
     legacy.m_ammo_bar = enemy.main[player_visuals::main_ammo_bar];
     legacy.m_skeleton = enemy.main[player_visuals::main_skeleton];
-    legacy.m_weapon = enemy.weapon_enabled && enemy.weapon[player_visuals::weapon_text];
+    legacy.m_weapon = enemy.weapon[player_visuals::weapon_text];
 }
 
 void draw_visuals_world() {

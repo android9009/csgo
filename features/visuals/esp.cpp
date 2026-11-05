@@ -125,7 +125,7 @@ const char* drag_item_name(int item) {
         "Box", "Name", "Distance", "Health", "Ammo", "Skeleton",
         "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
         "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Priority", "Delay",
-        "Weapon", "Weapon Icon", "Readiness", "C4", "Kit", "Zeus", "Hit Chance", "Hitboxes"
+        "Weapon", "Weapon Icon", "Readiness", "C4", "Kit", "Zeus", "Hitboxes"
     };
     return item >= 0 && item < player_visuals::item_count ? names[item] : "ESP";
 }
@@ -431,7 +431,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             preview_min, preview_max, scale);
     }
 
-    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
+    if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_readiness_bar);
         const float extra = settings.main[player_visuals::main_ammo_bar] ? 5.f : 0.f;
         const ImVec2 anchor(box_center.x, box.max.y + (7.f + extra) * scale);
@@ -460,19 +460,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         ++flag_row;
     }
 
-    if (settings.aimbot[player_visuals::aimbot_hit_chance] && data.hit_chance >= 0.f) {
-        char buffer[48];
-        std::snprintf(buffer, sizeof(buffer), "HC %.0f%%", data.hit_chance);
-        const int item = player_visuals::aimbot_item_id(player_visuals::aimbot_hit_chance);
-        const ImVec2 anchor(box.min.x - 5.f * scale, box.min.y + 6.f * scale);
-        const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text = draw_text(draw, center, buffer,
-            color(settings.aimbot_colors[player_visuals::aimbot_hit_chance]), scale, -1);
-        maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
-    }
-
     const bool bars = settings.main[player_visuals::main_ammo_bar] ||
-        (settings.weapon_enabled && settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f);
+        (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f);
     float bottom_y = box.max.y + (bars ? 15.f : 7.f) * scale;
     if (settings.main[player_visuals::main_distance]) {
         char buffer[48];
@@ -485,7 +474,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
     }
-    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
+    if (settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_text);
         const ImVec2 anchor(box_center.x, bottom_y);
         const ImVec2 center = anchor + placement(item, anchor);
@@ -494,7 +483,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
         bottom_y += 13.f * scale;
     }
-    if (settings.weapon_enabled && settings.weapon[player_visuals::weapon_icon]) {
+    if (settings.weapon[player_visuals::weapon_icon]) {
         const int item = player_visuals::weapon_item_id(player_visuals::weapon_icon);
         const int atlas = visuals_source::atlas_weapon_id(data.weapon_id);
         if (atlas >= 0) {
@@ -511,7 +500,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     const auto equipment = [&](int weapon_item, bool available, const char* label, ImU32 ink) {
-        if (!settings.weapon_enabled || !settings.weapon[weapon_item] || !available)
+        if (!settings.weapon[weapon_item] || !available)
             return;
         const int item = player_visuals::weapon_item_id(weapon_item);
         const ImVec2 anchor(box_center.x, bottom_y);
@@ -649,7 +638,6 @@ player_data preview_data(int side) {
     data.order_priority = 1;
     data.distance = 12.4f;
     data.readiness = 0.64f;
-    data.hit_chance = 87.5f;
     data.delay_ms = 37.f;
     data.armor_valid = true;
     data.money_valid = true;

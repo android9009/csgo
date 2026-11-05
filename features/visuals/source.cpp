@@ -1064,8 +1064,7 @@ void capture(frame_data& output) {
         // available; never require a second netvar for an item already in hand.
         data.bomb = data.bomb || data.weapon_id == 49;
         data.taser = data.taser || data.weapon_id == 31;
-        if (side_settings.aimbot[player_visuals::aimbot_hit_chance] ||
-            side_settings.flags[player_visuals::flag_vulnerable]) {
+        if (side_settings.flags[player_visuals::flag_vulnerable]) {
             data.hit_chance = calculate_hit_chance(local_weapon, data.distance * 39.3701f, data.immunity);
             data.vulnerable = data.immunity_valid && !data.immunity && data.hit_chance >= 5.f;
         }

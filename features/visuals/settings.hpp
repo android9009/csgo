@@ -14,7 +14,7 @@ inline constexpr int side_count = 2; // Enemies, Teammates. Self intentionally h
 inline constexpr int main_count = 6;
 inline constexpr int flag_count = 15;
 inline constexpr int weapon_count = 6;
-inline constexpr int aimbot_count = 2;
+inline constexpr int aimbot_count = 1;
 inline constexpr int item_count = main_count + flag_count + weapon_count + aimbot_count;
 
 enum main_item : int {
@@ -54,8 +54,7 @@ enum weapon_item : int {
 };
 
 enum aimbot_item : int {
-    aimbot_hit_chance = 0,
-    aimbot_hitboxes,
+    aimbot_hitboxes = 0,
 };
 
 inline constexpr int flag_item_id(int flag) { return main_count + flag; }
@@ -88,8 +87,6 @@ struct side_settings {
     bool esp_enabled = false;
     bool main[main_count] = {};
     bool flags[flag_count] = {};
-    bool weapon_enabled = true;
-    esp_color weapon_color; // master swatch: applies its color to all weapon entries
     bool weapon[weapon_count] = {};
     bool aimbot[aimbot_count] = {};
     esp_color main_colors[main_count] = {};
@@ -154,14 +151,12 @@ inline std::array<side_settings, side_count> make_default_settings() {
         set_esp_color(side.flag_colors[flag_bomb], { 1.f, 0.48f, 0.42f, 1.f });
         set_esp_color(side.flag_colors[flag_pin_pulled], { 1.f, 0.48f, 0.42f, 1.f });
 
-        set_esp_color(side.weapon_color, { 0.94f, 0.96f, 1.f, 1.f });
         set_esp_color(side.weapon_colors[weapon_text], { 0.94f, 0.96f, 1.f, 1.f });
         set_esp_color(side.weapon_colors[weapon_icon], { 0.94f, 0.96f, 1.f, 1.f });
         set_esp_color(side.weapon_colors[weapon_readiness_bar], { 0.50f, 1.f, 0.72f, 1.f });
         set_esp_color(side.weapon_colors[weapon_bomb], { 1.f, 0.55f, 0.35f, 1.f });
         set_esp_color(side.weapon_colors[weapon_defuser], { 0.45f, 0.80f, 1.f, 1.f });
         set_esp_color(side.weapon_colors[weapon_taser], { 1.f, 0.90f, 0.35f, 1.f });
-        set_esp_color(side.aimbot_colors[aimbot_hit_chance], { 0.70f, 0.86f, 1.f, 1.f });
         set_esp_color(side.aimbot_colors[aimbot_hitboxes], { 1.f, 0.35f, 0.55f, 0.90f });
     }
     result[0].esp_enabled = true;
@@ -202,7 +197,7 @@ inline bool item_enabled(const side_settings& settings, int item) {
     if (item >= main_count && item < main_count + flag_count)
         return settings.flags[item - main_count];
     if (item >= main_count + flag_count && item < main_count + flag_count + weapon_count)
-        return settings.weapon_enabled && settings.weapon[item - main_count - flag_count];
+        return settings.weapon[item - main_count - flag_count];
     if (item >= main_count + flag_count + weapon_count && item < item_count)
         return settings.aimbot[item - main_count - flag_count - weapon_count];
     return false;
