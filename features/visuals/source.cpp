@@ -1137,6 +1137,87 @@ void capture_world(frame_data& output, const vector3& local_origin) {
     }
 }
 
+void capture_local_player(frame_data& output, void* local, void* local_weapon, int local_team) {
+    const auto& settings = player_visuals::self_esp_settings();
+    if (!output.local_alive || (local_team != 2 && local_team != 3) || dormant(local) ||
+        (!settings.esp_enabled && settings.hitbox_material <= 0)) {
+        return;
+    }
+
+    // Self has its own ESP settings, but uses the same value-type snapshot and
+    // renderer as the other players. side 2 is local-only and never enters DME
+    // team classification or the enemy/teammate chams settings lookup.
+    player_data data;
+    data.index = output.local_index;
+    data.side = 2;
+    data.team = local_team;
+    data.health = value<int>(local, nv.health, 0);
+    data.origin = output.local_origin;
+    data.mins = value<vector3>(local, nv.mins, { -16.f, -16.f, 0.f });
+    data.maxs = value<vector3>(local, nv.maxs, { 16.f, 16.f, 72.f });
+    if (nv.pose_parameters >= 0) {
+        data.poses_valid = true;
+        for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
+            data.poses[pose] = value<float>(local,
+                nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
+        }
+    }
+    data.distance = 0.f;
+    data.name = player_name(output.local_index);
+    data.armor_valid = nv.armor >= 0;
+    data.money_valid = nv.money >= 0;
+    data.immunity_valid = nv.immunity >= 0;
+    data.armor = std::max(0, value<int>(local, nv.armor, 0));
+    data.money = std::max(0, value<int>(local, nv.money, 0));
+    data.helmet = value<bool>(local, nv.helmet, false);
+    data.defuser = value<bool>(local, nv.defuser, false);
+    data.defusing = value<bool>(local, nv.defusing, false);
+    data.scoped = value<bool>(local, nv.scoped, false);
+    data.immunity = value<bool>(local, nv.immunity, false);
+    data.blind = value<float>(local, nv.flash_duration, 0.f) > 0.01f;
+    data.slowed = value<float>(local, nv.velocity_modifier, 1.f) < 0.99f;
+    data.hostage = entity_from_handle(value<unsigned int>(local, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
+    if (global_vars && nv.simulation_time >= 0) {
+        const float simulation = value<float>(local, nv.simulation_time, global_vars->current_time);
+        data.delay_ms = std::max(0.f, (global_vars->current_time - simulation) * 1000.f);
+    }
+
+    if (local_weapon) {
+        data.weapon_id = item_definition(local_weapon);
+        if (data.weapon_id > 0)
+            data.weapon_name = weapon_name(data.weapon_id);
+        data.clip = value<int>(local_weapon, nv.clip, -1);
+        data.reserve_ammo = value<int>(local_weapon, nv.reserve_ammo, -1);
+        data.reloading = value<bool>(local_weapon, nv.reloading, false);
+        data.pin_pulled = value<bool>(local_weapon, nv.pin_pulled, false);
+        if (const auto* info = weapon_info(data.weapon_id)) {
+            data.max_clip = info->max_clip1;
+            if (global_vars && info->cycle_time > 0.001f && info->cycle_time < 10.f) {
+                float ready_time = value<float>(local_weapon, nv.next_primary_attack, global_vars->current_time);
+                ready_time = std::max(ready_time,
+                    value<float>(local_weapon, nv.postpone_fire_ready, ready_time));
+                data.readiness = std::clamp(1.f - std::max(0.f,
+                    ready_time - global_vars->current_time) / info->cycle_time, 0.f, 1.f);
+            }
+        }
+        if (data.max_clip <= 0)
+            data.max_clip = fallback_max_clip(data.weapon_id);
+    }
+    if (settings.flags[player_visuals::flag_bomb] ||
+        settings.weapon[player_visuals::weapon_bomb] ||
+        settings.weapon[player_visuals::weapon_taser]) {
+        scan_inventory(local, data);
+    }
+    data.bomb = data.bomb || data.weapon_id == 49;
+    data.taser = data.taser || data.weapon_id == 31;
+    collect_model_geometry(local, value<int>(local, nv.hitbox_set, 0), data,
+        settings.main[player_visuals::main_skeleton],
+        settings.aimbot[player_visuals::aimbot_hitboxes] || settings.hitbox_material > 0);
+    data.dormant = false;
+    data.alpha = 1.f;
+    output.players.push_back(std::move(data));
+}
+
 void capture(frame_data& output) {
     output = {};
     if (!is_in_game()) {
@@ -1318,6 +1399,8 @@ void capture(frame_data& output) {
         cached.valid = true;
         output.players.push_back(std::move(data));
     }
+
+    capture_local_player(output, local, local_weapon, local_team);
 
     // Order Priority is a deterministic closest-first target order, calculated
     // independently for enemies and teammates rather than read from a fake prop.

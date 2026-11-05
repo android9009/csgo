@@ -33,7 +33,7 @@ struct renderable_entity_data {
 
 struct player_data {
     int index = 0;
-    int side = 0; // 0 = enemy, 1 = teammate
+    int side = 0; // 0 = enemy, 1 = teammate, 2 = local player (ESP only)
     int team = 0;
     int health = 0;
     int armor = 0;

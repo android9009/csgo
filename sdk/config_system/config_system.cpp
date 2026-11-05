@@ -201,6 +201,29 @@ void c_config_system::setup_values( )
 			push_item(&side.slots[i], category, std::format("slot_{}", i), side.slots[i]);
 		}
 	}
+	auto& self_esp = player_visuals::self_esp_settings();
+	push_item(&self_esp.esp_enabled, "self_visuals", "esp_enabled", self_esp.esp_enabled);
+	for (int i = 0; i < player_visuals::main_count; ++i) {
+		push_item(&self_esp.main[i], "self_visuals", std::format("main_{}", main_names[i]), self_esp.main[i]);
+		push_esp_color(self_esp.main_colors[i], "self_visuals", std::format("main_{}_color", main_names[i]));
+	}
+	for (int i = 0; i < player_visuals::flag_count; ++i) {
+		push_item(&self_esp.flags[i], "self_visuals", std::format("flag_{}", flag_names[i]), self_esp.flags[i]);
+		push_esp_color(self_esp.flag_colors[i], "self_visuals", std::format("flag_{}_color", flag_names[i]));
+	}
+	for (int i = 0; i < player_visuals::weapon_count; ++i) {
+		push_item(&self_esp.weapon[i], "self_visuals", std::format("weapon_{}", weapon_item_names[i]), self_esp.weapon[i]);
+		push_esp_color(self_esp.weapon_colors[i], "self_visuals", std::format("weapon_{}_color", weapon_item_names[i]));
+	}
+	for (int i = 0; i < player_visuals::aimbot_count; ++i) {
+		push_item(&self_esp.aimbot[i], "self_visuals", std::format("aimbot_{}", aimbot_names[i]), self_esp.aimbot[i]);
+		push_esp_color(self_esp.aimbot_colors[i], "self_visuals", std::format("aimbot_{}_color", aimbot_names[i]));
+	}
+	for (int i = 0; i < player_visuals::item_count; ++i) {
+		push_item(&self_esp.offsets[i].x, "self_visuals", std::format("offset_{}_x", i), self_esp.offsets[i].x);
+		push_item(&self_esp.offsets[i].y, "self_visuals", std::format("offset_{}_y", i), self_esp.offsets[i].y);
+		push_item(&self_esp.slots[i], "self_visuals", std::format("slot_{}", i), self_esp.slots[i]);
+	}
 	auto& self = player_visuals::self_settings();
 	push_item(&self.local_enabled, "self_visuals", "local_enabled", self.local_enabled);
 	push_item(&self.local_fake_enabled, "self_visuals", "local_fake_enabled", self.local_fake_enabled);

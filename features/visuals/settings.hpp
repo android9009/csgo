@@ -10,7 +10,7 @@
 // values outside menu-local state is what lets the ESP remain unchanged after
 // the menu is closed and makes config Save/Load cover the complete layout.
 namespace player_visuals {
-inline constexpr int side_count = 2; // Enemies, Teammates. Self intentionally has no ESP set.
+inline constexpr int side_count = 2; // Enemies/Teammates; Self has a separate ESP settings set.
 inline constexpr int main_count = 6;
 inline constexpr int flag_count = 15;
 inline constexpr int weapon_count = 6;
@@ -231,6 +231,17 @@ inline std::array<side_settings, side_count> make_default_settings() {
         side.main_colors[main_skeleton].gradient = side.player_gradient;
     }
     return result;
+}
+
+inline side_settings& self_esp_settings() {
+    static side_settings value = [] {
+        const auto defaults = make_default_settings();
+        side_settings result = defaults[0];
+        result.esp_enabled = false;
+        result.offscreen_arrow = false;
+        return result;
+    }();
+    return value;
 }
 
 inline std::array<side_settings, side_count>& all_settings() {

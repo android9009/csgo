@@ -225,6 +225,15 @@ void load_shared_self_view(player_side_ui_state& view) {
     view.on_shot_color.b = to_vec4(config.attachments_secondary);
     std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
     view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
+    const auto& esp = player_visuals::self_esp_settings();
+    std::copy(std::begin(esp.main), std::end(esp.main), std::begin(view.esp_items.main_items));
+    std::copy(std::begin(esp.flags), std::end(esp.flags), std::begin(view.esp_items.flags));
+    std::copy(std::begin(esp.weapon), std::end(esp.weapon), std::begin(view.esp_items.weapon_items));
+    std::copy(std::begin(esp.aimbot), std::end(esp.aimbot), std::begin(view.esp_items.aimbot_items));
+    load_esp_colors(view.main_colors, esp.main_colors);
+    load_esp_colors(view.flag_colors, esp.flag_colors);
+    load_esp_colors(view.weapon_colors, esp.weapon_colors);
+    load_esp_colors(view.aimbot_colors, esp.aimbot_colors);
 }
 
 void store_shared_self_view(player_side_ui_state& view) {
@@ -260,6 +269,15 @@ void store_shared_self_view(player_side_ui_state& view) {
     config.attachments_color = to_config_color(view.on_shot_color.a);
     config.attachments_secondary = to_config_color(view.on_shot_color.b);
     config.custom_sprite = view.custom_sprite;
+    auto& esp = player_visuals::self_esp_settings();
+    std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(esp.main));
+    std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(esp.flags));
+    std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(esp.weapon));
+    std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(esp.aimbot));
+    store_esp_colors(esp.main_colors, view.main_colors);
+    store_esp_colors(esp.flag_colors, view.flag_colors);
+    store_esp_colors(esp.weapon_colors, view.weapon_colors);
+    store_esp_colors(esp.aimbot_colors, view.aimbot_colors);
 }
 
 void draw_custom_sprite_row(player_side_ui_state& side) {
@@ -421,6 +439,7 @@ void draw_self_side(player_side_ui_state& side) {
     static const char* local_weapons[] = { "Default", "Current Weapon" };
 
     gui.grid_box("LOCAL PLAYER MODEL", k_auto_height);
+    gui.row_checkbox("ESP Enabled", &player_visuals::self_esp_settings().esp_enabled);
     if (gui.row_popup("Model")) {
         gui.row_begin(); ImGui::Combo("Mode", &side.local_model, local_models, IM_ARRAYSIZE(local_models));
         gui.popup_end();
@@ -508,11 +527,10 @@ void draw_visuals_players() {
     else
         draw_self_side(ui.sides[2]);
 
-    // No Panorama/agent or ESP preview is created on this page. Enemies and
-    // Teammates edit their actual renderer settings in the former preview column.
+    // No Panorama/agent or ESP preview is created on this page. Every side edits
+    // its real renderer settings in the former preview column, including Self.
     gui.grid_col(1);
-    if (ui.active_side < player_visuals::side_count)
-        draw_esp_settings(ui.sides[ui.active_side]);
+    draw_esp_settings(ui.sides[ui.active_side]);
     gui.end_grid();
     store_shared_player_views(ui);
     store_shared_self_view(ui.sides[2]);

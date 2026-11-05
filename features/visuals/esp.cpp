@@ -963,7 +963,9 @@ void render() {
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     render_world(draw, frame, display);
     for (const auto& player : frame.players) {
-        const auto& settings = player_visuals::settings(player.side);
+        const auto& settings = player.side == 2
+            ? player_visuals::self_esp_settings()
+            : player_visuals::settings(player.side);
         if (!settings.esp_enabled && settings.hitbox_material <= 0)
             continue;
         rect_f box;
