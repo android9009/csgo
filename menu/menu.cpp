@@ -407,7 +407,6 @@ void c_menu::render() {
             menu_pos_ready = true;
         }
         if (!menu_dragging && ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemHovered() &&
-            !agent_preview::contains_point(io.MousePos) &&
             ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_NoPopupHierarchy)) {
             menu_dragging = true;
             menu_grab = io.MousePos - window->Pos;

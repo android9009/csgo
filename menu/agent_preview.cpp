@@ -791,7 +791,9 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "if(!h){h=$.CreatePanel('Panel',root,'" + k_host_id + "',{hittest:false,style:'" + host_style + "'});made=true;}"
         "if(!h)return;"
         "if(!p)p=h.FindChildTraverse('" + k_model_id + "');"
-        "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:true,mouse_rotate:true,"
+        // The isolated panel is render-only. ImGui owns the modal menu mouse;
+        // native hittest/rotation must not capture it behind the overlay.
+        "if(!p){p=$.CreatePanel('ItemPreviewPanel',h,'" + k_model_id + "',{hittest:false,mouse_rotate:false,"
         "'require-composition-layer':true,style:'width:100%;height:100%;horizontal-align:left;vertical-align:top;'});made=true;}"
         "if(!p)return;d.DarksideEspAgentPreview=h;d.DarksideEspAgentPreviewModel=p;"
         // ImGui rects are in backbuffer pixels; Panorama style lengths are in
@@ -805,7 +807,7 @@ std::string panel_script(const RECT& rect, int side, int agent, unsigned backgro
         "h.style.height=((" + h + ")/sy)+'px';"
         // The native host retains its own composition layer above native popups;
         // ImGui samples that isolated layer afterwards in the same foreground menu.
-        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;p.hittest=true;"
+        "h.style.backgroundColor='" + color + "';h.style.zIndex=100000;h.visible=true;p.hittest=false;"
         "var acceptedMarker=h.FindChildTraverse('" + accepted_id + "');"
         "var readyMarker=h.FindChildTraverse('" + ready_id + "');";
 

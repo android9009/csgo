@@ -10,7 +10,6 @@
 #include <Windows.h>
 #include <d3d9.h>
 
-#include <cfloat>
 #include <mutex>
 
 #include "MinHook.h"
@@ -42,33 +41,112 @@ IDirect3DDevice9* device = nullptr;
 bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
-bool panorama_mouse_drag = false;
+HWND game_window = nullptr;
 void* game_surface = nullptr;
+void* game_engine = nullptr;
 ULONGLONG next_surface_probe = 0;
+ULONGLONG next_engine_probe = 0;
+bool menu_input_open = false;
+bool menu_cursor_unlocked = false;
 std::mutex frame_mutex;
 
-using unlock_cursor_t = void(__thiscall*)(void*);
+using cursor_action_t = void(__thiscall*)(void*);
+using engine_in_game_t = bool(__thiscall*)(void*);
+using create_interface_t = void* (__cdecl*)(const char*, int*);
+
+void* query_interface(HMODULE module, const char* name) {
+    if (!module)
+        return nullptr;
+    const auto factory = reinterpret_cast<create_interface_t>(
+        GetProcAddress(module, "CreateInterface"));
+    return factory ? factory(name, nullptr) : nullptr;
+}
+
+bool acquire_game_surface() {
+    if (game_surface)
+        return true;
+    const ULONGLONG now = GetTickCount64();
+    if (now < next_surface_probe)
+        return false;
+    next_surface_probe = now + 1000;
+    game_surface = query_interface(GetModuleHandleW(L"vguimatsurface.dll"), "VGUI_Surface031");
+    return game_surface != nullptr;
+}
+
+bool acquire_game_engine() {
+    if (game_engine)
+        return true;
+    const ULONGLONG now = GetTickCount64();
+    if (now < next_engine_probe)
+        return false;
+    next_engine_probe = now + 1000;
+    game_engine = query_interface(GetModuleHandleW(L"engine.dll"), "VEngineClient014");
+    return game_engine != nullptr;
+}
+
+bool game_is_in_game() {
+    if (!acquire_game_engine())
+        return false;
+    // VEngineClient014::IsInGame is slot 26 in the Source 1 interface used by
+    // the main branch. Do not lock the cursor while the Panorama main menu is up.
+    const auto in_game = (*reinterpret_cast<engine_in_game_t**>(game_engine))[26];
+    return in_game && in_game(game_engine);
+}
 
 void unlock_game_cursor() {
-    if (!g_menu->is_opened())
+    if (!g_menu->is_opened() || !acquire_game_surface())
         return;
-    const ULONGLONG now = GetTickCount64();
-    if (!game_surface && now >= next_surface_probe) {
-        next_surface_probe = now + 1000;
-        const HMODULE module = GetModuleHandleW(L"vguimatsurface.dll");
-        using create_interface_t = void* (__cdecl*)(const char*, int*);
-        const auto factory = module ? reinterpret_cast<create_interface_t>(
-            GetProcAddress(module, "CreateInterface")) : nullptr;
-        game_surface = factory ? factory("VGUI_Surface031", nullptr) : nullptr;
-    }
-    if (!game_surface)
-        return;
-    // ISurface inherits nine IAppSystem methods. UnlockCursor is slot 66;
-    // keep reasserting it while the menu is open because gameplay may lock it
-    // again. On close the game/MainMenu regains ownership of its own cursor.
-    const auto unlock = (*reinterpret_cast<unlock_cursor_t**>(game_surface))[66];
-    if (unlock)
+    // ISurface inherits nine IAppSystem methods. UnlockCursor is slot 66.
+    const auto unlock = (*reinterpret_cast<cursor_action_t**>(game_surface))[66];
+    if (unlock) {
         unlock(game_surface);
+        menu_cursor_unlocked = true;
+    }
+}
+
+void restore_game_cursor() {
+    if (!menu_cursor_unlocked)
+        return;
+    if (acquire_game_surface() && game_is_in_game()) {
+        // LockCursor is the next ISurface method after UnlockCursor (slot 67).
+        const auto lock = (*reinterpret_cast<cursor_action_t**>(game_surface))[67];
+        if (lock)
+            lock(game_surface);
+    }
+    menu_cursor_unlocked = false;
+}
+
+void release_menu_input(HWND hwnd) {
+    if (!hwnd)
+        hwnd = game_window;
+    if (hwnd && ImGui::GetCurrentContext()) {
+        // The Win32 backend keeps its own button mask in addition to ImGuiIO.
+        // Feed all releases before clearing IO so a later click cannot inherit
+        // a stuck capture or a held button from the closed menu.
+        static const UINT releases[] = {
+            WM_LBUTTONUP, WM_RBUTTONUP, WM_MBUTTONUP, WM_XBUTTONUP
+        };
+        for (const UINT message : releases) {
+            const WPARAM wparam = message == WM_XBUTTONUP ? (XBUTTON1 << 16) : 0;
+            ImGui_ImplWin32_WndProcHandler(hwnd, message, wparam, 0);
+        }
+        ImGui::GetIO().ClearInputKeys();
+        ImGui::GetIO().MouseDrawCursor = false;
+    }
+    if (hwnd && GetCapture() == hwnd)
+        ReleaseCapture();
+    agent_preview::on_menu_closed();
+    restore_game_cursor();
+    menu_input_open = false;
+}
+
+void synchronize_menu_input() {
+    if (g_menu->is_opened()) {
+        menu_input_open = true;
+        unlock_game_cursor();
+    } else if (menu_input_open || menu_cursor_unlocked) {
+        release_menu_input(game_window);
+    }
 }
 
 bool mouse_message(UINT message) {
@@ -91,85 +169,51 @@ bool movement_key(WPARAM key) {
     }
 }
 
-bool imgui_owns_mouse() {
-    if (!ImGui::GetCurrentContext())
-        return false;
-    return ImGui::GetIO().WantCaptureMouse || ImGui::IsAnyItemActive() ||
-        ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
-}
-
 LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
     if (!original_wndproc)
         return DefWindowProc(hwnd, message, wparam, lparam);
 
-    if (ImGui::GetCurrentContext())
-        ImGui_ImplWin32_WndProcHandler(hwnd, message, wparam, lparam);
+    // Match the main branch: another application's messages must not be
+    // consumed by our menu or leave its Win32 capture behind.
+    if (GetForegroundWindow() != hwnd) {
+        if (GetCapture() == hwnd)
+            ReleaseCapture();
+        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+    }
 
-    if (message == WM_KEYUP && wparam == VK_INSERT &&
-        GetForegroundWindow() == hwnd) {
+    if (message == WM_KEYUP && wparam == VK_INSERT) {
         g_menu->toggle();
-        if (!g_menu->is_opened()) {
-            panorama_mouse_drag = false;
-            agent_preview::on_menu_closed();
-        }
+        if (g_menu->is_opened())
+            menu_input_open = true;
+        else
+            release_menu_input(hwnd);
         return 0;
     }
     if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)
         return 0;
 
-    if (menu_binds::is_capturing() &&
-        ((message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
-         (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)))
-        return TRUE;
+    const bool opened = g_menu->is_opened();
+    if (opened && ImGui::GetCurrentContext()) {
+        // Feed each event to ImGui exactly once. Unlike the old selective
+        // route, the same click is never also delivered to the game.
+        const LRESULT imgui_result = ImGui_ImplWin32_WndProcHandler(hwnd, message, wparam, lparam);
+        if (menu_binds::is_capturing() &&
+            (keyboard_message(message) || mouse_message(message)))
+            return TRUE;
 
-    if (g_menu->is_opened() &&
-        (message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN ||
-         message == WM_LBUTTONUP || message == WM_LBUTTONDBLCLK)) {
-        const ImVec2 point(static_cast<float>(static_cast<short>(lparam & 0xFFFF)),
-            static_cast<float>(static_cast<short>((lparam >> 16) & 0xFFFF)));
-        const bool press = message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK;
-        const bool imgui_hovered = ImGui::GetCurrentContext() && ImGui::IsAnyItemHovered();
-        const bool imgui_active = ImGui::GetCurrentContext() && ImGui::IsAnyItemActive();
-        if (press) {
-            panorama_mouse_drag = agent_preview::contains_point(point) &&
-                !player_esp::preview_drag_hit(point) && !imgui_hovered;
-        }
-        bool forward = panorama_mouse_drag;
-        if (message == WM_MOUSEMOVE && !panorama_mouse_drag) {
-            forward = agent_preview::contains_point(point) && !player_esp::preview_drag_hit(point) &&
-                !imgui_hovered && !imgui_active;
-        }
-        if (message == WM_LBUTTONUP)
-            panorama_mouse_drag = false;
-        if (forward)
-            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-    }
-
-    if (g_menu->is_opened() && message == WM_INPUT && panorama_mouse_drag)
-        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-
-    if (g_menu->is_opened()) {
-        // Only the menu owns its own mouse area. Clicks outside it must still
-        // reach Panorama (including team selection) and the game. Raw input is
-        // blocked only while the cursor/menu drag belongs to ImGui; native
-        // preview rotation was forwarded above.
-        if (message == WM_INPUT) {
-            if (imgui_owns_mouse())
-                return 0;
-            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-        }
-        if (mouse_message(message)) {
-            const ImVec2 point = ImGui::GetCurrentContext()
-                ? ImGui::GetIO().MousePos : ImVec2(-FLT_MAX, -FLT_MAX);
-            if (imgui_owns_mouse() || player_esp::preview_drag_hit(point))
-                return 0;
-            return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-        }
-        // Text fields still own editing keys, but movement must not be taken
-        // away from a live player merely because the menu is open.
-        if (ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput &&
-            keyboard_message(message) && !movement_key(wparam))
+        // The open menu is a modal overlay. Raw mouse input and client mouse
+        // messages stay out of the game until the menu is closed.
+        if (message == WM_INPUT || mouse_message(message))
             return 0;
+
+        // Keep movement keys available to the live player, as in the existing
+        // menu, while text editing owns the remaining keyboard input.
+        if (ImGui::GetIO().WantTextInput && keyboard_message(message) && !movement_key(wparam))
+            return 0;
+        if (imgui_result)
+            return imgui_result;
+    } else if (opened && (message == WM_INPUT || mouse_message(message))) {
+        return 0;
     }
 
     return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
@@ -222,6 +266,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     original_wndproc = previous;
+    game_window = parameters.hFocusWindow;
     device = present_device;
     blur::device = present_device;
 
@@ -247,7 +292,7 @@ void render_frame(IDirect3DDevice9* present_device) {
     if (present_device != device)
         return;
 
-    unlock_game_cursor();
+    synchronize_menu_input();
 
     // Panorama has rendered its isolated panel layers; bind the preview RT before ImGui draws.
     AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");

@@ -1,7 +1,9 @@
 // Visuals menu page only. Gameplay ESP/rendering code belongs under features/visuals.
 #include "menu.hpp"
 #include "hashes.hpp"
+#include "agent_preview.hpp"
 #include "../features/visuals/chams.hpp"
+#include "../features/visuals/esp.hpp"
 #include "../features/visuals/settings.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
@@ -61,7 +63,6 @@ struct players_ui_state {
     // Screen-independent reference height for the right column. Enemies is the
     // design reference even while the Teammates or Self tab is selected.
     float enemies_right_height = 0.f;
-    bool esp_items_open = true;
 
     players_ui_state() {
         for (auto& side : sides) {
@@ -217,38 +218,20 @@ void draw_custom_sprite_row(player_side_ui_state& side) {
     gui.end_grid();
 }
 
-void draw_esp_checkbox_section(const char* id, const char* title, const char* const* labels,
-                               bool* values, int count) {
+void draw_esp_chip_section(const char* id, const char* title, const char* const* labels,
+                           bool* values, int count) {
     gui.popup_section_begin(id, true, 10.f);
     ImFontAtlas* fonts = ImGui::GetIO().Fonts;
     ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
     ImGui::TextUnformatted(gui.tr(title));
     ImGui::PopFont();
     ImGui::Dummy(ImVec2(0.f, 5.f * gui.m_scale));
-    for (int i = 0; i < count; ++i) {
-        ImGui::PushID(i);
-        gui.popup_toggle(nullptr, labels[i], &values[i]);
-        ImGui::PopID();
-    }
+    gui.chips(id, labels, values, count);
     gui.popup_section_end();
 }
 
-void draw_esp_effects_section() {
-    auto& effects = g_cfg->visuals.m_effects;
-    gui.popup_section_begin("Effects", true, 10.f);
-    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
-    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
-    ImGui::TextUnformatted(gui.tr("Effects"));
-    ImGui::PopFont();
-    ImGui::Dummy(ImVec2(0.f, 5.f * gui.m_scale));
-    gui.popup_toggle(nullptr, "Bullet Tracers", &effects.m_bullet_tracers);
-    gui.popup_toggle(nullptr, "Bullet Impacts", &effects.m_bullet_impacts);
-    gui.popup_toggle(nullptr, "Hit Marker", &effects.m_hitmarker);
-    gui.popup_toggle(nullptr, "Hit Marker Sound", &effects.m_hitmarker_sound);
-    gui.popup_section_end();
-}
-
-void draw_esp_items_panel(player_side_ui_state& side, ImVec2 origin, float width, float height) {
+void draw_esp_items_popup(player_side_ui_state& side, bool clicked,
+                          ImVec2 content_origin, float content_width, float content_bottom) {
     static const char* main_items[] = {
         "Bounding Box", "Name", "Distance", "Health Bar", "Ammo Bar", "Skeleton"
     };
@@ -260,32 +243,38 @@ void draw_esp_items_panel(player_side_ui_state& side, ImVec2 origin, float width
         "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"
     };
     static const char* aimbot_items[] = { "Hit Chance", "Hitboxes" };
-    const float s = gui.m_scale;
-    if (width < 80.f * s || height < 40.f * s)
+
+    // A content-width card directly under the header, not a cursor-relative popup. Its top edge
+    // stays fixed while the opening fade runs; its bottom uses the shared Enemies height.
+    bool wants_open = false;
+    const float anim = gui.popup_animation("ESP ItemsPopup", clicked, wants_open);
+    const ImVec2 anchor = content_origin + ImVec2(0.f, 28.f * gui.m_scale);
+    const float card_height = ImMax(1.f, content_bottom - anchor.y);
+    if (!gui.begin_popup_card_at("ESP ItemsPopup", wants_open, anim, anchor, ImVec2(0.f, 0.f),
+                                 content_width / gui.m_scale, 10.f, card_height / gui.m_scale))
         return;
 
-    // This is an ordinary in-window panel, not a popup over a preview. It is
-    // visible immediately and its child supplies scrolling for all sections.
-    ImGuiWindow* outer = ImGui::GetCurrentWindow();
-    const ImVec2 saved_cursor = outer->DC.CursorPos;
-    const ImVec2 saved_cursor_max = outer->DC.CursorMaxPos;
-    gui.popup_surface(ImGui::GetWindowDrawList(), origin, origin + ImVec2(width, height),
-                      15.f * s, 1.f, true);
-    ImGui::SetCursorScreenPos(origin + ImVec2(10.f * s, 10.f * s));
+    ImFontAtlas* fonts = ImGui::GetIO().Fonts;
+    ImGui::PushFont(fonts->Fonts.Size > 4 ? fonts->Fonts[4] : ImGui::GetFont());
+    ImGui::TextColored(gui.text.to_vec4(1.f, false), "%s", gui.tr("ESP Items"));
+    ImGui::PopFont();
+    ImGui::Dummy(ImVec2(0.f, 4.f * gui.m_scale));
+
+    // Match the shared Enemies reference bottom exactly. The card has a fixed
+    // height and the child keeps all chip sections available through scrolling.
+    const float sections_y = ImGui::GetCursorScreenPos().y;
+    const float sections_h = ImMax(1.f * gui.m_scale,
+        card_height - (sections_y - anchor.y) - 10.f * gui.m_scale); // outer card's bottom padding
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
-    const bool visible = ImGui::BeginChild("##esp_items_panel", ImVec2(width - 20.f * s, height - 20.f * s),
-                                           false, ImGuiWindowFlags_NoBackground);
-    if (visible) {
-        draw_esp_checkbox_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
-        draw_esp_checkbox_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
-        draw_esp_checkbox_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
-        draw_esp_checkbox_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
-        draw_esp_effects_section();
-    }
+    ImGui::BeginChild("##esp_items_sections", ImVec2(0.f, sections_h), false,
+                      ImGuiWindowFlags_NoBackground);
+    draw_esp_chip_section("Main", "Main", main_items, side.esp_items.main_items, IM_ARRAYSIZE(main_items));
+    draw_esp_chip_section("Flags", "Flags", flags, side.esp_items.flags, IM_ARRAYSIZE(flags));
+    draw_esp_chip_section("Weapon", "Weapon", weapon_items, side.esp_items.weapon_items, IM_ARRAYSIZE(weapon_items));
+    draw_esp_chip_section("Aimbot", "Aimbot", aimbot_items, side.esp_items.aimbot_items, IM_ARRAYSIZE(aimbot_items));
     ImGui::EndChild();
     ImGui::PopStyleVar();
-    outer->DC.CursorPos = saved_cursor;
-    outer->DC.CursorMaxPos = saved_cursor_max;
+    gui.end_popup_card();
 }
 
 void draw_enemy_side(player_side_ui_state& side) {
@@ -427,11 +416,13 @@ void draw_visuals_players() {
     const float content_width = ImGui::GetContentRegionAvail().x;
     const float column_width = (content_width - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
     ui.active_side = ImClamp(ui.active_side, 0, 2);
-    const bool has_esp_items = ui.active_side < 2;
+    const ImGuiID customize_id = ImGui::GetID("ESP ItemsPopup");
+    const bool customize_visible = ui.active_side < 2 &&
+        (ImGui::IsPopupOpen(customize_id, ImGuiPopupFlags_None) || gui.popup_fade_visible(customize_id));
     const ImVec2 header_center = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x + column_width * 0.5f, -4.f * gui.m_scale);
-    const bool customize_clicked = has_esp_items &&
-        draw_esp_items_header_button(header_center, ui.esp_items_open);
+    const bool customize_clicked = ui.active_side < 2 &&
+        draw_esp_items_header_button(header_center, customize_visible);
 
     gui.begin_grid(2);
     gui.grid_col(0);
@@ -443,14 +434,14 @@ void draw_visuals_players() {
         draw_self_side(ui.sides[2]);
     const float active_left_bottom = ImGui::GetCursorScreenPos().y - ImGui::GetStyle().ItemSpacing.y;
 
-    // The right column is a regular ESP Items panel. It does not depend on an
-    // agent/ESP preview or on a popup being opened before its controls appear.
+    // The right column displays only the live Panorama agent. ESP Items remains a card
+    // above the same column.
     gui.end_grid();
 
     const ImVec2 right_column_origin = content_origin + ImVec2(
         column_width + ImGui::GetStyle().ItemSpacing.x, 0.f);
-    const ImVec2 panel_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
-    const float active_right_height = ImMax(1.f, active_left_bottom - panel_origin.y);
+    const ImVec2 preview_origin = right_column_origin + ImVec2(0.f, 28.f * gui.m_scale);
+    const float active_right_height = ImMax(1.f, active_left_bottom - preview_origin.y);
     if (ui.active_side == 0)
         ui.enemies_right_height = active_right_height / gui.m_scale;
     // Do not let the shorter Teammates or Self controls shrink the right column.
@@ -458,10 +449,19 @@ void draw_visuals_players() {
     const float right_column_height = ui.enemies_right_height > 0.f
         ? ui.enemies_right_height * gui.m_scale
         : active_right_height;
-    if (customize_clicked)
-        ui.esp_items_open = !ui.esp_items_open;
-    if (has_esp_items && ui.esp_items_open)
-        draw_esp_items_panel(ui.sides[ui.active_side], panel_origin, column_width, right_column_height);
+    const float right_column_bottom = preview_origin.y + right_column_height;
+    // Enemies, Teammates and Self share the canonical Agents T skin. Chams and
+    // ESP settings still come from the selected Enemies/Teammates tab.
+    const ImVec2 preview_max(right_column_origin.x + column_width, right_column_bottom);
+    const bool has_side_preview = ui.active_side < 2;
+    if (has_side_preview)
+        player_esp::prepare_preview(ui.active_side);
+    agent_preview::draw(preview_origin, preview_max, 0, has_side_preview);
+    player_esp::draw_preview(preview_origin, preview_max, has_side_preview ? ui.active_side : -1);
+    if (has_side_preview) {
+        draw_esp_items_popup(ui.sides[ui.active_side], customize_clicked,
+                             right_column_origin, column_width, right_column_bottom);
+    }
     store_shared_player_views(ui);
 
     // Keep the legacy config fields coherent for older config consumers; the

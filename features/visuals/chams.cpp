@@ -677,6 +677,9 @@ struct draw_call {
     void* context = nullptr;
     const draw_model_state_t* state = nullptr;
     const model_render_info_t* render_info = nullptr;
+    // Panorama may use either StudioRender::DrawModel or ModelRender::DrawModelExecute.
+    // Keep that distinction separate from `game`, which selects the ABI helpers.
+    bool preview = false;
 };
 
 void draw_original(const draw_call& call) {
@@ -885,6 +888,12 @@ void draw_single_material(const draw_call& call,
         break;
     }
 
+    // Osiris applies colorModulate directly to the material. Panorama uses an
+    // isolated render context, so StudioRender/RenderView modulation alone is
+    // not sufficient there; apply the same material-side color as well.
+    if (call.preview && pass.material != rim_glow && pass.material != fade_up)
+        set_material_color(material_api, modulation[0], modulation[1], modulation[2]);
+
     set_draw_color(modulation, call.game);
     set_draw_alpha(std::clamp(pass.color[3], 0.f, 1.f), call.game);
     force_material(material, call.game);
@@ -1035,8 +1044,9 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
         return;
     }
 
-    const draw_call call{ results, &info, bones, flex_weights, delayed_flex_weights,
+    draw_call call{ results, &info, bones, flex_weights, delayed_flex_weights,
         &model_origin, flags };
+    call.preview = true;
     if (passes.behind_walls.material != visuals_chams::disabled)
         draw_pass(call, passes.behind_walls, true, passes.sprite_path);
     if (passes.player.material != visuals_chams::disabled)
@@ -1064,6 +1074,44 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         original_model_execute(self, context, state, info, bones);
         return;
     }
+
+    // ItemPreviewPanel has no real player entity. Some Panorama builds submit
+    // its model through DME instead of StudioRender::DrawModel; handle that
+    // route without ever recolouring a real player with the preview settings.
+    if (preview_active.load(std::memory_order_acquire) && info.entity_index <= 0 && info.model) {
+        preview_settings snapshot;
+        {
+            std::scoped_lock lock(settings_mutex);
+            snapshot = preview;
+        }
+        if (snapshot.active && model_name_matches(info.model->name, snapshot.model)) {
+            draw_call call;
+            call.bones = bones;
+            call.game = true;
+            call.preview = true;
+            call.context = context;
+            call.state = &state;
+            call.render_info = &info;
+            const auto& passes = snapshot.passes;
+            if (passes.configured) {
+                if (passes.behind_walls.material != visuals_chams::disabled)
+                    draw_pass(call, passes.behind_walls, true, passes.sprite_path);
+                if (passes.player.material != visuals_chams::disabled)
+                    draw_pass(call, passes.player, false, passes.sprite_path);
+                else {
+                    force_material(nullptr, true);
+                    draw_original(call);
+                }
+            } else {
+                force_material(nullptr, true);
+                draw_original(call);
+            }
+            force_material(nullptr, true);
+            reset_modulation(true);
+            return;
+        }
+    }
+
     draw_on_shot_records(context);
 
     const char* model_name = info.model ? info.model->name :
