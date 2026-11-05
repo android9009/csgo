@@ -1211,8 +1211,7 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.bomb = data.bomb || data.weapon_id == 49;
     data.taser = data.taser || data.weapon_id == 31;
     collect_model_geometry(local, value<int>(local, nv.hitbox_set, 0), data,
-        settings.main[player_visuals::main_skeleton],
-        settings.aimbot[player_visuals::aimbot_hitboxes] || settings.hitbox_material > 0);
+        settings.main[player_visuals::main_skeleton], settings.hitbox_material > 0);
     data.dormant = false;
     data.alpha = 1.f;
     output.players.push_back(std::move(data));

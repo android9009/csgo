@@ -391,7 +391,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         }
     }
 
-    if (settings.aimbot[player_visuals::aimbot_hitboxes] &&
+    if (data.side != 2 && settings.aimbot[player_visuals::aimbot_hitboxes] &&
         (settings.hitbox_material == 0 || preview_side >= 0)) {
         const ImVec2 offset = placement(
             player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), box_center);

@@ -229,7 +229,9 @@ void load_shared_self_view(player_side_ui_state& view) {
     std::copy(std::begin(esp.main), std::end(esp.main), std::begin(view.esp_items.main_items));
     std::copy(std::begin(esp.flags), std::end(esp.flags), std::begin(view.esp_items.flags));
     std::copy(std::begin(esp.weapon), std::end(esp.weapon), std::begin(view.esp_items.weapon_items));
-    std::copy(std::begin(esp.aimbot), std::end(esp.aimbot), std::begin(view.esp_items.aimbot_items));
+    // Local ESP deliberately has no hitbox overlay; keep the Enemy/Teammate
+    // setting independent and clear any value from the previous Self panel.
+    view.esp_items.aimbot_items[player_visuals::aimbot_hitboxes] = false;
     load_esp_colors(view.main_colors, esp.main_colors);
     load_esp_colors(view.flag_colors, esp.flag_colors);
     load_esp_colors(view.weapon_colors, esp.weapon_colors);
@@ -273,7 +275,7 @@ void store_shared_self_view(player_side_ui_state& view) {
     std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(esp.main));
     std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(esp.flags));
     std::copy(std::begin(view.esp_items.weapon_items), std::end(view.esp_items.weapon_items), std::begin(esp.weapon));
-    std::copy(std::begin(view.esp_items.aimbot_items), std::end(view.esp_items.aimbot_items), std::begin(esp.aimbot));
+    esp.aimbot[player_visuals::aimbot_hitboxes] = false;
     store_esp_colors(esp.main_colors, view.main_colors);
     store_esp_colors(esp.flag_colors, view.flag_colors);
     store_esp_colors(esp.weapon_colors, view.weapon_colors);
@@ -344,7 +346,7 @@ void draw_esp_section_title(const char* title) {
     ImGui::TextColored(gui.text_disabled.to_vec4(1.f, false), "%s", gui.tr(title));
 }
 
-void draw_esp_settings(player_side_ui_state& side) {
+void draw_esp_settings(player_side_ui_state& side, bool self = false) {
     static const char* main_items[player_visuals::main_count] = {
         "Box", "Name", "Distance", "HP Bar", "Ammo Bar", "Skeleton"
     };
@@ -370,8 +372,10 @@ void draw_esp_settings(player_side_ui_state& side) {
     gui.row_multibox("Weapon Selection", weapon_items, side.esp_items.weapon_items, side.weapon_colors,
         player_visuals::weapon_count, "Select weapon items; each list entry has its own color picker.");
 
-    for (int i = 0; i < player_visuals::aimbot_count; ++i)
-        gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
+    if (!self) {
+        for (int i = 0; i < player_visuals::aimbot_count; ++i)
+            gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
+    }
     gui.end_group_box();
 }
 
@@ -530,7 +534,7 @@ void draw_visuals_players() {
     // No Panorama/agent or ESP preview is created on this page. Every side edits
     // its real renderer settings in the former preview column, including Self.
     gui.grid_col(1);
-    draw_esp_settings(ui.sides[ui.active_side]);
+    draw_esp_settings(ui.sides[ui.active_side], ui.active_side == 2);
     gui.end_grid();
     store_shared_player_views(ui);
     store_shared_self_view(ui.sides[2]);
