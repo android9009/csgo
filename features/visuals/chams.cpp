@@ -885,9 +885,6 @@ void draw_single_material(const draw_call& call,
     }
 
     set_material_color(material_api, 1.f, 1.f, 1.f);
-    // Alpha is applied once through IStudioRender, not multiplied by a second
-    // material alpha modulation. The shader's own $alpha remains intact.
-    set_material_alpha(material_api, 1.f);
     set_material_flag(material_api, k_material_var_translucent, true);
     set_material_flag(material_api, k_material_var_nofog, true);
     set_material_flag(material_api, k_material_var_ignorez, hidden);
@@ -930,14 +927,29 @@ void draw_single_material(const draw_call& call,
         break;
     }
 
-    // Osiris applies colorModulate directly to the material. Panorama uses an
-    // isolated render context, so StudioRender/RenderView modulation alone is
-    // not sufficient there; apply the same material-side color as well.
-    if (call.preview && pass.material != rim_glow && pass.material != fade_up)
-        set_material_color(material_api, modulation[0], modulation[1], modulation[2]);
-
-    set_draw_color(modulation, call.game);
-    set_draw_alpha(std::clamp(modulation_alpha, 0.f, 1.f), call.game);
+    const float alpha = std::clamp(modulation_alpha, 0.f, 1.f);
+    const bool fatality_material = pass.material == normal || pass.material == flat ||
+        pass.material == rim_glow || pass.material == contour || pass.material == flow ||
+        pass.material == acrylic || pass.material == legacy;
+    if (call.game && !call.preview && fatality_material) {
+        // Fatality's apply_material(): these shaders consume ColorModulate /
+        // AlphaModulate on IMaterial, while RenderView stays white at blend 1.
+        // Keeping the old RenderView-only path here made these modes depend on
+        // a different modulation route than the reference implementation.
+        if (pass.material != rim_glow)
+            set_material_color(material_api, modulation[0], modulation[1], modulation[2]);
+        set_material_alpha(material_api, alpha);
+        set_draw_color(white, true);
+        set_draw_alpha(1.f, true);
+    } else {
+        // Airflow's other materials and the isolated Panorama context retain
+        // their established StudioRender/RenderView modulation path.
+        set_material_alpha(material_api, 1.f);
+        if (call.preview && pass.material != rim_glow && pass.material != fade_up)
+            set_material_color(material_api, modulation[0], modulation[1], modulation[2]);
+        set_draw_color(modulation, call.game);
+        set_draw_alpha(alpha, call.game);
+    }
     force_material(material, call.game);
     draw_original(call);
     force_material(nullptr, call.game);
@@ -946,7 +958,9 @@ void draw_single_material(const draw_call& call,
 void draw_pass(const draw_call& call, const visuals_chams::pass_settings& pass,
                bool hidden, const char* sprite_path) {
     using namespace visuals_chams;
-    if (pass.material == glow || pass.material == rim_glow || pass.material == legacy) {
+    // Fatality uses a Flat base for Rim Glow; Airflow uses the same base for
+    // Glow. Legacy is a single envmap pass, not a two-pass glow.
+    if (pass.material == glow || pass.material == rim_glow) {
         auto base = pass;
         base.material = flat;
         draw_single_material(call, base, hidden, sprite_path);

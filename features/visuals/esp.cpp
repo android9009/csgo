@@ -935,14 +935,20 @@ void render() {
     }
     const auto& self = player_visuals::self_settings();
     visuals_chams::self_passes self_passes;
-    self_passes.local_player = chams_pass(self.local_material, self.local_color,
-        self.local_secondary);
-    self_passes.viewmodel = chams_pass(self.viewmodel_material, self.viewmodel_color,
-        self.viewmodel_secondary);
-    self_passes.weapon = chams_pass(self.weapon_material, self.weapon_color,
-        self.weapon_secondary);
-    self_passes.attachments = chams_pass(self.attachments_material, self.attachments_color,
-        self.attachments_secondary);
+    self_passes.local_player = chams_pass(
+        self.local_enabled ? self.local_material : visuals_chams::disabled,
+        self.local_color, self.local_secondary);
+    self_passes.viewmodel = chams_pass(
+        self.viewmodel_enabled ? self.viewmodel_material : visuals_chams::disabled,
+        self.viewmodel_color, self.viewmodel_secondary);
+    self_passes.weapon = chams_pass(
+        self.weapon_enabled ? self.weapon_material : visuals_chams::disabled,
+        self.weapon_color, self.weapon_secondary);
+    self_passes.attachments = chams_pass(
+        self.attachments_enabled ? self.attachments_material : visuals_chams::disabled,
+        self.attachments_color, self.attachments_secondary);
+    // local_fake_* is deliberately not consumed: there is no separate fake
+    // animation/bone record in this backend, so the placeholder cannot render.
     visuals_chams::set_self_passes(self_passes, self.custom_sprite.c_str());
 
     if (!visuals_source::ready())

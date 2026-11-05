@@ -40,7 +40,13 @@ struct player_side_ui_state {
     int local_model = 0;
     int local_weapon = 0;
     int local_transparency = 100;
+    bool local_chams_enabled = false;
+    bool local_fake_chams_enabled = false;
+    bool viewmodel_chams_enabled = false;
+    bool weapon_chams_enabled = false;
+    bool attachments_chams_enabled = false;
     int local_chams_model = 0;
+    int local_fake_chams_model = 0;
     int viewmodel_chams_model = 0;
     int weapon_chams_model = 0;
     int attachments_chams_model = 0;
@@ -48,6 +54,7 @@ struct player_side_ui_state {
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
     color_value player_color = make_ui_color(0.60f, 0.65f, 1.f);
+    color_value local_fake_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value behind_walls_color = make_ui_color(0.35f, 0.90f, 1.f);
     color_value hitbox_color = make_ui_color(1.f, 0.35f, 0.55f);
     color_value on_shot_color = make_ui_color(0.90f, 0.95f, 0.95f);
@@ -201,12 +208,20 @@ void store_shared_player_views(players_ui_state& ui) {
 
 void load_shared_self_view(player_side_ui_state& view) {
     const auto& config = player_visuals::self_settings();
+    view.local_chams_enabled = config.local_enabled;
+    view.local_fake_chams_enabled = config.local_fake_enabled;
+    view.viewmodel_chams_enabled = config.viewmodel_enabled;
+    view.weapon_chams_enabled = config.weapon_enabled;
+    view.attachments_chams_enabled = config.attachments_enabled;
     view.local_chams_model = std::clamp(config.local_material, 0, visuals_chams::mode_count - 1);
+    view.local_fake_chams_model = std::clamp(config.local_fake_material, 0, visuals_chams::mode_count - 1);
     view.viewmodel_chams_model = std::clamp(config.viewmodel_material, 0, visuals_chams::mode_count - 1);
     view.weapon_chams_model = std::clamp(config.weapon_material, 0, visuals_chams::mode_count - 1);
     view.attachments_chams_model = std::clamp(config.attachments_material, 0, visuals_chams::mode_count - 1);
     view.player_color.a = to_vec4(config.local_color);
     view.player_color.b = to_vec4(config.local_secondary);
+    view.local_fake_color.a = to_vec4(config.local_fake_color);
+    view.local_fake_color.b = to_vec4(config.local_fake_secondary);
     view.behind_walls_color.a = to_vec4(config.viewmodel_color);
     view.behind_walls_color.b = to_vec4(config.viewmodel_secondary);
     view.hitbox_color.a = to_vec4(config.weapon_color);
@@ -219,12 +234,32 @@ void load_shared_self_view(player_side_ui_state& view) {
 
 void store_shared_self_view(player_side_ui_state& view) {
     auto& config = player_visuals::self_settings();
+    const auto normalize_material = [](bool enabled, int& material) {
+        material = std::clamp(material, 0, visuals_chams::mode_count - 1);
+        // A checked row must have a real pass even when it was just enabled
+        // from the default Disabled material.
+        if (enabled && material == visuals_chams::disabled)
+            material = visuals_chams::normal;
+    };
+    normalize_material(view.local_chams_enabled, view.local_chams_model);
+    normalize_material(view.local_fake_chams_enabled, view.local_fake_chams_model);
+    normalize_material(view.viewmodel_chams_enabled, view.viewmodel_chams_model);
+    normalize_material(view.weapon_chams_enabled, view.weapon_chams_model);
+    normalize_material(view.attachments_chams_enabled, view.attachments_chams_model);
+    config.local_enabled = view.local_chams_enabled;
+    config.local_fake_enabled = view.local_fake_chams_enabled;
+    config.viewmodel_enabled = view.viewmodel_chams_enabled;
+    config.weapon_enabled = view.weapon_chams_enabled;
+    config.attachments_enabled = view.attachments_chams_enabled;
     config.local_material = view.local_chams_model;
+    config.local_fake_material = view.local_fake_chams_model;
     config.viewmodel_material = view.viewmodel_chams_model;
     config.weapon_material = view.weapon_chams_model;
     config.attachments_material = view.attachments_chams_model;
     config.local_color = to_config_color(view.player_color.a);
     config.local_secondary = to_config_color(view.player_color.b);
+    config.local_fake_color = to_config_color(view.local_fake_color.a);
+    config.local_fake_secondary = to_config_color(view.local_fake_color.b);
     config.viewmodel_color = to_config_color(view.behind_walls_color.a);
     config.viewmodel_secondary = to_config_color(view.behind_walls_color.b);
     config.weapon_color = to_config_color(view.hitbox_color.a);
@@ -242,6 +277,7 @@ void draw_custom_sprite_row(player_side_ui_state& side) {
         side.history_model != visuals_chams::custom_sprite &&
         side.ragdolls_model != visuals_chams::custom_sprite &&
         side.local_chams_model != visuals_chams::custom_sprite &&
+        side.local_fake_chams_model != visuals_chams::custom_sprite &&
         side.viewmodel_chams_model != visuals_chams::custom_sprite &&
         side.weapon_chams_model != visuals_chams::custom_sprite &&
         side.attachments_chams_model != visuals_chams::custom_sprite) {
@@ -365,6 +401,20 @@ void draw_teammate_side(player_side_ui_state& side) {
     gui.end_group_box();
 }
 
+void draw_self_chams_row(const char* label, const char* options_id, bool* enabled,
+                         color_value* color, int* material, const char* description) {
+    // Keep the Darkside checkbox + swatch as the row itself. The gear owns the
+    // material selector, so the five requested rows do not become ten combos.
+    gui.row_begin();
+    gui.color_picker(label, color);
+    if (gui.row_options_begin(options_id, 220.f, c_gui::row_control::toggle)) {
+        gui.row_begin();
+        ImGui::Combo("Material", material, visuals_chams::mode_names, visuals_chams::mode_count);
+        gui.row_options_end();
+    }
+    gui.row_checkbox(label, enabled, description);
+}
+
 void draw_self_side(player_side_ui_state& side) {
     static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
     static const char* local_weapons[] = { "Default", "Current Weapon" };
@@ -385,14 +435,21 @@ void draw_self_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("LOCAL CHAMS", k_auto_height);
-    gui.row_combo("Player", &side.player_color, &side.local_chams_model,
-        visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Viewmodel / Arms", &side.behind_walls_color, &side.viewmodel_chams_model,
-        visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Weapon", &side.hitbox_color, &side.weapon_chams_model,
-        visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Attachments", &side.on_shot_color, &side.attachments_chams_model,
-        visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_self_chams_row("Local Player", "##self_local_player_chams",
+        &side.local_chams_enabled, &side.player_color, &side.local_chams_model,
+        "Enable chams on the local player's third-person model.");
+    draw_self_chams_row("Local Player Fake", "##self_local_player_fake_chams",
+        &side.local_fake_chams_enabled, &side.local_fake_color, &side.local_fake_chams_model,
+        "Placeholder only: no separate fake animation record is rendered yet.");
+    draw_self_chams_row("Viewmodel", "##self_viewmodel_chams",
+        &side.viewmodel_chams_enabled, &side.behind_walls_color, &side.viewmodel_chams_model,
+        "Enable chams on the local viewmodel arms.");
+    draw_self_chams_row("Weapon", "##self_weapon_chams",
+        &side.weapon_chams_enabled, &side.hitbox_color, &side.weapon_chams_model,
+        "Enable chams on the local viewmodel weapon.");
+    draw_self_chams_row("Attachments", "##self_attachments_chams",
+        &side.attachments_chams_enabled, &side.on_shot_color, &side.attachments_chams_model,
+        "Enable chams on models attached to the local player.");
     draw_custom_sprite_row(side);
     gui.end_group_box();
 }

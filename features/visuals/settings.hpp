@@ -130,12 +130,22 @@ struct side_settings {
 };
 
 struct self_chams_settings {
+    // The enable flags are independent from the selected material so turning a
+    // row off does not discard its Fatality/Airflow material selection.
+    bool local_enabled = false;
+    bool local_fake_enabled = false; // UI/config placeholder; no fake render record exists yet.
+    bool viewmodel_enabled = false;
+    bool weapon_enabled = false;
+    bool attachments_enabled = false;
     int local_material = 0;
+    int local_fake_material = 0; // Stored for the placeholder row only.
     int viewmodel_material = 0;
     int weapon_material = 0;
     int attachments_material = 0;
     c_color local_color{ 0.60f, 0.65f, 1.f, 1.f };
     c_color local_secondary = local_color;
+    c_color local_fake_color{ 0.60f, 0.65f, 1.f, 1.f };
+    c_color local_fake_secondary = local_fake_color;
     c_color viewmodel_color{ 0.60f, 0.65f, 1.f, 1.f };
     c_color viewmodel_secondary = viewmodel_color;
     c_color weapon_color{ 0.60f, 0.65f, 1.f, 1.f };

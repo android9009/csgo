@@ -202,12 +202,20 @@ void c_config_system::setup_values( )
 		}
 	}
 	auto& self = player_visuals::self_settings();
+	push_item(&self.local_enabled, "self_visuals", "local_enabled", self.local_enabled);
+	push_item(&self.local_fake_enabled, "self_visuals", "local_fake_enabled", self.local_fake_enabled);
+	push_item(&self.viewmodel_enabled, "self_visuals", "viewmodel_enabled", self.viewmodel_enabled);
+	push_item(&self.weapon_enabled, "self_visuals", "weapon_enabled", self.weapon_enabled);
+	push_item(&self.attachments_enabled, "self_visuals", "attachments_enabled", self.attachments_enabled);
 	push_item(&self.local_material, "self_visuals", "local_material", self.local_material);
+	push_item(&self.local_fake_material, "self_visuals", "local_fake_material", self.local_fake_material);
 	push_item(&self.viewmodel_material, "self_visuals", "viewmodel_material", self.viewmodel_material);
 	push_item(&self.weapon_material, "self_visuals", "weapon_material", self.weapon_material);
 	push_item(&self.attachments_material, "self_visuals", "attachments_material", self.attachments_material);
 	push_item(&self.local_color, "self_visuals", "local_color", self.local_color);
 	push_item(&self.local_secondary, "self_visuals", "local_secondary", self.local_secondary);
+	push_item(&self.local_fake_color, "self_visuals", "local_fake_color", self.local_fake_color);
+	push_item(&self.local_fake_secondary, "self_visuals", "local_fake_secondary", self.local_fake_secondary);
 	push_item(&self.viewmodel_color, "self_visuals", "viewmodel_color", self.viewmodel_color);
 	push_item(&self.viewmodel_secondary, "self_visuals", "viewmodel_secondary", self.viewmodel_secondary);
 	push_item(&self.weapon_color, "self_visuals", "weapon_color", self.weapon_color);
@@ -355,6 +363,20 @@ void c_config_system::read( std::string path ) {
 			if ( read_int( *value, key ) )
 				*i.pointer = key >= 0 && key <= 0xA5 ? key : 0;
 		}
+
+	// Before the checkbox rows were introduced, a non-zero Self material was
+	// the enable switch. Migrate only missing keys; an explicit false in a new
+	// config must stay false even when its material selection is non-zero.
+	auto& self = player_visuals::self_settings();
+	const auto migrate_self_enable = [&value_of]( const char* name, bool& enabled, int material ) {
+		if ( !value_of( "self_visuals", name ) )
+			enabled = material > 0;
+	};
+	migrate_self_enable( "local_enabled", self.local_enabled, self.local_material );
+	migrate_self_enable( "viewmodel_enabled", self.viewmodel_enabled, self.viewmodel_material );
+	migrate_self_enable( "weapon_enabled", self.weapon_enabled, self.weapon_material );
+	migrate_self_enable( "attachments_enabled", self.attachments_enabled, self.attachments_material );
+
 	// Older configs stored zero alpha for World colors whose tint is opaque.
 	g_cfg->world.m_sky.a = 1.f;
 	g_cfg->world.m_sky_clouds.a = 1.f;
