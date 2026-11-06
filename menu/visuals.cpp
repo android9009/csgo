@@ -728,20 +728,30 @@ void draw_visuals_world() {
     gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
     gui.end_group_box();
 
-    gui.grid_box("WEAPON ESP", k_auto_height);
+    gui.grid_box("WORLD ESP", k_auto_height);
+    gui.row_begin();
+    if (gui.row_options_begin("##world_esp_options", 250.f, c_gui::row_control::toggle)) {
+        gui.popup_section_begin("##world_esp_items");
+        gui.row_checkbox("Box", &world.box, &box_color);
+        gui.row_checkbox("Name", &world.name, &name_color);
+        gui.row_checkbox("Icon", &world.icon, &icon_color);
+        gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
+        gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
+        gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
+        gui.popup_section_end();
+        gui.row_options_end();
+    }
     gui.row_checkbox("Enabled", &world.enabled);
-    gui.row_checkbox("Box", &world.box, &box_color);
-    gui.row_checkbox("Name", &world.name, &name_color);
-    gui.row_checkbox("Icon", &world.icon, &icon_color);
-    gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
-    gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
-    gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
     gui.end_group_box();
 
     gui.grid_col(1);
     gui.grid_box("THIRDPERSON", k_auto_height);
+    gui.row_begin();
+    if (gui.row_options_begin("##world_thirdperson_options", 250.f, c_gui::row_control::toggle)) {
+        gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
+        gui.row_options_end();
+    }
     gui.row_checkbox("Enabled", &g_cfg->world_esp.m_enable_thirdperson);
-    gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
     gui.end_group_box();
     gui.end_grid();
 
