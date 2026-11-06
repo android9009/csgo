@@ -135,8 +135,8 @@ void c_config_system::setup_values( )
 		"bounding_box", "name", "distance", "health_bar", "ammo_bar", "skeleton"
 	};
 	static const char* flag_names[player_visuals::flag_count] = {
-		"unarmored", "defuser", "blind", "scoped", "reload", "immunity", "slowed",
-		"vulnerable", "bomb", "hostage", "defuse", "pin_pulled", "money", "order_priority", "delay"
+		"defuser", "blind", "scoped", "reload", "immunity", "slowed",
+		"bomb", "hostage", "defuse", "pin_pulled", "money"
 	};
 	static const char* weapon_item_names[player_visuals::weapon_count] = {
 		"text", "icon", "readiness_bar", "bomb", "defuser", "taser"

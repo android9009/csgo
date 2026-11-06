@@ -186,7 +186,6 @@ struct netvars_t {
     int mins = -1;
     int maxs = -1;
     int pose_parameters = -1;
-    int simulation_time = -1;
     int velocity_modifier = -1;
     int active_weapon = -1;
     int my_weapons = -1;
@@ -278,6 +277,27 @@ float current_airflow_animation_speed() {
 }
 
 
+// VirtualQuery is needed for safety, but not once per netvar read. Cache the
+// last validated region only for the duration of one capture; no validation is
+// carried across frames or entity lifetimes.
+struct capture_memory_cache {
+    std::uintptr_t region_begin = 0;
+    std::uintptr_t region_end = 0;
+};
+thread_local capture_memory_cache* active_capture_memory_cache = nullptr;
+
+struct capture_memory_cache_scope {
+    capture_memory_cache cache;
+    capture_memory_cache* previous = nullptr;
+
+    capture_memory_cache_scope() : previous(active_capture_memory_cache) {
+        active_capture_memory_cache = &cache;
+    }
+    ~capture_memory_cache_scope() {
+        active_capture_memory_cache = previous;
+    }
+};
+
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
@@ -285,6 +305,11 @@ bool readable_range(const void* address, std::size_t size) {
     const auto end = current + size;
     if (end < current)
         return false;
+    if (active_capture_memory_cache) {
+        const auto& cache = *active_capture_memory_cache;
+        if (cache.region_begin <= current && end <= cache.region_end)
+            return true;
+    }
     while (current < end) {
         MEMORY_BASIC_INFORMATION information{};
         if (!VirtualQuery(reinterpret_cast<const void*>(current), &information,
@@ -296,6 +321,10 @@ bool readable_range(const void* address, std::size_t size) {
         const auto region_end = begin + information.RegionSize;
         if (region_end <= begin || current < begin || current >= region_end)
             return false;
+        if (active_capture_memory_cache) {
+            active_capture_memory_cache->region_begin = begin;
+            active_capture_memory_cache->region_end = region_end;
+        }
         current = std::min<std::uintptr_t>(end, region_end);
     }
     return true;
@@ -482,7 +511,6 @@ void resolve_netvars() {
     nv.mins = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMins");
     nv.maxs = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMaxs");
     nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter");
-    nv.simulation_time = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_flSimulationTime");
     nv.velocity_modifier = table_offset(classes, { "DT_CSPlayer" }, "m_flVelocityModifier");
     nv.active_weapon = table_offset(classes, { "DT_CSPlayer", "DT_BaseCombatCharacter", "DT_BasePlayer" }, "m_hActiveWeapon");
     nv.my_weapons = table_offset(classes, { "DT_CSPlayer", "DT_BaseCombatCharacter" }, "m_hMyWeapons");
@@ -545,7 +573,6 @@ using entity_void_t = void* (__thiscall*)(void*);
 using get_client_class_t = client_class_t* (__thiscall*)(void*);
 using setup_bones_t = bool(__thiscall*)(void*, matrix3x4_t*, int, int, float);
 using dormant_t = bool(__thiscall*)(void*);
-using weapon_float_t = float(__thiscall*)(void*);
 using get_weapon_data_t = weapon_info_t* (__thiscall*)(void*, unsigned int);
 
 void* entity_at(int index) {
@@ -872,6 +899,12 @@ bool read_engine_bone_cache(void* entity, matrix3x4_t* output, int required_bone
 
 void collect_model_geometry(void* entity, int hitbox_set_index, player_data& output,
                             bool collect_skeleton, bool collect_hitboxes) {
+    if (collect_skeleton)
+        output.skeleton.clear();
+    if (collect_hitboxes) {
+        output.hitboxes.clear();
+        output.hitbox_markers.clear();
+    }
     if ((!collect_skeleton && !collect_hitboxes) || !studio_hdr_offset)
         return;
     const auto* studio_field = reinterpret_cast<const unsigned char*>(entity) + studio_hdr_offset;
@@ -972,28 +1005,6 @@ void scan_inventory(void* player, player_data& output) {
         output.bomb = output.bomb || id == 49;
         output.taser = output.taser || id == 31;
     }
-}
-
-float calculate_hit_chance(void* local_weapon, float distance, bool immunity) {
-    if (!local_weapon || immunity || distance <= 1.f)
-        return -1.f;
-    static thread_local virtual_cache<weapon_float_t> inaccuracy_cache;
-    static thread_local virtual_cache<weapon_float_t> spread_cache;
-    const auto inaccuracy_fn = cached_virtual(local_weapon, 483, client_module, inaccuracy_cache);
-    const auto spread_fn = cached_virtual(local_weapon, 453, client_module, spread_cache);
-    if (!inaccuracy_fn || !spread_fn)
-        return -1.f;
-    const float inaccuracy = inaccuracy_fn(local_weapon);
-    const float spread = spread_fn(local_weapon);
-    if (!std::isfinite(inaccuracy) || !std::isfinite(spread) || inaccuracy < 0.f || spread < 0.f)
-        return -1.f;
-    // GetInaccuracy already includes the weapon's base spread on CS:GO; use
-    // the larger cone rather than counting that base component twice.
-    const float cone = std::max(0.00001f, std::max(inaccuracy, spread));
-    // A centre-mass target is approximated by an 8-unit radius. This is an ESP
-    // estimate, not a claim that an aimbot has selected or will fire at the target.
-    const float target_angle = std::atan2(8.f, distance);
-    return std::clamp(target_angle / cone, 0.f, 1.f) * 100.f;
 }
 
 bool read_player_info(int index, unsigned char (&info)[512]) {
@@ -1404,11 +1415,6 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.blind = value<float>(local, nv.flash_duration, 0.f) > 0.01f;
     data.slowed = value<float>(local, nv.velocity_modifier, 1.f) < 0.99f;
     data.hostage = entity_from_handle(value<unsigned int>(local, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
-    if (global_vars && nv.simulation_time >= 0) {
-        const float simulation = value<float>(local, nv.simulation_time, global_vars->current_time);
-        data.delay_ms = std::max(0.f, (global_vars->current_time - simulation) * 1000.f);
-    }
-
     if (local_weapon) {
         data.weapon_id = item_definition(local_weapon);
         if (data.weapon_id > 0)
@@ -1444,6 +1450,7 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
 }
 
 void capture_now(frame_data& output, float alpha_blend) {
+    capture_memory_cache_scope memory_cache;
     output = {};
     if (!is_in_game()) {
         clear_player_cache();
@@ -1588,11 +1595,6 @@ void capture_now(frame_data& output, float alpha_blend) {
         data.blind = value<float>(player, nv.flash_duration, 0.f) > 0.01f;
         data.slowed = value<float>(player, nv.velocity_modifier, 1.f) < 0.99f;
         data.hostage = entity_from_handle(value<unsigned int>(player, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
-        if (global_vars && nv.simulation_time >= 0) {
-            const float simulation = value<float>(player, nv.simulation_time, global_vars->current_time);
-            data.delay_ms = std::max(0.f, (global_vars->current_time - simulation) * 1000.f);
-        }
-
         void* weapon = entity_from_handle(value<unsigned int>(player, nv.active_weapon, 0xFFFFFFFFu));
         if (weapon) {
             data.weapon_id = item_definition(weapon);
@@ -1623,10 +1625,6 @@ void capture_now(frame_data& output, float alpha_blend) {
         }
         data.bomb = data.bomb || data.weapon_id == 49;
         data.taser = data.taser || data.weapon_id == 31;
-        if (side_settings.esp_enabled && side_settings.flags[player_visuals::flag_vulnerable]) {
-            data.hit_chance = calculate_hit_chance(local_weapon, data.distance * 39.3701f, data.immunity);
-            data.vulnerable = data.immunity_valid && !data.immunity && data.hit_chance >= 5.f;
-        }
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
             side_settings.esp_enabled && side_settings.main[player_visuals::main_skeleton],
             side_settings.esp_enabled && side_settings.aimbot[player_visuals::aimbot_hitboxes]);
@@ -1644,19 +1642,6 @@ void capture_now(frame_data& output, float alpha_blend) {
             output.players.push_back(std::move(data));
     }
 
-    for (int side = 0; side < 2; ++side) {
-        std::vector<player_data*> ordered;
-        for (auto& player : output.players)
-            if (player.side == side)
-                ordered.push_back(&player);
-        std::sort(ordered.begin(), ordered.end(), [](const player_data* a, const player_data* b) {
-            if (a->distance != b->distance)
-                return a->distance < b->distance;
-            return a->index < b->index;
-        });
-        for (std::size_t i = 0; i < ordered.size(); ++i)
-            ordered[i]->order_priority = static_cast<int>(i + 1);
-    }
     capture_local_player(output, local, local_weapon, local_team);
     capture_world(output, local_origin);
 }

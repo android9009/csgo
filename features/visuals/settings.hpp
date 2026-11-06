@@ -13,10 +13,13 @@
 namespace player_visuals {
 inline constexpr int side_count = 2; // Enemies/Teammates; Self has a separate ESP settings set.
 inline constexpr int main_count = 6;
-inline constexpr int flag_count = 15;
+inline constexpr int flag_count = 11;
+// Keep the old numeric layout IDs for offsets/slots. The four removed flags
+// leave holes here, but no longer have controls, rendering, or config entries.
+inline constexpr int layout_flag_count = 15;
 inline constexpr int weapon_count = 6;
 inline constexpr int aimbot_count = 1;
-inline constexpr int item_count = main_count + flag_count + weapon_count + aimbot_count;
+inline constexpr int item_count = main_count + layout_flag_count + weapon_count + aimbot_count;
 
 enum main_item : int {
     main_bounding_box = 0,
@@ -28,21 +31,17 @@ enum main_item : int {
 };
 
 enum flag_item : int {
-    flag_unarmored = 0,
-    flag_defuser,
+    flag_defuser = 0,
     flag_blind,
     flag_scoped,
     flag_reload,
     flag_immunity,
     flag_slowed,
-    flag_vulnerable,
     flag_bomb,
     flag_hostage,
     flag_defuse,
     flag_pin_pulled,
     flag_money,
-    flag_order_priority,
-    flag_delay,
 };
 
 enum weapon_item : int {
@@ -58,10 +57,19 @@ enum aimbot_item : int {
     aimbot_hitboxes = 0,
 };
 
-inline constexpr int flag_item_id(int flag) { return main_count + flag; }
-inline constexpr int weapon_item_id(int item) { return main_count + flag_count + item; }
+inline constexpr int flag_layout_index(int flag) {
+    // Legacy flag slots 0, 7, 13 and 14 are intentionally unused.
+    // Retained flags keep their old drag/config layout IDs after the removal.
+    constexpr int indices[flag_count] = { 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12 };
+    return flag >= 0 && flag < flag_count ? indices[flag] : -1;
+}
+inline constexpr int flag_item_id(int flag) {
+    const int index = flag_layout_index(flag);
+    return index >= 0 ? main_count + index : -1;
+}
+inline constexpr int weapon_item_id(int item) { return main_count + layout_flag_count + item; }
 inline constexpr int aimbot_item_id(int item) {
-    return main_count + flag_count + weapon_count + item;
+    return main_count + layout_flag_count + weapon_count + item;
 }
 
 struct layout_offset {
@@ -233,7 +241,6 @@ inline std::array<side_settings, side_count> make_default_settings() {
         set_esp_color(side.flag_colors[flag_money], { 0.45f, 0.95f, 0.45f, 1.f });
         set_esp_color(side.flag_colors[flag_immunity], { 0.40f, 0.75f, 1.f, 1.f });
         set_esp_color(side.flag_colors[flag_defuse], { 0.40f, 0.75f, 1.f, 1.f });
-        set_esp_color(side.flag_colors[flag_vulnerable], { 1.f, 0.48f, 0.42f, 1.f });
         set_esp_color(side.flag_colors[flag_bomb], { 1.f, 0.48f, 0.42f, 1.f });
         set_esp_color(side.flag_colors[flag_pin_pulled], { 1.f, 0.48f, 0.42f, 1.f });
 
@@ -291,12 +298,15 @@ inline const side_settings& settings_const(int side) {
 inline bool item_enabled(const side_settings& settings, int item) {
     if (item >= 0 && item < main_count)
         return settings.main[item];
-    if (item >= main_count && item < main_count + flag_count)
-        return settings.flags[item - main_count];
-    if (item >= main_count + flag_count && item < main_count + flag_count + weapon_count)
-        return settings.weapon[item - main_count - flag_count];
-    if (item >= main_count + flag_count + weapon_count && item < item_count)
-        return settings.aimbot[item - main_count - flag_count - weapon_count];
+    for (int flag = 0; flag < flag_count; ++flag)
+        if (flag_item_id(flag) == item)
+            return settings.flags[flag];
+    constexpr int weapon_begin = main_count + layout_flag_count;
+    constexpr int aimbot_begin = weapon_begin + weapon_count;
+    if (item >= weapon_begin && item < aimbot_begin)
+        return settings.weapon[item - weapon_begin];
+    if (item >= aimbot_begin && item < item_count)
+        return settings.aimbot[item - aimbot_begin];
     return false;
 }
 } // namespace player_visuals

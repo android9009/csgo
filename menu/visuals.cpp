@@ -18,9 +18,9 @@ color_value make_ui_color(float r, float g, float b) {
 }
 
 struct esp_items_ui_state {
-    bool main_items[6] = {};
-    bool flags[15] = {};
-    bool weapon_items[6] = {};
+    bool main_items[player_visuals::main_count] = {};
+    bool flags[player_visuals::flag_count] = {};
+    bool weapon_items[player_visuals::weapon_count] = {};
     bool aimbot_items[player_visuals::aimbot_count] = {};
 };
 
@@ -476,8 +476,8 @@ void draw_esp_settings(player_side_ui_state& side, bool self, float height) {
         "Box", "Name", "Distance", "HP Bar", "Ammo Bar", "Skeleton"
     };
     static const char* flags[player_visuals::flag_count] = {
-        "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
-        "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Order Priority", "Delay"
+        "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
+        "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money"
     };
     static const char* weapon_items[player_visuals::weapon_count] = {
         "Text", "Icon", "Readiness Bar", "Bomb", "Defuser", "Taser"

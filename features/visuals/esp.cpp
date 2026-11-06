@@ -138,8 +138,8 @@ int closest_slot(const ImVec2& point, const rect_f& box, float scale) {
 const char* drag_item_name(int item) {
     static const char* names[player_visuals::item_count] = {
         "Box", "Name", "Distance", "Health", "Ammo", "Skeleton",
-        "Unarmored", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
-        "Vulnerable", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "Priority", "Delay",
+        "", "Defuser", "Blind", "Scoped", "Reload", "Immunity", "Slowed",
+        "", "Bomb", "Hostage", "Defuse", "Pin Pulled", "Money", "", "",
         "Weapon", "Weapon Icon", "Readiness", "C4", "Kit", "Zeus", "Hitboxes"
     };
     return item >= 0 && item < player_visuals::item_count ? names[item] : "ESP";
@@ -451,8 +451,6 @@ void render_main_bar(main_render_context& context, const main_esp_object& object
 std::string flag_text(int flag, const player_data& data) {
     char buffer[96];
     switch (flag) {
-    case player_visuals::flag_unarmored:
-        return data.armor_valid && data.armor <= 0 ? "UNARMORED" : "";
     case player_visuals::flag_defuser:
         return data.defuser ? "DEFUSER" : "";
     case player_visuals::flag_blind:
@@ -465,8 +463,6 @@ std::string flag_text(int flag, const player_data& data) {
         return data.immunity_valid && data.immunity ? "IMMUNITY" : "";
     case player_visuals::flag_slowed:
         return data.slowed ? "SLOWED" : "";
-    case player_visuals::flag_vulnerable:
-        return data.vulnerable ? "VULNERABLE" : "";
     case player_visuals::flag_bomb:
         return data.bomb ? "BOMB" : "";
     case player_visuals::flag_hostage:
@@ -479,16 +475,6 @@ std::string flag_text(int flag, const player_data& data) {
         if (!data.money_valid)
             return {};
         std::snprintf(buffer, sizeof(buffer), "$%d", data.money);
-        return buffer;
-    case player_visuals::flag_order_priority:
-        if (data.order_priority <= 0)
-            return {};
-        std::snprintf(buffer, sizeof(buffer), "PRIORITY #%d", data.order_priority);
-        return buffer;
-    case player_visuals::flag_delay:
-        if (data.delay_ms <= 1.f)
-            return {};
-        std::snprintf(buffer, sizeof(buffer), "DELAY %.0f MS", data.delay_ms);
         return buffer;
     default:
         return {};
@@ -910,9 +896,10 @@ void render_world(ImDrawList* draw, const visuals_source::frame_data& frame,
     }
 }
 
-std::vector<line2> project_lines(const visuals_source::frame_data& frame,
-                                 const std::vector<line3>& lines, const ImVec2& display) {
-    std::vector<line2> projected;
+void project_lines(const visuals_source::frame_data& frame,
+                   const std::vector<line3>& lines, const ImVec2& display,
+                   std::vector<line2>& projected) {
+    projected.clear();
     projected.reserve(lines.size());
     for (const auto& line : lines) {
         ImVec2 from, to;
@@ -921,7 +908,6 @@ std::vector<line2> project_lines(const visuals_source::frame_data& frame,
             projected.push_back({ from, to });
         }
     }
-    return projected;
 }
 
 visuals_chams::pass_settings chams_pass(int material, const c_color& primary,
@@ -1120,17 +1106,15 @@ player_data preview_data(int side) {
     data.index = side + 1;
     data.side = side;
     data.health = 73;
-    data.armor = 0; // Unarmored remains visible in the representative preview.
+    data.armor = 0;
     data.money = 4850;
     data.weapon_id = 7;
     data.weapon_name = "AK-47";
     data.clip = 18;
     data.max_clip = 30;
     data.reserve_ammo = 90;
-    data.order_priority = 1;
     data.distance = 12.4f;
     data.readiness = 0.64f;
-    data.delay_ms = 37.f;
     data.armor_valid = true;
     data.money_valid = true;
     data.immunity_valid = true;
@@ -1141,7 +1125,6 @@ player_data preview_data(int side) {
     data.reloading = true;
     data.immunity = true;
     data.slowed = true;
-    data.vulnerable = true;
     data.bomb = true;
     data.hostage = true;
     data.defusing = true;
@@ -1203,6 +1186,11 @@ void render() {
         return;
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     render_world(draw, frame, display);
+    // Projection buffers are reused between players and Present calls. The
+    // renderer consumes them synchronously, so no per-player allocation is
+    // needed after their capacity reaches the largest visible geometry set.
+    thread_local std::vector<line2> projected_skeleton;
+    thread_local std::vector<line2> projected_hitboxes;
     for (const auto& player : frame.players) {
         const auto& settings = player.side == 2
             ? player_visuals::self_esp_settings()
@@ -1216,17 +1204,17 @@ void render() {
             render_offscreen_arrow(draw, settings, player, frame, display);
             continue;
         }
-        // Do not allocate/project geometry for disabled elements. Capture uses
-        // the same gates, so these vectors are normally empty unless requested.
-        std::vector<line2> hitboxes;
+        // Do not project geometry for disabled elements. Capture uses the
+        // same gates, so these buffers are normally empty unless requested.
+        projected_hitboxes.clear();
+        projected_skeleton.clear();
         if (player.side != 2 && player.health > 0 &&
             settings.aimbot[player_visuals::aimbot_hitboxes])
-            hitboxes = project_lines(frame, player.hitboxes, display);
-        std::vector<line2> skeleton;
+            project_lines(frame, player.hitboxes, display, projected_hitboxes);
         if (settings.main[player_visuals::main_skeleton] &&
             player.health > 0 && player.alpha > 0.5f)
-            skeleton = project_lines(frame, player.skeleton, display);
-        render_player(draw, settings, player, box, skeleton, hitboxes, 1.f, -1, {}, {},
+            project_lines(frame, player.skeleton, display, projected_skeleton);
+        render_player(draw, settings, player, box, projected_skeleton, projected_hitboxes, 1.f, -1, {}, {},
             player.alpha);
     }
 }

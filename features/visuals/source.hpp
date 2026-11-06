@@ -43,11 +43,8 @@ struct player_data {
     int clip = -1;
     int max_clip = -1;
     int reserve_ammo = -1;
-    int order_priority = 0;
     float distance = 0.f;
     float readiness = -1.f;
-    float hit_chance = -1.f;
-    float delay_ms = -1.f;
     // Airflow keeps the complete last live value snapshot for dormant/fade
     // rendering. Live entities always overwrite it at FRAME_RENDER_END.
     float alpha = 1.f;
@@ -62,7 +59,6 @@ struct player_data {
     bool reloading = false;
     bool immunity = false;
     bool slowed = false;
-    bool vulnerable = false;
     bool bomb = false;
     bool hostage = false;
     bool defusing = false;

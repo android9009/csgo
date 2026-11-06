@@ -93,6 +93,7 @@ void* studio_render = nullptr;
 void* model_render = nullptr;
 void* render_view = nullptr;
 void* material_system = nullptr;
+void* material_render_context = nullptr;
 void* game_event_manager = nullptr;
 void* key_values_system = nullptr;
 void* key_values_init = nullptr;
@@ -559,6 +560,8 @@ using material_flag_t = void(__thiscall*)(void*, int, bool);
 using material_get_flag_t = bool(__thiscall*)(void*, int);
 using material_var_vec_t = void(__thiscall*)(void*, float, float, float);
 using material_var_string_t = void(__thiscall*)(void*, const char*);
+using get_render_context_t = void* (__thiscall*)(void*);
+using override_depth_t = void(__thiscall*)(void*, bool, bool);
 using studio_forced_t = void(__thiscall*)(void*, void*, int, int);
 using studio_color_t = void(__thiscall*)(void*, const float*);
 using studio_alpha_t = void(__thiscall*)(void*, float);
@@ -594,6 +597,7 @@ render_color_t game_set_color = nullptr;
 render_alpha_t game_set_alpha = nullptr;
 render_get_color_t game_get_color = nullptr;
 render_get_alpha_t game_get_alpha = nullptr;
+override_depth_t override_depth_enable = nullptr;
 
 void increment_ref(void* material) {
     const auto function = virtual_function<increment_ref_t>(material, 12);
@@ -658,6 +662,24 @@ void set_material_flag(cached_material& material, int flag, bool enabled) {
     if (material.set_flag)
         material.set_flag(material.material, flag, enabled);
 }
+
+// Source 1 IMatRenderContext::OverrideDepthEnable (slot 121) keeps the
+// depth test but disables depth writes. Without this, later chams passes fail
+// their depth test against the first pass at identical depth.
+struct depth_write_scope {
+    bool active = false;
+
+    depth_write_scope() {
+        if (!material_render_context || !override_depth_enable)
+            return;
+        override_depth_enable(material_render_context, true, false);
+        active = true;
+    }
+    ~depth_write_scope() {
+        if (active)
+            override_depth_enable(material_render_context, false, false);
+    }
+};
 
 void force_material(void* material, bool game = false) {
     if (game) {
@@ -743,6 +765,17 @@ void draw_original(const draw_call& call) {
     }
     original_studio_draw(studio_render, call.results, *call.info, call.bones,
         call.flex_weights, call.delayed_flex_weights, *call.model_origin, call.flags);
+}
+
+void draw_original_unmodulated(const draw_call& call) {
+    // A hidden/custom pass must not tint the regular model that is drawn above
+    // it. This is especially visible when only Behind Walls is selected: the
+    // visible player otherwise inherits the hidden pass color while another
+    // player can still have the previous engine modulation.
+    reset_modulation(call.game);
+    force_material(nullptr, call.game);
+    draw_original(call);
+    reset_modulation(call.game);
 }
 
 bool fill_record(model_record& record, const draw_model_state_t& state,
@@ -882,8 +915,7 @@ void draw_single_material(const draw_call& call,
     const char* sprite_path, bool additive = false) {
     using namespace visuals_chams;
     if (pass.material <= disabled || pass.material >= mode_count) {
-        force_material(nullptr, call.game);
-        draw_original(call);
+        draw_original_unmodulated(call);
         return;
     }
     cached_material* selected_material = &material_apis[pass.material];
@@ -895,11 +927,11 @@ void draw_single_material(const draw_call& call,
     auto& material_api = *selected_material;
     void* material = material_api.material;
     if (!material) {
-        force_material(nullptr, call.game);
-        draw_original(call);
+        draw_original_unmodulated(call);
         return;
     }
 
+    depth_write_scope depth;
     if (pass.material == custom_sprite && sprite_path && sprite_path[0] &&
         std::strncmp(applied_sprite_path, sprite_path, sizeof(applied_sprite_path)) != 0) {
         set_var_string(material_api.base_texture, sprite_path);
@@ -989,6 +1021,9 @@ void draw_single_material(const draw_call& call,
     force_material(nullptr, call.game);
     if (compose_additively)
         material_api.set_flag(material, k_material_var_additive, previous_additive);
+    // Do not leak this pass's color/alpha into the next material, the regular
+    // model pass, or the next entity rendered by the engine.
+    reset_modulation(call.game);
 }
 
 void draw_pass(const draw_call& call, const visuals_chams::pass_settings& pass,
@@ -1275,12 +1310,10 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
                     draw_pass_selection(call, passes.player, passes.overlay.player,
                         passes.overlay.enabled, false, passes.sprite_path);
                 else {
-                    force_material(nullptr, true);
-                    draw_original(call);
+                    draw_original_unmodulated(call);
                 }
             } else {
-                force_material(nullptr, true);
-                draw_original(call);
+                draw_original_unmodulated(call);
             }
             force_material(nullptr, true);
             reset_modulation(true);
@@ -1447,8 +1480,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     if (ragdoll) {
         if (!draw_pass_selection(call, snapshot.special.ragdolls, snapshot.overlay.ragdolls,
                 snapshot.overlay.enabled, true, snapshot.sprite_path)) {
-            force_material(nullptr, true);
-            draw_original(call);
+            draw_original_unmodulated(call);
         }
         force_material(nullptr, true);
         reset_modulation(true);
@@ -1486,8 +1518,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         snapshot.overlay.enabled, true, snapshot.sprite_path);
     if (!draw_pass_selection(call, snapshot.player, snapshot.overlay.player,
             snapshot.overlay.enabled, false, snapshot.sprite_path)) {
-        force_material(nullptr, true);
-        draw_original(call);
+        draw_original_unmodulated(call);
     }
     force_material(nullptr, true);
     reset_modulation(true);
@@ -1531,6 +1562,20 @@ bool acquire_interfaces() {
     game_set_alpha = virtual_function<render_alpha_t>(render_view, 4);
     game_get_color = virtual_function<render_get_color_t>(render_view, 7);
     game_get_alpha = virtual_function<render_get_alpha_t>(render_view, 5);
+
+    // IMaterialSystem::GetRenderContext is slot 115. Resolve and validate the
+    // depth override once; a missing optional API leaves the old chams path
+    // available instead of preventing the hooks from being installed.
+    const auto get_context = virtual_function<get_render_context_t>(material_system, 115);
+    if (get_context && function_in_module(material_module, reinterpret_cast<const void*>(get_context))) {
+        material_render_context = get_context(material_system);
+        if (material_render_context) {
+            const auto depth = virtual_function<override_depth_t>(material_render_context, 121);
+            if (depth && function_in_module(material_module, reinterpret_cast<const void*>(depth))) {
+                override_depth_enable = depth;
+            }
+        }
+    }
 
     const auto studio_target = virtual_function<studio_draw_t>(studio_render, 29);
     const auto model_target = virtual_function<model_execute_t>(model_render, 21);
