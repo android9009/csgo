@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cfloat>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -27,6 +28,23 @@ using visuals_source::line3;
 using visuals_source::player_data;
 using visuals_source::world_data;
 using visuals_source::vector3;
+
+struct transient_hit_event {
+    int damage = 0;
+    vector3 position{};
+    std::chrono::steady_clock::time_point created;
+};
+
+struct transient_impact_event {
+    int side = 0;
+    vector3 from{};
+    vector3 to{};
+    std::chrono::steady_clock::time_point created;
+};
+
+std::mutex transient_events_mutex;
+std::vector<transient_hit_event> transient_hit_events;
+std::vector<transient_impact_event> transient_impact_events;
 
 struct rect_f {
     ImVec2 min{};
@@ -1350,9 +1368,113 @@ void preview_geometry(const rect_f& box, std::vector<line2>& skeleton, std::vect
     rectangle(x + w * 0.04f, box.min.y + h * 0.56f,
         x + w * 0.28f, box.max.y);
 }
+
+void render_transient_world_effects(ImDrawList* draw, const visuals_source::frame_data& frame,
+                                   const ImVec2& display) {
+    const auto& settings = player_visuals::world_settings();
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<transient_hit_event> hits;
+    std::vector<transient_impact_event> impacts;
+    {
+        std::lock_guard lock(transient_events_mutex);
+        const auto expired = [&](const auto& event) {
+            return std::chrono::duration<float>(now - event.created).count() > 5.f;
+        };
+        std::erase_if(transient_hit_events, expired);
+        std::erase_if(transient_impact_events, expired);
+        hits = transient_hit_events;
+        impacts = transient_impact_events;
+    }
+
+    for (const auto& hit : hits) {
+        const float age = std::chrono::duration<float>(now - hit.created).count();
+        if (settings.hitmarker_2d && age < settings.hitmarker_2d_duration) {
+            auto marker = settings.hitmarker_2d_color;
+            marker.a *= 1.f - age / std::max(settings.hitmarker_2d_duration, 0.01f);
+            const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
+            const float gap = 3.f, length = 8.f;
+            for (int sign_x : { -1, 1 }) for (int sign_y : { -1, 1 }) {
+                const ImVec2 from(center.x + sign_x * gap, center.y + sign_y * gap);
+                const ImVec2 to(center.x + sign_x * length, center.y + sign_y * length);
+                draw->AddLine(from, to, color(marker), 1.5f);
+            }
+        }
+        ImVec2 position;
+        const bool projected = world_to_screen(frame.view_matrix, hit.position, display, position);
+        if (projected && settings.hitmarker_3d && age < settings.hitmarker_3d_duration) {
+            auto marker = settings.hitmarker_3d_color;
+            marker.a *= 1.f - age / std::max(settings.hitmarker_3d_duration, 0.01f);
+            draw->AddLine(ImVec2(position.x - 6.f, position.y), ImVec2(position.x + 6.f, position.y), color(marker), 1.5f);
+            draw->AddLine(ImVec2(position.x, position.y - 6.f), ImVec2(position.x, position.y + 6.f), color(marker), 1.5f);
+        }
+        if (projected && settings.damage_marker && age < settings.damage_marker_duration) {
+            auto marker = settings.damage_marker_color;
+            marker.a *= 1.f - age / std::max(settings.damage_marker_duration, 0.01f);
+            char damage[24];
+            std::snprintf(damage, sizeof(damage), "-%d", hit.damage);
+            draw_text(draw, ImVec2(position.x, position.y - 14.f - age * 24.f), damage, color(marker), 0.9f);
+        }
+    }
+
+    constexpr float impact_duration = 1.5f;
+    for (const auto& impact : impacts) {
+        const float age = std::chrono::duration<float>(now - impact.created).count();
+        ImVec2 end;
+        if (!world_to_screen(frame.view_matrix, impact.to, display, end))
+            continue;
+        if (settings.bullet_impacts && age < impact_duration) {
+            auto marker = settings.bullet_impact_color;
+            marker.a *= 1.f - age / impact_duration;
+            draw->AddLine(ImVec2(end.x - 4.f, end.y), ImVec2(end.x + 4.f, end.y), color(marker), 1.5f);
+            draw->AddLine(ImVec2(end.x, end.y - 4.f), ImVec2(end.x, end.y + 4.f), color(marker), 1.5f);
+        }
+        const bool tracer_enabled = impact.side == 2 ? settings.tracer_local_player
+            : (impact.side == 1 ? settings.tracer_teammates : settings.tracer_enemies);
+        const float tracer_duration = settings.tracer_use_shared_settings ? settings.tracer_enemy_duration
+            : (impact.side == 2 ? settings.tracer_local_duration
+                : (impact.side == 1 ? settings.tracer_teammate_duration : settings.tracer_enemy_duration));
+        const c_color tracer_color = settings.tracer_use_shared_settings ? settings.tracer_enemy_color
+            : (impact.side == 2 ? settings.tracer_local_color
+                : (impact.side == 1 ? settings.tracer_teammate_color : settings.tracer_enemy_color));
+        if (tracer_enabled && age < tracer_duration) {
+            ImVec2 start;
+            if (world_to_screen(frame.view_matrix, impact.from, display, start)) {
+                auto line_color = tracer_color;
+                line_color.a *= 1.f - age / std::max(tracer_duration, 0.01f);
+                draw->AddLine(start, end, color(line_color), 1.25f);
+            }
+        }
+        if (settings.impact_sparks && age < 0.45f) {
+            auto spark = settings.impact_sparks_color;
+            spark.a *= 1.f - age / 0.45f;
+            const float radius = 4.f + age * 18.f;
+            for (int ray = 0; ray < 6; ++ray) {
+                const float angle = static_cast<float>(ray) * 1.0471975512f;
+                draw->AddLine(end, ImVec2(end.x + std::cos(angle) * radius,
+                    end.y + std::sin(angle) * radius), color(spark), 1.f);
+            }
+        }
+    }
+}
 } // namespace
 
 namespace player_esp {
+void record_hit_marker(int damage, float x, float y, float z) {
+    std::lock_guard lock(transient_events_mutex);
+    if (transient_hit_events.size() >= 32)
+        transient_hit_events.erase(transient_hit_events.begin());
+    transient_hit_events.push_back({ damage, { x, y, z }, std::chrono::steady_clock::now() });
+}
+
+void record_bullet_impact(int side, float from_x, float from_y, float from_z,
+                          float to_x, float to_y, float to_z) {
+    std::lock_guard lock(transient_events_mutex);
+    if (transient_impact_events.size() >= 128)
+        transient_impact_events.erase(transient_impact_events.begin());
+    transient_impact_events.push_back({ std::clamp(side, 0, 2), { from_x, from_y, from_z },
+        { to_x, to_y, to_z }, std::chrono::steady_clock::now() });
+}
+
 void render() {
     visuals_source::initialize();
     visuals_chams::initialize();
@@ -1372,6 +1494,7 @@ void render() {
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     render_world(draw, frame, display);
     render_world_hud(draw, frame, display);
+    render_transient_world_effects(draw, frame, display);
     sound_esp::render(frame);
     // Projection buffers are reused between players and Present calls. The
     // renderer consumes them synchronously, so no per-player allocation is

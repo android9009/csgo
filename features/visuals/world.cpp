@@ -336,7 +336,7 @@ void update_world_cvars() {
     g_cfg->visuals.m_effects.m_hitmarker = page.hitmarker_2d || page.hitmarker_3d || page.damage_marker;
     g_cfg->visuals.m_effects.m_bullet_tracers = page.tracer_enemies || page.tracer_teammates || page.tracer_local_player;
     g_cfg->visuals.m_effects.m_tracer_color = page.tracer_enemy_color;
-    g_cfg->visuals.m_effects.m_bullet_impacts = page.bullet_impacts;
+    g_cfg->visuals.m_effects.m_bullet_impacts = page.bullet_impacts || page.impact_sparks;
 
     visuals_source::local_view_state view_state{};
     const bool view_state_valid = visuals_source::get_local_view_state(view_state);

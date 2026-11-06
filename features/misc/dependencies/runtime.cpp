@@ -4,6 +4,7 @@
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../../visuals/world.hpp"
 #include "../../visuals/sound_esp.hpp"
+#include "../../visuals/esp/esp.hpp"
 
 #include <Windows.h>
 #include <algorithm>
@@ -945,6 +946,7 @@ int __fastcall hooked_emit_sound(void* self, void*, void* filter, int entity_ind
 using event_name_t = const char* (__thiscall*)(const void*);
 using event_get_int_t = int(__thiscall*)(const void*, const char*, int);
 using event_get_string_t = const char* (__thiscall*)(const void*, const char*, const char*);
+using event_get_float_t = float(__thiscall*)(const void*, const char*, float);
 using event_add_listener_t = bool(__thiscall*)(void*, void*, const char*, bool);
 using event_remove_listener_t = void(__thiscall*)(void*, void*);
 
@@ -974,6 +976,7 @@ public:
             return;
         const auto get_int = virtual_function<event_get_int_t>(event, 6);
         const auto get_string = virtual_function<event_get_string_t>(event, 9);
+        const auto get_float = virtual_function<event_get_float_t>(event, 8);
         const auto& state = misc_features::settings();
 
         if (std::strcmp(name, "round_start") == 0) {
@@ -989,6 +992,27 @@ public:
             previous_buttons = 0;
             have_previous_local_velocity = false;
             previous_local_velocity = {};
+            return;
+        }
+        if (std::strcmp(name, "bullet_impact") == 0) {
+            if (!get_int || !get_float || (!g_cfg->visuals.m_effects.m_bullet_impacts &&
+                !g_cfg->visuals.m_effects.m_bullet_tracers))
+                return;
+            const int shooter = player_for_user_id(get_int(event, "userid", 0));
+            const int local = local_index();
+            void* shooter_entity = entity_at(shooter);
+            void* local_entity = entity_at(local);
+            if (!shooter_entity || !local_entity)
+                return;
+            int side = 0;
+            if (shooter == local)
+                side = 2;
+            else if (value<int>(shooter_entity, nv.team, 0) == value<int>(local_entity, nv.team, -1))
+                side = 1;
+            vec3 start = value<vec3>(shooter_entity, nv.origin);
+            start.z += 64.f;
+            player_esp::record_bullet_impact(side, start.x, start.y, start.z,
+                get_float(event, "x", 0.f), get_float(event, "y", 0.f), get_float(event, "z", 0.f));
             return;
         }
         if (std::strcmp(name, "weapon_fire") == 0) {
@@ -1014,6 +1038,12 @@ public:
             if (local_entity && victim_entity &&
                 value<int>(local_entity, nv.team, 0) == value<int>(victim_entity, nv.team, 0)) {
                 return;
+            }
+            if (victim_entity) {
+                vec3 impact = value<vec3>(victim_entity, nv.origin);
+                impact.z += 48.f;
+                player_esp::record_hit_marker(get_int(event, "dmg_health", 0),
+                    impact.x, impact.y, impact.z);
             }
             if (state.hit_sound)
                 client_command("play buttons/arena_switch_press_02.wav");
@@ -1058,7 +1088,7 @@ bool register_events() {
     if (!add || !function_in_module(engine_module, reinterpret_cast<const void*>(add)))
         return false;
     static constexpr const char* names[] = {
-        "round_start", "game_newmap", "weapon_fire", "player_hurt", "player_say"
+        "round_start", "game_newmap", "weapon_fire", "bullet_impact", "player_hurt", "player_say"
     };
     for (const char* name : names) {
         if (!add(game_event_manager, &event_listener, name, false)) {

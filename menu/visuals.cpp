@@ -1089,7 +1089,7 @@ void draw_visuals_world() {
     g_cfg->visuals.m_effects.m_hitmarker = world.hitmarker_2d || world.hitmarker_3d || world.damage_marker;
     g_cfg->visuals.m_effects.m_bullet_tracers = world.tracer_enemies || world.tracer_teammates || world.tracer_local_player;
     g_cfg->visuals.m_effects.m_tracer_color = to_config_color(tracer_enemy_color.a);
-    g_cfg->visuals.m_effects.m_bullet_impacts = world.bullet_impacts;
+    g_cfg->visuals.m_effects.m_bullet_impacts = world.bullet_impacts || world.impact_sparks;
     world.trajectory_color = to_config_color(trajectory_color.a);
     world.inaccuracy_color = to_config_color(inaccuracy_color.a);
     world.bomb.color = to_config_color(bomb_color.a);
