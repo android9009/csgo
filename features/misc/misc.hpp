@@ -23,8 +23,8 @@ struct state {
     float log_color[4] = { 0.66f, 0.60f, 1.f, 1.f };
 };
 
-// The menu owns this state. The gameplay runtime only reads it, so controls keep
-// working with the existing hotkey/override system without a second settings copy.
+// Shared Misc state: menu controls write it and the runtime modules consume it.
+// Kept outside the menu so feature code has no GUI dependency.
 state& settings();
 
 // Called from the render thread. Acquisition and hook installation are lazy and

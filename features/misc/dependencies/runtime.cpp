@@ -1,5 +1,7 @@
-#include "misc.hpp"
-#include "../../sdk/config_system/config_system.hpp"
+#include "../misc.hpp"
+#include "gameplay.hpp"
+#include "source_types.hpp"
+#include "../../../sdk/config_system/config_system.hpp"
 
 #include <Windows.h>
 #include <algorithm>
@@ -13,53 +15,8 @@
 #include <string_view>
 
 namespace {
+using namespace misc_runtime;
 using create_interface_fn = void* (__cdecl*)(const char*, int*);
-
-struct vec3 {
-    float x = 0.f;
-    float y = 0.f;
-    float z = 0.f;
-
-    vec3 operator+(const vec3& other) const { return { x + other.x, y + other.y, z + other.z }; }
-    vec3 operator-(const vec3& other) const { return { x - other.x, y - other.y, z - other.z }; }
-    vec3 operator*(float scale) const { return { x * scale, y * scale, z * scale }; }
-    vec3 operator/(float scale) const { return { x / scale, y / scale, z / scale }; }
-    float length() const { return std::sqrt(x * x + y * y + z * z); }
-    float length_2d() const { return std::sqrt(x * x + y * y); }
-};
-
-struct alignas(16) vec3_aligned {
-    float x = 0.f;
-    float y = 0.f;
-    float z = 0.f;
-    float w = 0.f;
-};
-
-struct user_cmd {
-    void* vtable;
-    int command_number;
-    int tick_count;
-    vec3 viewangles;
-    vec3 aimdirection;
-    float forwardmove;
-    float sidemove;
-    float upmove;
-    int buttons;
-    int impulse;
-    int weapon_select;
-    int weapon_sub_type;
-    int random_seed;
-    short mouse_dx;
-    short mouse_dy;
-    bool has_been_predicted;
-};
-
-#if defined(_WIN32) && !defined(_WIN64)
-static_assert(offsetof(user_cmd, buttons) == 0x30);
-static_assert(offsetof(user_cmd, weapon_select) == 0x38);
-static_assert(offsetof(user_cmd, mouse_dx) == 0x44);
-static_assert(offsetof(user_cmd, has_been_predicted) == 0x48);
-#endif
 
 struct global_vars {
     float real_time;
@@ -240,18 +197,8 @@ bool sound_installed = false;
 bool events_installed = false;
 ULONGLONG next_acquire_attempt = 0;
 
-constexpr int in_attack = 1 << 0;
-constexpr int in_jump = 1 << 1;
-constexpr int in_duck = 1 << 2;
-constexpr int in_forward = 1 << 3;
-constexpr int in_back = 1 << 4;
-constexpr int in_moveleft = 1 << 9;
-constexpr int in_moveright = 1 << 10;
-constexpr int in_speed = 1 << 17;
-constexpr int fl_on_ground = 1 << 0;
-constexpr int fl_ducking = 1 << 1;
+
 constexpr unsigned int mask_solid = 0x1 | 0x2 | 0x8 | 0x4000 | 0x2000000;
-constexpr float pi = 3.14159265358979323846f;
 
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
@@ -613,37 +560,7 @@ bool hook_slot(void* instance, std::size_t index, void* replacement, void** orig
     return previous != nullptr;
 }
 
-float normalize_yaw(float yaw) {
-    while (yaw > 180.f)
-        yaw -= 360.f;
-    while (yaw < -180.f)
-        yaw += 360.f;
-    return yaw;
-}
 
-vec3 angle_vectors(const vec3& angles) {
-    const float pitch = angles.x * pi / 180.f;
-    const float yaw = angles.y * pi / 180.f;
-    const float cp = std::cos(pitch);
-    return { cp * std::cos(yaw), cp * std::sin(yaw), -std::sin(pitch) };
-}
-
-vec3 vector_angles(const vec3& direction) {
-    const float flat = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-    if (flat <= 0.000001f)
-        return { direction.z > 0.f ? -90.f : 90.f, 0.f, 0.f };
-    return { -std::atan2(direction.z, flat) * 180.f / pi,
-        std::atan2(direction.y, direction.x) * 180.f / pi, 0.f };
-}
-
-vec3 normalized(const vec3& value) {
-    const float length = value.length();
-    return length > 0.000001f ? value / length : vec3{};
-}
-
-float dot(const vec3& a, const vec3& b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
 
 bool trace_ground(const vec3& from, float distance, const vec3& mins, const vec3& maxs,
                   game_trace& output) {
@@ -735,12 +652,6 @@ void no_fall_damage(user_cmd* cmd, void* local, const vec3& origin, const vec3& 
     }
 }
 
-void bunny_hop(user_cmd* cmd, int flags) {
-    if (!g_cfg->misc.m_bunny_hop || !(cmd->buttons & in_jump))
-        return;
-    if (!(flags & fl_on_ground))
-        cmd->buttons &= ~in_jump;
-}
 
 void fast_ladder(user_cmd* cmd) {
     if (!misc_features::settings().fast_ladder)
@@ -771,64 +682,6 @@ void fast_ladder(user_cmd* cmd) {
     }
 }
 
-void air_strafe(user_cmd* cmd, const vec3& velocity, int flags) {
-    const auto& misc = g_cfg->misc;
-    if (!misc.m_auto_strafe || (flags & fl_on_ground) || (cmd->buttons & in_speed))
-        return;
-    const float speed = velocity.length_2d();
-    if (speed <= 0.5f) {
-        cmd->forwardmove = 450.f;
-        return;
-    }
-    if (misc.m_strafe_type == 0) {
-        cmd->forwardmove = std::clamp(5850.f / speed, -450.f, 450.f);
-        if (cmd->mouse_dx > 1)
-            cmd->sidemove = 450.f;
-        else if (cmd->mouse_dx < -1)
-            cmd->sidemove = -450.f;
-        return;
-    }
-
-    const bool w = (cmd->buttons & in_forward) != 0;
-    const bool a = (cmd->buttons & in_moveleft) != 0;
-    const bool s = (cmd->buttons & in_back) != 0;
-    const bool d = (cmd->buttons & in_moveright) != 0;
-    float wish = 0.f;
-    if (w) {
-        if (a) wish = 45.f;
-        else if (d) wish = -45.f;
-    } else if (s) {
-        if (a) wish = 135.f;
-        else if (d) wish = -135.f;
-        else wish = 180.f;
-    } else if (a) {
-        wish = 90.f;
-    } else if (d) {
-        wish = -90.f;
-    }
-
-    // Follow Airflow's directional wish-angle calculation, but keep the
-    // player's camera untouched. Rotate the movement vector instead.
-    const float view_yaw = cmd->viewangles.y;
-    float base_yaw = view_yaw;
-    if (w || a || s || d)
-        base_yaw = normalize_yaw(base_yaw + wish);
-
-    const float velocity_yaw = std::atan2(velocity.y, velocity.x) * 180.f / pi;
-    const float difference = normalize_yaw(base_yaw - velocity_yaw);
-    const float smooth = 1.f - 0.15f * (1.f - std::clamp(misc.m_strafe_smooth, 0, 100) / 100.f);
-    cmd->forwardmove = std::clamp(5850.f / speed, -450.f, 450.f);
-    cmd->sidemove = difference > 0.f ? -450.f : 450.f;
-    base_yaw = normalize_yaw(base_yaw - difference * smooth);
-
-    const float move_length = std::sqrt(cmd->forwardmove * cmd->forwardmove + cmd->sidemove * cmd->sidemove);
-    if (move_length > 0.001f) {
-        const float move_angle = std::atan2(cmd->sidemove, cmd->forwardmove) +
-            (view_yaw - base_yaw) * pi / 180.f;
-        cmd->forwardmove = std::cos(move_angle) * move_length;
-        cmd->sidemove = std::sin(move_angle) * move_length;
-    }
-}
 
 void slow_walk(user_cmd* cmd, int flags) {
     const auto& state = misc_features::settings();
@@ -844,92 +697,18 @@ void slow_walk(user_cmd* cmd, int flags) {
 }
 
 float grenade_throw_velocity(int id) {
+    constexpr float fallback_velocity = 750.f;
     if (!get_weapon_data_fn || !weapon_system || id <= 0)
-        return 0.f;
+        return fallback_velocity;
     void* info = get_weapon_data_fn(weapon_system, static_cast<unsigned int>(id));
     if (!readable_range(info, 0x110))
-        return 0.f;
+        return fallback_velocity;
     float result = 0.f;
     std::memcpy(&result, static_cast<unsigned char*>(info) + 0x10C, sizeof(result));
-    return std::isfinite(result) && result >= 15.f && result <= 2000.f ? result : 0.f;
+    return std::isfinite(result) && result >= 15.f && result <= 2000.f
+        ? result : fallback_velocity;
 }
 
-vec3 ray_circle_intersection(const vec3& ray, const vec3& center, float radius) {
-    const float projection = ray.x * center.x + ray.y * center.y;
-    const float c = center.x * center.x + center.y * center.y - radius * radius;
-    const float discriminant = 4.f * (projection * projection - c);
-    if (discriminant < 0.f) {
-        vec3 nearest = ray * projection;
-        vec3 difference = { nearest.x - center.x, nearest.y - center.y, 0.f };
-        const float length = difference.length_2d();
-        if (length <= 0.000001f)
-            difference = { -ray.y, ray.x, 0.f };
-        else
-            difference = difference / length;
-        return { center.x + difference.x * radius, center.y + difference.y * radius, 0.f };
-    }
-    const float root = std::sqrt(discriminant);
-    const float t = projection + root * 0.5f;
-    return { ray.x * t, ray.y * t, 0.f };
-}
-
-float calculate_throw_yaw(const vec3& wish_direction, const vec3& velocity,
-                          float throw_velocity, float strength) {
-    vec3 direction = { wish_direction.x, wish_direction.y, 0.f };
-    const float horizontal = direction.length_2d();
-    const float total = wish_direction.length();
-    if (horizontal <= 0.000001f || total <= 0.000001f)
-        return std::atan2(wish_direction.y, wish_direction.x) * 180.f / pi;
-    direction = direction / horizontal;
-    const float cos_pitch = std::clamp(dot(direction, wish_direction) / total, 0.f, 1.f);
-    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
-        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
-    const vec3 inherited = velocity * 1.25f;
-    const vec3 intersection = ray_circle_intersection(direction, inherited, launch_speed * cos_pitch);
-    const vec3 relative = intersection - inherited;
-    return std::atan2(relative.y, relative.x) * 180.f / pi;
-}
-
-float calculate_throw_pitch(const vec3& wish_direction, const vec3& velocity,
-                            float throw_velocity, float strength) {
-    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
-        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
-    const vec3 current_velocity = velocity * 1.25f + wish_direction * launch_speed;
-    const float difference = vector_angles(wish_direction).x - vector_angles(current_velocity).x;
-    return difference * (std::cos(difference * pi / 180.f) + 1.f) * 0.5f;
-}
-
-bool compensate_grenade_throw(user_cmd* cmd, int id, const vec3& velocity,
-                              const vec3& previous_velocity, float strength) {
-    const float throw_velocity = grenade_throw_velocity(id);
-    if (throw_velocity <= 0.f || !std::isfinite(strength) ||
-        !std::isfinite(velocity.x) || !std::isfinite(velocity.y) || !std::isfinite(velocity.z) ||
-        !std::isfinite(previous_velocity.x) || !std::isfinite(previous_velocity.y) ||
-        !std::isfinite(previous_velocity.z)) {
-        return false;
-    }
-    const vec3 smoothed_velocity = (velocity + previous_velocity) * 0.5f;
-    const vec3 input_angles = cmd->viewangles;
-    const vec3 direction = angle_vectors(input_angles);
-    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
-        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
-    const vec3 base_velocity = direction * launch_speed;
-    const vec3 current_throw_velocity = velocity * 1.25f + base_velocity;
-    vec3 target_velocity = normalized(base_velocity + smoothed_velocity * 1.25f);
-    if (dot(current_throw_velocity, direction) > 0.f)
-        target_velocity = direction;
-    if (target_velocity.length() <= 0.000001f)
-        return false;
-
-    vec3 adjusted_angles = input_angles;
-    adjusted_angles.x += calculate_throw_pitch(direction, smoothed_velocity, throw_velocity, strength);
-    adjusted_angles.y = calculate_throw_yaw(target_velocity, previous_velocity, throw_velocity, strength);
-    if (!std::isfinite(adjusted_angles.x) || !std::isfinite(adjusted_angles.y))
-        return false;
-    cmd->viewangles.x = adjusted_angles.x;
-    cmd->viewangles.y = normalize_yaw(adjusted_angles.y);
-    return true;
-}
 
 bool purchase_pending = false;
 int purchase_delay = 0;
@@ -941,38 +720,9 @@ bool have_previous_local_velocity = false;
 int previous_buttons = 0;
 
 void run_purchase() {
-    const auto& misc = g_cfg->misc;
-    std::string command;
-    const bool configured = misc.m_buy_bot_primary != 0 || misc.m_buy_bot_secondary != 0 ||
-        misc.m_buy_bot_armor || misc.m_buy_bot_defuser || misc.m_buy_bot_grenades;
-    if (!configured) {
-        command = "buy ak47; buy m4a1_silencer; buy deagle; buy vesthelm; buy hegrenade; buy smokegrenade; buy defuser";
-    } else {
-        switch (misc.m_buy_bot_primary) {
-        case 1: command += "buy scar20; buy g3sg1; "; break;
-        case 2: command += "buy ssg08; "; break;
-        case 3: command += "buy awp; "; break;
-        case 4: command += "buy negev; "; break;
-        case 5: command += "buy m249; "; break;
-        case 6: command += "buy ak47; buy m4a1; buy m4a1_silencer; "; break;
-        case 7: command += "buy aug; buy sg556; "; break;
-        default: break;
-        }
-        switch (misc.m_buy_bot_secondary) {
-        case 1: command += "buy elite; "; break;
-        case 2: command += "buy p250; "; break;
-        case 3: command += "buy tec9; buy fn57; "; break;
-        case 4: command += "buy deagle; buy revolver; "; break;
-        default: break;
-        }
-        if (misc.m_buy_bot_armor)
-            command += "buy vesthelm; buy vest; ";
-        if (misc.m_buy_bot_grenades)
-            command += "buy hegrenade; buy molotov; buy incgrenade; buy smokegrenade; buy flashbang; ";
-        if (misc.m_buy_bot_defuser)
-            command += "buy defuser; ";
-    }
-    client_command(command);
+    const std::string command = misc_gameplay::purchase_command(g_cfg->misc);
+    if (!command.empty())
+        client_command(command);
 }
 
 void run_create_move(user_cmd* cmd) {
@@ -1023,18 +773,21 @@ void run_create_move(user_cmd* cmd) {
     }
 
     bool grenade_command = automatic_release;
-    const bool manual_release = (old_buttons & in_attack) && !(cmd->buttons & in_attack);
+    const bool manual_release =
+        ((old_buttons & in_attack) && !(cmd->buttons & in_attack)) ||
+        ((old_buttons & in_attack2) && !(cmd->buttons & in_attack2));
     const bool recent_throw = globals && throw_time > 0.f &&
         throw_time >= current_time() - tick_interval() * 2.f;
-    if (holding_grenade && state.super_toss && (pin_pulled || recent_throw) &&
+    if (holding_grenade && state.super_toss &&
         (manual_release || automatic_release || recent_throw)) {
         // Send the compensated command angles without syncing them to the local camera.
-        suppress_view_update = compensate_grenade_throw(cmd, id, velocity, previous_velocity, throw_strength);
-        cmd->buttons |= in_speed;
+        const float throw_velocity = grenade_throw_velocity(id);
+        suppress_view_update = misc_gameplay::compensate_grenade_throw(
+            cmd, velocity, previous_velocity, throw_velocity, throw_strength);
         grenade_command = true;
     }
 
-    bunny_hop(cmd, flags);
+    misc_gameplay::bunny_hop(cmd, flags, g_cfg->misc.m_bunny_hop);
     if (type == 9) {
         if (!(flags & fl_on_ground))
             fast_ladder(cmd);
@@ -1068,7 +821,8 @@ void run_create_move(user_cmd* cmd) {
         quick_stop_complete = false;
         no_fall_damage(cmd, local, origin, velocity, flags);
         if (!grenade_command)
-            air_strafe(cmd, velocity, flags);
+            misc_gameplay::air_strafe(cmd, velocity, flags, g_cfg->misc.m_auto_strafe,
+                g_cfg->misc.m_strafe_type, g_cfg->misc.m_strafe_smooth);
     }
     slow_walk(cmd, flags);
 }
@@ -1188,9 +942,7 @@ public:
                 return;
             }
             const std::string_view weapon = get_string(event, "weapon", "");
-            const bool supported = weapon == "weapon_awp" || weapon == "weapon_ssg08" ||
-                weapon == "weapon_scar20" || weapon == "weapon_g3sg1" || weapon == "weapon_taser";
-            if (supported)
+            if (misc_gameplay::quick_switch_weapon(weapon))
                 client_command("slot3; lastinv");
             return;
         }

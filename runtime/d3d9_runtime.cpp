@@ -18,7 +18,7 @@
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
 #include "../menu/agent_preview.hpp"
-#include "../features/visuals/esp.hpp"
+#include "../features/visuals/esp/esp.hpp"
 #include "../features/misc/misc.hpp"
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"

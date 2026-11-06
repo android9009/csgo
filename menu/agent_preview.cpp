@@ -6,8 +6,8 @@
 
 #include "menu.hpp"
 #include "../runtime/debug_console.hpp"
-#include "../features/visuals/chams.hpp"
-#include "../features/visuals/source.hpp"
+#include "../features/visuals/chams/chams.hpp"
+#include "../features/visuals/dependencies/source.hpp"
 #include "../sdk/config_system/config_system.hpp"
 
 #include <algorithm>

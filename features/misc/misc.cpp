@@ -1,94 +1,42 @@
-#include "misc.hpp"
-#include "../../menu/menu.hpp"
-#include "../../sdk/config_system/config_system.hpp"
-#include "../../menu/shader_bg.hpp"
+#include "dependencies/gameplay.hpp"
 
-namespace {
-void draw_feature_toggle(const char* label, bool& value, bool with_options = false) {
-    if (with_options) {
-        const std::string id = std::string("##misc_") + label + "_options";
-        gui.row_begin();
-        if (gui.row_options_begin(id.c_str(), 216.f, c_gui::row_control::toggle))
-            gui.row_options_end();
+namespace misc_gameplay {
+std::string purchase_command(const c_config_system::misc_t& misc) {
+    std::string command;
+    const bool configured = misc.m_buy_bot_primary != 0 || misc.m_buy_bot_secondary != 0 ||
+        misc.m_buy_bot_armor || misc.m_buy_bot_defuser || misc.m_buy_bot_grenades;
+    if (!configured) {
+        return "buy ak47; buy m4a1_silencer; buy deagle; buy vesthelm; buy hegrenade; buy smokegrenade; buy defuser";
     }
-    gui.row_checkbox(label, &value);
-}
-}
 
-namespace misc_features {
-state& settings() {
-    static state instance;
-    return instance;
-}
-}
-
-void c_menu::draw_misc() {
-    auto& state = misc_features::settings();
-    static color_value log_color{
-        ImVec4(0.66f, 0.60f, 1.f, 1.f),
-        ImVec4(0.66f, 0.60f, 1.f, 1.f),
-        false
-    };
-    static const char* strafe_modes[] = { "Legit", "Directional" };
-    static const char* filter_chat_modes[] = { "Select" };
-    static const char* log_event_modes[] = { "Damage Dealt" };
-
-    auto& misc = g_cfg->misc;
-    gui.begin_grid(2);
-
-    gui.grid_col(0);
-    gui.grid_box("MOVEMENT", k_auto_height);
-    gui.row_checkbox("Bunny Hop", &misc.m_bunny_hop);
-    misc.m_strafe_type = ImClamp(misc.m_strafe_type, 0, IM_ARRAYSIZE(strafe_modes) - 1);
-
-    gui.row_begin();
-    if (gui.row_options_begin("##misc_air_strafe_options", 250.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::Combo("Strafe Type", &misc.m_strafe_type, strafe_modes, IM_ARRAYSIZE(strafe_modes));
-        gui.row_begin(); ImGui::SliderInt("Smooth", &misc.m_strafe_smooth, 0, 100);
-        gui.row_options_end();
+    switch (misc.m_buy_bot_primary) {
+    case 1: command += "buy scar20; buy g3sg1; "; break;
+    case 2: command += "buy ssg08; "; break;
+    case 3: command += "buy awp; "; break;
+    case 4: command += "buy negev; "; break;
+    case 5: command += "buy m249; "; break;
+    case 6: command += "buy ak47; buy m4a1; buy m4a1_silencer; "; break;
+    case 7: command += "buy aug; buy sg556; "; break;
+    default: break;
     }
-    gui.row_checkbox("Air Strafe", &misc.m_auto_strafe);
-
-    draw_feature_toggle("No Fall Damage", state.no_fall_damage);
-    draw_feature_toggle("Edge Quick Stop", state.edge_quick_stop);
-    draw_feature_toggle("Standalone Quick Stop", state.standalone_quick_stop);
-    draw_feature_toggle("Edge Jump", state.edge_jump);
-    gui.row_begin();
-    if (gui.row_options_begin("##misc_slow_walk_options", 216.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::SliderInt("Units", &state.slow_walk_speed, 0, 250, "%d units");
-        gui.row_options_end();
+    switch (misc.m_buy_bot_secondary) {
+    case 1: command += "buy elite; "; break;
+    case 2: command += "buy p250; "; break;
+    case 3: command += "buy tec9; buy fn57; "; break;
+    case 4: command += "buy deagle; buy revolver; "; break;
+    default: break;
     }
-    gui.row_checkbox("Slow Walk", &state.slow_walk);
-    draw_feature_toggle("Fast Ladder", state.fast_ladder);
-    gui.end_group_box();
-
-    // Keep the existing menu effect reachable without adding a row to the reference Features list.
-    gui.grid_box("MENU", k_auto_height);
-    gui.row_begin();
-    if (gui.row_options_begin("##misc_menu_shader_options", 216.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::SliderFloat("Shader Opacity", &shader_bg::state().opacity, 0.f, 1.f, "%.2f");
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Menu Shader", &shader_bg::state().enabled);
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("FEATURES", 0, true);
-    draw_feature_toggle("Quick Switch", state.quick_switch);
-    draw_feature_toggle("Super Toss", state.super_toss);
-    draw_feature_toggle("Hit Sound", state.hit_sound, true);
-    draw_feature_toggle("Automatic Purchase", state.automatic_purchase, true);
-    draw_feature_toggle("Automatic Grenade Release", state.automatic_grenade_release, true);
-    draw_feature_toggle("Auto-Accept Matchmaking", state.auto_accept_matchmaking);
-    draw_feature_toggle("Reveal Enemy Chat", state.reveal_enemy_chat);
-    draw_feature_toggle("Filter Console Output", state.filter_console_output);
-    gui.row_multibox("Filter Chat Messages", filter_chat_modes, &state.filter_chat_messages,
-                     IM_ARRAYSIZE(filter_chat_modes));
-    gui.row_multibox("Log Events", log_event_modes, &state.log_damage_dealt, &log_color,
-                     IM_ARRAYSIZE(log_event_modes));
-    for (int i = 0; i < 4; ++i)
-        state.log_color[i] = (&log_color.a.x)[i];
-    gui.end_group_box();
-
-    gui.end_grid();
+    if (misc.m_buy_bot_armor)
+        command += "buy vesthelm; buy vest; ";
+    if (misc.m_buy_bot_grenades)
+        command += "buy hegrenade; buy molotov; buy incgrenade; buy smokegrenade; buy flashbang; ";
+    if (misc.m_buy_bot_defuser)
+        command += "buy defuser; ";
+    return command;
 }
+
+bool quick_switch_weapon(std::string_view weapon) {
+    return weapon == "weapon_awp" || weapon == "weapon_ssg08" ||
+        weapon == "weapon_scar20" || weapon == "weapon_g3sg1" || weapon == "weapon_taser";
+}
+} // namespace misc_gameplay

@@ -1,5 +1,5 @@
 #include "source.hpp"
-#include "settings.hpp"
+#include "../settings.hpp"
 
 #include <Windows.h>
 #include "MinHook.h"

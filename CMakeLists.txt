@@ -10,17 +10,25 @@ add_library(airflow_shell SHARED
   dllmain.cpp
   features/config/config.cpp
   features/legit/legit.cpp
+  features/misc/air_strafe.cpp
+  features/misc/bunny_hop.cpp
+  features/misc/dependencies/runtime.cpp
+  features/misc/dependencies/state.cpp
   features/misc/misc.cpp
-  features/misc/runtime.cpp
+  features/misc/super_toss.cpp
   features/rage/anti_aim.cpp
   features/rage/rage.cpp
   features/skins/skins.cpp
+  features/visuals/chams/chams.cpp
+  features/visuals/dependencies/source.cpp
+  features/visuals/esp/esp.cpp
   menu/agent_preview.cpp
   menu/binds.cpp
   menu/blur.cpp
   menu/effects.cpp
   menu/gui.cpp
   menu/menu.cpp
+  menu/misc.cpp
   menu/menu_shared.cpp
   menu/weapon_icons.cpp
   menu/weapon_presets.cpp

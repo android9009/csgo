@@ -22,6 +22,30 @@
     <Filter Include="Source Files\features\misc">
       <UniqueIdentifier>{3E31E9A1-0F0B-5847-8FEC-9D50E843E4BA}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\features\misc\dependencies">
+      <UniqueIdentifier>{80d311ac-6a57-4df2-aac9-021c45d6d540}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\visuals\dependencies">
+      <UniqueIdentifier>{0c2c3d64-5ffa-4383-b0b4-12de70c30283}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\visuals\chams">
+      <UniqueIdentifier>{b2762cdf-3f66-48f8-ad31-04b61ca14366}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\visuals\chams">
+      <UniqueIdentifier>{0dc7b05b-bb6e-4222-b9b7-dd19a6cc2294}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\features\visuals\esp">
+      <UniqueIdentifier>{480b4506-914e-4eeb-9e9b-e4d3ff5a707f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\misc\dependencies">
+      <UniqueIdentifier>{55f9b6df-7975-4aec-b762-6cb5146d8421}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\visuals\dependencies">
+      <UniqueIdentifier>{70d4b5b8-719e-4df6-a517-07dcdd1270d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\visuals\esp">
+      <UniqueIdentifier>{991e7a12-3a5f-40c8-bad4-f22d2d55bef7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\features\rage">
       <UniqueIdentifier>{B0DF8DFF-B7DD-57E7-864E-3A0F8D532B7B}</UniqueIdentifier>
     </Filter>
@@ -135,10 +159,22 @@
     <ClCompile Include="features\legit\legit.cpp">
       <Filter>Source Files\features\legit</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\air_strafe.cpp">
+      <Filter>Source Files\features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\bunny_hop.cpp">
+      <Filter>Source Files\features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\dependencies\runtime.cpp">
+      <Filter>Source Files\features\misc\dependencies</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\dependencies\state.cpp">
+      <Filter>Source Files\features\misc\dependencies</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\misc.cpp">
       <Filter>Source Files\features\misc</Filter>
     </ClCompile>
-    <ClCompile Include="features\misc\runtime.cpp">
+    <ClCompile Include="features\misc\super_toss.cpp">
       <Filter>Source Files\features\misc</Filter>
     </ClCompile>
     <ClCompile Include="features\rage\anti_aim.cpp">
@@ -150,14 +186,14 @@
     <ClCompile Include="features\skins\skins.cpp">
       <Filter>Source Files\features\skins</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\chams.cpp">
-      <Filter>Source Files\features\visuals</Filter>
+    <ClCompile Include="features\visuals\chams\chams.cpp">
+      <Filter>Source Files\features\visuals\chams</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\esp.cpp">
-      <Filter>Source Files\features\visuals</Filter>
+    <ClCompile Include="features\visuals\esp\esp.cpp">
+      <Filter>Source Files\features\visuals\esp</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\source.cpp">
-      <Filter>Source Files\features\visuals</Filter>
+    <ClCompile Include="features\visuals\dependencies\source.cpp">
+      <Filter>Source Files\features\visuals\dependencies</Filter>
     </ClCompile>
     <ClCompile Include="menu\agent_preview.cpp">
       <Filter>Source Files\menu</Filter>
@@ -175,6 +211,9 @@
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu.cpp">
+      <Filter>Source Files\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\misc.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu_shared.cpp">
@@ -248,17 +287,23 @@
     <ClInclude Include="features\misc\misc.hpp">
       <Filter>Header Files\features\misc</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams.hpp">
-      <Filter>Header Files\features\visuals</Filter>
+    <ClInclude Include="features\misc\dependencies\gameplay.hpp">
+      <Filter>Header Files\features\misc\dependencies</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\esp.hpp">
-      <Filter>Header Files\features\visuals</Filter>
+    <ClInclude Include="features\misc\dependencies\source_types.hpp">
+      <Filter>Header Files\features\misc\dependencies</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\chams\chams.hpp">
+      <Filter>Header Files\features\visuals\chams</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\esp\esp.hpp">
+      <Filter>Header Files\features\visuals\esp</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\settings.hpp">
       <Filter>Header Files\features\visuals</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\source.hpp">
-      <Filter>Header Files\features\visuals</Filter>
+    <ClInclude Include="features\visuals\dependencies\source.hpp">
+      <Filter>Header Files\features\visuals\dependencies</Filter>
     </ClInclude>
     <ClInclude Include="menu\agent_preview.hpp">
       <Filter>Header Files\menu</Filter>

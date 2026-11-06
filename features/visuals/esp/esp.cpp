@@ -1,10 +1,10 @@
 #include "esp.hpp"
 #include "imgui_internal.h"
 
-#include "chams.hpp"
-#include "settings.hpp"
-#include "source.hpp"
-#include "../../menu/weapon_icons.hpp"
+#include "../chams/chams.hpp"
+#include "../settings.hpp"
+#include "../dependencies/source.hpp"
+#include "../../../menu/weapon_icons.hpp"
 
 #include <algorithm>
 #include <array>

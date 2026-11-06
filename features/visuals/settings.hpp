@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../sdk/typedefs/c_color.hpp"
-#include "chams.hpp"
+#include "chams/chams.hpp"
 
 #include <array>
 #include <cstddef>

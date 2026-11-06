@@ -1,7 +1,7 @@
 // Visuals menu page only. Gameplay ESP/rendering code belongs under features/visuals.
 #include "menu.hpp"
 #include "hashes.hpp"
-#include "../features/visuals/chams.hpp"
+#include "../features/visuals/chams/chams.hpp"
 #include "../features/visuals/settings.hpp"
 #include "../sdk/config_system/config_system.hpp"
 

@@ -1,9 +1,9 @@
 #include "chams.hpp"
-#include "source.hpp"
+#include "../dependencies/source.hpp"
 
 #include <Windows.h>
 #include "MinHook.h"
-#include "../../runtime/debug_console.hpp"
+#include "../../../runtime/debug_console.hpp"
 
 #include <algorithm>
 #include <array>
