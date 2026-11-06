@@ -1,6 +1,7 @@
 #include "world.hpp"
 
 #include "../../sdk/config_system/config_system.hpp"
+#include "settings.hpp"
 #include "dependencies/source.hpp"
 
 #include <Windows.h>
@@ -313,21 +314,39 @@ void update_camera() {
 void update_world_cvars() {
     const auto& world = g_cfg->world;
     const auto& world_esp = g_cfg->world_esp;
+    const auto& page = player_visuals::world_settings();
+    g_cfg->world.m_remove_post_processing = world.m_remove_post_processing || page.removals[9];
     const bool fog = world.m_render_fog;
     set_override("fog_override", fog, fog ? 1.f : 0.f);
     set_override("fog_maxdensity", fog, 0.f);
-    set_override("mat_postprocess_enable", world.m_remove_post_processing, 0.f);
+    set_override("mat_postprocess_enable", g_cfg->world.m_remove_post_processing, 0.f);
     set_override("r_shadows", world.m_remove_shadows, 0.f);
-    set_override("spec_allow_roaming", world.m_unlock_spectating, 1.f);
-    set_override("r_aspectratio", world_esp.m_aspect_ratio > 0.01f,
-        std::clamp(world_esp.m_aspect_ratio, 0.f, 2.5f));
+    set_override("spec_allow_roaming", page.unlock_spectating_mode > 0 || world.m_unlock_spectating, 1.f);
+    float aspect_ratio = std::clamp(world_esp.m_aspect_ratio, 0.f, 2.5f);
+    if (page.aspect_scaling == 1 && aspect_ratio > 0.01f)
+        aspect_ratio = 1.f / aspect_ratio;
+    set_override("r_aspectratio", page.aspect_ratio_override, aspect_ratio);
+    g_cfg->world.m_draw_radar = std::any_of(page.radar_options.begin(), page.radar_options.end(),
+        [](bool value) { return value; });
+    g_cfg->world.m_custom_crosshair = page.force_sniper_crosshair || page.force_crosshair_scoped ||
+        page.force_crosshair_c4 || page.penetration_crosshair;
+    g_cfg->world.m_remove_scope_overlay = page.scope_overlay_mode == 2;
+    g_cfg->world.m_remove_scoreboard = page.scoreboard_opacity <= 0.f;
+    g_cfg->world_esp.m_skip_second_zoom = page.instant_scope;
+    g_cfg->visuals.m_effects.m_hitmarker = page.hitmarker_2d || page.hitmarker_3d || page.damage_marker;
+    g_cfg->visuals.m_effects.m_bullet_tracers = page.tracer_enemies || page.tracer_teammates || page.tracer_local_player;
+    g_cfg->visuals.m_effects.m_tracer_color = page.tracer_enemy_color;
+    g_cfg->visuals.m_effects.m_bullet_impacts = page.bullet_impacts;
 
     visuals_source::local_view_state view_state{};
     const bool view_state_valid = visuals_source::get_local_view_state(view_state);
     const bool scoped = view_state_valid && view_state.scoped;
     set_override("r_drawviewmodel", world.m_show_viewmodel_in_scope && scoped, 1.f);
-    visuals_source::set_flash_removed(world.m_remove_flash);
-    if (world.m_remove_smoke)
+    g_cfg->world.m_remove_flash = world.m_remove_flash || page.removals[5];
+    g_cfg->world.m_remove_smoke = world.m_remove_smoke || page.removals[6];
+    g_cfg->world.m_remove_post_processing = world.m_remove_post_processing || page.removals[9];
+    visuals_source::set_flash_removed(g_cfg->world.m_remove_flash);
+    if (g_cfg->world.m_remove_smoke)
         clear_smoke_counter();
 
     const int exposure = std::clamp(world.m_exposure, 0, 100);
@@ -338,24 +357,36 @@ void update_world_cvars() {
     set_override("mat_force_tonemap_scale", tone_changed, tone_scale);
 
     const int vm_fov = std::clamp(world.m_viewmodel_fov, 0, 30);
-    set_override("viewmodel_fov", vm_fov != 0,
-        convars[0].original + static_cast<float>(vm_fov));
-    set_override("viewmodel_offset_x", std::fabs(world.m_viewmodel_offset_x) > 0.001f,
+    const bool override_vm_fov = page.viewmodel_fov_override ||
+        (page.scope_force_viewmodel_fov && scoped) || vm_fov != 0;
+    const float vm_fov_value = page.viewmodel_fov_override || (page.scope_force_viewmodel_fov && scoped)
+        ? static_cast<float>(std::clamp(page.viewmodel_fov_value, 54, 120))
+        : convars[0].original + static_cast<float>(vm_fov);
+    set_override("viewmodel_fov", override_vm_fov, vm_fov_value);
+    const bool override_position = page.viewmodel_position_override;
+    set_override("viewmodel_offset_x", override_position || std::fabs(world.m_viewmodel_offset_x) > 0.001f,
         convars[1].original + std::clamp(world.m_viewmodel_offset_x, -2.5f, 2.5f));
-    set_override("viewmodel_offset_y", std::fabs(world.m_viewmodel_offset_y) > 0.001f,
+    set_override("viewmodel_offset_y", override_position || std::fabs(world.m_viewmodel_offset_y) > 0.001f,
         convars[2].original + std::clamp(world.m_viewmodel_offset_y, -2.f, 2.f));
-    set_override("viewmodel_offset_z", std::fabs(world.m_viewmodel_offset_z) > 0.001f,
+    set_override("viewmodel_offset_z", override_position || std::fabs(world.m_viewmodel_offset_z) > 0.001f,
         convars[3].original + std::clamp(world.m_viewmodel_offset_z, -2.f, 2.f));
 
-    const bool remove_move = world.m_remove_viewmodel_move;
-    set_override("cl_wpn_sway_scale", remove_move, 0.f);
-    set_override("cl_wpn_sway_interp", remove_move, 0.f);
-    set_override("cl_bobamt_lat", remove_move, 0.f);
-    set_override("cl_bobamt_vert", remove_move, 0.f);
-    set_override("cl_bob_lower_amt", remove_move, 0.f);
+    const bool override_modifiers = page.viewmodel_modifiers_override;
+    set_override("cl_wpn_sway_scale", override_modifiers || world.m_remove_viewmodel_move,
+        override_modifiers ? page.modifier_velocity_sway : 0.f);
+    set_override("cl_wpn_sway_interp", override_modifiers || world.m_remove_viewmodel_move,
+        override_modifiers ? page.modifier_rotation_sway : 0.f);
+    set_override("cl_bobamt_lat", override_modifiers || world.m_remove_viewmodel_move,
+        override_modifiers ? page.modifier_bobbing : 0.f);
+    set_override("cl_bobamt_vert", override_modifiers || world.m_remove_viewmodel_move,
+        override_modifiers ? page.modifier_bobbing : 0.f);
+    set_override("cl_bob_lower_amt", override_modifiers || world.m_remove_viewmodel_move,
+        override_modifiers ? page.modifier_lower_weapon : 0.f);
     const bool no_landing_bob = world.m_remove_landing_bob;
-    set_override("cl_viewmodel_shift_left_amt", no_landing_bob, 0.f);
-    set_override("cl_viewmodel_shift_right_amt", no_landing_bob, 0.f);
+    set_override("cl_viewmodel_shift_left_amt", override_modifiers || no_landing_bob,
+        override_modifiers ? page.modifier_in_air_offset : 0.f);
+    set_override("cl_viewmodel_shift_right_amt", override_modifiers || no_landing_bob,
+        override_modifiers ? page.modifier_ladder_bob : 0.f);
 }
 
 void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
@@ -372,11 +403,21 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
 
     visuals_source::local_view_state view_state{};
     if (visuals_source::get_local_view_state(view_state)) {
-        if (view_state.alive && g_cfg->world.m_visual_recoil) {
+        const auto& page = player_visuals::world_settings();
+        const int recoil_mode = page.visual_recoil_mode;
+        const bool remove_recoil = recoil_mode == 2 || (recoil_mode == 0 && g_cfg->world.m_visual_recoil);
+        if (view_state.alive && remove_recoil) {
             setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
             setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
+        } else if (view_state.alive && recoil_mode == 3) {
+            setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
+        } else if (view_state.alive && recoil_mode == 4) {
+            setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
         }
-        if (view_state.scoped && cfg.m_zoom_fov > 0)
+        if (view_state.scoped && page.scope_fov_override) {
+            const int scope_fov = setup->fov < 20.f ? page.scope_fov_x2 : page.scope_fov_x1;
+            setup->fov = static_cast<float>(std::clamp(scope_fov, 20, 90));
+        } else if (view_state.scoped && cfg.m_zoom_fov > 0)
             setup->fov = static_cast<float>(std::clamp(cfg.m_zoom_fov, 20, 90));
         else if (view_state.scoped && cfg.m_skip_second_zoom && setup->fov < 20.f)
             setup->fov = 40.f;
@@ -394,6 +435,14 @@ void __fastcall hooked_paint_traverse(void* self, void*, unsigned int panel,
     const char* name = get_name ? get_name(self, panel) : nullptr;
     if (name) {
         const auto& world = g_cfg->world;
+        const auto& removals = player_visuals::world_settings().removals;
+        if ((removals[0] && std::strcmp(name, "TeamIntro") == 0) ||
+            (removals[1] && std::strstr(name, "Panorama") != nullptr) ||
+            (removals[2] && std::strstr(name, "BottomGradient") != nullptr) ||
+            (removals[3] && std::strstr(name, "DamageIndicator") != nullptr) ||
+            (removals[4] && (std::strstr(name, "ServerAdvertisement") != nullptr ||
+                std::strstr(name, "ServerAd") != nullptr)))
+            return;
         if (world.m_remove_scope_overlay && std::strcmp(name, "HudZoom") == 0)
             return;
         if (world.m_remove_death_notices && std::strcmp(name, "HudDeathNotice") == 0)

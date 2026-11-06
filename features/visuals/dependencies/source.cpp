@@ -1425,7 +1425,13 @@ bool entity_exists(int entity_index) {
 }
 
 void capture_world(frame_data& output, const vector3& local_origin) {
-    if (!player_visuals::world_settings().enabled)
+    const auto& world_settings = player_visuals::world_settings();
+    const bool radar_reveal = std::any_of(world_settings.radar_options.begin(),
+        world_settings.radar_options.end(), [](bool value) { return value; });
+    if (!world_settings.bomb.enabled && !world_settings.weapon.enabled &&
+        !world_settings.hostage.enabled && !world_settings.grenade.enabled &&
+        !world_settings.grenade.smoke_radius && !world_settings.grenade.inferno_radius &&
+        !world_settings.grenade_trajectory && !world_settings.grenade_proximity_warnings && !radar_reveal)
         return;
     output.world.reserve(64);
     for (int index = 65; index < 2048; ++index) {
@@ -1451,11 +1457,13 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             continue;
 
         const auto& filters = player_visuals::world_settings();
-        if (((planted_c4 || bomb_weapon) && !filters.bombs) ||
-            (definition > 0 && !projectile && !planted_c4 && !bomb_weapon && !filters.weapons) ||
-            (hostage && !filters.hostages) || (window && !filters.windows) ||
-            ((projectile || smoke_projectile || inferno) && !filters.grenades &&
-                !(inferno && filters.molotov_range) && !(smoke_projectile && filters.smoke_range)))
+        if (((planted_c4 || bomb_weapon) && !filters.bomb.enabled && !filters.radar_options[2]) ||
+            (definition > 0 && !projectile && !planted_c4 && !bomb_weapon && !filters.weapon.enabled) ||
+            (hostage && !filters.hostage.enabled && !filters.radar_options[1]) || window ||
+            ((projectile || smoke_projectile || inferno) && !filters.grenade.enabled &&
+                !(inferno && filters.grenade.inferno_radius) &&
+                !(smoke_projectile && filters.grenade.smoke_radius) &&
+                !filters.grenade_trajectory && !filters.grenade_proximity_warnings))
             continue;
 
         const bool smoke_active = smoke_projectile && value<bool>(entity, nv.smoke_effect, false);

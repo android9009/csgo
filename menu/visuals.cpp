@@ -710,117 +710,412 @@ void draw_visuals_players() {
 
 void draw_visuals_world() {
     auto& world = player_visuals::world_settings();
-    static color_value box_color = make_ui_color(0.92f, 0.94f, 1.f);
-    static color_value name_color = make_ui_color(0.92f, 0.94f, 1.f);
-    static color_value icon_color = make_ui_color(0.92f, 0.94f, 1.f);
-    static color_value ammo_color = make_ui_color(0.55f, 0.72f, 1.f);
-    static color_value smoke_color = make_ui_color(0.65f, 0.65f, 0.65f);
-    static color_value molotov_color = make_ui_color(1.f, 0.35f, 0.12f);
-    box_color.a = to_vec4(world.box_color);
-    name_color.a = to_vec4(world.name_color);
-    icon_color.a = to_vec4(world.icon_color);
-    ammo_color.a = to_vec4(world.ammo_color);
+    static color_value inaccuracy_color = make_ui_color(0.92f, 0.92f, 0.92f);
+    static color_value bomb_color = make_ui_color(0.45f, 0.95f, 0.52f);
+    static color_value bomb_defused_color = make_ui_color(0.70f, 0.82f, 0.94f);
+    static color_value weapon_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value hostage_color = make_ui_color(1.f, 0.35f, 0.56f);
+    static color_value rescue_color = make_ui_color(0.60f, 0.78f, 0.95f);
+    static color_value hostage_progress_bg_color = make_ui_color(0.f, 0.f, 0.f);
+    static color_value grenade_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value smoke_radius_color = make_ui_color(0.35f, 0.62f, 0.95f);
+    static color_value inferno_radius_color = make_ui_color(0.95f, 0.42f, 0.27f);
+    static color_value projectile_inferno_color = make_ui_color(1.f, 0.76f, 0.50f);
+    static color_value smoke_color = make_ui_color(0.55f, 0.61f, 0.42f);
+    static color_value molotov_color = make_ui_color(0.95f, 0.35f, 0.27f);
+    static color_value explosion_color = make_ui_color(0.48f, 0.63f, 1.f);
+    static color_value effects_color = make_ui_color(1.f, 0.30f, 0.67f);
+    static color_value trajectory_color = make_ui_color(1.f, 0.25f, 0.42f);
+    static color_value windows_color = make_ui_color(0.35f, 0.95f, 0.60f);
+    static color_value penetration_color = make_ui_color(0.75f, 0.45f, 0.95f);
+    static color_value hit2d_color = make_ui_color(1.f, 1.f, 1.f);
+    static color_value hit3d_color = make_ui_color(1.f, 1.f, 1.f);
+    static color_value damage_color = make_ui_color(1.f, 1.f, 1.f);
+    static color_value tracer_enemy_color = make_ui_color(1.f, 0.35f, 0.45f);
+    static color_value tracer_teammate_color = make_ui_color(1.f, 0.72f, 0.48f);
+    static color_value tracer_local_color = make_ui_color(0.60f, 0.55f, 0.95f);
+    static color_value impact_color = make_ui_color(0.90f, 0.60f, 0.90f);
+    static color_value spark_color = make_ui_color(1.f, 1.f, 1.f);
+    inaccuracy_color.a = to_vec4(world.inaccuracy_color);
+    bomb_color.a = to_vec4(world.bomb.color);
+    bomb_defused_color.a = to_vec4(world.bomb.secondary_color);
+    weapon_color.a = to_vec4(world.weapon.color);
+    hostage_color.a = to_vec4(world.hostage.color);
+    rescue_color.a = to_vec4(world.hostage.secondary_color);
+    hostage_progress_bg_color.a = to_vec4(world.hostage.progress_background);
+    grenade_color.a = to_vec4(world.grenade.color);
+    trajectory_color.a = to_vec4(world.trajectory_color);
+    smoke_radius_color.a = to_vec4(world.grenade.secondary_color);
+    inferno_radius_color.a = to_vec4(world.grenade.progress_background);
+    projectile_inferno_color.a = to_vec4(world.grenade.glow_color);
     smoke_color.a = to_vec4(world.smoke_color);
     molotov_color.a = to_vec4(world.molotov_color);
+    explosion_color.a = to_vec4(world.explosion_color);
+    effects_color.a = to_vec4(world.effects_color);
+    windows_color.a = to_vec4(world.windows_color);
+    penetration_color.a = to_vec4(world.penetration_color);
+    hit2d_color.a = to_vec4(world.hitmarker_2d_color);
+    hit3d_color.a = to_vec4(world.hitmarker_3d_color);
+    damage_color.a = to_vec4(world.damage_marker_color);
+    tracer_enemy_color.a = to_vec4(world.tracer_enemy_color);
+    tracer_teammate_color.a = to_vec4(world.tracer_teammate_color);
+    tracer_local_color.a = to_vec4(world.tracer_local_color);
+    impact_color.a = to_vec4(world.bullet_impact_color);
+    spark_color.a = to_vec4(world.impact_sparks_color);
 
-    // One continuous World page with the section order used by the reference
-    // layout; all feature controls stay inside the existing pasteware widgets.
+    static const char* unlock_modes[] = { "Select", "Roaming", "All Observer Modes" };
+    static const char* recoil_modes[] = { "Select", "Default", "Disabled", "Pitch Only", "Pitch + Yaw" };
+    static const char* radar_items[] = { "Reveal Enemies", "Reveal Hostages", "Reveal Bomb", "Override Player Angles" };
+    static const char* scope_modes[] = { "Default", "Lines", "None" };
+    static const char* aspect_modes[] = { "Horizontal", "Vertical" };
+    static const char* window_item_names[] = { "Time", "Username", "Ping", "FPS" };
+    static const char* window_positions[] = { "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right" };
+    static const char* density_modes[] = { "Default", "Compact", "Expanded" };
+    static const char* hotkey_style_modes[] = { "Default", "Minimal", "Detailed" };
+    static const char* notice_modes[] = { "Off", "All", "Kills Only" };
+    static const char* equipment_modes[] = { "Off", "Default", "All" };
+    static const char* shimmer_modes[] = { "Select", "None", "Pulse", "Shimmer" };
+    static const char* ragdoll_modes[] = { "Default", "Remove", "Client Side" };
+    static const char* equipment_names[] = { "Primary", "Secondary", "Knife", "Taser", "Grenades", "Bomb", "Defuse Kit", "Armor", "Other", "Extra" };
+
+    const auto open_item_visuals = [&](player_visuals::world_item_settings& item, const char* id, bool hostage_options) {
+        gui.row_begin();
+        if (gui.row_options_begin(id, 216.f, c_gui::row_control::toggle)) {
+            gui.popup_section_begin("##item_visuals");
+            gui.row_checkbox("Bounding Box", &item.box);
+            if (hostage_options) {
+                gui.row_begin();
+                if (gui.row_options_begin("##hostage_progress_options", 216.f, c_gui::row_control::toggle)) {
+                    gui.popup_section_begin("##hostage_progress_style");
+                    gui.row_color("Background", &hostage_progress_bg_color);
+                    gui.popup_section_end();
+                    gui.row_options_end();
+                }
+            }
+            gui.row_checkbox("Progress Bar", &item.progress_bar);
+            gui.row_checkbox("Text", &item.text);
+            gui.row_checkbox("Distance", &item.distance);
+            gui.row_checkbox("Glow", &item.glow);
+            gui.popup_section_end();
+            gui.row_options_end();
+        }
+    };
+
     gui.begin_grid(2);
     gui.grid_col(0);
-    gui.grid_box("VIEW OPTIONS", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
-    gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
-    gui.end_group_box();
-
-    gui.grid_box("SCOPE OPTIONS", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Zoom FOV", &g_cfg->world_esp.m_zoom_fov, 0, 90, "%d°");
-    gui.row_checkbox("Skip Second Zoom", &g_cfg->world_esp.m_skip_second_zoom);
-    gui.row_checkbox("Show Viewmodel in Scope", &g_cfg->world.m_show_viewmodel_in_scope);
-    gui.end_group_box();
-
-    gui.grid_box("VIEWMODEL OPTIONS", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Viewmodel FOV", &g_cfg->world.m_viewmodel_fov, 0, 30, "+%d°");
-    gui.row_begin(); ImGui::SliderFloat("Offset X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
-    gui.row_begin(); ImGui::SliderFloat("Offset Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
-    gui.row_begin(); ImGui::SliderFloat("Offset Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
-    gui.row_checkbox("Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
-    gui.row_checkbox("Landing Bob", &g_cfg->world.m_remove_landing_bob,
-        "Disable the viewmodel's landing shift; this setting is applied through the client animation convars.");
-    gui.end_group_box();
-
-    gui.grid_box("REMOVALS", k_auto_height);
-    gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
-    gui.row_checkbox("Remove Smoke", &g_cfg->world.m_remove_smoke);
-    gui.row_checkbox("Remove Flash", &g_cfg->world.m_remove_flash);
-    gui.row_checkbox("Visual Recoil", &g_cfg->world.m_visual_recoil,
-        "Remove aim and view punch from the rendered camera angles.");
-    gui.row_checkbox("Post Processing", &g_cfg->world.m_remove_post_processing,
-        "Disable mat_postprocess_enable while this option is active.");
-    gui.row_checkbox("Shadows", &g_cfg->world.m_remove_shadows,
-        "Disable the client r_shadows setting while this option is active.");
-    gui.end_group_box();
-
-    gui.grid_col(1);
-    gui.grid_box("PERSPECTIVE OPTIONS", k_auto_height);
-    gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
-    gui.row_begin(); ImGui::SliderInt("View FOV", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
-    gui.row_checkbox("Thirdperson", &g_cfg->world_esp.m_enable_thirdperson,
-        "Right-click this row to bind a hold or toggle key. Camera distance is collision-limited by the game.");
-    gui.row_checkbox("While Dead", &g_cfg->world_esp.m_thirdperson_while_dead);
-    gui.row_begin(); ImGui::SliderInt("Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
-    gui.row_begin(); ImGui::SliderFloat("Aspect Ratio", &g_cfg->world_esp.m_aspect_ratio, 0.f, 2.5f, "%.2f");
-    gui.end_group_box();
-
-    gui.grid_box("HUD", k_auto_height);
-    gui.row_checkbox("Radar", &g_cfg->world.m_draw_radar);
-    gui.row_checkbox("Scope Overlay", &g_cfg->world.m_remove_scope_overlay,
-        "Hide the stock scope overlay while scoped.");
-    gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay);
-    gui.row_checkbox("Death Notices", &g_cfg->world.m_remove_death_notices,
-        "Hide the stock death notices.");
-    gui.row_checkbox("Scoreboard", &g_cfg->world.m_remove_scoreboard,
-        "Hide the stock scoreboard panel.");
-    gui.row_checkbox("Crosshairs", &g_cfg->world.m_custom_crosshair);
+    gui.column_title("VIEW");
+    gui.grid_box("##world_view", k_auto_height);
+    if (gui.row_popup("View Options")) {
+        gui.popup_section_begin("##view_fov");
+        gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
+        gui.row_begin(); ImGui::SliderInt("Value", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
+        gui.popup_section_end();
+        gui.popup_section_begin("##view_aspect");
+        gui.row_checkbox("Override Aspect Ratio", &world.aspect_ratio_override);
+        gui.row_begin(); ImGui::Combo("Scaling", &world.aspect_scaling, aspect_modes, IM_ARRAYSIZE(aspect_modes));
+        gui.row_begin(); ImGui::SliderFloat("Value", &g_cfg->world_esp.m_aspect_ratio, 0.f, 2.5f, "%.2f");
+        gui.popup_section_end();
+        gui.row_checkbox("Disable Landing Bob", &g_cfg->world.m_remove_landing_bob);
+        gui.popup_end();
+    }
+    if (gui.row_popup("Scope Options")) {
+        gui.popup_section_begin("##scope_fov");
+        gui.row_checkbox("Override FOV", &world.scope_fov_override);
+        gui.row_begin(); ImGui::SliderInt("Scale (x1)", &world.scope_fov_x1, 20, 90, "%d°");
+        gui.row_begin(); ImGui::SliderInt("Scale (x2)", &world.scope_fov_x2, 5, 60, "%d°");
+        gui.popup_section_end();
+        gui.popup_section_begin("##scope_misc");
+        gui.row_checkbox("Instant Scope", &world.instant_scope);
+        gui.row_checkbox("Show Viewmodel", &g_cfg->world.m_show_viewmodel_in_scope);
+        gui.row_checkbox("Force Viewmodel FOV", &world.scope_force_viewmodel_fov);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Viewmodel Options", "Configure viewmodel FOV, position, angles, and movement modifiers.", 260.f)) {
+        gui.popup_section_begin("##viewmodel_fov");
+        gui.row_checkbox("Override FOV", &world.viewmodel_fov_override);
+        gui.row_begin(); ImGui::SliderInt("Value", &world.viewmodel_fov_value, 54, 120, "%d");
+        gui.popup_section_end();
+        gui.popup_section_begin("##viewmodel_position");
+        gui.row_checkbox("Override Position", &world.viewmodel_position_override);
+        gui.row_begin(); ImGui::SliderFloat("X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
+        gui.popup_section_end();
+        gui.popup_section_begin("##viewmodel_angles");
+        gui.row_checkbox("Override Angles", &world.viewmodel_angles_override);
+        gui.row_begin(); ImGui::SliderFloat("Pitch", &world.viewmodel_pitch, -45.f, 45.f, "%.1f°");
+        gui.row_begin(); ImGui::SliderFloat("Yaw", &world.viewmodel_yaw, -45.f, 45.f, "%.1f°");
+        gui.row_begin(); ImGui::SliderFloat("Roll", &world.viewmodel_roll, -45.f, 45.f, "%.1f°");
+        gui.popup_section_end();
+        gui.popup_section_begin("##viewmodel_modifiers");
+        gui.row_checkbox("Override Modifiers", &world.viewmodel_modifiers_override);
+        gui.row_begin(); ImGui::SliderFloat("Bobbing", &world.modifier_bobbing, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Rotation Sway", &world.modifier_rotation_sway, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Velocity Sway", &world.modifier_velocity_sway, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("In Air Offset", &world.modifier_in_air_offset, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Lower Weapon", &world.modifier_lower_weapon, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Ladder Bob", &world.modifier_ladder_bob, 0.f, 1.f, "%.2f");
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Perspective Options")) {
+        gui.popup_section_begin("##perspective");
+        gui.row_checkbox("Force Third Person", &g_cfg->world_esp.m_enable_thirdperson);
+        gui.row_begin(); ImGui::TextUnformatted("Disablers"); ImGui::SameLine();
+        gui.row_checkbox("Close to Wall", &world.thirdperson_close_to_wall);
+        gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
+        gui.popup_section_end();
+        gui.row_checkbox("Disable Overhead", &world.thirdperson_disable_overhead);
+        gui.popup_end();
+    }
+    gui.row_begin(); ImGui::Combo("Unlock Spectating", &world.unlock_spectating_mode, unlock_modes, IM_ARRAYSIZE(unlock_modes));
+    gui.row_begin(); ImGui::Combo("Visual Recoil", &world.visual_recoil_mode, recoil_modes, IM_ARRAYSIZE(recoil_modes));
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
-    gui.row_begin();
-    if (gui.row_options_begin("##world_esp_options", 250.f, c_gui::row_control::toggle)) {
-        gui.popup_section_begin("##world_esp_items");
-        gui.row_checkbox("Box", &world.box, &box_color);
-        gui.row_checkbox("Name", &world.name, &name_color);
-        gui.row_checkbox("Icon", &world.icon, &icon_color);
-        gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
-        gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
-        gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
-        gui.row_checkbox("Bombs", &world.bombs);
-        gui.row_checkbox("Weapons", &world.weapons);
-        gui.row_checkbox("Hostages", &world.hostages);
-        gui.row_checkbox("Grenades", &world.grenades);
-        gui.row_checkbox("Windows", &world.windows);
-        gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory,
-            "Projects live grenade velocity using Source gravity 800; the short preview does not predict wall bounces.");
-        gui.row_checkbox("Grenade Proximity Warnings", &world.grenade_proximity_warnings,
-            "Warns while an active grenade projectile is within 300 world units of the local player.");
+    if (gui.row_popup("Bomb")) {
+        gui.popup_section_begin("##bomb");
+        open_item_visuals(world.bomb, "##bomb_visuals", false);
+        gui.row_checkbox("Enabled", &world.bomb.enabled, &bomb_color);
+        gui.row_color("Bomb Defused", &bomb_defused_color);
+        gui.row_checkbox("Colorize Effects", &world.bomb.colorize_effects, &bomb_color);
+        gui.row_checkbox("Bomb Indicator", &world.bomb.bomb_indicator, &bomb_color);
+        gui.row_checkbox("Defuse Indicator", &world.bomb.defuse_indicator, &bomb_color);
+        gui.row_checkbox("Defuser", &world.bomb.defuser, &bomb_color);
         gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Weapons")) {
+        gui.popup_section_begin("##weapons");
+        open_item_visuals(world.weapon, "##weapons_visuals", false);
+        gui.row_checkbox("Enabled", &world.weapon.enabled, &weapon_color);
+        gui.row_checkbox("Colorize Effects", &world.weapon.colorize_effects, &weapon_color);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Hostages")) {
+        gui.popup_section_begin("##hostages");
+        open_item_visuals(world.hostage, "##hostages_visuals", true);
+        gui.row_checkbox("Enabled", &world.hostage.enabled, &hostage_color);
+        gui.row_checkbox("Rescue Indicator", &world.hostage.rescue_indicator, &rescue_color);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Grenades")) {
+        gui.popup_section_begin("##grenades");
+        gui.row_checkbox("Enabled", &world.grenade.enabled, &grenade_color);
+        gui.row_checkbox("Smoke Radius", &world.grenade.smoke_radius, &smoke_radius_color);
+        gui.row_checkbox("Inferno Radius", &world.grenade.inferno_radius, &inferno_radius_color);
+        gui.row_checkbox("Projectile Inferno", &world.grenade.projectile_inferno, &projectile_inferno_color);
+        gui.row_checkbox("Colorize Smoke", &world.grenade.colorize_smoke, &smoke_color);
+        gui.row_checkbox("Colorize Molotov", &world.grenade.colorize_molotov, &molotov_color);
+        gui.row_checkbox("Colorize Explosion", &world.grenade.colorize_explosion, &explosion_color);
+        gui.row_checkbox("Effects", &world.grenade.colorize_effects, &effects_color);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    gui.row_begin();
+    if (gui.row_options_begin("##trajectory_options", 250.f, c_gui::row_control::toggle)) {
+        gui.popup_section_begin("##trajectory_settings");
+        gui.row_color("Color", &trajectory_color);
+        gui.row_begin(); ImGui::SliderFloat("Exponent", &world.trajectory_exponent, 0.f, 2.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Thickness", &world.trajectory_thickness, 0.f, 5.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Points Thickness", &world.trajectory_points_thickness, 0.f, 5.f, "%.2f");
+        gui.row_begin(); ImGui::Combo("Shimmer", &world.trajectory_shimmer, shimmer_modes, IM_ARRAYSIZE(shimmer_modes));
+        gui.popup_section_end();
+        gui.row_checkbox("Thrown Grenades", &world.trajectory_thrown_grenades);
+        gui.row_checkbox("Pin Pulled Only", &world.trajectory_pin_pulled_only);
+        gui.row_checkbox("Precise Trajectory", &world.trajectory_precise);
         gui.row_options_end();
     }
-    gui.row_checkbox("Enabled", &world.enabled);
+    gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory);
+    gui.row_checkbox("Grenade Proximity Warnings", &world.grenade_proximity_warnings);
+    gui.end_group_box();
+
+    gui.grid_col(1);
+    gui.column_title("HUD");
+    gui.grid_box("##world_hud", k_auto_height);
+    gui.row_multibox("Radar", radar_items, world.radar_options.data(), IM_ARRAYSIZE(radar_items));
+    gui.row_begin(); ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
+    gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay, &inaccuracy_color);
+    if (gui.row_popup("Death Notices")) {
+        gui.popup_section_begin("##death_notices");
+        gui.row_begin(); ImGui::Combo("Preserve Notices", &world.preserve_death_notices_mode, notice_modes, IM_ARRAYSIZE(notice_modes));
+        gui.row_checkbox("Hide Teammate Assists", &world.hide_teammate_assists);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Scoreboard")) {
+        gui.popup_section_begin("##scoreboard_options");
+        gui.row_begin(); ImGui::SliderFloat("Opacity", &world.scoreboard_opacity, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Width", &world.scoreboard_width, 0.f, 1.f, "%.2f");
+        gui.row_checkbox("Reveal Money", &world.scoreboard_reveal_money);
+        gui.row_begin(); ImGui::Combo("Equipment", &world.scoreboard_equipment_mode, equipment_modes, IM_ARRAYSIZE(equipment_modes));
+        gui.popup_section_end();
+        gui.popup_section_begin("##scoreboard_equipment", false, 4.f);
+        for (int i = 0; i < static_cast<int>(world.scoreboard_equipment.size()); ++i)
+            gui.row_checkbox(equipment_names[i], &world.scoreboard_equipment[i]);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Crosshairs")) {
+        gui.popup_section_begin("##crosshairs");
+        gui.row_checkbox("Force Sniper Crosshair", &world.force_sniper_crosshair);
+        gui.row_checkbox("Force While Scoped", &world.force_crosshair_scoped);
+        gui.row_checkbox("Force While Holding C4", &world.force_crosshair_c4);
+        gui.row_checkbox("Hide While Holding Knife", &world.hide_crosshair_knife);
+        gui.row_checkbox("Hide While Holding Grenade", &world.hide_crosshair_grenade);
+        gui.row_checkbox("Penetration", &world.penetration_crosshair, &penetration_color);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
     gui.end_group_box();
 
     gui.grid_box("MISCELLANEOUS", k_auto_height);
-    gui.row_checkbox("Unlock Spectating", &g_cfg->world.m_unlock_spectating,
-        "Requests roaming spectator mode through spec_allow_roaming; the server can still restrict it.");
+    if (gui.row_popup("Windows", "Configure the overlay windows and their styling.", 250.f)) {
+        gui.popup_section_begin("##window_toggles");
+        gui.row_begin();
+        if (gui.row_options_begin("##watermark_options", 232.f, c_gui::row_control::toggle)) {
+            gui.popup_section_begin("##watermark_items");
+            gui.row_multibox("Items", window_item_names, world.watermark_items.data(), IM_ARRAYSIZE(window_item_names));
+            gui.row_begin(); ImGui::Combo("Position", &world.watermark_position, window_positions, IM_ARRAYSIZE(window_positions));
+            gui.row_begin(); ImGui::Combo("Density", &world.watermark_density, density_modes, IM_ARRAYSIZE(density_modes));
+            gui.row_checkbox("Additional Colors", &world.watermark_additional_colors);
+            gui.row_checkbox("Display Avatar", &world.watermark_display_avatar);
+            gui.popup_section_end();
+            gui.row_options_end();
+        }
+        gui.row_checkbox("Watermark", &g_cfg->misc.m_watermark);
+        gui.row_begin();
+        if (gui.row_options_begin("##hotkeys_options", 232.f, c_gui::row_control::toggle)) {
+            gui.popup_section_begin("##hotkeys_settings");
+            gui.row_begin(); ImGui::Combo("Style", &world.hotkeys_style, hotkey_style_modes, IM_ARRAYSIZE(hotkey_style_modes));
+            gui.row_checkbox("Right-Aligned", &world.hotkeys_right_aligned);
+            gui.row_checkbox("Dynamic Header", &world.hotkeys_dynamic_header);
+            gui.popup_section_end();
+            gui.row_options_end();
+        }
+        gui.row_checkbox("Hotkeys", &g_cfg->misc.m_keybinds_list);
+        gui.row_checkbox("Spectators", &g_cfg->misc.m_spectator_list);
+        gui.row_checkbox("Event Logs", &world.window_event_logs);
+        gui.popup_section_end();
+        gui.row_color("Color", &windows_color);
+        gui.row_begin(); ImGui::SliderFloat("Line Opacity", &world.windows_line_opacity, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Background", &world.windows_background_opacity, 0.f, 1.f, "%.2f");
+        gui.row_checkbox("Hit Chance Override", &world.windows_hit_chance_override);
+        gui.row_checkbox("Min Damage Override", &world.windows_min_damage_override);
+        gui.row_checkbox("Double Tap", &world.windows_double_tap);
+        gui.row_checkbox("Duck Peek Assist", &world.windows_duck_peek);
+        gui.row_checkbox("Slowdown", &world.windows_slowdown);
+        gui.row_checkbox("Jump Bug", &world.windows_jump_bug);
+        gui.popup_end();
+    }
+    if (gui.row_popup("Removals", "Toggle individual client-side render and HUD removals.", 240.f)) {
+        gui.popup_section_begin("##removal_hud");
+        static const char* hud_removal_labels[] = { "Team Intro", "HUD Panorama Dots", "HUD Bottom Gradient", "HUD Damage Indicator", "HUD Server Advertisements" };
+        for (int i = 0; i < 5; ++i) gui.row_checkbox(hud_removal_labels[i], &world.removals[i]);
+        gui.popup_section_end();
+        gui.popup_section_begin("##removal_effects");
+        static const char* effect_removal_labels[] = { "Flashbang Effect", "Smoke Rendering", "First Person Legs", "Carried Hostage", "Post Processing", "Water Effects", "Blood Effects", "Decals" };
+        for (int i = 5; i < 13; ++i) gui.row_checkbox(effect_removal_labels[i - 5], &world.removals[i]);
+        gui.popup_section_end();
+        gui.row_begin(); ImGui::Combo("Ragdolls", &world.ragdoll_mode, ragdoll_modes, IM_ARRAYSIZE(ragdoll_modes));
+        gui.row_begin(); ImGui::SliderFloat("Gravity", &world.ragdoll_gravity, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Friction", &world.ragdoll_friction, 0.f, 1.f, "%.2f");
+        gui.popup_end();
+    }
+    if (gui.row_popup("Hit Marker")) {
+        gui.popup_section_begin("##hitmarker_2d");
+        gui.row_checkbox("2D Marker", &world.hitmarker_2d, &hit2d_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.hitmarker_2d_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.popup_section_begin("##hitmarker_3d");
+        gui.row_checkbox("3D Marker", &world.hitmarker_3d, &hit3d_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.hitmarker_3d_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.popup_section_begin("##damage_marker");
+        gui.row_checkbox("Damage Marker", &world.damage_marker, &damage_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.damage_marker_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.popup_end();
+    }
+    if (gui.row_popup("Bullet Tracers")) {
+        gui.popup_section_begin("##tracer_enemy");
+        gui.row_checkbox("Enemies", &world.tracer_enemies, &tracer_enemy_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.tracer_enemy_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.popup_section_begin("##tracer_teammate");
+        gui.row_checkbox("Teammates", &world.tracer_teammates, &tracer_teammate_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.tracer_teammate_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.popup_section_begin("##tracer_local");
+        gui.row_checkbox("Local Player", &world.tracer_local_player, &tracer_local_color);
+        gui.row_begin(); ImGui::SliderFloat("Duration", &world.tracer_local_duration, 0.05f, 2.f, "%.2fs");
+        gui.popup_section_end();
+        gui.row_checkbox("Use Shared Settings", &world.tracer_use_shared_settings);
+        gui.popup_end();
+    }
+    if (gui.row_popup("Bullet Impacts")) {
+        gui.popup_section_begin("##bullet_impacts");
+        gui.row_checkbox("Bullet Impacts", &world.bullet_impacts, &impact_color);
+        gui.row_checkbox("Impact Sparks", &world.impact_sparks, &spark_color);
+        gui.popup_section_end();
+        gui.popup_end();
+    }
     gui.end_group_box();
-
     gui.end_grid();
 
-    world.box_color = to_config_color(box_color.a);
-    world.name_color = to_config_color(name_color.a);
-    world.icon_color = to_config_color(icon_color.a);
-    world.ammo_color = to_config_color(ammo_color.a);
+    world.enabled = world.bomb.enabled || world.weapon.enabled || world.hostage.enabled ||
+        world.grenade.enabled || world.grenade_trajectory || world.grenade_proximity_warnings ||
+        world.grenade.smoke_radius || world.grenade.inferno_radius;
+    world.bombs = world.bomb.enabled;
+    world.weapons = world.weapon.enabled;
+    world.hostages = world.hostage.enabled;
+    world.grenades = world.grenade.enabled;
+    world.smoke_range = world.grenade.smoke_radius;
+    world.molotov_range = world.grenade.inferno_radius;
+    world.windows = false;
+    world.box = world.bomb.box || world.weapon.box || world.hostage.box || world.grenade.box;
+    world.name = world.bomb.text || world.weapon.text || world.hostage.text || world.grenade.text;
+    world.icon = world.bomb.icon || world.weapon.icon || world.hostage.icon || world.grenade.icon;
+    world.ammo_bar = world.weapon.progress_bar;
+    g_cfg->world.m_draw_radar = std::any_of(world.radar_options.begin(), world.radar_options.end(), [](bool value) { return value; });
+    g_cfg->world.m_visual_recoil = world.visual_recoil_mode > 0;
+    g_cfg->world.m_unlock_spectating = world.unlock_spectating_mode > 0;
+    g_cfg->world.m_remove_scope_overlay = world.scope_overlay_mode == 2;
+    g_cfg->world.m_custom_crosshair = world.force_sniper_crosshair || world.force_crosshair_scoped ||
+        world.force_crosshair_c4 || world.penetration_crosshair;
+    g_cfg->visuals.m_effects.m_hitmarker = world.hitmarker_2d || world.hitmarker_3d || world.damage_marker;
+    g_cfg->visuals.m_effects.m_bullet_tracers = world.tracer_enemies || world.tracer_teammates || world.tracer_local_player;
+    g_cfg->visuals.m_effects.m_tracer_color = to_config_color(tracer_enemy_color.a);
+    g_cfg->visuals.m_effects.m_bullet_impacts = world.bullet_impacts;
+    world.trajectory_color = to_config_color(trajectory_color.a);
+    world.inaccuracy_color = to_config_color(inaccuracy_color.a);
+    world.bomb.color = to_config_color(bomb_color.a);
+    world.bomb.secondary_color = to_config_color(bomb_defused_color.a);
+    world.weapon.color = to_config_color(weapon_color.a);
+    world.hostage.color = to_config_color(hostage_color.a);
+    world.hostage.secondary_color = to_config_color(rescue_color.a);
+    world.hostage.progress_background = to_config_color(hostage_progress_bg_color.a);
+    world.grenade.color = to_config_color(grenade_color.a);
+    world.grenade.secondary_color = to_config_color(smoke_radius_color.a);
+    world.grenade.progress_background = to_config_color(inferno_radius_color.a);
+    world.grenade.glow_color = to_config_color(projectile_inferno_color.a);
     world.smoke_color = to_config_color(smoke_color.a);
     world.molotov_color = to_config_color(molotov_color.a);
+    world.explosion_color = to_config_color(explosion_color.a);
+    world.effects_color = to_config_color(effects_color.a);
+    world.windows_color = to_config_color(windows_color.a);
+    world.penetration_color = to_config_color(penetration_color.a);
+    world.hitmarker_2d_color = to_config_color(hit2d_color.a);
+    world.hitmarker_3d_color = to_config_color(hit3d_color.a);
+    world.damage_marker_color = to_config_color(damage_color.a);
+    world.tracer_enemy_color = to_config_color(tracer_enemy_color.a);
+    world.tracer_teammate_color = to_config_color(tracer_teammate_color.a);
+    world.tracer_local_color = to_config_color(tracer_local_color.a);
+    world.bullet_impact_color = to_config_color(impact_color.a);
+    world.impact_sparks_color = to_config_color(spark_color.a);
 }
 } // namespace
 
