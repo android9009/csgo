@@ -165,6 +165,9 @@
     <ClCompile Include="features\misc\bunny_hop.cpp">
       <Filter>Source Files\features\misc</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\grenade_release.cpp">
+      <Filter>Source Files\features\misc</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\dependencies\runtime.cpp">
       <Filter>Source Files\features\misc\dependencies</Filter>
     </ClCompile>

@@ -15,6 +15,9 @@ struct state {
     bool hit_sound = false;
     bool automatic_purchase = false;
     bool automatic_grenade_release = false;
+    int grenade_release_damage = 50;
+    int grenade_release_molly_radius = 100;
+    bool grenade_release_disable_in_air = false;
     bool auto_accept_matchmaking = false;
     bool reveal_enemy_chat = false;
     bool filter_console_output = false;

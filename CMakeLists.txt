@@ -12,6 +12,7 @@ add_library(airflow_shell SHARED
   features/legit/legit.cpp
   features/misc/air_strafe.cpp
   features/misc/bunny_hop.cpp
+  features/misc/grenade_release.cpp
   features/misc/dependencies/runtime.cpp
   features/misc/dependencies/state.cpp
   features/misc/misc.cpp

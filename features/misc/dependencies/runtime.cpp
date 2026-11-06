@@ -172,6 +172,7 @@ struct netvar_offsets {
     int throw_time = -1;
     int team = -1;
     int health = -1;
+    int armor = -1;
     int life_state = -1;
     int buy_zone = -1;
     int mins = -1;
@@ -383,6 +384,7 @@ void resolve_netvars() {
     nv.throw_time = table_offset({ "DT_BaseCSGrenade" }, "m_fThrowTime");
     nv.team = table_offset({ "DT_CSPlayer", "DT_BaseEntity" }, "m_iTeamNum");
     nv.health = table_offset({ "DT_CSPlayer", "DT_BasePlayer" }, "m_iHealth");
+    nv.armor = table_offset({ "DT_CSPlayer" }, "m_ArmorValue");
     nv.life_state = table_offset({ "DT_CSPlayer", "DT_BasePlayer" }, "m_lifeState");
     nv.buy_zone = table_offset({ "DT_CSPlayer" }, "m_bInBuyZone");
     nv.mins = table_offset({ "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMins");
@@ -709,10 +711,43 @@ float grenade_throw_velocity(int id) {
         ? result : fallback_velocity;
 }
 
+bool trace_grenade_release(void*, const vec3& from, const vec3& to, bool hull,
+                           misc_gameplay::grenade_release_trace& result) {
+    if (!engine_trace || !trace_ray_fn)
+        return false;
+    const vec3 mins = hull ? vec3{ -2.f, -2.f, -2.f } : vec3{};
+    const vec3 maxs = hull ? vec3{ 2.f, 2.f, 2.f } : vec3{};
+    ray trace(from, to, mins, maxs);
+    ground_trace_filter filter; // Ignore players; retain map collision and world visibility.
+    game_trace output{};
+    output.fraction = 1.f;
+    trace_ray_fn(engine_trace, trace, mask_solid, &filter, &output);
+    result.end = output.end;
+    result.normal = output.plane.normal;
+    result.fraction = output.fraction;
+    result.start_solid = output.start_solid;
+    result.all_solid = output.all_solid;
+    return true;
+}
+
+bool get_grenade_release_player(void* context, int index,
+                                misc_gameplay::grenade_release_player& result) {
+    void* const local = context;
+    void* const target = entity_at(index);
+    if (!target || target == local || !alive(target))
+        return false;
+    result.origin = value<vec3>(target, nv.origin);
+    result.velocity = value<vec3>(target, nv.velocity);
+    result.mins = value<vec3>(target, nv.mins, { -16.f, -16.f, 0.f });
+    result.maxs = value<vec3>(target, nv.maxs, { 16.f, 16.f, 72.f });
+    result.team = value<int>(target, nv.team, 0);
+    result.health = value<int>(target, nv.health, 0);
+    result.armor = value<int>(target, nv.armor, 100);
+    return result.team == 2 || result.team == 3;
+}
 
 bool purchase_pending = false;
 int purchase_delay = 0;
-int grenade_pin_ticks = 0;
 bool quick_stop_complete = false;
 bool suppress_view_update = false;
 vec3 previous_local_velocity{};
@@ -760,17 +795,29 @@ void run_create_move(user_cmd* cmd) {
     const bool pin_pulled = holding_grenade && value<bool>(weapon, nv.pin_pulled, false);
     const float throw_strength = holding_grenade ? value<float>(weapon, nv.throw_strength, 0.3f) : 0.f;
     const float throw_time = holding_grenade ? value<float>(weapon, nv.throw_time, 0.f) : 0.f;
+    const bool attack_held = (cmd->buttons & (in_attack | in_attack2)) != 0;
     bool automatic_release = false;
-    if (holding_grenade && state.automatic_grenade_release && (cmd->buttons & in_attack) && pin_pulled) {
-        ++grenade_pin_ticks;
-        if (throw_strength >= 0.75f || grenade_pin_ticks >= 12) {
-            cmd->buttons &= ~in_attack;
-            automatic_release = true;
-            grenade_pin_ticks = 0;
-        }
-    } else if (!holding_grenade || !state.automatic_grenade_release || !(cmd->buttons & in_attack)) {
-        grenade_pin_ticks = 0;
+    if (holding_grenade && state.automatic_grenade_release && attack_held && pin_pulled &&
+        throw_strength > 0.f) {
+        misc_gameplay::grenade_release_input prediction{};
+        prediction.eye_position = origin + value<vec3>(local, nv.view_offset);
+        prediction.view_angles = cmd->viewangles;
+        prediction.player_velocity = velocity;
+        prediction.weapon_id = id;
+        prediction.local_team = value<int>(local, nv.team, 0);
+        prediction.local_flags = flags;
+        prediction.max_clients = globals ? globals->max_clients : 0;
+        prediction.damage_threshold = state.grenade_release_damage;
+        prediction.molly_radius = state.grenade_release_molly_radius;
+        prediction.throw_strength = throw_strength;
+        prediction.throw_velocity = grenade_throw_velocity(id);
+        prediction.tick_interval = tick_interval();
+        prediction.disable_in_air = state.grenade_release_disable_in_air;
+        automatic_release = misc_gameplay::grenade_release_should_throw(
+            prediction, local, trace_grenade_release, get_grenade_release_player);
     }
+    if (automatic_release)
+        cmd->buttons &= ~(in_attack | in_attack2);
 
     bool grenade_command = automatic_release;
     const bool manual_release =
@@ -930,7 +977,6 @@ public:
             purchase_pending = false;
             purchase_delay = 0;
             quick_stop_complete = false;
-            grenade_pin_ticks = 0;
             previous_buttons = 0;
             have_previous_local_velocity = false;
             previous_local_velocity = {};

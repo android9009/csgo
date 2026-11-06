@@ -86,6 +86,7 @@
     <ClCompile Include="features\legit\legit.cpp" />
     <ClCompile Include="features\misc\air_strafe.cpp" />
     <ClCompile Include="features\misc\bunny_hop.cpp" />
+    <ClCompile Include="features\misc\grenade_release.cpp" />
     <ClCompile Include="features\misc\dependencies\runtime.cpp" />
     <ClCompile Include="features\misc\dependencies\state.cpp" />
     <ClCompile Include="features\misc\misc.cpp" />

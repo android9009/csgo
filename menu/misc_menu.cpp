@@ -72,7 +72,15 @@ void c_menu::draw_misc() {
     draw_feature_toggle("Super Toss", state.super_toss);
     draw_feature_toggle("Hit Sound", state.hit_sound, true);
     draw_feature_toggle("Automatic Purchase", state.automatic_purchase, true);
-    draw_feature_toggle("Automatic Grenade Release", state.automatic_grenade_release, true);
+    gui.row_begin();
+    if (gui.row_options_begin("##misc_grenade_release_options", 250.f, c_gui::row_control::toggle)) {
+        gui.row_begin(); ImGui::SliderInt("Damage", &state.grenade_release_damage, 1, 50, "%d hp");
+        gui.row_begin(); ImGui::SliderInt("Molly Radius", &state.grenade_release_molly_radius, 1, 200, "%d units");
+        gui.row_checkbox("Disable in Air", &state.grenade_release_disable_in_air);
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Automatic Grenade Release", &state.automatic_grenade_release,
+        "Release HE when predicted enemy damage meets Damage; release Molotov/Incendiary when an enemy is within Molly Radius. Other grenades remain manual.");
     draw_feature_toggle("Auto-Accept Matchmaking", state.auto_accept_matchmaking);
     draw_feature_toggle("Reveal Enemy Chat", state.reveal_enemy_chat);
     draw_feature_toggle("Filter Console Output", state.filter_console_output);

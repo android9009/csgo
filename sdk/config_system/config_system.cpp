@@ -15,6 +15,7 @@
 
 #include "../../sdk/includes/json/json.h"
 #include "../../features/visuals/settings.hpp"
+#include "../../features/misc/misc.hpp"
 
 void c_config_system::setup_values( )
 {
@@ -107,6 +108,12 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->misc.m_auto_strafe, "misc", "auto_strafe", g_cfg->misc.m_auto_strafe );
 	push_item( &g_cfg->misc.m_strafe_type, "misc", "strafe_type", g_cfg->misc.m_strafe_type );
 	push_item( &g_cfg->misc.m_strafe_smooth, "misc", "strafe_smooth", g_cfg->misc.m_strafe_smooth );
+
+	auto& misc_features_state = misc_features::settings();
+	push_item(&misc_features_state.automatic_grenade_release, "misc_features", "automatic_grenade_release", misc_features_state.automatic_grenade_release);
+	push_item(&misc_features_state.grenade_release_damage, "misc_features", "grenade_release_damage", misc_features_state.grenade_release_damage);
+	push_item(&misc_features_state.grenade_release_molly_radius, "misc_features", "grenade_release_molly_radius", misc_features_state.grenade_release_molly_radius);
+	push_item(&misc_features_state.grenade_release_disable_in_air, "misc_features", "grenade_release_disable_in_air", misc_features_state.grenade_release_disable_in_air);
 
 	push_item( &g_cfg->visuals.m_player_esp.m_bounding_box, "player_esp", "bounding_box", g_cfg->visuals.m_player_esp.m_bounding_box );
 	push_item( &g_cfg->visuals.m_player_esp.m_health_bar, "player_esp", "health_bar", g_cfg->visuals.m_player_esp.m_health_bar );
