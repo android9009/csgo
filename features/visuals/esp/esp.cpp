@@ -4,6 +4,7 @@
 #include "../chams/chams.hpp"
 #include "../settings.hpp"
 #include "../dependencies/source.hpp"
+#include "../sound_esp.hpp"
 #include "../../../menu/weapon_icons.hpp"
 
 #include <algorithm>
@@ -1202,6 +1203,7 @@ void render() {
         return;
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     render_world(draw, frame, display);
+    sound_esp::render(frame);
     // Projection buffers are reused between players and Present calls. The
     // renderer consumes them synchronously, so no per-player allocation is
     // needed after their capacity reaches the largest visible geometry set.

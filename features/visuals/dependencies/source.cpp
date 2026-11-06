@@ -1222,6 +1222,23 @@ int player_side(int entity_index) {
     return player_side_from_entity(entity_at(entity_index));
 }
 
+int player_side_for_sound(int entity_index) {
+    if (entity_index < 1 || entity_index > 64 || !is_in_game())
+        return -1;
+    void* player = entity_at(entity_index);
+    void* local_player = entity_at(local_index());
+    if (!player || !local_player || player == local_player ||
+        value<unsigned char>(player, nv.life_state, 0) != 0 ||
+        value<int>(player, nv.health, 0) <= 0) {
+        return -1;
+    }
+    const int team = value<int>(player, nv.team, 0);
+    const int local_team = value<int>(local_player, nv.team, 0);
+    if ((team != 2 && team != 3) || (local_team != 2 && local_team != 3))
+        return -1;
+    return team == local_team ? 1 : 0;
+}
+
 bool resolve_renderable_entity(void* renderable, renderable_entity_data& output) {
     if (!ready())
         return false;
