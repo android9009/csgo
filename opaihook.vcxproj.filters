@@ -195,9 +195,6 @@
     <ClCompile Include="features\visuals\dependencies\source.cpp">
       <Filter>Source Files\features\visuals\dependencies</Filter>
     </ClCompile>
-    <ClCompile Include="menu\agent_preview.cpp">
-      <Filter>Source Files\menu</Filter>
-    </ClCompile>
     <ClCompile Include="menu\binds.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
@@ -304,9 +301,6 @@
     </ClInclude>
     <ClInclude Include="features\visuals\dependencies\source.hpp">
       <Filter>Header Files\features\visuals\dependencies</Filter>
-    </ClInclude>
-    <ClInclude Include="menu\agent_preview.hpp">
-      <Filter>Header Files\menu</Filter>
     </ClInclude>
     <ClInclude Include="menu\binds.hpp">
       <Filter>Header Files\menu</Filter>

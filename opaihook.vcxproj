@@ -96,7 +96,6 @@
     <ClCompile Include="features\visuals\chams\chams.cpp" />
     <ClCompile Include="features\visuals\esp\esp.cpp" />
     <ClCompile Include="features\visuals\dependencies\source.cpp" />
-    <ClCompile Include="menu\agent_preview.cpp" />
     <ClCompile Include="menu\binds.cpp" />
     <ClCompile Include="menu\blur.cpp" />
     <ClCompile Include="menu\effects.cpp" />
@@ -134,7 +133,6 @@
     <ClInclude Include="features\visuals\esp\esp.hpp" />
     <ClInclude Include="features\visuals\settings.hpp" />
     <ClInclude Include="features\visuals\dependencies\source.hpp" />
-    <ClInclude Include="menu\agent_preview.hpp" />
     <ClInclude Include="menu\binds.hpp" />
     <ClInclude Include="menu\blur.hpp" />
     <ClInclude Include="menu\color_t.hpp" />

@@ -17,7 +17,6 @@
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
 #include "imgui_impl_win32.h"
-#include "../menu/agent_preview.hpp"
 #include "../features/visuals/esp/esp.hpp"
 #include "../features/misc/misc.hpp"
 #include "../menu/blur.hpp"
@@ -131,7 +130,6 @@ void release_menu_input(HWND hwnd) {
     }
     if (hwnd && GetCapture() == hwnd)
         ReleaseCapture();
-    agent_preview::on_menu_closed();
     menu_input_open = false;
 }
 
@@ -288,10 +286,6 @@ void render_frame(IDirect3DDevice9* present_device) {
     ensure_panel_hook();
     synchronize_menu_input();
 
-    // Panorama has rendered its isolated panel layers; bind the preview RT before ImGui draws.
-    AIRFLOW_DEBUG_STAGE("agent_preview.begin_frame");
-    agent_preview::begin_frame(present_device);
-
 #ifdef _DEBUG
     static bool menu_state_initialized = false;
     static bool previous_menu_open = false;
@@ -330,8 +324,6 @@ void render_frame(IDirect3DDevice9* present_device) {
     }
 #endif
     AIRFLOW_DEBUG_STAGE("c_menu.draw returned");
-    AIRFLOW_DEBUG_STAGE("agent_preview.end_frame");
-    agent_preview::end_frame();
     AIRFLOW_DEBUG_STAGE("ImGui render");
     ImGui::Render();
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
@@ -348,7 +340,6 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
     {
         std::scoped_lock lock(frame_mutex);
         if (initialized && reset_device == device) {
-            agent_preview::on_device_reset();
             steam_avatar::on_device_reset();
             weapon_icons::on_device_reset();
             blur::on_device_reset();
