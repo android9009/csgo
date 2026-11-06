@@ -194,7 +194,7 @@ struct ray {
 #if defined(_WIN32) && !defined(_WIN64)
 static_assert(offsetof(ray, is_ray) == 68);
 static_assert(offsetof(game_trace, fraction) == 44);
-static_assert(offsetof(game_trace, entity) == 80);
+static_assert(offsetof(game_trace, entity) == 76);
 #endif
 
 class ground_trace_filter {
