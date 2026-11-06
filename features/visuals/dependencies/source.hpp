@@ -84,6 +84,8 @@ enum world_kind : int {
     world_smoke,
     world_inferno,
     world_planted_c4,
+    world_hostage,
+    world_window,
 };
 
 struct world_data {
@@ -97,9 +99,20 @@ struct world_data {
     float time_remaining = -1.f;
     float range = 0.f;
     vector3 origin;
+    vector3 velocity;
     vector3 mins;
     vector3 maxs;
     std::string name;
+};
+
+struct local_view_state {
+    bool available = false;
+    bool alive = false;
+    bool scoped = false;
+    vector3 aim_punch;
+    vector3 view_punch;
+    float inaccuracy = 0.f;
+    float spread = 0.f;
 };
 
 struct frame_data {
@@ -120,12 +133,15 @@ bool initialize();
 bool ready();
 bool is_in_game();
 bool is_console_visible();
-int player_side(int entity_index); // -1 invalid/local, 0 enemy, 1 teammate
+int player_side(int entity_index); // -1 invalid/local/dormant, 0 enemy, 1 teammate
+int player_side_for_sound(int entity_index); // team relation without rejecting a dormant player
 int player_side_from_entity(void* entity); // same check using DrawModelState's entity
 bool resolve_renderable_entity(void* renderable, renderable_entity_data& output);
 int entity_team_side(void* entity); // -1 invalid, 0 enemy, 1 teammate
 bool is_local_entity(void* entity);
 bool local_player_alive();
+bool get_local_view_state(local_view_state& output, bool include_accuracy = false);
+void set_flash_removed(bool enabled);
 bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();
 int aimed_player_index(); // enemy nearest to the local shot ray, 0 when none

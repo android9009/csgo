@@ -1,5 +1,6 @@
 #include "source.hpp"
 #include "../settings.hpp"
+#include "../../../sdk/config_system/config_system.hpp"
 
 #include <Windows.h>
 #include "MinHook.h"
@@ -181,8 +182,11 @@ struct netvars_t {
     int health = -1;
     int life_state = -1;
     int origin = -1;
+    int velocity = -1;
     int view_offset = -1;
     int aim_punch = -1;
+    int view_punch = -1;
+    int flash_max_alpha = -1;
     int mins = -1;
     int maxs = -1;
     int pose_parameters = -1;
@@ -504,10 +508,15 @@ void resolve_netvars() {
     nv.health = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_iHealth");
     nv.life_state = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_lifeState");
     nv.origin = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecOrigin");
+    nv.velocity = table_offset(classes, { "DT_BaseEntity" }, "m_vecVelocity[0]");
+    if (nv.velocity < 0)
+        nv.velocity = table_offset(classes, { "DT_BaseEntity" }, "m_vecVelocity");
     nv.view_offset = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_vecViewOffset[0]");
     if (nv.view_offset < 0)
         nv.view_offset = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_vecViewOffset");
     nv.aim_punch = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_aimPunchAngle");
+    nv.view_punch = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_viewPunchAngle");
+    nv.flash_max_alpha = table_offset(classes, { "DT_CSPlayer" }, "m_flFlashMaxAlpha");
     nv.mins = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMins");
     nv.maxs = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMaxs");
     nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter");
@@ -1222,6 +1231,23 @@ int player_side(int entity_index) {
     return player_side_from_entity(entity_at(entity_index));
 }
 
+int player_side_for_sound(int entity_index) {
+    if (entity_index < 1 || entity_index > 64 || !is_in_game())
+        return -1;
+    void* player = entity_at(entity_index);
+    void* local_player = entity_at(local_index());
+    if (!player || !local_player || player == local_player ||
+        value<unsigned char>(player, nv.life_state, 0) != 0 ||
+        value<int>(player, nv.health, 0) <= 0) {
+        return -1;
+    }
+    const int team = value<int>(player, nv.team, 0);
+    const int local_team = value<int>(local_player, nv.team, 0);
+    if ((team != 2 && team != 3) || (local_team != 2 && local_team != 3))
+        return -1;
+    return team == local_team ? 1 : 0;
+}
+
 bool resolve_renderable_entity(void* renderable, renderable_entity_data& output) {
     if (!ready())
         return false;
@@ -1251,6 +1277,64 @@ bool local_player_alive() {
     void* local = entity_at(local_index());
     return local && value<unsigned char>(local, nv.life_state, 0) == 0 &&
         value<int>(local, nv.health, 0) > 0;
+}
+
+bool get_local_view_state(local_view_state& output, bool include_accuracy) {
+    output = {};
+    if (!is_in_game())
+        return false;
+    void* local = entity_at(local_index());
+    if (!local)
+        return false;
+    output.available = true;
+    output.alive = value<unsigned char>(local, nv.life_state, 1) == 0 &&
+        value<int>(local, nv.health, 0) > 0;
+    output.scoped = value<bool>(local, nv.scoped, false);
+    output.aim_punch = value<vector3>(local, nv.aim_punch);
+    output.view_punch = value<vector3>(local, nv.view_punch);
+    const unsigned int weapon_handle = include_accuracy
+        ? value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu) : 0xFFFFFFFFu;
+    void* weapon = include_accuracy ? entity_from_handle(weapon_handle) : nullptr;
+    if (weapon) {
+        using weapon_float_t = float(__thiscall*)(void*);
+        const auto get_inaccuracy = virtual_function<weapon_float_t>(weapon, 469);
+        const auto get_spread = virtual_function<weapon_float_t>(weapon, 439);
+        if (get_inaccuracy && function_in_module(client_module,
+            reinterpret_cast<const void*>(get_inaccuracy))) {
+            const float measured = get_inaccuracy(weapon);
+            if (std::isfinite(measured))
+                output.inaccuracy = std::clamp(measured, 0.f, 1.f);
+        }
+        if (get_spread && function_in_module(client_module,
+            reinterpret_cast<const void*>(get_spread))) {
+            const float measured = get_spread(weapon);
+            if (std::isfinite(measured))
+                output.spread = std::clamp(measured, 0.f, 1.f);
+        }
+    }
+    return true;
+}
+
+void set_flash_removed(bool enabled) {
+    static void* tracked_entity = nullptr;
+    static float original_alpha = 255.f;
+    static bool has_original = false;
+    void* local = is_in_game() ? entity_at(local_index()) : nullptr;
+    if (tracked_entity && (tracked_entity != local || !enabled) && has_original && nv.flash_max_alpha >= 0) {
+        std::memcpy(reinterpret_cast<unsigned char*>(tracked_entity) + nv.flash_max_alpha,
+            &original_alpha, sizeof(original_alpha));
+        tracked_entity = nullptr;
+        has_original = false;
+    }
+    if (!enabled || !local || nv.flash_max_alpha < 0)
+        return;
+    if (tracked_entity != local || !has_original) {
+        tracked_entity = local;
+        original_alpha = value<float>(local, nv.flash_max_alpha, 255.f);
+        has_original = true;
+    }
+    const float zero = 0.f;
+    std::memcpy(reinterpret_cast<unsigned char*>(local) + nv.flash_max_alpha, &zero, sizeof(zero));
 }
 
 bool entity_parented_to_local(void* entity, bool local_alive) {
@@ -1357,8 +1441,21 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             std::strcmp(class_name, "C_Inferno") == 0;
         const bool planted_c4 = std::strstr(class_name, "PlantedC4") != nullptr;
         const bool projectile = std::strstr(class_name, "Projectile") != nullptr;
+        const bool hostage = std::strstr(class_name, "Hostage") != nullptr;
+        const bool window = std::strstr(class_name, "BreakableSurface") != nullptr ||
+            std::strstr(class_name, "FuncBreakable") != nullptr;
         const int definition = item_definition(entity);
-        if (definition <= 0 && !smoke_projectile && !inferno && !planted_c4 && !projectile)
+        const bool bomb_weapon = definition == 49;
+        if (definition <= 0 && !smoke_projectile && !inferno && !planted_c4 &&
+            !projectile && !hostage && !window)
+            continue;
+
+        const auto& filters = player_visuals::world_settings();
+        if (((planted_c4 || bomb_weapon) && !filters.bombs) ||
+            (definition > 0 && !projectile && !planted_c4 && !bomb_weapon && !filters.weapons) ||
+            (hostage && !filters.hostages) || (window && !filters.windows) ||
+            ((projectile || smoke_projectile || inferno) && !filters.grenades &&
+                !(inferno && filters.molotov_range) && !(smoke_projectile && filters.smoke_range)))
             continue;
 
         const bool smoke_active = smoke_projectile && value<bool>(entity, nv.smoke_effect, false);
@@ -1366,7 +1463,7 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             value<bool>(entity, nv.explode_tick + 4, false)) {
             continue;
         }
-        const bool special = smoke_projectile || inferno || planted_c4 || projectile;
+        const bool special = smoke_projectile || inferno || planted_c4 || projectile || hostage || window;
         const unsigned int owner = value<unsigned int>(entity, nv.owner, 0xFFFFFFFFu);
         if (!special && owner != 0 && owner != 0xFFFFFFFFu)
             continue;
@@ -1375,19 +1472,24 @@ void capture_world(frame_data& output, const vector3& local_origin) {
         data.index = index;
         data.weapon_id = definition;
         data.kind = inferno ? visuals_source::world_inferno :
-            (planted_c4 ? visuals_source::world_planted_c4 :
+            ((planted_c4 || bomb_weapon) ? visuals_source::world_planted_c4 :
+            (hostage ? visuals_source::world_hostage :
+            (window ? visuals_source::world_window :
             (smoke_active ? visuals_source::world_smoke :
                 (projectile || smoke_projectile ? visuals_source::world_projectile
-                    : visuals_source::world_weapon)));
+                    : visuals_source::world_weapon)))));
         data.origin = abs_origin(entity, value<vector3>(entity, nv.origin));
-        data.mins = value<vector3>(entity, nv.mins, { -4.f, -4.f, -4.f });
-        data.maxs = value<vector3>(entity, nv.maxs, { 4.f, 4.f, 4.f });
+        data.velocity = value<vector3>(entity, nv.velocity);
+        data.mins = value<vector3>(entity, nv.mins, hostage ? vector3{ -12.f, -12.f, 0.f } : vector3{ -4.f, -4.f, -4.f });
+        data.maxs = value<vector3>(entity, nv.maxs,
+            hostage ? vector3{ 12.f, 12.f, 72.f } : vector3{ 4.f, 4.f, 4.f });
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z });
         data.alpha = 1.f - std::clamp(data.distance / 1500.f, 0.f, 1.f);
         if (data.alpha <= 0.f)
             continue;
-        data.name = planted_c4 ? "C4" : (definition > 0 ? weapon_name(definition) : "Grenade");
+        data.name = (planted_c4 || bomb_weapon) ? "C4" : (hostage ? "Hostage" :
+            (window ? "Breakable" : (definition > 0 ? weapon_name(definition) : "Grenade")));
         if (data.kind == visuals_source::world_weapon) {
             data.clip = value<int>(entity, nv.clip, -1);
             if (const auto* info = weapon_info(definition))
@@ -1595,10 +1697,9 @@ void capture_now(frame_data& output, float alpha_blend) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        if (!side_settings.esp_enabled) {
-            // Chams has its own DME path; a disabled ESP side needs no name,
-            // weapon, bone, or dormant snapshot work. Dropping the old record
-            // also prevents stale geometry when the side is enabled again.
+        if (!side_settings.esp_enabled && !g_cfg->world.m_draw_radar) {
+            // Chams has its own DME path; player data is collected only for
+            // enabled ESP sides or the independent World radar overlay.
             player_cache[index].valid = false;
             continue;
         }
@@ -1661,7 +1762,7 @@ void capture_now(frame_data& output, float alpha_blend) {
         cached.last_seen = now;
         cached.game_time = global_vars ? global_vars->current_time : 0.f;
         cached.valid = true;
-        if (side_settings.esp_enabled)
+        if (side_settings.esp_enabled || g_cfg->world.m_draw_radar)
             output.players.push_back(std::move(data));
     }
 

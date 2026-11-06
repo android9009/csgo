@@ -110,6 +110,8 @@ struct material_selection {
 struct side_settings {
     bool esp_enabled = false;
     bool offscreen_arrow = false;
+    bool sounds = false;
+    c_color sounds_color{ 1.f, 0.25f, 0.55f, 1.f };
     c_color offscreen_color{ 0.92f, 0.94f, 1.f, 1.f };
     c_color offscreen_outline{ 0.f, 0.f, 0.f, 1.f };
     bool main[main_count] = {};
@@ -207,6 +209,13 @@ struct world_esp_settings {
     bool ammo_bar = true;
     bool smoke_range = true;
     bool molotov_range = true;
+    bool bombs = true;
+    bool weapons = true;
+    bool hostages = true;
+    bool grenades = true;
+    bool windows = false;
+    bool grenade_trajectory = false;
+    bool grenade_proximity_warnings = false;
     c_color box_color{ 0.92f, 0.94f, 1.f, 1.f };
     c_color name_color{ 0.92f, 0.94f, 1.f, 1.f };
     c_color icon_color{ 0.92f, 0.94f, 1.f, 1.f };

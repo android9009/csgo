@@ -34,6 +34,7 @@ struct player_side_ui_state {
     // Missing backends stay in per-side UI state, so Enemies, Teammates and Self never
     // overwrite one another while another page is hidden.
     bool offscreen_arrow = false;
+    bool sounds = false;
     int player_model = 0;
     int behind_walls_model = 0;
     int on_shot_model = 0;
@@ -62,6 +63,7 @@ struct player_side_ui_state {
     chams_ui_selection attachments_overlay;
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
+    color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
     color_value player_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value local_fake_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value behind_walls_color = make_ui_color(0.35f, 0.90f, 1.f);
@@ -178,7 +180,6 @@ void draw_overlay_checkbox(player_side_ui_state& side, bool self) {
     }
     if (self) {
         seed_chams_selection(side.local_overlay, side.local_chams_model);
-        seed_chams_selection(side.local_fake_overlay, side.local_fake_chams_model);
         seed_chams_selection(side.viewmodel_overlay, side.viewmodel_chams_model);
         seed_chams_selection(side.weapon_overlay, side.weapon_chams_model);
         seed_chams_selection(side.attachments_overlay, side.attachments_chams_model);
@@ -209,6 +210,10 @@ void load_shared_player_views(players_ui_state& ui) {
         const auto& config = player_visuals::settings(side_index);
         auto& view = ui.sides[side_index];
         view.offscreen_arrow = config.offscreen_arrow;
+        view.sounds = config.sounds;
+        view.sounds_color.a = to_vec4(config.sounds_color);
+        view.sounds_color.b = view.sounds_color.a;
+        view.sounds_color.gradient = false;
         view.offscreen_color.a = to_vec4(config.offscreen_color);
         view.offscreen_color.b = view.offscreen_color.a;
         view.offscreen_color.gradient = false;
@@ -256,6 +261,8 @@ void store_shared_player_views(players_ui_state& ui) {
         auto& config = player_visuals::settings(side_index);
         const auto& view = ui.sides[side_index];
         config.offscreen_arrow = view.offscreen_arrow;
+        config.sounds = view.sounds;
+        config.sounds_color = to_config_color(view.sounds_color.a);
         config.offscreen_color = to_config_color(view.offscreen_color.a);
         config.player_material = view.player_model;
         config.behind_walls_material = view.behind_walls_model;
@@ -515,6 +522,8 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.grid_box("ENEMY", k_auto_height);
     gui.row_checkbox("Enabled", &player_visuals::settings(0).esp_enabled);
     gui.row_checkbox("Offscreen Arrow", &side.offscreen_arrow, &side.offscreen_color);
+    gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color,
+        "Show a fading world ping when an enemy emits a footstep, landing, or weapon sound.");
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
@@ -720,6 +729,16 @@ void draw_visuals_world() {
     gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
     gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
     gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
+    gui.row_checkbox("Remove Smoke", &g_cfg->world.m_remove_smoke);
+    gui.row_checkbox("Remove Flash", &g_cfg->world.m_remove_flash);
+    gui.row_checkbox("Remove Scope Overlay", &g_cfg->world.m_remove_scope_overlay);
+    gui.row_checkbox("Remove Visual Recoil", &g_cfg->world.m_visual_recoil);
+    gui.row_checkbox("Remove Post Processing", &g_cfg->world.m_remove_post_processing);
+    gui.row_checkbox("Remove Shadows", &g_cfg->world.m_remove_shadows);
+    gui.row_checkbox("Allow Roaming Spectator", &g_cfg->world.m_unlock_spectating);
+    gui.row_checkbox("Show Viewmodel in Scope", &g_cfg->world.m_show_viewmodel_in_scope);
+    gui.row_checkbox("Hide Death Notices", &g_cfg->world.m_remove_death_notices);
+    gui.row_checkbox("Hide Scoreboard", &g_cfg->world.m_remove_scoreboard);
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
@@ -732,6 +751,15 @@ void draw_visuals_world() {
         gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
         gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
         gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
+        gui.row_checkbox("Bombs", &world.bombs);
+        gui.row_checkbox("Weapons", &world.weapons);
+        gui.row_checkbox("Hostages", &world.hostages);
+        gui.row_checkbox("Grenades", &world.grenades);
+        gui.row_checkbox("Windows", &world.windows);
+        gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory,
+            "Projects the live grenade velocity using the default Source gravity (800); the short preview does not simulate wall bounces.");
+        gui.row_checkbox("Grenade Proximity Warnings", &world.grenade_proximity_warnings,
+            "Warns while an active grenade projectile is within 300 world units of the local player.");
         gui.popup_section_end();
         gui.row_options_end();
     }
@@ -744,7 +772,11 @@ void draw_visuals_world() {
     gui.row_begin(); ImGui::SliderInt("View FOV", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
     gui.row_checkbox("Thirdperson", &g_cfg->world_esp.m_enable_thirdperson,
         "Right-click this row to bind a hold or toggle key. Camera distance is collision-limited by the game.");
+    gui.row_checkbox("While Dead", &g_cfg->world_esp.m_thirdperson_while_dead);
     gui.row_begin(); ImGui::SliderInt("Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
+    gui.row_begin(); ImGui::SliderInt("Zoom FOV", &g_cfg->world_esp.m_zoom_fov, 0, 90, "%d°");
+    gui.row_begin(); ImGui::SliderFloat("Aspect Ratio", &g_cfg->world_esp.m_aspect_ratio, 0.f, 2.5f, "%.2f");
+    gui.row_checkbox("Skip Second Zoom", &g_cfg->world_esp.m_skip_second_zoom);
     gui.end_group_box();
 
     gui.grid_box("VIEWMODEL OPTIONS", k_auto_height);
@@ -755,6 +787,12 @@ void draw_visuals_world() {
     gui.row_checkbox("Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
     gui.row_checkbox("Landing Bob", &g_cfg->world.m_remove_landing_bob,
         "Disable the viewmodel's landing shift; this setting is applied through the client animation convars.");
+    gui.end_group_box();
+
+    gui.grid_box("HUD OPTIONS", k_auto_height);
+    gui.row_checkbox("Radar", &g_cfg->world.m_draw_radar);
+    gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay);
+    gui.row_checkbox("Crosshairs", &g_cfg->world.m_custom_crosshair);
     gui.end_group_box();
     gui.end_grid();
 

@@ -1,6 +1,7 @@
 #include "world.hpp"
 
 #include "../../sdk/config_system/config_system.hpp"
+#include "dependencies/source.hpp"
 
 #include <Windows.h>
 
@@ -32,6 +33,8 @@ constexpr std::size_t convar_float_offset = 0x2C;
 constexpr std::size_t convar_find_var_vfunc = 16;
 constexpr std::size_t convar_set_float_vfunc = 15;
 constexpr std::size_t override_view_vfunc = 18;
+constexpr std::size_t panel_get_name_vfunc = 36;
+constexpr std::size_t panel_paint_traverse_vfunc = 41;
 
 struct convar_state {
     const char* name;
@@ -42,7 +45,7 @@ struct convar_state {
     float last_applied = 0.f;
 };
 
-std::array<convar_state, 13> convars{{
+std::array<convar_state, 18> convars{{
     { "viewmodel_fov" },
     { "viewmodel_offset_x" },
     { "viewmodel_offset_y" },
@@ -55,7 +58,12 @@ std::array<convar_state, 13> convars{{
     { "cl_viewmodel_shift_left_amt" },
     { "cl_viewmodel_shift_right_amt" },
     { "fog_override" },
-    { "fog_maxdensity" }
+    { "fog_maxdensity" },
+    { "mat_postprocess_enable" },
+    { "r_shadows" },
+    { "r_aspectratio" },
+    { "r_drawviewmodel" },
+    { "spec_allow_roaming" }
 }};
 convar_state tonemap_scale{ "mat_force_tonemap_scale" };
 
@@ -64,6 +72,10 @@ void* input_object = nullptr;
 void* cvar_interface = nullptr;
 void* engine_client = nullptr;
 void* entity_list = nullptr;
+void* panel_interface = nullptr;
+HMODULE client_module = nullptr;
+int** smoke_count_global = nullptr;
+bool smoke_pattern_resolved = false;
 using override_view_t = void(__thiscall*)(void*, view_setup*);
 override_view_t original_override_view = nullptr;
 bool override_installed = false;
@@ -83,6 +95,70 @@ bool readable_range(const void* address, std::size_t size) {
     const auto region_begin = reinterpret_cast<std::uintptr_t>(info.BaseAddress);
     const auto region_end = region_begin + info.RegionSize;
     return begin >= region_begin && begin <= region_end && size <= region_end - begin;
+}
+
+void resolve_smoke_count() {
+    if (!client_module || smoke_pattern_resolved)
+        return;
+    smoke_pattern_resolved = true;
+    const auto* base = reinterpret_cast<const std::uint8_t*>(client_module);
+    if (!readable_range(base, sizeof(IMAGE_DOS_HEADER)))
+        return;
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0 || dos->e_lfanew > 0x100000)
+        return;
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(base + dos->e_lfanew);
+    if (!readable_range(nt, sizeof(*nt)) || nt->Signature != IMAGE_NT_SIGNATURE)
+        return;
+    // The client smoke counter is the operand used by CSmokeScreenEffect::Render.
+    // Search only executable code and require a unique version-specific signature.
+    constexpr std::array<int, 15> pattern{
+        0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08, 0x8B, 0x15, -1, -1, -1, -1, 0x0F, 0x57, 0xC0
+    };
+    const std::uint8_t* match = nullptr;
+    const auto* section = IMAGE_FIRST_SECTION(nt);
+    for (unsigned int section_index = 0; section_index < nt->FileHeader.NumberOfSections;
+         ++section_index, ++section) {
+        if (std::memcmp(section->Name, ".text", 5) != 0)
+            continue;
+        const auto size = static_cast<std::size_t>(section->Misc.VirtualSize);
+        const auto* text = base + section->VirtualAddress;
+        if (size < pattern.size() || !readable_range(text, size))
+            continue;
+        for (std::size_t offset = 0; offset + pattern.size() <= size; ++offset) {
+            bool matches = true;
+            for (std::size_t index = 0; index < pattern.size(); ++index) {
+                if (pattern[index] >= 0 && text[offset + index] != static_cast<std::uint8_t>(pattern[index])) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (!matches)
+                continue;
+            if (match)
+                return; // ambiguous build signature: leave smoke untouched
+            match = text + offset;
+        }
+    }
+    if (!match || !readable_range(match + 8, sizeof(std::uintptr_t)))
+        return;
+    std::uintptr_t address = 0;
+    std::memcpy(&address, match + 8, sizeof(address));
+    auto** global = reinterpret_cast<int**>(address);
+    if (!readable_range(global, sizeof(int*)))
+        return;
+    smoke_count_global = global;
+}
+
+void clear_smoke_counter() {
+    if (!smoke_count_global || !readable_range(smoke_count_global, sizeof(int*)))
+        return;
+    int* counter = nullptr;
+    std::memcpy(&counter, smoke_count_global, sizeof(counter));
+    if (counter && readable_range(counter, sizeof(int))) {
+        const int zero = 0;
+        std::memcpy(counter, &zero, sizeof(zero));
+    }
 }
 
 void* vfunc(void* object, std::size_t index) {
@@ -204,7 +280,11 @@ void update_camera() {
     using entity_at_t = void*(__thiscall*)(void*, int);
     const auto entity_at = reinterpret_cast<entity_at_t>(vfunc(entity_list, 3));
     const bool has_local_player = local_index > 0 && entity_at && entity_at(entity_list, local_index);
-    const bool active = cfg.m_enable_thirdperson && engine_in_game() && has_local_player;
+    visuals_source::local_view_state view_state{};
+    const bool has_view_state = visuals_source::get_local_view_state(view_state);
+    const bool alive = has_view_state ? view_state.alive : visuals_source::local_player_alive();
+    const bool active = cfg.m_enable_thirdperson && engine_in_game() && has_local_player &&
+        (alive || cfg.m_thirdperson_while_dead);
     auto* bytes = static_cast<std::uint8_t*>(input_object);
     auto* camera_flag = reinterpret_cast<bool*>(bytes + input_camera_in_third_person);
     auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
@@ -232,9 +312,23 @@ void update_camera() {
 
 void update_world_cvars() {
     const auto& world = g_cfg->world;
+    const auto& world_esp = g_cfg->world_esp;
     const bool fog = world.m_render_fog;
     set_override("fog_override", fog, fog ? 1.f : 0.f);
     set_override("fog_maxdensity", fog, 0.f);
+    set_override("mat_postprocess_enable", world.m_remove_post_processing, 0.f);
+    set_override("r_shadows", world.m_remove_shadows, 0.f);
+    set_override("spec_allow_roaming", world.m_unlock_spectating, 1.f);
+    set_override("r_aspectratio", world_esp.m_aspect_ratio > 0.01f,
+        std::clamp(world_esp.m_aspect_ratio, 0.f, 2.5f));
+
+    visuals_source::local_view_state view_state{};
+    const bool view_state_valid = visuals_source::get_local_view_state(view_state);
+    const bool scoped = view_state_valid && view_state.scoped;
+    set_override("r_drawviewmodel", world.m_show_viewmodel_in_scope && scoped, 1.f);
+    visuals_source::set_flash_removed(world.m_remove_flash);
+    if (world.m_remove_smoke)
+        clear_smoke_counter();
 
     const int exposure = std::clamp(world.m_exposure, 0, 100);
     const float brightness = std::clamp(world.m_brightness, 0.f, 1.f);
@@ -275,20 +369,64 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     const auto& cfg = g_cfg->world_esp;
     if (cfg.m_enable_override_fov)
         setup->fov = static_cast<float>(std::clamp(cfg.m_override_fov, 60, 130));
+
+    visuals_source::local_view_state view_state{};
+    if (visuals_source::get_local_view_state(view_state)) {
+        if (view_state.alive && g_cfg->world.m_visual_recoil) {
+            setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
+            setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
+        }
+        if (view_state.scoped && cfg.m_zoom_fov > 0)
+            setup->fov = static_cast<float>(std::clamp(cfg.m_zoom_fov, 20, 90));
+        else if (view_state.scoped && cfg.m_skip_second_zoom && setup->fov < 20.f)
+            setup->fov = 40.f;
+    }
+}
+
+using panel_name_t = const char*(__thiscall*)(void*, unsigned int);
+using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
+paint_traverse_t original_paint_traverse = nullptr;
+bool panel_hook_installed = false;
+
+void __fastcall hooked_paint_traverse(void* self, void*, unsigned int panel,
+                                      bool force_repaint, bool allow_force) {
+    const auto get_name = reinterpret_cast<panel_name_t>(vfunc(self, panel_get_name_vfunc));
+    const char* name = get_name ? get_name(self, panel) : nullptr;
+    if (name) {
+        const auto& world = g_cfg->world;
+        if (world.m_remove_scope_overlay && std::strcmp(name, "HudZoom") == 0)
+            return;
+        if (world.m_remove_death_notices && std::strcmp(name, "HudDeathNotice") == 0)
+            return;
+        if (world.m_remove_scoreboard &&
+            (std::strstr(name, "Scoreboard") || std::strstr(name, "scoreboard")))
+            return;
+    }
+    if (original_paint_traverse)
+        original_paint_traverse(self, panel, force_repaint, allow_force);
 }
 } // namespace
 
 namespace world_visuals {
-bool initialize(void* mode, void* input, void* cvars, void* engine, void* entities) {
+bool initialize(void* mode, void* input, void* cvars, void* engine, void* entities,
+                void* panels, void* client) {
     client_mode = mode;
     input_object = input;
     cvar_interface = cvars;
     engine_client = engine;
     entity_list = entities;
+    panel_interface = panels;
+    client_module = static_cast<HMODULE>(client);
+    resolve_smoke_count();
     if (!override_installed && client_mode && vfunc(client_mode, override_view_vfunc)) {
         override_installed = write_vfunc(client_mode, override_view_vfunc,
             reinterpret_cast<void*>(&hooked_override_view),
             reinterpret_cast<void**>(&original_override_view));
+    }
+    if (!panel_hook_installed && panel_interface && vfunc(panel_interface, panel_paint_traverse_vfunc)) {
+        panel_hook_installed = write_vfunc(panel_interface, panel_paint_traverse_vfunc,
+            reinterpret_cast<void*>(&hooked_paint_traverse),
+            reinterpret_cast<void**>(&original_paint_traverse));
     }
     if (!convars[0].object && cvar_interface)
         cache_convars();

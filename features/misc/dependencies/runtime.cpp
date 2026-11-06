@@ -3,6 +3,7 @@
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../../visuals/world.hpp"
+#include "../../visuals/sound_esp.hpp"
 
 #include <Windows.h>
 #include <algorithm>
@@ -191,6 +192,7 @@ void* game_event_manager = nullptr;
 void* weapon_system = nullptr;
 void* world_input = nullptr;
 void* cvar_interface = nullptr;
+void* panel_interface = nullptr;
 void* client_mode_instance = nullptr;
 global_vars* globals = nullptr;
 netvar_offsets nv;
@@ -932,6 +934,9 @@ int __fastcall hooked_emit_sound(void* self, void*, void* filter, int entity_ind
     float attenuation, int seed, int flags, int pitch, const vec3* origin, const vec3* direction,
     void* origins, bool update_positions, float sound_time, int speaker_entity, int unknown) {
     auto_accept(sound_entry);
+    const char* visual_sound = sound_entry && sound_entry[0] ? sound_entry : sample;
+    sound_esp::on_sound(entity_index, speaker_entity, visual_sound, origin != nullptr,
+        origin ? origin->x : 0.f, origin ? origin->y : 0.f, origin ? origin->z : 0.f);
     return original_emit_sound(self, filter, entity_index, channel, sound_entry, sound_hash,
         sample, volume, attenuation, seed, flags, pitch, origin, direction, origins,
         update_positions, sound_time, speaker_entity, unknown);
@@ -1087,7 +1092,8 @@ bool install_create_move() {
             reinterpret_cast<void*>(&hooked_create_move), reinterpret_cast<void**>(&original_create_move));
     }
     if (client_mode_instance)
-        world_visuals::initialize(client_mode_instance, world_input, cvar_interface, engine, entity_list);
+        world_visuals::initialize(client_mode_instance, world_input, cvar_interface, engine, entity_list,
+            panel_interface, client_module);
     return create_move_installed;
 }
 
@@ -1116,7 +1122,9 @@ bool acquire() {
     engine_sound = create_interface(engine_module, "IEngineSoundClient003");
     game_event_manager = create_interface(engine_module, "GAMEEVENTSMANAGER002");
     const HMODULE vstdlib_module = GetModuleHandleW(L"vstdlib.dll");
+    const HMODULE vgui2_module = GetModuleHandleW(L"vgui2.dll");
     cvar_interface = create_interface(vstdlib_module, "VEngineCvar007");
+    panel_interface = create_interface(vgui2_module, "VGUI_Panel009");
     static constexpr int input_pattern[] = {
         0xB9, -1, -1, -1, -1, 0xF3, 0x0F, 0x11, 0x04, 0x24, 0xFF, 0x50, 0x10
     };

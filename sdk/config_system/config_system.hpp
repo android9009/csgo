@@ -351,6 +351,10 @@ public:
         bool m_enable_override_fov = false;
         int m_distance = 120;
         int m_override_fov = 90;
+        int m_zoom_fov = 0;
+        float m_aspect_ratio = 0.f;
+        bool m_skip_second_zoom = false;
+        bool m_thirdperson_while_dead = false;
         int m_thirdperson_key_bind = 0;
         int m_thirdperson_key_bind_style = 2;
     } world_esp;
@@ -368,6 +372,17 @@ public:
         bool m_render_fog = false;
         bool m_remove_smoke = false;
         bool m_remove_flash = false;
+        bool m_remove_scope_overlay = false;
+        bool m_visual_recoil = false;
+        bool m_remove_post_processing = false;
+        bool m_remove_shadows = false;
+        bool m_unlock_spectating = false;
+        bool m_show_viewmodel_in_scope = false;
+        bool m_draw_radar = false;
+        bool m_inaccuracy_overlay = false;
+        bool m_remove_death_notices = false;
+        bool m_remove_scoreboard = false;
+        bool m_custom_crosshair = false;
         
         int m_fov = 0;
         int m_viewmodel_fov = 0;

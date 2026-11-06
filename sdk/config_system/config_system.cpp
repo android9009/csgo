@@ -122,6 +122,10 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->world_esp.m_distance, "thirdperson", "distance", g_cfg->world_esp.m_distance );
 	push_item( &g_cfg->world_esp.m_enable_override_fov, "perspective", "override_fov_enabled", g_cfg->world_esp.m_enable_override_fov );
 	push_item( &g_cfg->world_esp.m_override_fov, "perspective", "override_fov", g_cfg->world_esp.m_override_fov );
+	push_item( &g_cfg->world_esp.m_zoom_fov, "perspective", "zoom_fov", g_cfg->world_esp.m_zoom_fov );
+	push_item( &g_cfg->world_esp.m_aspect_ratio, "perspective", "aspect_ratio", g_cfg->world_esp.m_aspect_ratio );
+	push_item( &g_cfg->world_esp.m_skip_second_zoom, "perspective", "skip_second_zoom", g_cfg->world_esp.m_skip_second_zoom );
+	push_item( &g_cfg->world_esp.m_thirdperson_while_dead, "thirdperson", "while_dead", g_cfg->world_esp.m_thirdperson_while_dead );
 	push_item( &g_cfg->world_esp.m_thirdperson_key_bind, "thirdperson", "thirdperson_keybind", g_cfg->world_esp.m_thirdperson_key_bind );
 	push_item( &g_cfg->world_esp.m_thirdperson_key_bind_style, "thirdperson", "thirdperson_keybind_style", g_cfg->world_esp.m_thirdperson_key_bind_style );
 
@@ -129,6 +133,7 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->skins.m_agents.m_selected, "agent_changer", "selected_t", g_cfg->skins.m_agents.m_selected );
 
 	push_item( &g_cfg->world.m_exposure, "world", "exposure", g_cfg->world.m_exposure );
+	push_item( &g_cfg->world.m_brightness, "world", "brightness", g_cfg->world.m_brightness );
 	push_item( &g_cfg->world.m_lighting, "world", "lighting", g_cfg->world.m_lighting );
 	push_item( &g_cfg->world.m_render_fog, "world", "render_fog", g_cfg->world.m_render_fog );
 	push_item( &g_cfg->world.m_fov, "world", "fov", g_cfg->world.m_fov );
@@ -138,6 +143,19 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->world.m_viewmodel_offset_z, "world", "viewmodel_offset_z", g_cfg->world.m_viewmodel_offset_z );
 	push_item( &g_cfg->world.m_remove_viewmodel_move, "world", "remove_viewmodel_move", g_cfg->world.m_remove_viewmodel_move );
 	push_item( &g_cfg->world.m_remove_landing_bob, "world", "remove_landing_bob", g_cfg->world.m_remove_landing_bob );
+	push_item( &g_cfg->world.m_remove_smoke, "world", "remove_smoke", g_cfg->world.m_remove_smoke );
+	push_item( &g_cfg->world.m_remove_flash, "world", "remove_flash", g_cfg->world.m_remove_flash );
+	push_item( &g_cfg->world.m_remove_scope_overlay, "world", "remove_scope_overlay", g_cfg->world.m_remove_scope_overlay );
+	push_item( &g_cfg->world.m_visual_recoil, "world", "visual_recoil", g_cfg->world.m_visual_recoil );
+	push_item( &g_cfg->world.m_remove_post_processing, "world", "remove_post_processing", g_cfg->world.m_remove_post_processing );
+	push_item( &g_cfg->world.m_remove_shadows, "world", "remove_shadows", g_cfg->world.m_remove_shadows );
+	push_item( &g_cfg->world.m_unlock_spectating, "world", "unlock_spectating", g_cfg->world.m_unlock_spectating );
+	push_item( &g_cfg->world.m_show_viewmodel_in_scope, "world", "show_viewmodel_in_scope", g_cfg->world.m_show_viewmodel_in_scope );
+	push_item( &g_cfg->world.m_draw_radar, "world", "draw_radar", g_cfg->world.m_draw_radar );
+	push_item( &g_cfg->world.m_inaccuracy_overlay, "world", "inaccuracy_overlay", g_cfg->world.m_inaccuracy_overlay );
+	push_item( &g_cfg->world.m_remove_death_notices, "world", "remove_death_notices", g_cfg->world.m_remove_death_notices );
+	push_item( &g_cfg->world.m_remove_scoreboard, "world", "remove_scoreboard", g_cfg->world.m_remove_scoreboard );
+	push_item( &g_cfg->world.m_custom_crosshair, "world", "custom_crosshair", g_cfg->world.m_custom_crosshair );
 	push_item( &g_cfg->world.m_sky, "world", "sky_color", g_cfg->world.m_sky );
 	push_item( &g_cfg->world.m_sky_clouds, "world", "sky_clouds_color", g_cfg->world.m_sky_clouds );
 	push_item( &g_cfg->world.m_wall, "world", "m_wall_color", g_cfg->world.m_wall );
@@ -177,6 +195,8 @@ void c_config_system::setup_values( )
 		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
 		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
 		push_item(&side.offscreen_arrow, category, "offscreen_arrow", side.offscreen_arrow);
+		push_item(&side.sounds, category, "sounds", side.sounds);
+		push_item(&side.sounds_color, category, "sounds_color", side.sounds_color);
 		push_item(&side.offscreen_color, category, "offscreen_color", side.offscreen_color);
 		push_item(&side.offscreen_outline, category, "offscreen_outline", side.offscreen_outline);
 		push_item(&side.player_material, category, "player_material", side.player_material);
@@ -290,6 +310,13 @@ void c_config_system::setup_values( )
 	push_item(&world.ammo_bar, "world_esp", "ammo_bar", world.ammo_bar);
 	push_item(&world.smoke_range, "world_esp", "smoke_range", world.smoke_range);
 	push_item(&world.molotov_range, "world_esp", "molotov_range", world.molotov_range);
+	push_item(&world.bombs, "world_esp", "bombs", world.bombs);
+	push_item(&world.weapons, "world_esp", "weapons", world.weapons);
+	push_item(&world.hostages, "world_esp", "hostages", world.hostages);
+	push_item(&world.grenades, "world_esp", "grenades", world.grenades);
+	push_item(&world.windows, "world_esp", "windows", world.windows);
+	push_item(&world.grenade_trajectory, "world_esp", "grenade_trajectory", world.grenade_trajectory);
+	push_item(&world.grenade_proximity_warnings, "world_esp", "grenade_proximity_warnings", world.grenade_proximity_warnings);
 	push_item(&world.box_color, "world_esp", "box_color", world.box_color);
 	push_item(&world.name_color, "world_esp", "name_color", world.name_color);
 	push_item(&world.icon_color, "world_esp", "icon_color", world.icon_color);
