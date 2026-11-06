@@ -115,6 +115,7 @@ thread_local int engine_model_draw_depth = 0;
 thread_local bool in_game_chams = false;
 
 constexpr int k_shadow_depth_texture = 0x200;
+constexpr int k_material_var_additive = 1 << 7;
 constexpr int k_material_var_nofog = 1 << 14;
 constexpr int k_material_var_ignorez = 1 << 15;
 constexpr int k_material_var_translucent = 1 << 21;
@@ -555,6 +556,7 @@ using find_var_t = void* (__thiscall*)(void*, const char*, bool*, bool);
 using material_float_t = void(__thiscall*)(void*, float);
 using material_color_t = void(__thiscall*)(void*, float, float, float);
 using material_flag_t = void(__thiscall*)(void*, int, bool);
+using material_get_flag_t = bool(__thiscall*)(void*, int);
 using material_var_vec_t = void(__thiscall*)(void*, float, float, float);
 using material_var_string_t = void(__thiscall*)(void*, const char*);
 using studio_forced_t = void(__thiscall*)(void*, void*, int, int);
@@ -576,6 +578,7 @@ struct cached_material {
     material_float_t set_alpha = nullptr;
     material_color_t set_color = nullptr;
     material_flag_t set_flag = nullptr;
+    material_get_flag_t get_flag = nullptr;
     cached_variable envmap_tint;
     cached_variable fresnel;
     cached_variable selfillum_tint;
@@ -622,6 +625,7 @@ void cache_material_apis() {
         cached.set_alpha = virtual_function<material_float_t>(cached.material, 27);
         cached.set_color = virtual_function<material_color_t>(cached.material, 28);
         cached.set_flag = virtual_function<material_flag_t>(cached.material, 29);
+        cached.get_flag = virtual_function<material_get_flag_t>(cached.material, 30);
         const auto find = virtual_function<find_var_t>(cached.material, 11);
         cache_variable(cached.envmap_tint, find, cached.material, "$envmaptint");
         cache_variable(cached.fresnel, find, cached.material, "$envmapfresnelminmaxexp");
@@ -875,7 +879,7 @@ bool register_events() {
 
 void draw_single_material(const draw_call& call,
     const visuals_chams::pass_settings& pass, bool hidden,
-    const char* sprite_path) {
+    const char* sprite_path, bool additive = false) {
     using namespace visuals_chams;
     if (pass.material <= disabled || pass.material >= mode_count) {
         force_material(nullptr, call.game);
@@ -969,22 +973,35 @@ void draw_single_material(const draw_call& call,
         set_draw_color(modulation, call.game);
         set_draw_alpha(alpha, call.game);
     }
+
+    // An overlay is a composition, not a sequence of opaque replacements.
+    // Later materials contribute additively instead of covering the earlier
+    // color at identical depth. Restore the material's own flag immediately so
+    // single-material mode and the next category retain their original look.
+    const bool compose_additively = additive && material_api.set_flag && material_api.get_flag;
+    bool previous_additive = false;
+    if (compose_additively) {
+        previous_additive = material_api.get_flag(material, k_material_var_additive);
+        material_api.set_flag(material, k_material_var_additive, true);
+    }
     force_material(material, call.game);
     draw_original(call);
     force_material(nullptr, call.game);
+    if (compose_additively)
+        material_api.set_flag(material, k_material_var_additive, previous_additive);
 }
 
 void draw_pass(const draw_call& call, const visuals_chams::pass_settings& pass,
-               bool hidden, const char* sprite_path) {
+               bool hidden, const char* sprite_path, bool additive = false) {
     using namespace visuals_chams;
     // Fatality uses a Flat base for Rim Glow; Airflow uses the same base for
     // Glow. Legacy is a single envmap pass, not a two-pass glow.
     if (pass.material == glow || pass.material == rim_glow) {
         auto base = pass;
         base.material = flat;
-        draw_single_material(call, base, hidden, sprite_path);
+        draw_single_material(call, base, hidden, sprite_path, additive);
     }
-    draw_single_material(call, pass, hidden, sprite_path);
+    draw_single_material(call, pass, hidden, sprite_path, additive);
 }
 
 bool selection_enabled(const visuals_chams::pass_settings& single,
@@ -997,8 +1014,13 @@ bool draw_pass_selection(const draw_call& call, const visuals_chams::pass_settin
                          const char* sprite_path) {
     if (overlay) {
         const int count = std::min(multiple.count, static_cast<int>(visuals_chams::mode_count));
-        for (int i = 0; i < count; ++i)
-            draw_pass(call, multiple.values[i], hidden, sprite_path);
+        for (int i = 0; i < count; ++i) {
+            draw_pass(call, multiple.values[i], hidden, sprite_path, i > 0);
+            // Each pass starts from neutral RenderView/Studio modulation; the
+            // enclosing modulation_scope still restores the engine's original
+            // values after the complete selection has been drawn.
+            reset_modulation(call.game);
+        }
         return count > 0;
     }
     if (single.material == visuals_chams::disabled)
@@ -1008,7 +1030,8 @@ bool draw_pass_selection(const draw_call& call, const visuals_chams::pass_settin
 }
 
 void draw_record(void* context, const model_record& record,
-                 const visuals_chams::pass_settings& pass, const char* sprite_path) {
+                 const visuals_chams::pass_settings& pass, const char* sprite_path,
+                 bool additive = false) {
     if (pass.material == visuals_chams::disabled)
         return;
     draw_call call;
@@ -1017,7 +1040,7 @@ void draw_record(void* context, const model_record& record,
     call.state = &record.state;
     call.render_info = &record.info;
     call.bones = const_cast<matrix3x4_t*>(record.bones.data());
-    draw_pass(call, pass, true, sprite_path);
+    draw_pass(call, pass, true, sprite_path, additive);
     force_material(nullptr, true);
 }
 
@@ -1031,7 +1054,8 @@ void draw_record_selection(void* context, const model_record& record,
             auto pass = multiple.values[i];
             pass.color[3] *= alpha;
             pass.secondary[3] *= alpha;
-            draw_record(context, record, pass, sprite_path);
+            draw_record(context, record, pass, sprite_path, i > 0);
+            reset_modulation(true);
         }
         return;
     }
@@ -1176,10 +1200,13 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
         snapshot = preview;
     }
     const auto& passes = snapshot.passes;
+    const bool player_enabled = selection_enabled(passes.player, passes.overlay.player,
+        passes.overlay.enabled);
+    const bool behind_walls_enabled = selection_enabled(passes.behind_walls,
+        passes.overlay.behind_walls, passes.overlay.enabled);
     if (!snapshot.active || !passes.configured ||
         !model_name_matches(info.studio_hdr->name, snapshot.model) ||
-        (passes.player.material == visuals_chams::disabled &&
-         passes.behind_walls.material == visuals_chams::disabled)) {
+        (!player_enabled && !behind_walls_enabled)) {
         original_studio_draw(self, results, info, bones, flex_weights,
             delayed_flex_weights, model_origin, flags);
         return;
@@ -1188,13 +1215,15 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
     draw_call call{ results, &info, bones, flex_weights, delayed_flex_weights,
         &model_origin, flags };
     call.preview = true;
-    if (passes.behind_walls.material != visuals_chams::disabled)
-        draw_pass(call, passes.behind_walls, true, passes.sprite_path);
-    if (passes.player.material != visuals_chams::disabled)
-        draw_pass(call, passes.player, false, passes.sprite_path);
+    if (behind_walls_enabled)
+        draw_pass_selection(call, passes.behind_walls, passes.overlay.behind_walls,
+            passes.overlay.enabled, true, passes.sprite_path);
+    if (player_enabled)
+        draw_pass_selection(call, passes.player, passes.overlay.player,
+            passes.overlay.enabled, false, passes.sprite_path);
     else {
         // Behind Walls is a separate pass; the normal Player model still needs
-        // to be drawn above it when the Player combo is Disabled.
+        // to be drawn above it when the Player selection is empty.
         reset_modulation();
         force_material(nullptr);
         draw_original(call);
@@ -1235,10 +1264,16 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
             call.render_info = &info;
             const auto& passes = snapshot.passes;
             if (passes.configured) {
-                if (passes.behind_walls.material != visuals_chams::disabled)
-                    draw_pass(call, passes.behind_walls, true, passes.sprite_path);
-                if (passes.player.material != visuals_chams::disabled)
-                    draw_pass(call, passes.player, false, passes.sprite_path);
+                const bool player_enabled = selection_enabled(passes.player,
+                    passes.overlay.player, passes.overlay.enabled);
+                const bool behind_walls_enabled = selection_enabled(passes.behind_walls,
+                    passes.overlay.behind_walls, passes.overlay.enabled);
+                if (behind_walls_enabled)
+                    draw_pass_selection(call, passes.behind_walls, passes.overlay.behind_walls,
+                        passes.overlay.enabled, true, passes.sprite_path);
+                if (player_enabled)
+                    draw_pass_selection(call, passes.player, passes.overlay.player,
+                        passes.overlay.enabled, false, passes.sprite_path);
                 else {
                     force_material(nullptr, true);
                     draw_original(call);
@@ -1708,6 +1743,27 @@ void set_preview_passes(int side, const pass_settings& player, const pass_settin
     std::scoped_lock lock(settings_mutex);
     preview.side = side;
     configure_pair(preview.passes, side, player, behind_walls, sprite_path);
+    preview.passes.overlay.enabled = false;
+}
+
+void set_preview_overlay_passes(int side, const side_overlay_passes& passes,
+                                const char* sprite_path) {
+    if (side != 0 && side != 1)
+        return;
+    std::scoped_lock lock(settings_mutex);
+    preview.side = side;
+    preview.passes.configured = true;
+    preview.passes.overlay = passes;
+    for (auto* list : {&preview.passes.overlay.player, &preview.passes.overlay.behind_walls,
+                       &preview.passes.overlay.on_shot, &preview.passes.overlay.history,
+                       &preview.passes.overlay.ragdolls}) {
+        sanitize_pass_list(*list);
+    }
+    if (sprite_path && sprite_path[0]) {
+        std::strncpy(preview.passes.sprite_path, sprite_path,
+            sizeof(preview.passes.sprite_path) - 1);
+        preview.passes.sprite_path[sizeof(preview.passes.sprite_path) - 1] = '\0';
+    }
 }
 
 void set_preview_model(const char* model_path, bool active) {

@@ -12,8 +12,10 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -276,7 +278,9 @@ struct main_esp_object {
     float bar_max = 1.f;
     c_color ink{ 1.f, 1.f, 1.f, 1.f };
     c_color outline{ 0.f, 0.f, 0.f, 1.f };
-    std::string text;
+    // ESP labels are bounded (names are truncated to 24 chars); avoid a heap
+    // allocation for every object on every Present.
+    char text[96] = {};
 };
 
 struct main_render_context {
@@ -312,12 +316,12 @@ ImVec2 main_object_offset(const main_render_context& context, const main_esp_obj
 
 void render_main_string(main_render_context& context, const main_esp_object& object,
                         int max_bar_width, float& offset) {
-    if (object.text.empty())
+    if (object.text[0] == '\0')
         return;
     ImDrawList* draw = context.draw;
     ImFont* font = ImGui::GetFont();
     const float font_size = std::max(8.f, 12.f * context.scale);
-    const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, object.text.c_str());
+    const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, object.text);
     const float add = 4.f * context.scale * max_bar_width;
     const float add_h = 4.f * context.scale * max_bar_width;
     const auto& box = context.box;
@@ -347,8 +351,8 @@ void render_main_string(main_render_context& context, const main_esp_object& obj
         ? position - ImVec2(text_size.x * 0.5f, 0.f)
         : position;
     const ImU32 shadow = color(0.f, 0.f, 0.f, 0.85f);
-    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, object.text.c_str());
-    draw->AddText(font, font_size, top_left, color(object.ink), object.text.c_str());
+    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, object.text);
+    draw->AddText(font, font_size, top_left, color(object.ink), object.text);
     if (object.item >= 0) {
         maybe_drag(draw, context.preview_side, object.item,
             { top_left, top_left + text_size }, context.preview_min, context.preview_max,
@@ -563,7 +567,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     constexpr int max_main_objects = 32;
     std::array<main_esp_object, max_main_objects> objects{};
     int object_count = 0;
-    const auto add_string = [&](int position, int item, const std::string& text,
+    const auto add_string = [&](int position, int item, std::string_view text,
                                 const c_color& ink) {
         if (text.empty())
             return;
@@ -571,7 +575,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         object.type = main_string;
         object.position = position;
         object.item = item;
-        object.text = text;
+        const std::size_t length = std::min(text.size(), sizeof(object.text) - 1);
+        std::memcpy(object.text, text.data(), length);
+        object.text[length] = '\0';
         object.ink = ink;
         if (object_count < max_main_objects)
             objects[object_count++] = std::move(object);
@@ -602,9 +608,9 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     };
 
     if (settings.main[player_visuals::main_name] && !data.name.empty()) {
-        std::string name = data.name;
-        if (name.length() > 24)
-            name.resize(24);
+        std::string_view name = data.name;
+        if (name.size() > 24)
+            name = name.substr(0, 24);
         add_string(main_up, player_visuals::main_name, name,
             settings.main_colors[player_visuals::main_name].primary);
     }
@@ -936,12 +942,177 @@ visuals_chams::pass_settings chams_pass(int material, const c_color& primary,
 visuals_chams::pass_list chams_pass_list(const player_visuals::material_selection& selection,
                                          const c_color& primary, const c_color& secondary) {
     visuals_chams::pass_list result;
+    const player_visuals::esp_color legacy{ primary, secondary, false };
     for (int material = 1; material < visuals_chams::mode_count; ++material) {
         if (!selection.values[material])
             continue;
-        result.values[result.count++] = chams_pass(material, primary, secondary);
+        const auto& color = selection.colors_initialized
+            ? selection.colors[material]
+            : legacy;
+        result.values[result.count++] = chams_pass(material, color.primary, color.secondary);
     }
     return result;
+}
+
+struct side_chams_snapshot {
+    visuals_chams::pass_settings player;
+    visuals_chams::pass_settings behind_walls;
+    visuals_chams::special_passes special;
+    visuals_chams::side_overlay_passes overlay;
+    char sprite[128] = {};
+};
+
+struct self_chams_snapshot {
+    visuals_chams::self_passes passes;
+    char sprite[128] = {};
+};
+
+void copy_sprite_path(char (&destination)[128], const std::string& source) {
+    std::strncpy(destination, source.c_str(), sizeof(destination) - 1);
+    destination[sizeof(destination) - 1] = '\0';
+}
+
+side_chams_snapshot make_side_chams_snapshot(int side) {
+    const auto& settings = player_visuals::settings(side);
+    side_chams_snapshot result;
+    result.player = chams_pass(settings.player_material, settings.player_color, settings.player_secondary);
+    result.behind_walls = chams_pass(settings.behind_walls_material,
+        settings.behind_walls_color, settings.behind_walls_secondary);
+    result.special.on_shot = chams_pass(settings.on_shot_material,
+        settings.on_shot_color, settings.on_shot_secondary);
+    result.special.history = chams_pass(settings.history_material,
+        settings.history_color, settings.history_secondary);
+    result.special.ragdolls = chams_pass(settings.ragdoll_material,
+        settings.ragdoll_color, settings.ragdoll_secondary);
+    result.overlay.enabled = settings.overlay_chams;
+    result.overlay.player = chams_pass_list(settings.player_overlay,
+        settings.player_color, settings.player_secondary);
+    result.overlay.behind_walls = chams_pass_list(settings.behind_walls_overlay,
+        settings.behind_walls_color, settings.behind_walls_secondary);
+    result.overlay.on_shot = chams_pass_list(settings.on_shot_overlay,
+        settings.on_shot_color, settings.on_shot_secondary);
+    result.overlay.history = chams_pass_list(settings.history_overlay,
+        settings.history_color, settings.history_secondary);
+    result.overlay.ragdolls = chams_pass_list(settings.ragdoll_overlay,
+        settings.ragdoll_color, settings.ragdoll_secondary);
+    copy_sprite_path(result.sprite, settings.custom_sprite);
+    return result;
+}
+
+self_chams_snapshot make_self_chams_snapshot() {
+    const auto& self = player_visuals::self_settings();
+    self_chams_snapshot result;
+    auto& passes = result.passes;
+    passes.local_player = chams_pass(
+        self.local_enabled ? self.local_material : visuals_chams::disabled,
+        self.local_color, self.local_secondary);
+    passes.viewmodel = chams_pass(
+        self.viewmodel_enabled ? self.viewmodel_material : visuals_chams::disabled,
+        self.viewmodel_color, self.viewmodel_secondary);
+    passes.weapon = chams_pass(
+        self.weapon_enabled ? self.weapon_material : visuals_chams::disabled,
+        self.weapon_color, self.weapon_secondary);
+    passes.attachments = chams_pass(
+        self.attachments_enabled ? self.attachments_material : visuals_chams::disabled,
+        self.attachments_color, self.attachments_secondary);
+    passes.glow = chams_pass(
+        self.glow_enabled ? visuals_chams::glow : visuals_chams::disabled,
+        self.glow_color, self.glow_secondary);
+    passes.overlay.enabled = self.overlay_chams;
+    passes.overlay.local_player = chams_pass_list(self.local_overlay,
+        self.local_color, self.local_secondary);
+    passes.overlay.local_fake = chams_pass_list(self.local_fake_overlay,
+        self.local_fake_color, self.local_fake_secondary);
+    passes.overlay.viewmodel = chams_pass_list(self.viewmodel_overlay,
+        self.viewmodel_color, self.viewmodel_secondary);
+    passes.overlay.weapon = chams_pass_list(self.weapon_overlay,
+        self.weapon_color, self.weapon_secondary);
+    passes.overlay.attachments = chams_pass_list(self.attachments_overlay,
+        self.attachments_color, self.attachments_secondary);
+    copy_sprite_path(result.sprite, self.custom_sprite);
+    return result;
+}
+
+bool same_pass(const visuals_chams::pass_settings& lhs,
+               const visuals_chams::pass_settings& rhs) {
+    if (lhs.material != rhs.material)
+        return false;
+    for (int channel = 0; channel < 4; ++channel) {
+        if (lhs.color[channel] != rhs.color[channel] ||
+            lhs.secondary[channel] != rhs.secondary[channel])
+            return false;
+    }
+    return true;
+}
+
+bool same_pass_list(const visuals_chams::pass_list& lhs,
+                    const visuals_chams::pass_list& rhs) {
+    if (lhs.count != rhs.count)
+        return false;
+    for (int i = 0; i < lhs.count; ++i)
+        if (!same_pass(lhs.values[i], rhs.values[i]))
+            return false;
+    return true;
+}
+
+bool same_side_chams(const side_chams_snapshot& lhs, const side_chams_snapshot& rhs) {
+    return same_pass(lhs.player, rhs.player) &&
+        same_pass(lhs.behind_walls, rhs.behind_walls) &&
+        same_pass(lhs.special.on_shot, rhs.special.on_shot) &&
+        same_pass(lhs.special.history, rhs.special.history) &&
+        same_pass(lhs.special.ragdolls, rhs.special.ragdolls) &&
+        lhs.overlay.enabled == rhs.overlay.enabled &&
+        same_pass_list(lhs.overlay.player, rhs.overlay.player) &&
+        same_pass_list(lhs.overlay.behind_walls, rhs.overlay.behind_walls) &&
+        same_pass_list(lhs.overlay.on_shot, rhs.overlay.on_shot) &&
+        same_pass_list(lhs.overlay.history, rhs.overlay.history) &&
+        same_pass_list(lhs.overlay.ragdolls, rhs.overlay.ragdolls) &&
+        std::strncmp(lhs.sprite, rhs.sprite, sizeof(lhs.sprite)) == 0;
+}
+
+bool same_self_chams(const self_chams_snapshot& lhs, const self_chams_snapshot& rhs) {
+    const auto& a = lhs.passes;
+    const auto& b = rhs.passes;
+    return same_pass(a.local_player, b.local_player) &&
+        same_pass(a.viewmodel, b.viewmodel) &&
+        same_pass(a.weapon, b.weapon) &&
+        same_pass(a.attachments, b.attachments) &&
+        same_pass(a.glow, b.glow) &&
+        a.overlay.enabled == b.overlay.enabled &&
+        same_pass_list(a.overlay.local_player, b.overlay.local_player) &&
+        same_pass_list(a.overlay.local_fake, b.overlay.local_fake) &&
+        same_pass_list(a.overlay.viewmodel, b.overlay.viewmodel) &&
+        same_pass_list(a.overlay.weapon, b.overlay.weapon) &&
+        same_pass_list(a.overlay.attachments, b.overlay.attachments) &&
+        std::strncmp(lhs.sprite, rhs.sprite, sizeof(lhs.sprite)) == 0;
+}
+
+void sync_chams_settings() {
+    // Present runs at display rate, while these settings change only on input
+    // or config load. Avoid taking the DME settings mutex and copying every
+    // pass into the hook on frames where nothing changed.
+    static std::array<side_chams_snapshot, player_visuals::side_count> previous{};
+    static bool previous_valid[player_visuals::side_count] = {};
+    for (int side = 0; side < player_visuals::side_count; ++side) {
+        auto current = make_side_chams_snapshot(side);
+        if (previous_valid[side] && same_side_chams(previous[side], current))
+            continue;
+        visuals_chams::set_side_passes(side, current.player, current.behind_walls, current.sprite);
+        visuals_chams::set_side_special_passes(side, current.special);
+        visuals_chams::set_side_overlay_passes(side, current.overlay);
+        previous[side] = current;
+        previous_valid[side] = true;
+    }
+
+    static self_chams_snapshot previous_self;
+    static bool self_valid = false;
+    auto current = make_self_chams_snapshot();
+    if (self_valid && same_self_chams(previous_self, current))
+        return;
+    // local_fake_* remains a placeholder: there is no separate fake record.
+    visuals_chams::set_self_passes(current.passes, current.sprite);
+    previous_self = current;
+    self_valid = true;
 }
 
 player_data preview_data(int side) {
@@ -1017,59 +1188,7 @@ namespace player_esp {
 void render() {
     visuals_source::initialize();
     visuals_chams::initialize();
-    for (int side = 0; side < player_visuals::side_count; ++side) {
-        const auto& settings = player_visuals::settings(side);
-        visuals_chams::set_side_passes(side,
-            chams_pass(settings.player_material, settings.player_color, settings.player_secondary),
-            chams_pass(settings.behind_walls_material, settings.behind_walls_color,
-                settings.behind_walls_secondary), settings.custom_sprite.c_str());
-        visuals_chams::special_passes special;
-        special.on_shot = chams_pass(settings.on_shot_material, settings.on_shot_color,
-            settings.on_shot_secondary);
-        special.history = chams_pass(settings.history_material, settings.history_color,
-            settings.history_secondary);
-        special.ragdolls = chams_pass(settings.ragdoll_material, settings.ragdoll_color,
-            settings.ragdoll_secondary);
-        visuals_chams::set_side_special_passes(side, special);
-        visuals_chams::side_overlay_passes overlay;
-        overlay.enabled = settings.overlay_chams;
-        overlay.player = chams_pass_list(settings.player_overlay, settings.player_color, settings.player_secondary);
-        overlay.behind_walls = chams_pass_list(settings.behind_walls_overlay,
-            settings.behind_walls_color, settings.behind_walls_secondary);
-        overlay.on_shot = chams_pass_list(settings.on_shot_overlay, settings.on_shot_color, settings.on_shot_secondary);
-        overlay.history = chams_pass_list(settings.history_overlay, settings.history_color, settings.history_secondary);
-        overlay.ragdolls = chams_pass_list(settings.ragdoll_overlay, settings.ragdoll_color, settings.ragdoll_secondary);
-        visuals_chams::set_side_overlay_passes(side, overlay);
-    }
-    const auto& self = player_visuals::self_settings();
-    visuals_chams::self_passes self_passes;
-    self_passes.local_player = chams_pass(
-        self.local_enabled ? self.local_material : visuals_chams::disabled,
-        self.local_color, self.local_secondary);
-    self_passes.viewmodel = chams_pass(
-        self.viewmodel_enabled ? self.viewmodel_material : visuals_chams::disabled,
-        self.viewmodel_color, self.viewmodel_secondary);
-    self_passes.weapon = chams_pass(
-        self.weapon_enabled ? self.weapon_material : visuals_chams::disabled,
-        self.weapon_color, self.weapon_secondary);
-    self_passes.attachments = chams_pass(
-        self.attachments_enabled ? self.attachments_material : visuals_chams::disabled,
-        self.attachments_color, self.attachments_secondary);
-    self_passes.glow = chams_pass(
-        self.glow_enabled ? visuals_chams::glow : visuals_chams::disabled,
-        self.glow_color, self.glow_secondary);
-    self_passes.overlay.enabled = self.overlay_chams;
-    self_passes.overlay.local_player = chams_pass_list(self.local_overlay, self.local_color, self.local_secondary);
-    self_passes.overlay.local_fake = chams_pass_list(self.local_fake_overlay,
-        self.local_fake_color, self.local_fake_secondary);
-    self_passes.overlay.viewmodel = chams_pass_list(self.viewmodel_overlay,
-        self.viewmodel_color, self.viewmodel_secondary);
-    self_passes.overlay.weapon = chams_pass_list(self.weapon_overlay, self.weapon_color, self.weapon_secondary);
-    self_passes.overlay.attachments = chams_pass_list(self.attachments_overlay,
-        self.attachments_color, self.attachments_secondary);
-    // local_fake_* is deliberately not consumed: there is no separate fake
-    // animation/bone record in this backend, so the placeholder cannot render.
-    visuals_chams::set_self_passes(self_passes, self.custom_sprite.c_str());
+    sync_chams_settings();
 
     if (!visuals_source::ready())
         return;
@@ -1097,8 +1216,16 @@ void render() {
             render_offscreen_arrow(draw, settings, player, frame, display);
             continue;
         }
-        const auto hitboxes = project_lines(frame, player.hitboxes, display);
-        const auto skeleton = project_lines(frame, player.skeleton, display);
+        // Do not allocate/project geometry for disabled elements. Capture uses
+        // the same gates, so these vectors are normally empty unless requested.
+        std::vector<line2> hitboxes;
+        if (player.side != 2 && player.health > 0 &&
+            settings.aimbot[player_visuals::aimbot_hitboxes])
+            hitboxes = project_lines(frame, player.hitboxes, display);
+        std::vector<line2> skeleton;
+        if (settings.main[player_visuals::main_skeleton] &&
+            player.health > 0 && player.alpha > 0.5f)
+            skeleton = project_lines(frame, player.skeleton, display);
         render_player(draw, settings, player, box, skeleton, hitboxes, 1.f, -1, {}, {},
             player.alpha);
     }
@@ -1112,6 +1239,13 @@ void prepare_preview(int side) {
         chams_pass(settings.player_material, settings.player_color, settings.player_secondary),
         chams_pass(settings.behind_walls_material, settings.behind_walls_color,
             settings.behind_walls_secondary), settings.custom_sprite.c_str());
+    visuals_chams::side_overlay_passes overlay;
+    overlay.enabled = settings.overlay_chams;
+    overlay.player = chams_pass_list(settings.player_overlay,
+        settings.player_color, settings.player_secondary);
+    overlay.behind_walls = chams_pass_list(settings.behind_walls_overlay,
+        settings.behind_walls_color, settings.behind_walls_secondary);
+    visuals_chams::set_preview_overlay_passes(side, overlay, settings.custom_sprite.c_str());
 }
 
 void draw_preview(const ImVec2& min, const ImVec2& max, int side) {

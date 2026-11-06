@@ -97,6 +97,8 @@ void set_side_overlay_passes(int side, const side_overlay_passes& passes);
 void set_self_passes(const self_passes& passes, const char* sprite_path);
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                         const char* sprite_path);
+void set_preview_overlay_passes(int side, const side_overlay_passes& passes,
+                                const char* sprite_path);
 void set_preview_model(const char* model_path, bool active);
 
 // Retry-safe. Installs the DME/Studio hooks once the Source 1 interfaces and at

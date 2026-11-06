@@ -130,28 +130,37 @@ void store_esp_colors(player_visuals::esp_color (&config)[N], const color_value 
     }
 }
 
-bool same_chams_color(const color_value& lhs, const color_value& rhs) {
-    const auto same_vec = [](const ImVec4& a, const ImVec4& b) {
-        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-    };
-    return same_vec(lhs.a, rhs.a) && same_vec(lhs.b, rhs.b) && lhs.gradient == rhs.gradient;
-}
-
 void load_chams_selection(chams_ui_selection& view,
                           const player_visuals::material_selection& config,
-                          const color_value& color) {
+                          const color_value& legacy_color) {
     for (int i = 0; i < visuals_chams::mode_count; ++i) {
         view.values[i] = config.values[i];
-        view.colors[i] = color;
+        if (config.colors_initialized) {
+            view.colors[i].a = to_vec4(config.colors[i].primary);
+            view.colors[i].b = to_vec4(config.colors[i].secondary);
+            view.colors[i].gradient = config.colors[i].gradient;
+        } else {
+            // Migration path for configs written before per-material colors
+            // existed: seed every slot from that row's old single color.
+            view.colors[i] = legacy_color;
+        }
     }
     view.values[visuals_chams::disabled] = false;
 }
 
 void store_chams_selection(player_visuals::material_selection& config,
-                           const chams_ui_selection& view) {
-    for (int i = 0; i < visuals_chams::mode_count; ++i)
+                           const chams_ui_selection& view, bool overlay) {
+    for (int i = 0; i < visuals_chams::mode_count; ++i) {
         config.values[i] = view.values[i];
+        if (overlay) {
+            config.colors[i].primary = to_config_color(view.colors[i].a);
+            config.colors[i].secondary = to_config_color(view.colors[i].b);
+            config.colors[i].gradient = view.colors[i].gradient;
+        }
+    }
     config.values[visuals_chams::disabled] = false;
+    if (overlay)
+        config.colors_initialized = true;
 }
 
 void seed_chams_selection(chams_ui_selection& selection, int material) {
@@ -190,20 +199,11 @@ void draw_chams_row(const char* label, int* material, chams_ui_selection& select
         gui.row_combo(label, color, material, names, visuals_chams::mode_count);
         return;
     }
+    // MultiComboWithColors opens an independent picker for every material.
+    // Do not mirror one slot back into the category color or the other slots.
     gui.row_multibox(label, names + 1, selection.values + 1, selection.colors + 1,
-        visuals_chams::mode_count - 1, "Select multiple materials; empty selection disables this pass.");
-    if (!color)
-        return;
-    // All materials in one row share the existing category color. Keep the
-    // standard per-row picker semantics without inventing a second color schema.
-    for (int i = 1; i < visuals_chams::mode_count; ++i) {
-        if (same_chams_color(selection.colors[i], *color))
-            continue;
-        *color = selection.colors[i];
-        for (int j = 1; j < visuals_chams::mode_count; ++j)
-            selection.colors[j] = *color;
-        break;
-    }
+        visuals_chams::mode_count - 1,
+        "Select multiple materials; each entry has its own color. Empty selection disables this pass.");
 }
 
 void load_shared_player_views(players_ui_state& ui) {
@@ -280,11 +280,11 @@ void store_shared_player_views(players_ui_state& ui) {
         config.ragdoll_secondary = to_config_color(view.ragdolls_color.b);
         config.ragdoll_gradient = view.ragdolls_color.gradient;
         config.overlay_chams = view.overlay_chams;
-        store_chams_selection(config.player_overlay, view.player_overlay);
-        store_chams_selection(config.behind_walls_overlay, view.behind_walls_overlay);
-        store_chams_selection(config.on_shot_overlay, view.on_shot_overlay);
-        store_chams_selection(config.history_overlay, view.history_overlay);
-        store_chams_selection(config.ragdoll_overlay, view.ragdoll_overlay);
+        store_chams_selection(config.player_overlay, view.player_overlay, view.overlay_chams);
+        store_chams_selection(config.behind_walls_overlay, view.behind_walls_overlay, view.overlay_chams);
+        store_chams_selection(config.on_shot_overlay, view.on_shot_overlay, view.overlay_chams);
+        store_chams_selection(config.history_overlay, view.history_overlay, view.overlay_chams);
+        store_chams_selection(config.ragdoll_overlay, view.ragdoll_overlay, view.overlay_chams);
         config.custom_sprite = view.custom_sprite;
         std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(config.main));
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
@@ -380,11 +380,11 @@ void store_shared_self_view(player_side_ui_state& view) {
     config.glow_color = to_config_color(view.glow_color.a);
     config.glow_secondary = to_config_color(view.glow_color.b);
     config.overlay_chams = view.overlay_chams;
-    store_chams_selection(config.local_overlay, view.local_overlay);
-    store_chams_selection(config.local_fake_overlay, view.local_fake_overlay);
-    store_chams_selection(config.viewmodel_overlay, view.viewmodel_overlay);
-    store_chams_selection(config.weapon_overlay, view.weapon_overlay);
-    store_chams_selection(config.attachments_overlay, view.attachments_overlay);
+    store_chams_selection(config.local_overlay, view.local_overlay, view.overlay_chams);
+    store_chams_selection(config.local_fake_overlay, view.local_fake_overlay, view.overlay_chams);
+    store_chams_selection(config.viewmodel_overlay, view.viewmodel_overlay, view.overlay_chams);
+    store_chams_selection(config.weapon_overlay, view.weapon_overlay, view.overlay_chams);
+    store_chams_selection(config.attachments_overlay, view.attachments_overlay, view.overlay_chams);
     config.custom_sprite = view.custom_sprite;
     auto& esp = player_visuals::self_esp_settings();
     std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(esp.main));

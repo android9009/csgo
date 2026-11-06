@@ -86,6 +86,10 @@ inline void set_esp_color(esp_color& target, const c_color& value) {
 
 struct material_selection {
     bool values[visuals_chams::mode_count] = {};
+    // Overlay materials own their colors independently. The flag keeps old
+    // configs on the legacy category color until overlay mode is first stored.
+    esp_color colors[visuals_chams::mode_count] = {};
+    bool colors_initialized = false;
 
     bool any() const {
         for (int i = 1; i < visuals_chams::mode_count; ++i)

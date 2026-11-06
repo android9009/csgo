@@ -148,8 +148,13 @@ void c_config_system::setup_values( )
 		push_item( &value.gradient, category, name + "_gradient", value.gradient );
 	};
 	auto push_overlay = [&]( player_visuals::material_selection& selection, const std::string& category, const std::string& name ) {
-		for (int i = 1; i < visuals_chams::mode_count; ++i)
+		push_item(&selection.colors_initialized, category, name + "_colors_initialized", selection.colors_initialized);
+		for (int i = 1; i < visuals_chams::mode_count; ++i) {
 			push_item(&selection.values[i], category, std::format("{}_{}", name, i), selection.values[i]);
+			// Keep the material index in every key: colors must not be shared by
+			// rows, categories, sides, or by the legacy single-material picker.
+			push_esp_color(selection.colors[i], category, std::format("{}_{}_color", name, i));
+		}
 	};
 	for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
 		auto& side = player_visuals::settings(side_index);

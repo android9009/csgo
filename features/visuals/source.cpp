@@ -239,6 +239,7 @@ std::mutex initialize_mutex;
 struct cached_player {
     player_data data;
     ULONGLONG last_seen = 0;
+    ULONGLONG last_name_query = 0;
     float game_time = 0.f;
     bool valid = false;
 };
@@ -361,6 +362,32 @@ template <typename Fn>
 Fn checked_virtual(void* instance, std::size_t index, HMODULE module) {
     const auto function = virtual_function<Fn>(instance, index);
     return function_in_module(module, reinterpret_cast<const void*>(function)) ? function : nullptr;
+}
+
+template <typename Fn>
+struct virtual_cache {
+    const void* table = nullptr;
+    HMODULE module = nullptr;
+    Fn function = nullptr;
+};
+
+template <typename Fn>
+Fn cached_virtual(void* instance, std::size_t index, HMODULE module,
+                  virtual_cache<Fn>& cache) {
+    if (!instance)
+        return nullptr;
+    // Engine-owned objects keep their vtable for the object's lifetime. A
+    // changed vtable invalidates the slot and takes the fully validated path
+    // again; the steady-state path avoids repeated VirtualQuery/PE scans.
+    const void* table = *reinterpret_cast<const void* const*>(instance);
+    if (table && table == cache.table && module == cache.module)
+        return cache.function;
+    cache.function = virtual_function<Fn>(instance, index);
+    if (!function_in_module(module, reinterpret_cast<const void*>(cache.function)))
+        cache.function = nullptr;
+    cache.table = table;
+    cache.module = module;
+    return cache.function;
 }
 
 template <std::size_t N>
@@ -524,19 +551,22 @@ using get_weapon_data_t = weapon_info_t* (__thiscall*)(void*, unsigned int);
 void* entity_at(int index) {
     if (index < 0)
         return nullptr;
-    const auto function = virtual_function<entity_at_t>(entity_list, 3);
+    static thread_local virtual_cache<entity_at_t> cache;
+    const auto function = cached_virtual(entity_list, 3, client_module, cache);
     return function ? function(entity_list, index) : nullptr;
 }
 
 int local_index() {
-    const auto function = virtual_function<local_player_t>(engine, 12);
+    static thread_local virtual_cache<local_player_t> cache;
+    const auto function = cached_virtual(engine, 12, engine_module, cache);
     return function ? function(engine) : 0;
 }
 
 vector3 view_angles() {
     vector3 result{};
-    const auto function = virtual_function<get_view_angles_t>(engine, 18);
-    if (function && function_in_module(engine_module, reinterpret_cast<const void*>(function)))
+    static thread_local virtual_cache<get_view_angles_t> cache;
+    const auto function = cached_virtual(engine, 18, engine_module, cache);
+    if (function)
         function(engine, result);
     return result;
 }
@@ -544,13 +574,15 @@ vector3 view_angles() {
 void* entity_from_handle(unsigned int handle) {
     if (handle == 0 || handle == 0xFFFFFFFFu)
         return nullptr;
-    const auto function = virtual_function<entity_from_handle_t>(entity_list, 4);
+    static thread_local virtual_cache<entity_from_handle_t> cache;
+    const auto function = cached_virtual(entity_list, 4, client_module, cache);
     return function ? function(entity_list, handle) : nullptr;
 }
 
 bool dormant(void* entity) {
     void* networkable = reinterpret_cast<unsigned char*>(entity) + 8;
-    const auto function = virtual_function<dormant_t>(networkable, 9);
+    static thread_local virtual_cache<dormant_t> cache;
+    const auto function = cached_virtual(networkable, 9, client_module, cache);
     return !function || function(networkable);
 }
 
@@ -563,8 +595,9 @@ void* client_renderable(void* entity) {
 vector3 abs_origin(void* entity, const vector3& fallback) {
     // Airflow's ESP reads IClientEntity::GetAbsOrigin (slot 10), rather than
     // mixing a network origin with a separately interpolated render origin.
-    const auto function = virtual_function<abs_origin_t>(entity, 10);
-    if (!function || !function_in_module(client_module, reinterpret_cast<const void*>(function)))
+    static thread_local virtual_cache<abs_origin_t> cache;
+    const auto function = cached_virtual(entity, 10, client_module, cache);
+    if (!function)
         return fallback;
     const auto& value = function(entity);
     if (!readable_range(&value, sizeof(vector3)))
@@ -595,8 +628,11 @@ void update_view_projection(frame_data& output) {
     if (const float* matrix = airflow_view_matrix()) {
         std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
         output.has_view_matrix = true;
-    } else if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37);
-        matrix_fn && function_in_module(engine_module, reinterpret_cast<const void*>(matrix_fn))) {
+    } else {
+        static thread_local virtual_cache<world_matrix_t> cache;
+        const auto matrix_fn = cached_virtual(engine, 37, engine_module, cache);
+        if (!matrix_fn)
+            return;
         const float* engine_matrix = matrix_fn(engine);
         if (engine_matrix && readable_range(engine_matrix, sizeof(output.view_matrix))) {
             std::memcpy(output.view_matrix, engine_matrix, sizeof(output.view_matrix));
@@ -771,8 +807,9 @@ int fallback_max_clip(int id) {
 weapon_info_t* weapon_info(int id) {
     if (!weapon_system || id <= 0)
         return nullptr;
-    const auto function = virtual_function<get_weapon_data_t>(weapon_system, 2);
-    if (!function || !function_in_module(client_module, reinterpret_cast<const void*>(function)))
+    static thread_local virtual_cache<get_weapon_data_t> cache;
+    const auto function = cached_virtual(weapon_system, 2, client_module, cache);
+    if (!function)
         return nullptr;
     auto* result = function(weapon_system, static_cast<unsigned int>(id));
     return readable_range(result, sizeof(weapon_info_t)) ? result : nullptr;
@@ -853,8 +890,9 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
         // Main normally consumes the engine-maintained bone cache. Keep the
         // renderable SetupBones call only for a not-yet-built cache.
         void* renderable = client_renderable(entity);
-        const auto setup = virtual_function<setup_bones_t>(renderable, 13);
-        if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
+        static thread_local virtual_cache<setup_bones_t> cache;
+        const auto setup = cached_virtual(renderable, 13, client_module, cache);
+        if (!setup)
             return;
         const float time = global_vars ? global_vars->current_time : 0.f;
         if (!setup(renderable, bones, 256, 0x000FFF00, time))
@@ -866,6 +904,7 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
     if (!readable_range(bone_array, static_cast<std::size_t>(studio->bone_count) * sizeof(mstudiobone_t)))
         return;
     if (collect_skeleton) {
+        output.skeleton.reserve(static_cast<std::size_t>(studio->bone_count));
         for (int i = 0; i < studio->bone_count; ++i) {
             const auto& bone = bone_array[i];
             if (!(bone.flags & 0x00000100) || bone.parent < 0 || bone.parent >= studio->bone_count)
@@ -884,6 +923,8 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
         set->hitbox_count > 64 || set->hitbox_index <= 0) {
         return;
     }
+    output.hitboxes.reserve(static_cast<std::size_t>(set->hitbox_count) * 12);
+    output.hitbox_markers.reserve(static_cast<std::size_t>(set->hitbox_count));
     static constexpr int edges[12][2] = {
         { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
         { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
@@ -936,13 +977,12 @@ void scan_inventory(void* player, player_data& output) {
 float calculate_hit_chance(void* local_weapon, float distance, bool immunity) {
     if (!local_weapon || immunity || distance <= 1.f)
         return -1.f;
-    const auto inaccuracy_fn = virtual_function<weapon_float_t>(local_weapon, 483);
-    const auto spread_fn = virtual_function<weapon_float_t>(local_weapon, 453);
-    if (!inaccuracy_fn || !spread_fn ||
-        !function_in_module(client_module, reinterpret_cast<const void*>(inaccuracy_fn)) ||
-        !function_in_module(client_module, reinterpret_cast<const void*>(spread_fn))) {
+    static thread_local virtual_cache<weapon_float_t> inaccuracy_cache;
+    static thread_local virtual_cache<weapon_float_t> spread_cache;
+    const auto inaccuracy_fn = cached_virtual(local_weapon, 483, client_module, inaccuracy_cache);
+    const auto spread_fn = cached_virtual(local_weapon, 453, client_module, spread_cache);
+    if (!inaccuracy_fn || !spread_fn)
         return -1.f;
-    }
     const float inaccuracy = inaccuracy_fn(local_weapon);
     const float spread = spread_fn(local_weapon);
     if (!std::isfinite(inaccuracy) || !std::isfinite(spread) || inaccuracy < 0.f || spread < 0.f)
@@ -957,9 +997,9 @@ float calculate_hit_chance(void* local_weapon, float distance, bool immunity) {
 }
 
 bool read_player_info(int index, unsigned char (&info)[512]) {
-    const auto get_info = virtual_function<get_player_info_t>(engine, 8);
-    return get_info && function_in_module(engine_module, reinterpret_cast<const void*>(get_info)) &&
-        get_info(engine, index, info);
+    static thread_local virtual_cache<get_player_info_t> cache;
+    const auto get_info = cached_virtual(engine, 8, engine_module, cache);
+    return get_info && get_info(engine, index, info);
 }
 
 std::string player_name(int index) {
@@ -1492,6 +1532,7 @@ void capture_now(frame_data& output, float alpha_blend) {
             continue;
         }
 
+        auto& cached = player_cache[index];
         player_data data;
         data.index = index;
         data.team = value<int>(player, nv.team, 0);
@@ -1504,6 +1545,13 @@ void capture_now(frame_data& output, float alpha_blend) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
+        if (!side_settings.esp_enabled) {
+            // Chams has its own DME path; a disabled ESP side needs no name,
+            // weapon, bone, or dormant snapshot work. Dropping the old record
+            // also prevents stale geometry when the side is enabled again.
+            player_cache[index].valid = false;
+            continue;
+        }
 
         data.origin = abs_origin(player, value<vector3>(player, nv.origin));
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
@@ -1517,7 +1565,16 @@ void capture_now(frame_data& output, float alpha_blend) {
         }
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z }) * 0.0254f;
-        data.name = player_name(index);
+        const bool refresh_name = !cached.valid || now < cached.last_name_query ||
+            now - cached.last_name_query >= 2000;
+        if (refresh_name && side_settings.main[player_visuals::main_name]) {
+            data.name = player_name(index);
+            cached.last_name_query = now;
+        } else if (cached.valid) {
+            // Preserve a previously captured name while the element is off;
+            // enabling it during a dormant fade must not erase the label.
+            data.name = cached.data.name;
+        }
         data.armor_valid = nv.armor >= 0;
         data.money_valid = nv.money >= 0;
         data.immunity_valid = nv.immunity >= 0;
@@ -1574,7 +1631,6 @@ void capture_now(frame_data& output, float alpha_blend) {
             side_settings.esp_enabled && side_settings.main[player_visuals::main_skeleton],
             side_settings.esp_enabled && side_settings.aimbot[player_visuals::aimbot_hitboxes]);
 
-        auto& cached = player_cache[index];
         data.dormant = false;
         data.alpha = cached.valid && cached.data.side == data.side
             ? cached.data.alpha + (1.f - cached.data.alpha) * alpha_blend
