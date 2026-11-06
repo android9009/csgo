@@ -723,22 +723,64 @@ void draw_visuals_world() {
     smoke_color.a = to_vec4(world.smoke_color);
     molotov_color.a = to_vec4(world.molotov_color);
 
+    // One continuous World page with the section order used by the reference
+    // layout; all feature controls stay inside the existing pasteware widgets.
     gui.begin_grid(2);
     gui.grid_col(0);
-    gui.grid_box("WORLD", k_auto_height);
+    gui.grid_box("VIEW OPTIONS", k_auto_height);
     gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
     gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
+    gui.end_group_box();
+
+    gui.grid_box("SCOPE OPTIONS", k_auto_height);
+    gui.row_begin(); ImGui::SliderInt("Zoom FOV", &g_cfg->world_esp.m_zoom_fov, 0, 90, "%d°");
+    gui.row_checkbox("Skip Second Zoom", &g_cfg->world_esp.m_skip_second_zoom);
+    gui.row_checkbox("Show Viewmodel in Scope", &g_cfg->world.m_show_viewmodel_in_scope);
+    gui.end_group_box();
+
+    gui.grid_box("VIEWMODEL OPTIONS", k_auto_height);
+    gui.row_begin(); ImGui::SliderInt("Viewmodel FOV", &g_cfg->world.m_viewmodel_fov, 0, 30, "+%d°");
+    gui.row_begin(); ImGui::SliderFloat("Offset X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
+    gui.row_begin(); ImGui::SliderFloat("Offset Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
+    gui.row_begin(); ImGui::SliderFloat("Offset Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
+    gui.row_checkbox("Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
+    gui.row_checkbox("Landing Bob", &g_cfg->world.m_remove_landing_bob,
+        "Disable the viewmodel's landing shift; this setting is applied through the client animation convars.");
+    gui.end_group_box();
+
+    gui.grid_box("REMOVALS", k_auto_height);
     gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
     gui.row_checkbox("Remove Smoke", &g_cfg->world.m_remove_smoke);
     gui.row_checkbox("Remove Flash", &g_cfg->world.m_remove_flash);
-    gui.row_checkbox("Remove Scope Overlay", &g_cfg->world.m_remove_scope_overlay);
-    gui.row_checkbox("Remove Visual Recoil", &g_cfg->world.m_visual_recoil);
-    gui.row_checkbox("Remove Post Processing", &g_cfg->world.m_remove_post_processing);
-    gui.row_checkbox("Remove Shadows", &g_cfg->world.m_remove_shadows);
-    gui.row_checkbox("Allow Roaming Spectator", &g_cfg->world.m_unlock_spectating);
-    gui.row_checkbox("Show Viewmodel in Scope", &g_cfg->world.m_show_viewmodel_in_scope);
-    gui.row_checkbox("Hide Death Notices", &g_cfg->world.m_remove_death_notices);
-    gui.row_checkbox("Hide Scoreboard", &g_cfg->world.m_remove_scoreboard);
+    gui.row_checkbox("Visual Recoil", &g_cfg->world.m_visual_recoil,
+        "Remove aim and view punch from the rendered camera angles.");
+    gui.row_checkbox("Post Processing", &g_cfg->world.m_remove_post_processing,
+        "Disable mat_postprocess_enable while this option is active.");
+    gui.row_checkbox("Shadows", &g_cfg->world.m_remove_shadows,
+        "Disable the client r_shadows setting while this option is active.");
+    gui.end_group_box();
+
+    gui.grid_col(1);
+    gui.grid_box("PERSPECTIVE OPTIONS", k_auto_height);
+    gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
+    gui.row_begin(); ImGui::SliderInt("View FOV", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
+    gui.row_checkbox("Thirdperson", &g_cfg->world_esp.m_enable_thirdperson,
+        "Right-click this row to bind a hold or toggle key. Camera distance is collision-limited by the game.");
+    gui.row_checkbox("While Dead", &g_cfg->world_esp.m_thirdperson_while_dead);
+    gui.row_begin(); ImGui::SliderInt("Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
+    gui.row_begin(); ImGui::SliderFloat("Aspect Ratio", &g_cfg->world_esp.m_aspect_ratio, 0.f, 2.5f, "%.2f");
+    gui.end_group_box();
+
+    gui.grid_box("HUD", k_auto_height);
+    gui.row_checkbox("Radar", &g_cfg->world.m_draw_radar);
+    gui.row_checkbox("Scope Overlay", &g_cfg->world.m_remove_scope_overlay,
+        "Hide the stock scope overlay while scoped.");
+    gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay);
+    gui.row_checkbox("Death Notices", &g_cfg->world.m_remove_death_notices,
+        "Hide the stock death notices.");
+    gui.row_checkbox("Scoreboard", &g_cfg->world.m_remove_scoreboard,
+        "Hide the stock scoreboard panel.");
+    gui.row_checkbox("Crosshairs", &g_cfg->world.m_custom_crosshair);
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
@@ -757,7 +799,7 @@ void draw_visuals_world() {
         gui.row_checkbox("Grenades", &world.grenades);
         gui.row_checkbox("Windows", &world.windows);
         gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory,
-            "Projects the live grenade velocity using the default Source gravity (800); the short preview does not simulate wall bounces.");
+            "Projects live grenade velocity using Source gravity 800; the short preview does not predict wall bounces.");
         gui.row_checkbox("Grenade Proximity Warnings", &world.grenade_proximity_warnings,
             "Warns while an active grenade projectile is within 300 world units of the local player.");
         gui.popup_section_end();
@@ -766,34 +808,11 @@ void draw_visuals_world() {
     gui.row_checkbox("Enabled", &world.enabled);
     gui.end_group_box();
 
-    gui.grid_col(1);
-    gui.grid_box("PERSPECTIVE OPTIONS", k_auto_height);
-    gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
-    gui.row_begin(); ImGui::SliderInt("View FOV", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
-    gui.row_checkbox("Thirdperson", &g_cfg->world_esp.m_enable_thirdperson,
-        "Right-click this row to bind a hold or toggle key. Camera distance is collision-limited by the game.");
-    gui.row_checkbox("While Dead", &g_cfg->world_esp.m_thirdperson_while_dead);
-    gui.row_begin(); ImGui::SliderInt("Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
-    gui.row_begin(); ImGui::SliderInt("Zoom FOV", &g_cfg->world_esp.m_zoom_fov, 0, 90, "%d°");
-    gui.row_begin(); ImGui::SliderFloat("Aspect Ratio", &g_cfg->world_esp.m_aspect_ratio, 0.f, 2.5f, "%.2f");
-    gui.row_checkbox("Skip Second Zoom", &g_cfg->world_esp.m_skip_second_zoom);
+    gui.grid_box("MISCELLANEOUS", k_auto_height);
+    gui.row_checkbox("Unlock Spectating", &g_cfg->world.m_unlock_spectating,
+        "Requests roaming spectator mode through spec_allow_roaming; the server can still restrict it.");
     gui.end_group_box();
 
-    gui.grid_box("VIEWMODEL OPTIONS", k_auto_height);
-    gui.row_begin(); ImGui::SliderInt("Viewmodel FOV", &g_cfg->world.m_viewmodel_fov, 0, 30, "+%d°");
-    gui.row_begin(); ImGui::SliderFloat("Offset X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
-    gui.row_begin(); ImGui::SliderFloat("Offset Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
-    gui.row_begin(); ImGui::SliderFloat("Offset Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
-    gui.row_checkbox("Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
-    gui.row_checkbox("Landing Bob", &g_cfg->world.m_remove_landing_bob,
-        "Disable the viewmodel's landing shift; this setting is applied through the client animation convars.");
-    gui.end_group_box();
-
-    gui.grid_box("HUD OPTIONS", k_auto_height);
-    gui.row_checkbox("Radar", &g_cfg->world.m_draw_radar);
-    gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay);
-    gui.row_checkbox("Crosshairs", &g_cfg->world.m_custom_crosshair);
-    gui.end_group_box();
     gui.end_grid();
 
     world.box_color = to_config_color(box_color.a);
