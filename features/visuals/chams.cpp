@@ -640,17 +640,20 @@ void cache_material_apis() {
         cached.set_color = virtual_function<material_color_t>(cached.material, 28);
         cached.set_flag = virtual_function<material_flag_t>(cached.material, 29);
         cached.get_flag = virtual_function<material_get_flag_t>(cached.material, 30);
-        // These flags are invariant for our private materials. Set them once
-        // instead of paying for two virtual calls on every player/pass.
-        if (cached.set_flag) {
-            cached.set_flag(cached.material, k_material_var_translucent, true);
-            cached.set_flag(cached.material, k_material_var_nofog, true);
-        }
         const auto find = virtual_function<find_var_t>(cached.material, 11);
         cache_variable(cached.envmap_tint, find, cached.material, "$envmaptint");
         cache_variable(cached.fresnel, find, cached.material, "$envmapfresnelminmaxexp");
         cache_variable(cached.selfillum_tint, find, cached.material, "$selfillumtint");
         cache_variable(cached.base_texture, find, cached.material, "$basetexture");
+        // FindVar precaches the shader params. SetMaterialVarFlag dereferences
+        // them unconditionally, so newly created materials must not receive
+        // these calls before that initialization (the old per-pass order did
+        // ColorModulate first). Keep the invariant flags hoisted, but set them
+        // only after FindVar has made the material ready for flag changes.
+        if (find && cached.set_flag) {
+            cached.set_flag(cached.material, k_material_var_translucent, true);
+            cached.set_flag(cached.material, k_material_var_nofog, true);
+        }
     }
 }
 
