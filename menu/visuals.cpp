@@ -486,7 +486,7 @@ void draw_esp_section_title(const char* title) {
     ImGui::TextColored(gui.text_disabled.to_vec4(1.f, false), "%s", gui.tr(title));
 }
 
-void draw_esp_settings(player_side_ui_state& side, bool self = false) {
+void draw_esp_settings(player_side_ui_state& side, bool self, float height) {
     static const char* main_items[player_visuals::main_count] = {
         "Box", "Name", "Distance", "HP Bar", "Ammo Bar", "Skeleton"
     };
@@ -501,7 +501,7 @@ void draw_esp_settings(player_side_ui_state& side, bool self = false) {
 
     // This replaces the old agent/ESP preview with real controls. The list is
     // scrollable so every existing ESP item remains reachable at any menu scale.
-    gui.grid_box("PLAYER ESP", k_auto_height, true);
+    gui.grid_box("PLAYER ESP", height, true);
     draw_esp_section_title("MAIN");
     for (int i = 0; i < player_visuals::main_count; ++i)
         gui.row_checkbox(main_items[i], &side.esp_items.main_items[i], &side.main_colors[i]);
@@ -516,6 +516,11 @@ void draw_esp_settings(player_side_ui_state& side, bool self = false) {
         for (int i = 0; i < player_visuals::aimbot_count; ++i)
             gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
     }
+    gui.end_group_box();
+}
+
+void draw_overlay_models(player_side_ui_state& side, bool self) {
+    gui.grid_box("OVERLAY MODELS", k_auto_height);
     draw_overlay_checkbox(side, self);
     gui.end_group_box();
 }
@@ -681,10 +686,23 @@ void draw_visuals_players() {
     else
         draw_self_side(ui.sides[2]);
 
-    // No Panorama/agent or ESP preview is created on this page. Every side edits
-    // its real renderer settings in the former preview column, including Self.
+    // Match the right column's final edge to the left chams stack. PLAYER ESP
+    // yields exactly the space needed by the separate Overlay Models panel and
+    // remains scrollable when its content is taller than the available height.
+    const float left_remaining = gui.grid_remaining();
     gui.grid_col(1);
-    draw_esp_settings(ui.sides[ui.active_side], ui.active_side == 2);
+    const float right_remaining = gui.grid_remaining();
+    const float left_stack_height = right_remaining - left_remaining;
+    const float measured_overlay = gui.measured_box_height("OVERLAY MODELS");
+    // grid_box() uses the same 80px initial height before an auto box is measured.
+    const float overlay_height = measured_overlay > 0.f ? measured_overlay : 80.f;
+    const float spacing = ImGui::GetStyle().ItemSpacing.y;
+    const float player_esp_height = std::max(10.f,
+        (left_stack_height - overlay_height * gui.m_scale - 2.f * spacing) / gui.m_scale);
+    auto& active_side = ui.sides[ui.active_side];
+    const bool self = ui.active_side == 2;
+    draw_esp_settings(active_side, self, player_esp_height);
+    draw_overlay_models(active_side, self);
     gui.end_grid();
     store_shared_player_views(ui);
     store_shared_self_view(ui.sides[2]);
