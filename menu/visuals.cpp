@@ -180,6 +180,7 @@ void draw_overlay_checkbox(player_side_ui_state& side, bool self) {
     }
     if (self) {
         seed_chams_selection(side.local_overlay, side.local_chams_model);
+        seed_chams_selection(side.local_fake_overlay, side.local_fake_chams_model);
         seed_chams_selection(side.viewmodel_overlay, side.viewmodel_chams_model);
         seed_chams_selection(side.weapon_overlay, side.weapon_chams_model);
         seed_chams_selection(side.attachments_overlay, side.attachments_chams_model);
@@ -210,10 +211,6 @@ void load_shared_player_views(players_ui_state& ui) {
         const auto& config = player_visuals::settings(side_index);
         auto& view = ui.sides[side_index];
         view.offscreen_arrow = config.offscreen_arrow;
-        view.sounds = config.sounds;
-        view.sounds_color.a = to_vec4(config.sounds_color);
-        view.sounds_color.b = view.sounds_color.a;
-        view.sounds_color.gradient = false;
         view.offscreen_color.a = to_vec4(config.offscreen_color);
         view.offscreen_color.b = view.offscreen_color.a;
         view.offscreen_color.gradient = false;
@@ -261,8 +258,6 @@ void store_shared_player_views(players_ui_state& ui) {
         auto& config = player_visuals::settings(side_index);
         const auto& view = ui.sides[side_index];
         config.offscreen_arrow = view.offscreen_arrow;
-        config.sounds = view.sounds;
-        config.sounds_color = to_config_color(view.sounds_color.a);
         config.offscreen_color = to_config_color(view.offscreen_color.a);
         config.player_material = view.player_model;
         config.behind_walls_material = view.behind_walls_model;
@@ -522,8 +517,7 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.grid_box("ENEMY", k_auto_height);
     gui.row_checkbox("Enabled", &player_visuals::settings(0).esp_enabled);
     gui.row_checkbox("Offscreen Arrow", &side.offscreen_arrow, &side.offscreen_color);
-    gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color,
-        "Show a fading world ping when an enemy emits a footstep, landing, or weapon sound.");
+    gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color);
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
@@ -604,6 +598,9 @@ void draw_self_side(player_side_ui_state& side) {
     gui.grid_box("LOCAL CHAMS", k_auto_height);
     draw_chams_row("Local Player", &side.local_chams_model, side.local_overlay, &side.player_color,
         side.overlay_chams, self_chams_mode_names());
+    // Fake remains a UI/config placeholder; no fake model record is rendered.
+    draw_chams_row("Local Player Fake", &side.local_fake_chams_model, side.local_fake_overlay,
+        &side.local_fake_color, side.overlay_chams, self_chams_mode_names());
     draw_chams_row("Viewmodel", &side.viewmodel_chams_model, side.viewmodel_overlay,
         &side.behind_walls_color, side.overlay_chams, self_chams_mode_names());
     draw_chams_row("Weapon", &side.weapon_chams_model, side.weapon_overlay, &side.weapon_color,

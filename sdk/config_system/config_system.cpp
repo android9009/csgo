@@ -168,8 +168,6 @@ void c_config_system::setup_values( )
 		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
 		push_item(&side.esp_enabled, category, "esp_enabled", side.esp_enabled);
 		push_item(&side.offscreen_arrow, category, "offscreen_arrow", side.offscreen_arrow);
-		push_item(&side.sounds, category, "sounds", side.sounds);
-		push_item(&side.sounds_color, category, "sounds_color", side.sounds_color);
 		push_item(&side.offscreen_color, category, "offscreen_color", side.offscreen_color);
 		push_item(&side.offscreen_outline, category, "offscreen_outline", side.offscreen_outline);
 		push_item(&side.player_material, category, "player_material", side.player_material);

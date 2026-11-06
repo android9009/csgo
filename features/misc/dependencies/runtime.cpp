@@ -2,7 +2,6 @@
 #include "gameplay.hpp"
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
-#include "../../visuals/sound_esp.hpp"
 
 #include <Windows.h>
 #include <algorithm>
@@ -929,9 +928,6 @@ int __fastcall hooked_emit_sound(void* self, void*, void* filter, int entity_ind
     float attenuation, int seed, int flags, int pitch, const vec3* origin, const vec3* direction,
     void* origins, bool update_positions, float sound_time, int speaker_entity, int unknown) {
     auto_accept(sound_entry);
-    const char* visual_sound = sound_entry && sound_entry[0] ? sound_entry : sample;
-    sound_esp::on_sound(entity_index, speaker_entity, visual_sound, origin != nullptr,
-        origin ? origin->x : 0.f, origin ? origin->y : 0.f, origin ? origin->z : 0.f);
     return original_emit_sound(self, filter, entity_index, channel, sound_entry, sound_hash,
         sample, volume, attenuation, seed, flags, pitch, origin, direction, origins,
         update_positions, sound_time, speaker_entity, unknown);

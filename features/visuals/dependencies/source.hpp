@@ -120,8 +120,7 @@ bool initialize();
 bool ready();
 bool is_in_game();
 bool is_console_visible();
-int player_side(int entity_index); // -1 invalid/local/dormant, 0 enemy, 1 teammate
-int player_side_for_sound(int entity_index); // team relation without rejecting a dormant player
+int player_side(int entity_index); // -1 invalid/local, 0 enemy, 1 teammate
 int player_side_from_entity(void* entity); // same check using DrawModelState's entity
 bool resolve_renderable_entity(void* renderable, renderable_entity_data& output);
 int entity_team_side(void* entity); // -1 invalid, 0 enemy, 1 teammate

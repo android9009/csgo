@@ -195,9 +195,6 @@
     <ClCompile Include="features\visuals\esp\esp.cpp">
       <Filter>Source Files\features\visuals\esp</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\sound_esp.cpp">
-      <Filter>Source Files\features\visuals</Filter>
-    </ClCompile>
     <ClCompile Include="features\visuals\dependencies\source.cpp">
       <Filter>Source Files\features\visuals\dependencies</Filter>
     </ClCompile>
@@ -301,9 +298,6 @@
     </ClInclude>
     <ClInclude Include="features\visuals\esp\esp.hpp">
       <Filter>Header Files\features\visuals\esp</Filter>
-    </ClInclude>
-    <ClInclude Include="features\visuals\sound_esp.hpp">
-      <Filter>Header Files\features\visuals</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\settings.hpp">
       <Filter>Header Files\features\visuals</Filter>
