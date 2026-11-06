@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -46,9 +48,10 @@ struct player_data {
     float readiness = -1.f;
     float hit_chance = -1.f;
     float delay_ms = -1.f;
-    // Live player snapshots stay opaque; no previous-frame player snapshot is
-    // used to fill missing, dead or dormant entities.
+    // Airflow keeps the complete last live value snapshot for dormant/fade
+    // rendering. Live entities always overwrite it at FRAME_RENDER_END.
     float alpha = 1.f;
+    bool dormant = false;
     bool armor_valid = false;
     bool money_valid = false;
     bool immunity_valid = false;
@@ -70,6 +73,9 @@ struct player_data {
     vector3 origin;
     vector3 mins;
     vector3 maxs;
+    // Airflow's two-point player box uses pose 1 (stand) and pose 12 (pitch).
+    std::array<float, 24> poses{};
+    bool poses_valid = false;
     std::vector<line3> skeleton;
     // Twelve edges per hitbox, already transformed by the current bone matrix.
     std::vector<line3> hitboxes;
@@ -128,13 +134,10 @@ bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();
 int aimed_player_index(); // enemy nearest to the local shot ray, 0 when none
 int frame_number();
-// DME supplies the actual player render snapshot for the current engine frame.
-// The snapshot is never a dormant/dead history record and is ignored when its
-// frame no longer matches the frame being captured by ESP.
-bool player_geometry_requested(int side);
-void submit_rendered_player(int index, const vector3& origin, const void* bones,
-                            bool include_bones);
 bool entity_exists(int entity_index);
+// The renderer borrows the immutable entity snapshot; only its render-view
+// fields are refreshed at Present, avoiding a deep bone/line copy per frame.
+std::shared_ptr<const frame_data> capture_shared();
 void capture(frame_data& output);
 
 int atlas_weapon_id(int item_definition_index); // -1 when no embedded glyph exists

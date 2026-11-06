@@ -115,9 +115,6 @@ thread_local int engine_model_draw_depth = 0;
 thread_local bool in_game_chams = false;
 
 constexpr int k_shadow_depth_texture = 0x200;
-// DrawModelFlags_t::STUDIO_SHADOWDEPTHTEXTURE. This is distinct from the
-// studio-render flag above; shadow bones must not become ESP geometry.
-constexpr int k_shadow_depth_draw = 0x40000000;
 constexpr int k_material_var_nofog = 1 << 14;
 constexpr int k_material_var_ignorez = 1 << 15;
 constexpr int k_material_var_translucent = 1 << 21;
@@ -1373,19 +1370,6 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
             side = visuals_source::player_side_from_entity(entity.entity);
     }
 
-    const bool local_player = side < 0 && !ragdoll && has_entity && entity.is_player &&
-        visuals_source::is_local_entity(entity.entity);
-    if (!ragdoll && has_entity && entity.is_player && info.entity_index >= 1 &&
-        info.entity_index <= 64 && (side >= 0 || local_player) &&
-        (state.draw_flags & k_shadow_depth_draw) == 0) {
-        // Submit before the material/settings early-outs: ordinary ESP must
-        // also work when this player has no chams pass configured. source.cpp
-        // retains only the first real draw for the current engine frame.
-        const int geometry_side = local_player ? 2 : side;
-        visuals_source::submit_rendered_player(info.entity_index,
-            { info.origin.x, info.origin.y, info.origin.z }, bones,
-            visuals_source::player_geometry_requested(geometry_side));
-    }
     if (side < 0) {
         original_model_execute(self, context, state, info, bones);
         return;

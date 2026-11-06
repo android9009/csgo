@@ -2,6 +2,7 @@
 #include "settings.hpp"
 
 #include <Windows.h>
+#include "MinHook.h"
 
 #include <algorithm>
 #include <atomic>
@@ -9,7 +10,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <initializer_list>
+#include <memory>
 #include <mutex>
 #include <utility>
 
@@ -20,11 +23,22 @@ using visuals_source::line3;
 using visuals_source::player_data;
 using visuals_source::world_data;
 using visuals_source::renderable_entity_data;
+using visuals_source::frame_data;
 using visuals_source::vector3;
 
 struct matrix3x4_t {
     float m[3][4];
 };
+static_assert(sizeof(matrix3x4_t) == 48, "Source 1 matrix3x4_t layout changed");
+
+template <typename T>
+struct utl_vector_t {
+    T* memory;
+    int allocation_count;
+    int grow_size;
+    int size;
+};
+static_assert(sizeof(utl_vector_t<matrix3x4_t>) == 16, "Source 1 CUtlVector layout changed");
 
 struct quaternion_t {
     float x, y, z, w;
@@ -171,6 +185,7 @@ struct netvars_t {
     int aim_punch = -1;
     int mins = -1;
     int maxs = -1;
+    int pose_parameters = -1;
     int simulation_time = -1;
     int velocity_modifier = -1;
     int active_weapon = -1;
@@ -218,27 +233,49 @@ std::atomic<bool> core_ready = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 std::mutex initialize_mutex;
 
-// DrawModelExecute is the only place where the engine hands us the exact
-// bones used for the visible model. Keep just that render-frame snapshot; it
-// is not a dormant/history cache and is never intentionally carried to a later
-// engine frame.
-struct rendered_player_snapshot {
-    vector3 origin;
-    alignas(16) matrix3x4_t bones[256] = {};
-    ULONGLONG time = 0;
-    int frame = -1;
+// Airflow's persistent ESP state is updated at FRAME_RENDER_END. It contains
+// values only, never entity pointers; dormant records are the deliberate
+// short-lived fade state used by the main renderer.
+struct cached_player {
+    player_data data;
+    ULONGLONG last_seen = 0;
+    float game_time = 0.f;
     bool valid = false;
-    bool bones_valid = false;
 };
-rendered_player_snapshot rendered_players[65];
-std::mutex rendered_players_mutex;
+cached_player player_cache[65];
+ULONGLONG last_capture_time = 0;
 
-int snapshot_frame() {
-    const int frame = global_vars ? global_vars->frame_count : 0;
-    // A time token is only a fallback for a missing global-vars pointer. It
-    // still prevents a single DME record from becoming an unbounded cache.
-    return frame > 0 ? frame : static_cast<int>(GetTickCount64() / 16);
+std::mutex staged_frame_mutex;
+std::shared_ptr<frame_data> staged_frame;
+std::atomic<bool> frame_stage_hook_ready = false;
+const std::uint8_t* view_matrix_pattern = nullptr;
+
+float airflow_system_time() {
+    // Same timing dependency as main: clock() / 1000.f, not ImGui::GetTime().
+    return static_cast<float>(std::clock()) / 1000.f;
 }
+
+float airflow_last_time = -1.f;
+float airflow_speed = 0.f;
+
+float airflow_animation_speed(bool reset = false) {
+    if (reset) {
+        airflow_last_time = -1.f;
+        airflow_speed = 0.f;
+        return airflow_speed;
+    }
+    const float now = airflow_system_time();
+    if (airflow_last_time < 0.f)
+        airflow_last_time = now;
+    airflow_speed = std::fabs(airflow_last_time - now) * 5.f;
+    airflow_last_time = now;
+    return airflow_speed;
+}
+
+float current_airflow_animation_speed() {
+    return airflow_speed;
+}
+
 
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
@@ -417,6 +454,7 @@ void resolve_netvars() {
     nv.aim_punch = table_offset(classes, { "DT_CSPlayer", "DT_BasePlayer" }, "m_aimPunchAngle");
     nv.mins = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMins");
     nv.maxs = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_vecMaxs");
+    nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter");
     nv.simulation_time = table_offset(classes, { "DT_CSPlayer", "DT_BaseEntity" }, "m_flSimulationTime");
     nv.velocity_modifier = table_offset(classes, { "DT_CSPlayer" }, "m_flVelocityModifier");
     nv.active_weapon = table_offset(classes, { "DT_CSPlayer", "DT_BaseCombatCharacter", "DT_BasePlayer" }, "m_hActiveWeapon");
@@ -473,7 +511,9 @@ using engine_bool_t = bool(__thiscall*)(void*);
 using get_player_info_t = bool(__thiscall*)(void*, int, void*);
 using get_view_angles_t = void (__thiscall*)(void*, vector3&);
 using world_matrix_t = const float* (__thiscall*)(void*);
-using render_origin_t = const vector3& (__thiscall*)(void*);
+using abs_origin_t = const vector3& (__thiscall*)(void*);
+using frame_stage_t = void (__thiscall*)(void*, int);
+frame_stage_t original_frame_stage = nullptr;
 using entity_void_t = void* (__thiscall*)(void*);
 using get_client_class_t = client_class_t* (__thiscall*)(void*);
 using setup_bones_t = bool(__thiscall*)(void*, matrix3x4_t*, int, int, float);
@@ -520,15 +560,13 @@ void* client_renderable(void* entity) {
     return entity ? reinterpret_cast<unsigned char*>(entity) + 4 : nullptr;
 }
 
-vector3 render_origin(void* entity, const vector3& fallback) {
-    void* renderable = client_renderable(entity);
-    const auto function = virtual_function<render_origin_t>(renderable, 1);
+vector3 abs_origin(void* entity, const vector3& fallback) {
+    // Airflow's ESP reads IClientEntity::GetAbsOrigin (slot 10), rather than
+    // mixing a network origin with a separately interpolated render origin.
+    const auto function = virtual_function<abs_origin_t>(entity, 10);
     if (!function || !function_in_module(client_module, reinterpret_cast<const void*>(function)))
         return fallback;
-
-    // GetRenderOrigin is the interpolated position used by the model renderer;
-    // m_vecOrigin can belong to a different network/interpolation snapshot.
-    const auto& value = function(renderable);
+    const auto& value = function(entity);
     if (!readable_range(&value, sizeof(vector3)))
         return fallback;
     const vector3 result = value;
@@ -536,51 +574,60 @@ vector3 render_origin(void* entity, const vector3& fallback) {
         ? result : fallback;
 }
 
-bool current_rendered_snapshot(const rendered_player_snapshot& snapshot, int frame,
-                               ULONGLONG now) {
-    // The age guard also protects a map/restart transition where frame_count
-    // can start over while an old index still happens to match.
-    return snapshot.valid && snapshot.frame == frame && now >= snapshot.time &&
-        now - snapshot.time <= 100;
+const float* airflow_view_matrix() {
+    if (!view_matrix_pattern)
+        return nullptr;
+    // main: *(pattern + 3) is the absolute matrix address; +176 selects the
+    // same world-to-screen matrix used by Airflow's c_render.
+    std::uintptr_t address = 0;
+    std::memcpy(&address, view_matrix_pattern + 3, sizeof(address));
+    const auto* matrix = reinterpret_cast<const float*>(address + 176);
+    if (!readable_range(matrix, sizeof(float) * 16))
+        return nullptr;
+    for (int i = 0; i < 16; ++i)
+        if (!std::isfinite(matrix[i]))
+            return nullptr;
+    return matrix;
 }
 
-bool read_rendered_origin(int index, vector3& output) {
-    if (index < 1 || index > 64)
-        return false;
-    const int frame = snapshot_frame();
-    const ULONGLONG now = GetTickCount64();
-    std::lock_guard<std::mutex> lock(rendered_players_mutex);
-    const auto& snapshot = rendered_players[index];
-    if (!current_rendered_snapshot(snapshot, frame, now))
-        return false;
-    output = snapshot.origin;
-    return std::isfinite(output.x) && std::isfinite(output.y) && std::isfinite(output.z);
+void update_view_projection(frame_data& output) {
+    output.has_view_matrix = false;
+    if (const float* matrix = airflow_view_matrix()) {
+        std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
+        output.has_view_matrix = true;
+    } else if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37);
+        matrix_fn && function_in_module(engine_module, reinterpret_cast<const void*>(matrix_fn))) {
+        const float* matrix = matrix_fn(engine);
+        if (matrix && readable_range(matrix, sizeof(output.view_matrix))) {
+            std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
+            output.has_view_matrix = true;
+        }
+    }
 }
 
-bool read_rendered_bones(int index, matrix3x4_t* output) {
-    if (!output || index < 1 || index > 64)
-        return false;
-    const int frame = snapshot_frame();
-    const ULONGLONG now = GetTickCount64();
-    std::lock_guard<std::mutex> lock(rendered_players_mutex);
-    const auto& snapshot = rendered_players[index];
-    if (!snapshot.bones_valid || !current_rendered_snapshot(snapshot, frame, now))
-        return false;
-    std::memcpy(output, snapshot.bones, sizeof(snapshot.bones));
-    return true;
+void refresh_render_view(frame_data& output) {
+    // Main stores entity values at FRAME_RENDER_END but projects them with the
+    // current render view. Do not recapture players or rebuild their bones.
+    update_view_projection(output);
+    output.view_angles = view_angles();
+    void* local = output.local_index > 0 ? entity_at(output.local_index) : nullptr;
+    if (!local) {
+        output.local_alive = false;
+        output.in_game = false;
+        return;
+    }
+    output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
+        value<int>(local, nv.health, 0) > 0;
+    output.local_origin = abs_origin(local, value<vector3>(local, nv.origin));
 }
 
-void clear_rendered_players() {
-    std::lock_guard<std::mutex> lock(rendered_players_mutex);
-    for (auto& snapshot : rendered_players)
-        snapshot.valid = false;
-}
-
-vector3 current_player_origin(int index, void* entity) {
-    vector3 rendered;
-    if (read_rendered_origin(index, rendered))
-        return rendered;
-    return render_origin(entity, value<vector3>(entity, nv.origin, {}));
+void clear_player_cache() {
+    for (auto& cached : player_cache)
+        cached.valid = false;
+    last_capture_time = 0;
+    airflow_animation_speed(true);
+    std::lock_guard<std::mutex> lock(staged_frame_mutex);
+    staged_frame.reset();
 }
 
 client_class_t* entity_class(void* entity) {
@@ -747,6 +794,45 @@ vector3 bone_origin(const matrix3x4_t& matrix) {
     return { matrix.m[0][3], matrix.m[1][3], matrix.m[2][3] };
 }
 
+bool read_engine_bone_cache(void* entity, matrix3x4_t* output, int required_bones) {
+    if (!entity || !output || required_bones <= 0 || required_bones > 256)
+        return false;
+    // Airflow Live uses 0x2914; its Legacy layout uses 0x2900. Validate the
+    // complete CUtlVector before accepting either layout.
+    for (const std::size_t offset : { std::size_t(0x2914), std::size_t(0x2900) }) {
+        const auto* cache = reinterpret_cast<const utl_vector_t<matrix3x4_t>*>(
+            reinterpret_cast<const unsigned char*>(entity) + offset);
+        if (!readable_range(cache, sizeof(utl_vector_t<matrix3x4_t>)) ||
+            cache->size < required_bones || cache->size > 256 ||
+            cache->allocation_count < cache->size || cache->allocation_count > 4096 ||
+            !cache->memory) {
+            continue;
+        }
+        const std::size_t bytes = static_cast<std::size_t>(cache->size) * sizeof(matrix3x4_t);
+        if (!readable_range(cache->memory, bytes))
+            continue;
+        bool finite = true;
+        bool nonzero = false;
+        for (int bone = 0; bone < required_bones && finite; ++bone) {
+            for (int row = 0; row < 3 && finite; ++row) {
+                for (int column = 0; column < 4; ++column) {
+                    const float component = cache->memory[bone].m[row][column];
+                    if (!std::isfinite(component)) {
+                        finite = false;
+                        break;
+                    }
+                    nonzero = nonzero || std::fabs(component) > 0.000001f;
+                }
+            }
+        }
+        if (!finite || !nonzero)
+            continue;
+        std::memcpy(output, cache->memory, bytes);
+        return true;
+    }
+    return false;
+}
+
 void collect_model_geometry(void* entity, int hitbox_set_index, player_data& output,
                             bool collect_skeleton, bool collect_hitboxes) {
     if ((!collect_skeleton && !collect_hitboxes) || !studio_hdr_offset || nv.force_bone < 0)
@@ -763,19 +849,15 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
     if (studio->bone_count <= 0 || studio->bone_count > 256 || studio->bone_index <= 0)
         return;
     alignas(16) matrix3x4_t bones[256]{};
-    if (!read_rendered_bones(output.index, bones)) {
-        // Fallback for configurations where the DME hook is not installed.
-        // When DME is active, collect_model_geometry normally consumes the
-        // exact matrices submitted by the renderer instead of rebuilding them.
-        // SetupBones is IClientRenderable slot 13, not a method in the primary
-        // C_CSPlayer vtable. Using the latter with this signature corrupts the
-        // x86 stack and can also perturb the model's subsequent bone state.
+    if (!read_engine_bone_cache(entity, bones, studio->bone_count)) {
+        // Main normally consumes the engine-maintained bone cache. Keep the
+        // renderable SetupBones call only for a not-yet-built cache.
         void* renderable = client_renderable(entity);
         const auto setup = virtual_function<setup_bones_t>(renderable, 13);
         if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
             return;
         const float time = global_vars ? global_vars->current_time : 0.f;
-        if (!setup(renderable, bones, 256, 0x0007FF00, time))
+        if (!setup(renderable, bones, 256, 0x000FFF00, time))
             return;
     }
 
@@ -925,12 +1007,16 @@ bool acquire() {
     static constexpr int weapon_system_pattern[] = {
         0x8B, 0x35, -1, -1, -1, -1, 0xFF, 0x10, 0x0F, 0xB7, 0xC0
     };
+    static constexpr int view_matrix_pattern_bytes[] = {
+        0x0F, 0x10, 0x05, -1, -1, -1, -1, 0x8D, 0x85, -1, -1, -1, -1, 0xB9
+    };
     static constexpr int studio_pattern[] = {
         0x8B, 0xB6, -1, -1, -1, -1, 0x85, 0xF6, 0x74, 0x05,
         0x83, 0x3E, 0x00, 0x75, 0x02, 0x33, 0xF6, 0xF3, 0x0F, 0x10, 0x44, 0x24
     };
     const auto* global_address = find_pattern(client_module, global_pattern);
     const auto* weapon_address = find_pattern(client_module, weapon_system_pattern);
+    view_matrix_pattern = find_pattern(client_module, view_matrix_pattern_bytes);
     global_vars = resolve_absolute_pointer<global_vars_t>(global_address ? global_address + 1 : nullptr);
     weapon_system = resolve_absolute_pointer<void>(weapon_address ? weapon_address + 2 : nullptr);
     if (!readable_range(global_vars, sizeof(global_vars_t)))
@@ -946,21 +1032,32 @@ bool acquire() {
 } // namespace
 
 namespace visuals_source {
+void capture_now(frame_data& output, float alpha_blend);
+void __fastcall hooked_frame_stage(void* self, void*, int stage);
+bool install_frame_stage_hook();
+
 bool initialize() {
-    if (core_ready.load(std::memory_order_acquire))
+    if (core_ready.load(std::memory_order_acquire)) {
+        install_frame_stage_hook();
         return true;
+    }
     const ULONGLONG now = GetTickCount64();
     if (now < next_initialize_attempt.load(std::memory_order_relaxed))
         return false;
     next_initialize_attempt.store(now + 2000, std::memory_order_relaxed);
     std::scoped_lock lock(initialize_mutex);
-    if (core_ready.load(std::memory_order_relaxed))
+    if (core_ready.load(std::memory_order_relaxed)) {
+        install_frame_stage_hook();
         return true;
+    }
     if (!acquire())
         return false;
-    core_ready.store(client && engine && entity_list && nv.team >= 0 && nv.health >= 0 &&
-                     nv.life_state >= 0 && nv.origin >= 0, std::memory_order_release);
-    return core_ready.load(std::memory_order_relaxed);
+    const bool acquired = client && engine && entity_list && nv.team >= 0 && nv.health >= 0 &&
+        nv.life_state >= 0 && nv.origin >= 0;
+    core_ready.store(acquired, std::memory_order_release);
+    if (acquired)
+        install_frame_stage_hook();
+    return acquired;
 }
 
 bool ready() {
@@ -1125,46 +1222,6 @@ int frame_number() {
     return global_vars ? global_vars->frame_count : 0;
 }
 
-bool player_geometry_requested(int side) {
-    if (side == 2) {
-        const auto& settings = player_visuals::self_esp_settings();
-        return settings.esp_enabled && settings.main[player_visuals::main_skeleton];
-    }
-    if (side != 0 && side != 1)
-        return false;
-    const auto& settings = player_visuals::settings(side);
-    return settings.esp_enabled &&
-        (settings.main[player_visuals::main_skeleton] ||
-         settings.aimbot[player_visuals::aimbot_hitboxes]);
-}
-
-void submit_rendered_player(int index, const vector3& origin, const void* bones,
-                            bool include_bones) {
-    if (index < 1 || index > 64 || !std::isfinite(origin.x) ||
-        !std::isfinite(origin.y) || !std::isfinite(origin.z)) {
-        return;
-    }
-    const int frame = snapshot_frame();
-    const ULONGLONG now = GetTickCount64();
-    std::lock_guard<std::mutex> lock(rendered_players_mutex);
-    auto& snapshot = rendered_players[index];
-    // Keep the first real player draw for this frame. Later chams/reflection
-    // passes must not replace a coherent snapshot with another view of it.
-    if (!snapshot.valid || snapshot.frame != frame || now < snapshot.time ||
-        now - snapshot.time > 100) {
-        snapshot = {};
-        snapshot.frame = frame;
-        snapshot.time = now;
-        snapshot.origin = origin;
-        snapshot.valid = true;
-    }
-    if (include_bones && bones && !snapshot.bones_valid &&
-        readable_range(bones, sizeof(snapshot.bones))) {
-        std::memcpy(snapshot.bones, bones, sizeof(snapshot.bones));
-        snapshot.bones_valid = true;
-    }
-}
-
 bool entity_exists(int entity_index) {
     return entity_index > 0 && entity_index <= 64 && entity_at(entity_index) != nullptr;
 }
@@ -1208,7 +1265,7 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             (smoke_active ? visuals_source::world_smoke :
                 (projectile || smoke_projectile ? visuals_source::world_projectile
                     : visuals_source::world_weapon)));
-        data.origin = value<vector3>(entity, nv.origin);
+        data.origin = abs_origin(entity, value<vector3>(entity, nv.origin));
         data.mins = value<vector3>(entity, nv.mins, { -4.f, -4.f, -4.f });
         data.maxs = value<vector3>(entity, nv.maxs, { 4.f, 4.f, 4.f });
         data.distance = vector_length({ data.origin.x - local_origin.x,
@@ -1285,6 +1342,13 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.origin = output.local_origin;
     data.mins = value<vector3>(local, nv.mins, { -16.f, -16.f, 0.f });
     data.maxs = value<vector3>(local, nv.maxs, { 16.f, 16.f, 72.f });
+    if (nv.pose_parameters >= 0) {
+        data.poses_valid = true;
+        for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
+            data.poses[pose] = value<float>(local,
+                nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
+        }
+    }
     data.distance = 0.f;
     data.name = player_name(output.local_index);
     data.armor_valid = nv.armor >= 0;
@@ -1339,66 +1403,118 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     output.players.push_back(std::move(data));
 }
 
-void capture(frame_data& output) {
+void capture_now(frame_data& output, float alpha_blend) {
     output = {};
     if (!is_in_game()) {
-        clear_rendered_players();
+        clear_player_cache();
         return;
     }
+
+    const ULONGLONG now = GetTickCount64();
+    const float delta_time = last_capture_time
+        ? std::clamp(static_cast<float>(now - last_capture_time) / 1000.f, 0.f, 0.25f)
+        : 1.f / 60.f;
+    last_capture_time = now;
+    if (alpha_blend < 0.f) {
+        // Present is only a fallback when FrameStageNotify is unavailable.
+        // Main uses animation_speed * 5; animation_speed itself is delta * 5.
+        airflow_animation_speed();
+        alpha_blend = std::clamp(delta_time * 25.f, 0.f, 1.f);
+    }
+
     output.in_game = true;
     output.local_index = local_index();
     void* local = entity_at(output.local_index);
     if (!local) {
-        clear_rendered_players();
+        clear_player_cache();
         output.in_game = false;
         return;
     }
-    if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37);
-        matrix_fn && function_in_module(engine_module, reinterpret_cast<const void*>(matrix_fn))) {
-        const float* matrix = matrix_fn(engine);
-        if (matrix) {
-            std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
-            output.has_view_matrix = true;
-        }
-    }
+
+    update_view_projection(output);
 
     output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
         value<int>(local, nv.health, 0) > 0;
     const int local_team = value<int>(local, nv.team, 0);
-    const vector3 local_origin = current_player_origin(output.local_index, local);
+    const vector3 local_origin = abs_origin(local, value<vector3>(local, nv.origin));
     output.local_origin = local_origin;
     output.view_angles = view_angles();
     void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
+
+    // This is the main branch's complete value-only dormant/fade record. It is
+    // intentionally separate from chams history and never stores entity pointers.
+    const auto append_cached = [&](int index, bool is_dormant, bool dead) {
+        if (index < 1 || index > 64)
+            return;
+        auto& cached = player_cache[index];
+        if (!cached.valid)
+            return;
+        if (cached.data.side != 0 && cached.data.side != 1) {
+            cached.valid = false;
+            return;
+        }
+        const ULONGLONG age = now >= cached.last_seen ? now - cached.last_seen : 5001;
+        const bool has_game_time = global_vars && cached.game_time > 0.f &&
+            std::isfinite(cached.game_time) && std::isfinite(global_vars->current_time);
+        const bool expired = is_dormant && (has_game_time
+            ? std::fabs(global_vars->current_time - cached.game_time) > 5.f
+            : age > 5000);
+        const float target = dead || expired ? 0.f : (is_dormant ? 0.45f : 1.f);
+        cached.data.alpha += (target - cached.data.alpha) * alpha_blend;
+        cached.data.alpha = std::clamp(cached.data.alpha, 0.f, 1.f);
+        cached.data.dormant = is_dormant;
+        if (dead)
+            cached.data.health = 0;
+        const auto& side = player_visuals::settings(cached.data.side);
+        if (cached.data.alpha > 0.01f && side.esp_enabled)
+            output.players.push_back(cached.data);
+        if (cached.data.alpha <= 0.01f && (dead || expired))
+            cached.valid = false;
+    };
 
     output.players.reserve(32);
     for (int index = 1; index <= 64; ++index) {
         if (index == output.local_index)
             continue;
         void* player = entity_at(index);
-        if (!player)
+        if (!player) {
+            append_cached(index, false, true);
             continue;
+        }
         const auto life_state = value<unsigned char>(player, nv.life_state, 0);
         const int health = value<int>(player, nv.health, 0);
-        const int team = value<int>(player, nv.team, 0);
-        // Player ESP is deliberately fresh-only. A dead, missing or dormant
-        // entity must not resurrect a previous frame's transform.
-        if (team != 2 && team != 3)
+        if (life_state != 0 || health <= 0) {
+            append_cached(index, false, true);
             continue;
-        if (life_state != 0 || health <= 0 || dormant(player))
+        }
+        if (dormant(player)) {
+            append_cached(index, true, false);
             continue;
-        if (local_team != 2 && local_team != 3)
-            continue;
+        }
+
         player_data data;
         data.index = index;
-        data.team = team;
+        data.team = value<int>(player, nv.team, 0);
         data.health = health;
+        if (data.team != 2 && data.team != 3) {
+            player_cache[index].valid = false;
+            continue;
+        }
+        if (local_team != 2 && local_team != 3)
+            continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        if (!side_settings.esp_enabled)
-            continue;
-        data.origin = current_player_origin(index, player);
+
+        data.origin = abs_origin(player, value<vector3>(player, nv.origin));
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
+        if (nv.pose_parameters >= 0) {
+            data.poses_valid = true;
+            for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
+                data.poses[pose] = value<float>(player,
+                    nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
+            }
+        }
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z }) * 0.0254f;
         data.name = player_name(index);
@@ -1442,30 +1558,36 @@ void capture(frame_data& output) {
             if (data.max_clip <= 0)
                 data.max_clip = fallback_max_clip(data.weapon_id);
         }
-        if (side_settings.flags[player_visuals::flag_bomb] ||
-            side_settings.weapon[player_visuals::weapon_bomb] ||
-            side_settings.weapon[player_visuals::weapon_taser]) {
+        if (side_settings.esp_enabled &&
+            (side_settings.flags[player_visuals::flag_bomb] ||
+             side_settings.weapon[player_visuals::weapon_bomb] ||
+             side_settings.weapon[player_visuals::weapon_taser])) {
             scan_inventory(player, data);
         }
-        // The active weapon is still useful when the inventory array is not
-        // available; never require a second netvar for an item already in hand.
         data.bomb = data.bomb || data.weapon_id == 49;
         data.taser = data.taser || data.weapon_id == 31;
-        if (side_settings.flags[player_visuals::flag_vulnerable]) {
+        if (side_settings.esp_enabled && side_settings.flags[player_visuals::flag_vulnerable]) {
             data.hit_chance = calculate_hit_chance(local_weapon, data.distance * 39.3701f, data.immunity);
             data.vulnerable = data.immunity_valid && !data.immunity && data.hit_chance >= 5.f;
         }
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
-            side_settings.main[player_visuals::main_skeleton],
-            side_settings.aimbot[player_visuals::aimbot_hitboxes]);
-        data.alpha = 1.f;
-        output.players.push_back(std::move(data));
+            side_settings.esp_enabled && side_settings.main[player_visuals::main_skeleton],
+            side_settings.esp_enabled && side_settings.aimbot[player_visuals::aimbot_hitboxes]);
+
+        auto& cached = player_cache[index];
+        data.dormant = false;
+        data.alpha = cached.valid && cached.data.side == data.side
+            ? cached.data.alpha + (1.f - cached.data.alpha) * alpha_blend
+            : 1.f;
+        data.alpha = std::clamp(data.alpha, 0.f, 1.f);
+        cached.data = data;
+        cached.last_seen = now;
+        cached.game_time = global_vars ? global_vars->current_time : 0.f;
+        cached.valid = true;
+        if (side_settings.esp_enabled)
+            output.players.push_back(std::move(data));
     }
 
-    capture_local_player(output, local, local_weapon, local_team);
-
-    // Order Priority is a deterministic closest-first target order, calculated
-    // independently for enemies and teammates rather than read from a fake prop.
     for (int side = 0; side < 2; ++side) {
         std::vector<player_data*> ordered;
         for (auto& player : output.players)
@@ -1479,7 +1601,82 @@ void capture(frame_data& output) {
         for (std::size_t i = 0; i < ordered.size(); ++i)
             ordered[i]->order_priority = static_cast<int>(i + 1);
     }
+    capture_local_player(output, local, local_weapon, local_team);
     capture_world(output, local_origin);
+}
+
+void __fastcall hooked_frame_stage(void* self, void*, int stage) {
+    if (stage == 5) // FRAME_RENDER_START: main updates animation timing here.
+        airflow_animation_speed();
+    if (original_frame_stage)
+        original_frame_stage(self, stage);
+    if (stage != 6 || !frame_stage_hook_ready.load(std::memory_order_acquire))
+        return;
+
+    auto next = std::make_shared<frame_data>();
+    const float blend = std::clamp(current_airflow_animation_speed() * 5.f, 0.f, 1.f);
+    // FRAME_RENDER_START already advanced the timer; only read its value here.
+    capture_now(*next, blend);
+    {
+        std::lock_guard<std::mutex> lock(staged_frame_mutex);
+        staged_frame = std::move(next);
+    }
+}
+
+bool install_frame_stage_hook() {
+    if (frame_stage_hook_ready.load(std::memory_order_acquire))
+        return true;
+    static std::atomic<ULONGLONG> next_attempt = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now < next_attempt.load(std::memory_order_relaxed))
+        return false;
+    next_attempt.store(now + 2000, std::memory_order_relaxed);
+    const auto target = virtual_function<frame_stage_t>(client, 37);
+    if (!target || !function_in_module(client_module, reinterpret_cast<const void*>(target)))
+        return false;
+    const MH_STATUS init_status = MH_Initialize();
+    if (init_status != MH_OK && init_status != MH_ERROR_ALREADY_INITIALIZED)
+        return false;
+    auto* address = reinterpret_cast<void*>(target);
+    if (MH_CreateHook(address, reinterpret_cast<void*>(&hooked_frame_stage),
+                      reinterpret_cast<void**>(&original_frame_stage)) != MH_OK) {
+        return false;
+    }
+    if (MH_EnableHook(address) != MH_OK) {
+        MH_RemoveHook(address);
+        original_frame_stage = nullptr;
+        return false;
+    }
+    frame_stage_hook_ready.store(true, std::memory_order_release);
+    return true;
+}
+
+std::shared_ptr<const frame_data> capture_shared() {
+    std::shared_ptr<frame_data> snapshot;
+    if (frame_stage_hook_ready.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> lock(staged_frame_mutex);
+        snapshot = staged_frame;
+    }
+    if (snapshot) {
+        // Entity fields are published once. Only the view used for projection
+        // is refreshed, matching main's FrameStage/render split.
+        refresh_render_view(*snapshot);
+        return snapshot;
+    }
+
+    // Compatibility path for a client where FrameStageNotify could not be
+    // validated. It is not a second renderer or a second persistent pipeline.
+    auto fresh = std::make_shared<frame_data>();
+    capture_now(*fresh, -1.f);
+    return fresh;
+}
+
+void capture(frame_data& output) {
+    const auto snapshot = capture_shared();
+    if (snapshot)
+        output = *snapshot;
+    else
+        output = {};
 }
 
 int atlas_weapon_id(int id) {

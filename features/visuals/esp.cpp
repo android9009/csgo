@@ -7,6 +7,7 @@
 #include "../../menu/weapon_icons.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cfloat>
 #include <cmath>
@@ -260,6 +261,185 @@ rect_f draw_bar(ImDrawList* draw, const rect_f& rect, float fraction, ImU32 fill
     return { rect.min - ImVec2(2.f, 2.f), rect.max + ImVec2(2.f, 2.f) };
 }
 
+// Airflow's esp_object_render.cpp, adapted to the existing ImGui renderer.
+// Keeping one object list and its two offset tables is important: HP/Ammo,
+// labels and flags must all be anchored to the same projected box.
+enum main_object_position { main_left = 0, main_up, main_right, main_down };
+enum main_object_type { main_string = 0, main_bar, main_icon };
+
+struct main_esp_object {
+    int type = main_string;
+    int position = main_left;
+    int item = -1;
+    int icon = -1;
+    float bar = 0.f;
+    float bar_max = 1.f;
+    c_color ink{ 1.f, 1.f, 1.f, 1.f };
+    c_color outline{ 0.f, 0.f, 0.f, 1.f };
+    std::string text;
+};
+
+struct main_render_context {
+    ImDrawList* draw = nullptr;
+    const side_settings* settings = nullptr;
+    rect_f box{};
+    float scale = 1.f;
+    int preview_side = -1;
+    ImVec2 preview_min{};
+    ImVec2 preview_max{};
+};
+
+ImVec2 main_anchor(const main_render_context& context, int position) {
+    const auto& box = context.box;
+    switch (position) {
+    case main_left: return { box.min.x, (box.min.y + box.max.y) * 0.5f };
+    case main_right: return { box.max.x, (box.min.y + box.max.y) * 0.5f };
+    case main_up: return { (box.min.x + box.max.x) * 0.5f, box.min.y };
+    default: return { (box.min.x + box.max.x) * 0.5f, box.max.y };
+    }
+}
+
+ImVec2 main_object_offset(const main_render_context& context, const main_esp_object& object) {
+    if (object.item < 0)
+        return {};
+    return placement_offset(*context.settings, object.item,
+        main_anchor(context, object.position), context.box, context.scale);
+}
+
+void render_main_string(main_render_context& context, const main_esp_object& object,
+                        int max_bar_width, float& offset) {
+    if (object.text.empty())
+        return;
+    ImDrawList* draw = context.draw;
+    ImFont* font = ImGui::GetFont();
+    const float font_size = std::max(8.f, 12.f * context.scale);
+    const ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, object.text.c_str());
+    const float add = 4.f * context.scale * max_bar_width;
+    const float add_h = 4.f * context.scale * max_bar_width;
+    const auto& box = context.box;
+    ImVec2 position{};
+    bool centered = false;
+    switch (object.position) {
+    case main_left:
+        position = { box.min.x - text_size.x - add - 2.f * context.scale,
+            box.min.y + offset };
+        break;
+    case main_up:
+        position = { (box.min.x + box.max.x) * 0.5f,
+            box.min.y - add_h - text_size.y - offset - 3.f * context.scale };
+        centered = true;
+        break;
+    case main_right:
+        position = { box.max.x + add + 4.f * context.scale, box.min.y + offset };
+        break;
+    default:
+        position = { (box.min.x + box.max.x) * 0.5f,
+            box.max.y + add_h + offset + 3.f * context.scale };
+        centered = true;
+        break;
+    }
+    position += main_object_offset(context, object);
+    const ImVec2 top_left = centered
+        ? position - ImVec2(text_size.x * 0.5f, 0.f)
+        : position;
+    const ImU32 shadow = color(0.f, 0.f, 0.f, 0.85f);
+    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, object.text.c_str());
+    draw->AddText(font, font_size, top_left, color(object.ink), object.text.c_str());
+    if (object.item >= 0) {
+        maybe_drag(draw, context.preview_side, object.item,
+            { top_left, top_left + text_size }, context.preview_min, context.preview_max,
+            context.scale);
+    }
+    offset += text_size.y;
+}
+
+void render_main_icon(main_render_context& context, const main_esp_object& object,
+                      int max_bar_width, float& offset) {
+    if (object.icon < 0)
+        return;
+    const float add_h = 4.f * context.scale * max_bar_width;
+    const auto& box = context.box;
+    const ImVec2 maximum(std::min(72.f * context.scale,
+        (box.max.x - box.min.x) * 1.8f), 20.f * context.scale);
+    ImVec2 center((box.min.x + box.max.x) * 0.5f,
+        box.max.y + add_h + offset + 3.f * context.scale + maximum.y * 0.5f);
+    center += main_object_offset(context, object);
+    weapon_icons::draw(context.draw, object.icon, center, maximum, color(object.ink));
+    if (object.item >= 0) {
+        maybe_drag(context.draw, context.preview_side, object.item,
+            { center - maximum * 0.5f, center + maximum * 0.5f },
+            context.preview_min, context.preview_max, context.scale);
+    }
+    offset += maximum.y;
+}
+
+void render_main_bar(main_render_context& context, const main_esp_object& object, int& offset) {
+    if (object.bar <= 0.f || object.bar_max <= 0.f)
+        return;
+    const float scale = context.scale;
+    const float bar_width_x = 2.f * scale;
+    const float bar_width_y = 2.f * scale;
+    const float value = std::clamp(object.bar, 0.f, object.bar_max);
+    const float add = bar_width_x * 2.f * offset;
+    const float add_h = bar_width_y * 2.f * offset;
+    const auto& box = context.box;
+    const float width = box.max.x - box.min.x;
+    const float height = box.max.y - box.min.y;
+    const float bar_h = std::clamp(height - height * value / object.bar_max, 0.f, height);
+    const float bar_w = std::clamp(width * value / object.bar_max, 0.f, width);
+    ImVec2 outline_min{}, outline_max{}, fill_min{}, fill_max{}, text_position{};
+    switch (object.position) {
+    case main_left:
+        outline_min = { box.min.x - bar_width_x * 2.f - 2.f * scale - add, box.min.y - scale };
+        outline_max = outline_min + ImVec2(bar_width_x * 2.f, height + 2.f * scale);
+        fill_min = { box.min.x - bar_width_x * 2.f - scale - add, box.min.y + bar_h };
+        fill_max = fill_min + ImVec2(bar_width_x, height - bar_h);
+        text_position = { box.min.x - bar_width_x * 2.f - add - scale,
+            box.min.y + bar_h - 3.f * scale };
+        break;
+    case main_up:
+        outline_min = { box.min.x - scale, box.min.y - bar_width_y * 2.f - 2.f * scale - add_h };
+        outline_max = outline_min + ImVec2(width + 2.f * scale, bar_width_y * 2.f);
+        fill_min = { box.min.x, box.min.y - bar_width_y * 2.f - scale - add_h };
+        fill_max = fill_min + ImVec2(bar_w, bar_width_y);
+        text_position = { box.min.x + bar_w, box.min.y - bar_width_y * 2.f - add_h };
+        break;
+    case main_right:
+        outline_min = { box.max.x + add + 2.f * scale, box.min.y - scale };
+        outline_max = outline_min + ImVec2(bar_width_x * 2.f, height + 2.f * scale);
+        fill_min = { box.max.x + add + 3.f * scale, box.min.y + bar_h };
+        fill_max = fill_min + ImVec2(bar_width_x, height - bar_h);
+        text_position = { box.max.x + add + 4.f * scale, box.min.y + bar_h - scale };
+        break;
+    default:
+        outline_min = { box.min.x - scale, box.max.y + add_h + 2.f * scale };
+        outline_max = outline_min + ImVec2(width + 2.f * scale, bar_width_y * 2.f);
+        fill_min = { box.min.x, box.max.y + add_h + 3.f * scale };
+        fill_max = fill_min + ImVec2(bar_w, bar_width_y);
+        text_position = { box.min.x + bar_w, box.max.y + add_h + 4.f * scale };
+        break;
+    }
+    const ImVec2 displacement = main_object_offset(context, object);
+    outline_min += displacement;
+    outline_max += displacement;
+    fill_min += displacement;
+    fill_max += displacement;
+    text_position += displacement;
+    context.draw->AddRectFilled(outline_min, outline_max, color(object.outline, 0.6f));
+    context.draw->AddRectFilled(fill_min, fill_max, color(object.ink));
+    if (object.bar < object.bar_max) {
+        const std::string value_string = std::to_string(static_cast<int>(object.bar));
+        draw_text(context.draw, text_position, value_string,
+            color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
+    }
+    if (object.item >= 0) {
+        maybe_drag(context.draw, context.preview_side, object.item,
+            { outline_min, outline_max }, context.preview_min, context.preview_max, scale);
+    }
+    ++offset;
+}
+
+
 std::string flag_text(int flag, const player_data& data) {
     char buffer[96];
     switch (flag) {
@@ -329,9 +509,10 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         return placement_offset(settings, item, default_anchor, box, scale);
     };
 
+    // Main draws the box and bone geometry before its ESP object list.
     if (settings.main[player_visuals::main_bounding_box]) {
         const ImVec2 offset = placement(player_visuals::main_bounding_box, box_center);
-        rect_f moved{ box.min + offset, box.max + offset };
+        const rect_f moved{ box.min + offset, box.max + offset };
         draw->AddRect(moved.min - ImVec2(1.f, 1.f), moved.max + ImVec2(1.f, 1.f),
             color(0.f, 0.f, 0.f, 0.8f));
         draw->AddRect(moved.min + ImVec2(1.f, 1.f), moved.max - ImVec2(1.f, 1.f),
@@ -346,7 +527,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         }
     }
 
-    if (settings.main[player_visuals::main_skeleton]) {
+    if (settings.main[player_visuals::main_skeleton] && data.health > 0 && alpha > 0.5f) {
         const ImVec2 offset = placement(player_visuals::main_skeleton, box_center);
         const ImU32 skeleton_color = color(settings.main_colors[player_visuals::main_skeleton]);
         for (const auto& line : skeleton)
@@ -359,39 +540,72 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
         }
     }
 
-    if (data.side != 2 && settings.aimbot[player_visuals::aimbot_hitboxes]) {
-        const ImVec2 offset = placement(
-            player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes), box_center);
+    // Hitboxes remain an ordinary Player ESP item. They are not a chams pass
+    // and are never inferred from a material or overlay selection.
+    if (data.side != 2 && data.health > 0 && settings.aimbot[player_visuals::aimbot_hitboxes]) {
+        const int item = player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes);
+        const ImVec2 offset = placement(item, box_center);
         const ImU32 hitbox_color = color(settings.aimbot_colors[player_visuals::aimbot_hitboxes]);
         for (const auto& line : hitboxes)
             draw->AddLine(line.from + offset, line.to + offset, hitbox_color, std::max(1.f, scale));
         if (preview_side >= 0) {
             const ImVec2 center = ImVec2(box.max.x - 8.f * scale, box.min.y + 8.f * scale) + offset;
-            maybe_drag(draw, preview_side, player_visuals::aimbot_item_id(player_visuals::aimbot_hitboxes),
+            maybe_drag(draw, preview_side, item,
                 { center - ImVec2(5.f, 5.f) * scale, center + ImVec2(5.f, 5.f) * scale },
                 preview_min, preview_max, scale);
         }
     }
 
+    constexpr int max_main_objects = 32;
+    std::array<main_esp_object, max_main_objects> objects{};
+    int object_count = 0;
+    const auto add_string = [&](int position, int item, const std::string& text,
+                                const c_color& ink) {
+        if (text.empty())
+            return;
+        main_esp_object object;
+        object.type = main_string;
+        object.position = position;
+        object.item = item;
+        object.text = text;
+        object.ink = ink;
+        if (object_count < max_main_objects)
+            objects[object_count++] = std::move(object);
+    };
+    const auto add_bar = [&](int position, int item, float value, float maximum,
+                             const c_color& ink) {
+        main_esp_object object;
+        object.type = main_bar;
+        object.position = position;
+        object.item = item;
+        object.bar = value;
+        object.bar_max = maximum;
+        object.ink = ink;
+        if (object_count < max_main_objects)
+            objects[object_count++] = std::move(object);
+    };
+    const auto add_icon = [&](int item, int icon, const c_color& ink) {
+        if (icon < 0)
+            return;
+        main_esp_object object;
+        object.type = main_icon;
+        object.position = main_down;
+        object.item = item;
+        object.icon = icon;
+        object.ink = ink;
+        if (object_count < max_main_objects)
+            objects[object_count++] = std::move(object);
+    };
+
     if (settings.main[player_visuals::main_name] && !data.name.empty()) {
         std::string name = data.name;
-        if (name.size() > 26)
-            name = name.substr(0, 23) + "...";
-        const ImVec2 anchor(box_center.x, box.min.y - 9.f * scale);
-        const ImVec2 center = anchor + placement(player_visuals::main_name, anchor);
-        const rect_f text = draw_text(draw, center, name,
-            color(settings.main_colors[player_visuals::main_name]), scale);
-        maybe_drag(draw, preview_side, player_visuals::main_name, text, preview_min, preview_max, scale);
+        if (name.length() > 24)
+            name.resize(24);
+        add_string(main_up, player_visuals::main_name, name,
+            settings.main_colors[player_visuals::main_name].primary);
     }
-
     if (settings.main[player_visuals::main_health_bar]) {
-        const ImVec2 anchor(box.min.x - 5.f * scale, box_center.y);
-        const ImVec2 offset = placement(player_visuals::main_health_bar, anchor);
-        const rect_f bar{ ImVec2(box.min.x - 7.f * scale, box.min.y) + offset,
-            ImVec2(box.min.x - 3.f * scale, box.max.y) + offset };
         const float health = std::clamp(data.health / 100.f, 0.f, 1.f);
-        // Main Airflow lerps the configured health colour toward red as HP
-        // decreases, and prints the value whenever the bar is not full.
         const auto& configured = settings.main_colors[player_visuals::main_health_bar].primary;
         const float damage = 1.f - health;
         const c_color health_color{
@@ -400,120 +614,69 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             configured.b + (0.13f - configured.b) * damage,
             configured.a
         };
-        const rect_f handle = draw_bar(draw, bar, health, color(health_color), true);
-        if (data.health > 0 && data.health < 100) {
-            char value[16];
-            std::snprintf(value, sizeof(value), "%d", data.health);
-            const float value_y = bar.max.y - (bar.max.y - bar.min.y) * health;
-            draw_text(draw, ImVec2((bar.min.x + bar.max.x) * 0.5f,
-                value_y - 5.f * scale), value, color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
-        }
-        maybe_drag(draw, preview_side, player_visuals::main_health_bar, handle,
-            preview_min, preview_max, scale);
+        add_bar(main_left, player_visuals::main_health_bar, data.health, 100.f, health_color);
     }
-
-    if (settings.main[player_visuals::main_ammo_bar] && data.clip >= 0 && data.max_clip > 0) {
-        const ImVec2 anchor(box_center.x, box.max.y + 4.f * scale);
-        const ImVec2 offset = placement(player_visuals::main_ammo_bar, anchor);
-        const rect_f bar{ ImVec2(box.min.x, box.max.y + 3.f * scale) + offset,
-            ImVec2(box.max.x, box.max.y + 5.f * scale) + offset };
-        const float ammo = std::clamp(static_cast<float>(data.clip) / data.max_clip, 0.f, 1.f);
-        const rect_f handle = draw_bar(draw, bar, ammo,
-            color(settings.main_colors[player_visuals::main_ammo_bar]), false);
-        if (data.clip < data.max_clip) {
-            char value[16];
-            std::snprintf(value, sizeof(value), "%d", data.clip);
-            draw_text(draw, ImVec2(bar.min.x + (bar.max.x - bar.min.x) * ammo,
-                bar.min.y - 5.f * scale), value, color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
-        }
-        maybe_drag(draw, preview_side, player_visuals::main_ammo_bar, handle,
-            preview_min, preview_max, scale);
-    }
-
-    if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
-        const int item = player_visuals::weapon_item_id(player_visuals::weapon_readiness_bar);
-        const float extra = settings.main[player_visuals::main_ammo_bar] ? 5.f : 0.f;
-        const ImVec2 anchor(box_center.x, box.max.y + (7.f + extra) * scale);
-        const ImVec2 offset = placement(item, anchor);
-        const rect_f bar{ ImVec2(box.min.x, box.max.y + (6.f + extra) * scale) + offset,
-            ImVec2(box.max.x, box.max.y + (8.f + extra) * scale) + offset };
-        const rect_f handle = draw_bar(draw, bar, data.readiness,
-            color(settings.weapon_colors[player_visuals::weapon_readiness_bar]), false);
-        maybe_drag(draw, preview_side, item, handle, preview_min, preview_max, scale);
-    }
-
-    int flag_row = 0;
-    for (int flag = 0; flag < player_visuals::flag_count; ++flag) {
-        if (!settings.flags[flag])
-            continue;
-        const std::string text = flag_text(flag, data);
-        if (text.empty())
-            continue;
-        const int item = player_visuals::flag_item_id(flag);
-        const ImVec2 anchor(box.max.x + 5.f * scale,
-            box.min.y + (6.f + 12.f * flag_row) * scale);
-        const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text_rect = draw_text(draw, center, text,
-            color(settings.flag_colors[flag]), scale, 1);
-        maybe_drag(draw, preview_side, item, text_rect, preview_min, preview_max, scale);
-        ++flag_row;
-    }
-
-    const bool bars = settings.main[player_visuals::main_ammo_bar] ||
-        (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f);
-    float bottom_y = box.max.y + (bars ? 15.f : 7.f) * scale;
-    if (settings.main[player_visuals::main_distance]) {
-        char buffer[48];
-        std::snprintf(buffer, sizeof(buffer), "%.1f m", data.distance);
-        const ImVec2 anchor(box_center.x, bottom_y);
-        const ImVec2 center = anchor + placement(player_visuals::main_distance, anchor);
-        const rect_f text = draw_text(draw, center, buffer,
-            color(settings.main_colors[player_visuals::main_distance]), scale);
-        maybe_drag(draw, preview_side, player_visuals::main_distance, text,
-            preview_min, preview_max, scale);
-        bottom_y += 13.f * scale;
-    }
-    if (settings.weapon[player_visuals::weapon_text] && !data.weapon_name.empty()) {
-        const int item = player_visuals::weapon_item_id(player_visuals::weapon_text);
-        const ImVec2 anchor(box_center.x, bottom_y);
-        const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text = draw_text(draw, center, data.weapon_name,
-            color(settings.weapon_colors[player_visuals::weapon_text]), scale);
-        maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
-        bottom_y += 13.f * scale;
+    if (settings.weapon[player_visuals::weapon_text]) {
+        add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_text),
+            data.weapon_name, settings.weapon_colors[player_visuals::weapon_text].primary);
     }
     if (settings.weapon[player_visuals::weapon_icon]) {
-        const int item = player_visuals::weapon_item_id(player_visuals::weapon_icon);
-        const int atlas = visuals_source::atlas_weapon_id(data.weapon_id);
-        if (atlas >= 0) {
-            const ImVec2 anchor(box_center.x, bottom_y + 3.f * scale);
-            const ImVec2 center = anchor + placement(item, anchor);
-            const ImVec2 maximum(std::min(72.f * scale, box_width * 1.8f), 20.f * scale);
-            weapon_icons::draw(draw, atlas, center, maximum,
-                color(settings.weapon_colors[player_visuals::weapon_icon]));
-            maybe_drag(draw, preview_side, item,
-                { center - maximum * 0.5f, center + maximum * 0.5f },
-                preview_min, preview_max, scale);
-            bottom_y += 20.f * scale;
+        add_icon(player_visuals::weapon_item_id(player_visuals::weapon_icon),
+            visuals_source::atlas_weapon_id(data.weapon_id),
+            settings.weapon_colors[player_visuals::weapon_icon].primary);
+    }
+    if (settings.main[player_visuals::main_ammo_bar] && data.clip > 0 && data.max_clip > 0) {
+        add_bar(main_down, player_visuals::main_ammo_bar, data.clip, data.max_clip,
+            settings.main_colors[player_visuals::main_ammo_bar].primary);
+    }
+    if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
+        add_bar(main_down, player_visuals::weapon_item_id(player_visuals::weapon_readiness_bar),
+            data.readiness, 1.f,
+            settings.weapon_colors[player_visuals::weapon_readiness_bar].primary);
+    }
+    if (data.health > 0 && alpha > 0.5f) {
+        for (int flag = 0; flag < player_visuals::flag_count; ++flag) {
+            if (!settings.flags[flag])
+                continue;
+            add_string(main_right, player_visuals::flag_item_id(flag), flag_text(flag, data),
+                settings.flag_colors[flag].primary);
         }
     }
+    if (settings.main[player_visuals::main_distance]) {
+        add_string(main_down, player_visuals::main_distance,
+            std::to_string(static_cast<int>(data.distance)) + "m",
+            settings.main_colors[player_visuals::main_distance].primary);
+    }
+    add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_bomb),
+        settings.weapon[player_visuals::weapon_bomb] && data.bomb ? "C4" : "",
+        settings.weapon_colors[player_visuals::weapon_bomb].primary);
+    add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_defuser),
+        settings.weapon[player_visuals::weapon_defuser] && data.defuser ? "KIT" : "",
+        settings.weapon_colors[player_visuals::weapon_defuser].primary);
+    add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_taser),
+        settings.weapon[player_visuals::weapon_taser] && data.taser ? "ZEUS" : "",
+        settings.weapon_colors[player_visuals::weapon_taser].primary);
 
-    const auto equipment = [&](int weapon_item, bool available, const char* label, ImU32 ink) {
-        if (!settings.weapon[weapon_item] || !available)
-            return;
-        const int item = player_visuals::weapon_item_id(weapon_item);
-        const ImVec2 anchor(box_center.x, bottom_y);
-        const ImVec2 center = anchor + placement(item, anchor);
-        const rect_f text = draw_text(draw, center, label, ink, scale);
-        maybe_drag(draw, preview_side, item, text, preview_min, preview_max, scale);
-        bottom_y += 12.f * scale;
-    };
-    equipment(player_visuals::weapon_bomb, data.bomb, "C4",
-        color(settings.weapon_colors[player_visuals::weapon_bomb]));
-    equipment(player_visuals::weapon_defuser, data.defuser, "KIT",
-        color(settings.weapon_colors[player_visuals::weapon_defuser]));
-    equipment(player_visuals::weapon_taser, data.taser, "ZEUS",
-        color(settings.weapon_colors[player_visuals::weapon_taser]));
+    float string_offsets[4] = {};
+    int bar_offsets[4] = {};
+    main_render_context context{ draw, &settings, box, scale, preview_side, preview_min, preview_max };
+
+    // Main renders every bar first, then uses the resulting per-side bar
+    // offset for the string pass. This is not a global max-bar heuristic.
+    for (int i = 0; i < object_count; ++i) {
+        const auto& object = objects[i];
+        if (object.type == main_bar && object.position >= 0 && object.position < 4)
+            render_main_bar(context, object, bar_offsets[object.position]);
+    }
+    for (int i = 0; i < object_count; ++i) {
+        const auto& object = objects[i];
+        if (object.type == main_bar || object.position < 0 || object.position >= 4)
+            continue;
+        if (object.type == main_icon)
+            render_main_icon(context, object, bar_offsets[object.position], string_offsets[object.position]);
+        else
+            render_main_string(context, object, bar_offsets[object.position], string_offsets[object.position]);
+    }
 }
 
 bool world_to_screen(const float matrix[4][4], const vector3& point, const ImVec2& display,
@@ -543,35 +706,44 @@ bool screen_box(const visuals_source::frame_data& frame, const player_data& play
         return false;
     }
 
-    // Box, HP/ammo bars, weapon text and flags all consume this one rectangle.
-    // Project the same collision geometry every frame: pose indices are not a
-    // stable world-space height across player models, and mixing a partial set
-    // of corners can produce a huge box when the player crosses the near plane.
-    bool initialized = false;
-    for (int corner = 0; corner < 8; ++corner) {
-        const vector3 point{
-            player.origin.x + ((corner & 1) ? player.maxs.x : player.mins.x),
-            player.origin.y + ((corner & 2) ? player.maxs.y : player.mins.y),
-            player.origin.z + ((corner & 4) ? player.maxs.z : player.mins.z)
+    if (player.poses_valid) {
+        // This is main's get_player_bounding_box(), including its coordinate
+        // space and pose-based height. Box, bars and every anchor consume the
+        // resulting rectangle; no second collision projection is mixed in.
+        const vector3 center{
+            player.origin.x + (player.mins.x + player.maxs.x) * 0.5f,
+            player.origin.y + (player.mins.y + player.maxs.y) * 0.5f,
+            player.origin.z + (player.mins.z + player.maxs.z) * 0.5f
         };
-        ImVec2 screen;
-        if (!world_to_screen(frame.view_matrix, point, display, screen))
+        const float stand_pose = player.poses[1];
+        const float body_pitch = player.poses[12];
+        const vector3 top{
+            center.x, center.y,
+            player.origin.z + stand_pose * 18.f + 58.f - body_pitch * 6.f
+        };
+        const vector3 base{
+            center.x, center.y, center.z - player.maxs.z * 0.6f
+        };
+        ImVec2 screen_top, screen_base;
+        if (!world_to_screen(frame.view_matrix, top, display, screen_top) ||
+            !world_to_screen(frame.view_matrix, base, display, screen_base)) {
             return false;
-        if (!initialized) {
-            box.min = box.max = screen;
-            initialized = true;
-        } else {
-            box.min.x = std::min(box.min.x, screen.x);
-            box.min.y = std::min(box.min.y, screen.y);
-            box.max.x = std::max(box.max.x, screen.x);
-            box.max.y = std::max(box.max.y, screen.y);
         }
+        const float bottom = screen_top.y + std::abs(screen_top.y - screen_base.y);
+        const float height = bottom - screen_top.y;
+        const float width = height * 0.5f;
+        const float center_x = (screen_top.x + screen_base.x) * 0.5f;
+        if (!std::isfinite(width) || !std::isfinite(height) || width <= 1.f || height <= 1.f)
+            return false;
+        box.min = { center_x - width * 0.5f, screen_top.y };
+        box.max = { center_x + width * 0.5f, bottom };
+        return box.max.x >= 0.f && box.min.x <= display.x &&
+            box.max.y >= 0.f && box.min.y <= display.y;
     }
-    const float width = box.max.x - box.min.x;
-    const float height = box.max.y - box.min.y;
-    return initialized && std::isfinite(width) && std::isfinite(height) &&
-        width > 1.f && height > 1.f && box.max.x >= 0.f && box.min.x <= display.x &&
-        box.max.y >= 0.f && box.min.y <= display.y;
+
+    // Airflow player boxes are pose-based; do not substitute the old
+    // eight-corner player projection when the pose netvar is unavailable.
+    return false;
 }
 
 void render_offscreen_arrow(ImDrawList* draw, const side_settings& settings,
@@ -895,8 +1067,10 @@ void render() {
 
     if (!visuals_source::ready())
         return;
-    visuals_source::frame_data frame;
-    visuals_source::capture(frame);
+    const auto frame_snapshot = visuals_source::capture_shared();
+    if (!frame_snapshot)
+        return;
+    const auto& frame = *frame_snapshot;
     if (!frame.in_game || !frame.has_view_matrix || !ImGui::GetCurrentContext())
         return;
     const ImVec2 display = ImGui::GetIO().DisplaySize;
