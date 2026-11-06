@@ -126,34 +126,25 @@ struct side_settings {
     bool overlay_chams = false;
     material_selection player_overlay;
     material_selection behind_walls_overlay;
-    material_selection hitbox_overlay;
     material_selection on_shot_overlay;
     material_selection history_overlay;
     material_selection ragdoll_overlay;
 
-    int hitbox_material = 0;
     int on_shot_material = 0;
     int history_material = 0;
     int ragdoll_material = 0;
-    c_color hitbox_color{ 1.f, 0.35f, 0.55f, 1.f };
-    c_color hitbox_secondary = hitbox_color;
     c_color on_shot_color{ 0.90f, 0.95f, 0.95f, 1.f };
     c_color on_shot_secondary = on_shot_color;
     c_color history_color{ 0.75f, 0.75f, 0.78f, 1.f };
     c_color history_secondary = history_color;
     c_color ragdoll_color{ 0.65f, 0.63f, 0.75f, 1.f };
     c_color ragdoll_secondary = ragdoll_color;
-    bool hitbox_gradient = false;
     bool on_shot_gradient = false;
     bool history_gradient = false;
     bool ragdoll_gradient = false;
 
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
 };
-
-inline bool has_hitbox_chams(const side_settings& settings) {
-    return settings.overlay_chams ? settings.hitbox_overlay.any() : settings.hitbox_material > 0;
-}
 
 struct self_chams_settings {
     // Kept for compatibility with the checkbox-era config schema. The Self UI

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <string>
 #include <vector>
 
@@ -72,9 +71,6 @@ struct player_data {
     vector3 origin;
     vector3 mins;
     vector3 maxs;
-    // m_flPoseParameter[1] and [12] drive Airflow's player bounding box.
-    std::array<float, 24> poses{};
-    bool poses_valid = false;
     std::vector<line3> skeleton;
     // Twelve edges per hitbox, already transformed by the current bone matrix.
     std::vector<line3> hitboxes;
@@ -129,7 +125,7 @@ bool resolve_renderable_entity(void* renderable, renderable_entity_data& output)
 int entity_team_side(void* entity); // -1 invalid, 0 enemy, 1 teammate
 bool is_local_entity(void* entity);
 bool local_player_alive();
-bool entity_parented_to_local(void* entity);
+bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();
 int aimed_player_index(); // enemy nearest to the local shot ray, 0 when none
 int frame_number();

@@ -169,14 +169,9 @@ void c_config_system::setup_values( )
 		push_item(&side.overlay_chams, category, "overlay_chams", side.overlay_chams);
 		push_overlay(side.player_overlay, category, "overlay_player");
 		push_overlay(side.behind_walls_overlay, category, "overlay_behind_walls");
-		push_overlay(side.hitbox_overlay, category, "overlay_hitboxes");
 		push_overlay(side.on_shot_overlay, category, "overlay_on_shot");
 		push_overlay(side.history_overlay, category, "overlay_history");
 		push_overlay(side.ragdoll_overlay, category, "overlay_ragdolls");
-		push_item(&side.hitbox_material, category, "hitbox_material", side.hitbox_material);
-		push_item(&side.hitbox_color, category, "hitbox_color", side.hitbox_color);
-		push_item(&side.hitbox_secondary, category, "hitbox_secondary", side.hitbox_secondary);
-		push_item(&side.hitbox_gradient, category, "hitbox_gradient", side.hitbox_gradient);
 		push_item(&side.on_shot_material, category, "on_shot_material", side.on_shot_material);
 		push_item(&side.on_shot_color, category, "on_shot_color", side.on_shot_color);
 		push_item(&side.on_shot_secondary, category, "on_shot_secondary", side.on_shot_secondary);

@@ -59,7 +59,6 @@ struct side_overlay_passes {
     bool enabled = false;
     pass_list player;
     pass_list behind_walls;
-    pass_list hitboxes;
     pass_list on_shot;
     pass_list history;
     pass_list ragdolls;
@@ -75,7 +74,6 @@ struct self_overlay_passes {
 };
 
 struct special_passes {
-    pass_settings hitboxes;
     pass_settings on_shot;
     pass_settings history;
     pass_settings ragdolls;

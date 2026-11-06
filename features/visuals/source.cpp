@@ -186,7 +186,6 @@ struct netvars_t {
     int carried_hostage = -1;
     int hitbox_set = -1;
     int force_bone = -1;
-    int pose_parameters = -1;
     int move_parent = -1;
     int weapon_id = -1;
     int clip = -1;
@@ -423,9 +422,6 @@ void resolve_netvars() {
         nv.carried_hostage = table_offset(classes, { "DT_CSPlayer" }, "m_hCarriedHostageProp");
     nv.hitbox_set = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_nHitboxSet");
     nv.force_bone = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_nForceBone");
-    nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter");
-    if (nv.pose_parameters < 0)
-        nv.pose_parameters = table_offset(classes, { "DT_CSPlayer", "DT_BaseAnimating" }, "m_flPoseParameter[0]");
     nv.move_parent = table_offset(classes, { "DT_BaseEntity" }, "m_hMoveParent");
     if (nv.move_parent < 0)
         nv.move_parent = table_offset(classes, { "DT_BaseEntity" }, "moveparent");
@@ -953,8 +949,8 @@ bool local_player_alive() {
         value<int>(local, nv.health, 0) > 0;
 }
 
-bool entity_parented_to_local(void* entity) {
-    if (!entity || nv.move_parent < 0 || !local_player_alive())
+bool entity_parented_to_local(void* entity, bool local_alive) {
+    if (!entity || nv.move_parent < 0 || !local_alive)
         return false;
     void* parent = entity_from_handle(value<unsigned int>(entity, nv.move_parent, 0xFFFFFFFFu));
     return parent && is_local_entity(parent);
@@ -1140,7 +1136,7 @@ void capture_world(frame_data& output, const vector3& local_origin) {
 void capture_local_player(frame_data& output, void* local, void* local_weapon, int local_team) {
     const auto& settings = player_visuals::self_esp_settings();
     if (!output.local_alive || (local_team != 2 && local_team != 3) || dormant(local) ||
-        (!settings.esp_enabled && settings.hitbox_material <= 0)) {
+        !settings.esp_enabled) {
         return;
     }
 
@@ -1155,13 +1151,6 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.origin = output.local_origin;
     data.mins = value<vector3>(local, nv.mins, { -16.f, -16.f, 0.f });
     data.maxs = value<vector3>(local, nv.maxs, { 16.f, 16.f, 72.f });
-    if (nv.pose_parameters >= 0) {
-        data.poses_valid = true;
-        for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
-            data.poses[pose] = value<float>(local,
-                nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
-        }
-    }
     data.distance = 0.f;
     data.name = player_name(output.local_index);
     data.armor_valid = nv.armor >= 0;
@@ -1211,7 +1200,7 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.bomb = data.bomb || data.weapon_id == 49;
     data.taser = data.taser || data.weapon_id == 31;
     collect_model_geometry(local, value<int>(local, nv.hitbox_set, 0), data,
-        settings.main[player_visuals::main_skeleton], settings.hitbox_material > 0);
+        settings.main[player_visuals::main_skeleton], false);
     data.dormant = false;
     data.alpha = 1.f;
     output.players.push_back(std::move(data));
@@ -1275,10 +1264,8 @@ void capture(frame_data& output) {
         if (dead)
             cached.data.health = 0;
         const auto& side = player_visuals::settings(cached.data.side);
-        if (cached.data.alpha > 0.01f &&
-            (side.esp_enabled || player_visuals::has_hitbox_chams(side))) {
+        if (cached.data.alpha > 0.01f && side.esp_enabled)
             output.players.push_back(cached.data);
-        }
         if (cached.data.alpha <= 0.01f && (dead || age > 5000))
             cached.valid = false;
     };
@@ -1316,19 +1303,11 @@ void capture(frame_data& output) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        const bool chams_hitboxes = player_visuals::has_hitbox_chams(side_settings);
-        if (!side_settings.esp_enabled && !chams_hitboxes)
+        if (!side_settings.esp_enabled)
             continue;
         data.origin = value<vector3>(player, nv.origin);
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
-        if (nv.pose_parameters >= 0) {
-            data.poses_valid = true;
-            for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
-                data.poses[pose] = value<float>(player,
-                    nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
-            }
-        }
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z }) * 0.0254f;
         data.name = player_name(index);
@@ -1387,7 +1366,7 @@ void capture(frame_data& output) {
         }
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
             side_settings.main[player_visuals::main_skeleton],
-            side_settings.aimbot[player_visuals::aimbot_hitboxes] || chams_hitboxes);
+            side_settings.aimbot[player_visuals::aimbot_hitboxes]);
         auto& cached = player_cache[index];
         data.dormant = false;
         data.alpha = cached.valid

@@ -100,7 +100,16 @@ void* key_values_load = nullptr;
 void* materials[visuals_chams::mode_count] = {};
 std::atomic<bool> hooks_ready = false;
 std::atomic<bool> preview_active = false;
-std::atomic<bool> self_chams_enabled = false;
+enum self_pass_bit : unsigned {
+    self_local_player_bit = 1u << 0,
+    self_viewmodel_bit = 1u << 1,
+    self_weapon_bit = 1u << 2,
+    self_attachments_bit = 1u << 3,
+    self_glow_bit = 1u << 4,
+};
+std::atomic<unsigned> self_chams_mask = 0;
+std::atomic<unsigned> self_settings_generation = 1;
+std::atomic<bool> on_shot_chams_enabled = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 thread_local int engine_model_draw_depth = 0;
 thread_local bool in_game_chams = false;
@@ -133,6 +142,15 @@ visuals_chams::self_passes self_game_settings;
 char self_sprite_path[128] = "models/weapons/customization/paints/custom/money";
 preview_settings preview;
 char applied_sprite_path[128] = {};
+
+struct self_frame_snapshot {
+    int frame = -1;
+    unsigned generation = 0;
+    bool alive = false;
+    visuals_chams::self_passes settings;
+    char sprite_path[128] = {};
+};
+thread_local self_frame_snapshot self_frame;
 
 struct model_record {
     draw_model_state_t state{};
@@ -1117,6 +1135,29 @@ bool player_model_name(const char* name, std::size_t maximum) {
            std::strstr(normalized, ".mdl") != nullptr;
 }
 
+const self_frame_snapshot& self_snapshot_for_frame() {
+    int frame = visuals_source::frame_number();
+    if (frame <= 0)
+        frame = static_cast<int>(GetTickCount64() / 16);
+    const unsigned generation = self_settings_generation.load(std::memory_order_acquire);
+    if (self_frame.frame == frame && self_frame.generation == generation)
+        return self_frame;
+
+    // DME can run hundreds of times per frame. Resolve local alive and copy the
+    // multi-pass settings once, rather than locking and copying for every model.
+    self_frame.alive = visuals_source::local_player_alive();
+    {
+        std::scoped_lock lock(settings_mutex);
+        self_frame.settings = self_game_settings;
+        std::strncpy(self_frame.sprite_path, self_sprite_path,
+            sizeof(self_frame.sprite_path) - 1);
+        self_frame.sprite_path[sizeof(self_frame.sprite_path) - 1] = '\0';
+    }
+    self_frame.frame = frame;
+    self_frame.generation = generation;
+    return self_frame;
+}
+
 void __fastcall hooked_studio_draw(void* self, void*, void* results,
     const draw_model_info_t& info, matrix3x4_t* bones, float* flex_weights,
     float* delayed_flex_weights, const vector3& model_origin, int flags) {
@@ -1212,94 +1253,106 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         }
     }
 
-    draw_on_shot_records(context);
+    if (on_shot_chams_enabled.load(std::memory_order_acquire))
+        draw_on_shot_records(context);
 
     const char* model_name = info.model ? info.model->name :
         (state.studio_hdr ? state.studio_hdr->name : nullptr);
     const std::size_t model_name_size = info.model ? MAX_PATH : 64;
+    const bool player_model = player_model_name(model_name, model_name_size);
+    const unsigned self_mask = self_chams_mask.load(std::memory_order_acquire);
+    const bool self_viewmodel = (self_mask & (self_viewmodel_bit | self_weapon_bit)) != 0;
+    const bool self_attachments = (self_mask & self_attachments_bit) != 0;
 
-    if (self_chams_enabled.load(std::memory_order_acquire) &&
-        visuals_source::local_player_alive()) {
-        visuals_chams::self_passes self_snapshot;
-        char sprite_path[128] = {};
-        {
-            std::scoped_lock lock(settings_mutex);
-            self_snapshot = self_game_settings;
-            std::strncpy(sprite_path, self_sprite_path, sizeof(sprite_path) - 1);
-            sprite_path[sizeof(sprite_path) - 1] = '\0';
-        }
-        const auto draw_self = [&](const visuals_chams::pass_settings& pass) {
-            in_game_chams = true;
-            {
-                modulation_scope modulation(true);
-                draw_call call;
-                call.bones = bones;
-                call.game = true;
-                call.context = context;
-                call.state = &state;
-                call.render_info = &info;
-                reset_modulation(true);
-                draw_pass(call, pass, false, sprite_path);
-                force_material(nullptr, true);
-                reset_modulation(true);
-            }
-            in_game_chams = false;
-        };
-        const auto draw_self_selection = [&](const visuals_chams::pass_settings& single,
-                                             const visuals_chams::pass_list& multiple) {
-            in_game_chams = true;
-            bool drawn = false;
-            {
-                modulation_scope modulation(true);
-                draw_call call;
-                call.bones = bones;
-                call.game = true;
-                call.context = context;
-                call.state = &state;
-                call.render_info = &info;
-                reset_modulation(true);
-                drawn = draw_pass_selection(call, single, multiple,
-                    self_snapshot.overlay.enabled, false, sprite_path);
-                force_material(nullptr, true);
-                reset_modulation(true);
-            }
-            in_game_chams = false;
-            return drawn;
-        };
+    // Resolve once and share the result with the normal side classifier. With
+    // only Local Player/Glow selected, non-player models never enter this path.
+    visuals_source::renderable_entity_data entity;
+    void* renderable = state.renderable ? state.renderable : info.renderable;
+    bool has_entity = false;
+    if (player_model || (self_mask != 0 && (self_viewmodel || self_attachments)))
+        has_entity = visuals_source::resolve_renderable_entity(renderable, entity);
 
-        visuals_source::renderable_entity_data self_entity;
-        void* self_renderable = state.renderable ? state.renderable : info.renderable;
-        if (visuals_source::resolve_renderable_entity(self_renderable, self_entity)) {
-            if (visuals_source::is_local_entity(self_entity.entity) &&
-                player_model_name(model_name, model_name_size)) {
-                bool drawn = draw_self_selection(self_snapshot.local_player,
-                    self_snapshot.overlay.local_player);
-                if (self_snapshot.glow.material != visuals_chams::disabled) {
-                    // The standalone Self Glow is additive to the chosen materials.
-                    // Do not turn Glow off/on into an implicit flat material.
-                    draw_self(self_snapshot.glow);
-                    drawn = true;
+    if (self_mask != 0 && has_entity) {
+        const bool local_player = (self_mask & (self_local_player_bit | self_glow_bit)) != 0 &&
+            player_model && visuals_source::is_local_entity(entity.entity);
+        const bool viewmodel = self_viewmodel && entity.viewmodel;
+        // Attachments can use custom model paths, so retain the complete
+        // ownership check whenever that pass is selected.
+        const bool attachment = self_attachments;
+        if (local_player || viewmodel || attachment) {
+            const auto& frame_snapshot = self_snapshot_for_frame();
+            if (frame_snapshot.alive) {
+                const auto& self_snapshot = frame_snapshot.settings;
+                const char* sprite_path = frame_snapshot.sprite_path;
+                const auto draw_self = [&](const visuals_chams::pass_settings& pass) {
+                    in_game_chams = true;
+                    {
+                        modulation_scope modulation(true);
+                        draw_call call;
+                        call.bones = bones;
+                        call.game = true;
+                        call.context = context;
+                        call.state = &state;
+                        call.render_info = &info;
+                        reset_modulation(true);
+                        draw_pass(call, pass, false, sprite_path);
+                        force_material(nullptr, true);
+                        reset_modulation(true);
+                    }
+                    in_game_chams = false;
+                };
+                const auto draw_self_selection = [&](const visuals_chams::pass_settings& single,
+                                                     const visuals_chams::pass_list& multiple) {
+                    in_game_chams = true;
+                    bool drawn = false;
+                    {
+                        modulation_scope modulation(true);
+                        draw_call call;
+                        call.bones = bones;
+                        call.game = true;
+                        call.context = context;
+                        call.state = &state;
+                        call.render_info = &info;
+                        reset_modulation(true);
+                        drawn = draw_pass_selection(call, single, multiple,
+                            self_snapshot.overlay.enabled, false, sprite_path);
+                        force_material(nullptr, true);
+                        reset_modulation(true);
+                    }
+                    in_game_chams = false;
+                    return drawn;
+                };
+
+                if (local_player) {
+                    bool drawn = draw_self_selection(self_snapshot.local_player,
+                        self_snapshot.overlay.local_player);
+                    if (self_snapshot.glow.material != visuals_chams::disabled) {
+                        // The standalone Self Glow is additive to the chosen materials.
+                        // Do not turn Glow off/on into an implicit flat material.
+                        draw_self(self_snapshot.glow);
+                        drawn = true;
+                    }
+                    if (drawn)
+                        return;
                 }
-                if (drawn)
+                if (viewmodel) {
+                    const bool arms = model_name && std::strstr(model_name, "arms");
+                    const auto& pass = arms ? self_snapshot.viewmodel : self_snapshot.weapon;
+                    const auto& passes = arms ? self_snapshot.overlay.viewmodel : self_snapshot.overlay.weapon;
+                    if (draw_self_selection(pass, passes))
+                        return;
+                }
+                if (attachment && visuals_source::entity_parented_to_local(entity.entity, true) &&
+                    draw_self_selection(self_snapshot.attachments, self_snapshot.overlay.attachments)) {
                     return;
-            }
-            if (self_entity.viewmodel) {
-                const bool arms = model_name && std::strstr(model_name, "arms");
-                const auto& pass = arms ? self_snapshot.viewmodel : self_snapshot.weapon;
-                const auto& passes = arms ? self_snapshot.overlay.viewmodel : self_snapshot.overlay.weapon;
-                if (draw_self_selection(pass, passes))
-                    return;
-            }
-            if (visuals_source::entity_parented_to_local(self_entity.entity) &&
-                draw_self_selection(self_snapshot.attachments, self_snapshot.overlay.attachments)) {
-                return;
+                }
             }
         }
     }
 
-    // Most DME calls are not players. Reject those before entity lookup,
-    // dormancy and team checks, then query only actual player models.
-    if (!player_model_name(model_name, model_name_size)) {
+    // Most DME calls are not players. They have already been considered for
+    // Self passes above; only player models continue to team classification.
+    if (!player_model) {
         original_model_execute(self, context, state, info, bones);
         return;
     }
@@ -1307,9 +1360,6 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     // Airflow resolves the entity from DrawModelState::renderable first. Some
     // Panorama/engine paths provide a stale or zero ModelRenderInfo entity
     // index even though the renderable still identifies the actual player.
-    visuals_source::renderable_entity_data entity;
-    void* renderable = state.renderable ? state.renderable : info.renderable;
-    const bool has_entity = visuals_source::resolve_renderable_entity(renderable, entity);
     const bool ragdoll = has_entity && entity.ragdoll;
     int side = -1;
     if (ragdoll) {
@@ -1555,6 +1605,14 @@ void sanitize_pass_list(pass_list& list) {
         list.values[i] = pass_settings{};
 }
 
+void update_on_shot_state(int side) {
+    if (side != 0)
+        return;
+    const auto& target = game_settings[0];
+    on_shot_chams_enabled.store(selection_enabled(target.special.on_shot,
+        target.overlay.on_shot, target.overlay.enabled), std::memory_order_release);
+}
+
 }
 
 void set_side_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
@@ -1579,9 +1637,10 @@ void set_side_special_passes(int side, const special_passes& passes) {
             pass.secondary[i] = std::clamp(pass.secondary[i], 0.f, 1.f);
         }
     };
-    for (auto* pass : {&target.special.hitboxes, &target.special.on_shot,
-                       &target.special.history, &target.special.ragdolls})
+    for (auto* pass : {&target.special.on_shot, &target.special.history,
+                       &target.special.ragdolls})
         sanitize(*pass);
+    update_on_shot_state(side);
 }
 
 void set_side_overlay_passes(int side, const side_overlay_passes& passes) {
@@ -1591,10 +1650,11 @@ void set_side_overlay_passes(int side, const side_overlay_passes& passes) {
     auto& target = game_settings[side];
     target.overlay = passes;
     for (auto* list : {&target.overlay.player, &target.overlay.behind_walls,
-                       &target.overlay.hitboxes, &target.overlay.on_shot,
-                       &target.overlay.history, &target.overlay.ragdolls}) {
+                       &target.overlay.on_shot, &target.overlay.history,
+                       &target.overlay.ragdolls}) {
         sanitize_pass_list(*list);
     }
+    update_on_shot_state(side);
 }
 
 void set_self_passes(const self_passes& passes, const char* sprite_path) {
@@ -1621,16 +1681,23 @@ void set_self_passes(const self_passes& passes, const char* sprite_path) {
         sanitize_pass_list(*list);
     }
     const auto& overlay = self_game_settings.overlay;
-    self_chams_enabled.store(self_game_settings.glow.material != disabled ||
-        selection_enabled(self_game_settings.local_player, overlay.local_player, overlay.enabled) ||
-        selection_enabled(self_game_settings.viewmodel, overlay.viewmodel, overlay.enabled) ||
-        selection_enabled(self_game_settings.weapon, overlay.weapon, overlay.enabled) ||
-        selection_enabled(self_game_settings.attachments, overlay.attachments, overlay.enabled),
-        std::memory_order_release);
+    unsigned mask = 0;
+    if (selection_enabled(self_game_settings.local_player, overlay.local_player, overlay.enabled))
+        mask |= self_local_player_bit;
+    if (selection_enabled(self_game_settings.viewmodel, overlay.viewmodel, overlay.enabled))
+        mask |= self_viewmodel_bit;
+    if (selection_enabled(self_game_settings.weapon, overlay.weapon, overlay.enabled))
+        mask |= self_weapon_bit;
+    if (selection_enabled(self_game_settings.attachments, overlay.attachments, overlay.enabled))
+        mask |= self_attachments_bit;
+    if (self_game_settings.glow.material != disabled)
+        mask |= self_glow_bit;
     if (sprite_path && sprite_path[0]) {
         std::strncpy(self_sprite_path, sprite_path, sizeof(self_sprite_path) - 1);
         self_sprite_path[sizeof(self_sprite_path) - 1] = '\0';
     }
+    self_settings_generation.fetch_add(1, std::memory_order_release);
+    self_chams_mask.store(mask, std::memory_order_release);
 }
 
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
