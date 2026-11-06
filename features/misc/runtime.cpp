@@ -229,7 +229,6 @@ void* entity_list = nullptr;
 void* engine_trace = nullptr;
 void* engine_sound = nullptr;
 void* game_event_manager = nullptr;
-void* weapon_system = nullptr;
 global_vars* globals = nullptr;
 netvar_offsets nv;
 int move_type_offset = -2;
@@ -365,7 +364,6 @@ using player_for_user_t = int(__thiscall*)(void*, int);
 using get_player_info_t = bool(__thiscall*)(void*, int, void*);
 using client_command_t = void(__thiscall*)(void*, const char*, const char*);
 using trace_ray_t = void(__thiscall*)(void*, const ray&, unsigned int, void*, game_trace*);
-using get_weapon_data_t = void* (__thiscall*)(void*, unsigned int);
 using pred_desc_map_t = datamap* (__thiscall*)(void*);
 
 get_all_classes_t get_all_classes = nullptr;
@@ -377,7 +375,6 @@ player_for_user_t player_for_user_fn = nullptr;
 get_player_info_t get_player_info_fn = nullptr;
 client_command_t client_command_fn = nullptr;
 trace_ray_t trace_ray_fn = nullptr;
-get_weapon_data_t get_weapon_data_fn = nullptr;
 
 int find_offset(const recv_table* table, const char* name, int depth = 0) {
     if (!table || depth > 24 || !readable_range(table, sizeof(recv_table)) ||
@@ -628,24 +625,6 @@ vec3 angle_vectors(const vec3& angles) {
     return { cp * std::cos(yaw), cp * std::sin(yaw), -std::sin(pitch) };
 }
 
-vec3 vector_angles(const vec3& direction) {
-    vec3 result;
-    const float flat = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-    if (flat > 0.000001f) {
-        result.x = -std::atan2(direction.z, flat) * 180.f / pi;
-        result.y = std::atan2(direction.y, direction.x) * 180.f / pi;
-    } else {
-        result.x = direction.z > 0.f ? 270.f : 90.f;
-        result.y = 0.f;
-    }
-    return result;
-}
-
-vec3 normalized(const vec3& value) {
-    const float length = value.length();
-    return length > 0.000001f ? value / length : vec3{ 0.f, 0.f, 1.f };
-}
-
 bool trace_ground(const vec3& from, float distance, const vec3& mins, const vec3& maxs,
                   game_trace& output) {
     if (!trace_ray_fn)
@@ -808,13 +787,27 @@ void air_strafe(user_cmd* cmd, const vec3& velocity, int flags) {
         wish = -90.f;
     }
 
-    float yaw = normalize_yaw(cmd->viewangles.y + wish);
+    // Follow Airflow's directional wish-angle calculation, but keep the
+    // player's camera untouched. Rotate the movement vector instead.
+    const float view_yaw = cmd->viewangles.y;
+    float base_yaw = view_yaw;
+    if (w || a || s || d)
+        base_yaw = normalize_yaw(base_yaw + wish);
+
     const float velocity_yaw = std::atan2(velocity.y, velocity.x) * 180.f / pi;
-    const float difference = normalize_yaw(yaw - velocity_yaw);
-    const float smooth = 1.f - 0.15f * (std::clamp(misc.m_strafe_smooth, 0, 100) / 100.f);
+    const float difference = normalize_yaw(base_yaw - velocity_yaw);
+    const float smooth = 1.f - 0.15f * (1.f - std::clamp(misc.m_strafe_smooth, 0, 100) / 100.f);
     cmd->forwardmove = std::clamp(5850.f / speed, -450.f, 450.f);
     cmd->sidemove = difference > 0.f ? -450.f : 450.f;
-    cmd->viewangles.y = normalize_yaw(yaw - difference * smooth);
+    base_yaw = normalize_yaw(base_yaw - difference * smooth);
+
+    const float move_length = std::sqrt(cmd->forwardmove * cmd->forwardmove + cmd->sidemove * cmd->sidemove);
+    if (move_length > 0.001f) {
+        const float move_angle = std::atan2(cmd->sidemove, cmd->forwardmove) +
+            (view_yaw - base_yaw) * pi / 180.f;
+        cmd->forwardmove = std::cos(move_angle) * move_length;
+        cmd->sidemove = std::sin(move_angle) * move_length;
+    }
 }
 
 void slow_walk(user_cmd* cmd, int flags) {
@@ -828,41 +821,6 @@ void slow_walk(user_cmd* cmd, int flags) {
     const float scale = maximum / length;
     cmd->forwardmove *= scale;
     cmd->sidemove *= scale;
-}
-
-float grenade_throw_velocity(int id) {
-    if (get_weapon_data_fn && weapon_system && id > 0) {
-        void* info = get_weapon_data_fn(weapon_system, static_cast<unsigned int>(id));
-        if (readable_range(info, 0x110)) {
-            float result = 0.f;
-            std::memcpy(&result, static_cast<unsigned char*>(info) + 0x10C, sizeof(result));
-            if (std::isfinite(result) && result >= 15.f && result <= 2000.f)
-                return result;
-        }
-    }
-    return 750.f;
-}
-
-vec3 super_toss_angles(const vec3& input, const vec3& velocity, float throw_velocity, float strength) {
-    vec3 adjusted = input;
-    adjusted.x = adjusted.x - 10.f + std::fabs(adjusted.x) / 9.f;
-    const vec3 forward = angle_vectors(adjusted);
-    const vec3 player_velocity = velocity * 1.25f;
-    const float speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
-        (0.3f + 0.7f * std::clamp(strength, 0.f, 1.f));
-    if (speed < 1.f)
-        return input;
-    vec3 direction = forward;
-    for (int i = 0; i < 8; ++i) {
-        const vec3 throw_vector = direction * speed + player_velocity;
-        direction = normalized((forward * throw_vector.length() - player_velocity) / speed);
-    }
-    vec3 result = vector_angles(direction);
-    result.x = result.x > -10.f ? result.x * 0.9f + 9.f : result.x * 1.125f + 11.25f;
-    result.z = 0.f;
-    if (!std::isfinite(result.x) || !std::isfinite(result.y))
-        return input;
-    return result;
 }
 
 bool purchase_pending = false;
@@ -956,7 +914,8 @@ void run_create_move(user_cmd* cmd) {
         throw_time >= current_time() - tick_interval() * 2.f;
     if (holding_grenade && state.super_toss && (pin_pulled || recent_throw) &&
         (manual_release || automatic_release || recent_throw)) {
-        cmd->viewangles = super_toss_angles(cmd->viewangles, velocity, grenade_throw_velocity(id), throw_strength);
+        // Super Toss must not steer the camera. Keep only its non-view
+        // movement modifier on the release command.
         cmd->buttons |= in_speed;
         grenade_command = true;
     }
@@ -1265,17 +1224,9 @@ bool acquire() {
         0xA1, -1, -1, -1, -1, 0xF3, 0x0F, 0x10, 0x40, -1,
         0x0F, 0x5A, 0xC0, 0xF2, 0x0F, 0x11, 0x04
     };
-    static constexpr int weapon_system_pattern[] = {
-        0x8B, 0x35, -1, -1, -1, -1, 0xFF, 0x10, 0x0F, 0xB7, 0xC0
-    };
     const auto* global_address = find_pattern(client_module, global_pattern);
     // mov eax, dword ptr [global_vars]; the absolute operand follows the opcode.
     globals = absolute_pointer<global_vars>(global_address ? global_address + 1 : nullptr);
-    const auto* weapon_address = find_pattern(client_module, weapon_system_pattern);
-    weapon_system = absolute_pointer<void>(weapon_address ? weapon_address + 2 : nullptr);
-    get_weapon_data_fn = virtual_function<get_weapon_data_t>(weapon_system, 2);
-    if (get_weapon_data_fn && !function_in_module(client_module, reinterpret_cast<const void*>(get_weapon_data_fn)))
-        get_weapon_data_fn = nullptr;
     if (globals && !readable_range(globals, sizeof(global_vars)))
         globals = nullptr;
 
