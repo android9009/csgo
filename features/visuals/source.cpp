@@ -835,7 +835,7 @@ bool read_engine_bone_cache(void* entity, matrix3x4_t* output, int required_bone
 
 void collect_model_geometry(void* entity, int hitbox_set_index, player_data& output,
                             bool collect_skeleton, bool collect_hitboxes) {
-    if ((!collect_skeleton && !collect_hitboxes) || !studio_hdr_offset || nv.force_bone < 0)
+    if ((!collect_skeleton && !collect_hitboxes) || !studio_hdr_offset)
         return;
     const auto* studio_field = reinterpret_cast<const unsigned char*>(entity) + studio_hdr_offset;
     if (!readable_range(studio_field, sizeof(void*)))
