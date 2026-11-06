@@ -705,120 +705,52 @@ void draw_visuals_players() {
     legacy.m_weapon = enemy.weapon[player_visuals::weapon_text];
 }
 
-void draw_world_subtabs(int& active) {
-    static constexpr const char* labels[] = { "WORLD MODULATION", "WORLD ESP", "THIRDPERSON" };
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    const float width = (ImGui::GetContentRegionAvail().x - spacing * 2.f) / 3.f;
-    const ImVec2 button_size(width, 30.f * gui.m_scale);
-
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.f * gui.m_scale);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.f * gui.m_scale, 5.f * gui.m_scale));
-    for (int i = 0; i < 3; ++i) {
-        ImGui::PushID(i);
-        const bool selected = active == i;
-        ImGui::PushStyleColor(ImGuiCol_Button,
-            selected ? gui.tab_active.to_vec4(1.f, false) : gui.frame_inactive.to_vec4(1.f, false));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, gui.frame_active.to_vec4(1.f, false));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, gui.frame_active.to_vec4(1.f, false));
-        ImGui::PushStyleColor(ImGuiCol_Text,
-            selected ? gui.text.to_vec4(1.f, false) : gui.text_disabled.to_vec4(1.f, false));
-        if (ImGui::Button(gui.tr(labels[i]), button_size))
-            active = i;
-        ImGui::PopStyleColor(4);
-        ImGui::PopID();
-        if (i != 2)
-            ImGui::SameLine(0.f, spacing);
-    }
-    ImGui::PopStyleVar(2);
-}
-
-struct world_esp_ui_state {
-    // Persistent buffers keep the multibox/color-picker row pointers stable between frames.
-    bool items[4] = {};
-    bool hazards[2] = {};
-    color_value item_colors[4];
-    color_value hazard_colors[2];
-};
-
-world_esp_ui_state& world_esp_ui() {
-    static world_esp_ui_state state;
-    return state;
-}
-
 void draw_visuals_world() {
     auto& world = player_visuals::world_settings();
-    static int active_page = 0;
-    active_page = ImClamp(active_page, 0, 2);
-    draw_world_subtabs(active_page);
+    static color_value box_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value name_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value icon_color = make_ui_color(0.92f, 0.94f, 1.f);
+    static color_value ammo_color = make_ui_color(0.55f, 0.72f, 1.f);
+    static color_value smoke_color = make_ui_color(0.65f, 0.65f, 0.65f);
+    static color_value molotov_color = make_ui_color(1.f, 0.35f, 0.12f);
+    box_color.a = to_vec4(world.box_color);
+    name_color.a = to_vec4(world.name_color);
+    icon_color.a = to_vec4(world.icon_color);
+    ammo_color.a = to_vec4(world.ammo_color);
+    smoke_color.a = to_vec4(world.smoke_color);
+    molotov_color.a = to_vec4(world.molotov_color);
 
-    if (active_page == 0) {
-        gui.begin_grid(1);
-        gui.grid_col(0);
-        gui.grid_box("WORLD MODULATION", k_auto_height);
-        gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
-        gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
-        gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
-        gui.end_group_box();
-        gui.end_grid();
-        return;
-    }
-
-    if (active_page == 1) {
-        static constexpr const char* item_names[] = { "Box", "Name", "Icon", "Ammo Bar" };
-        static constexpr const char* hazard_names[] = { "Smoke Range", "Molotov Range" };
-        auto& ui = world_esp_ui();
-        ui.items[0] = world.box;
-        ui.items[1] = world.name;
-        ui.items[2] = world.icon;
-        ui.items[3] = world.ammo_bar;
-        ui.hazards[0] = world.smoke_range;
-        ui.hazards[1] = world.molotov_range;
-        ui.item_colors[0].a = to_vec4(world.box_color);
-        ui.item_colors[1].a = to_vec4(world.name_color);
-        ui.item_colors[2].a = to_vec4(world.icon_color);
-        ui.item_colors[3].a = to_vec4(world.ammo_color);
-        ui.hazard_colors[0].a = to_vec4(world.smoke_color);
-        ui.hazard_colors[1].a = to_vec4(world.molotov_color);
-        for (auto& color : ui.item_colors) { color.b = color.a; color.gradient = false; }
-        for (auto& color : ui.hazard_colors) { color.b = color.a; color.gradient = false; }
-
-        gui.begin_grid(2);
-        gui.grid_col(0);
-        gui.grid_box("WEAPON ESP", k_auto_height);
-        gui.row_checkbox("Enabled", &world.enabled);
-        gui.row_multibox("Items", item_names, ui.items, ui.item_colors, 4,
-            "Select the world weapon ESP elements to draw; each entry has its own color.");
-        gui.end_group_box();
-
-        gui.grid_col(1);
-        gui.grid_box("HAZARD ESP", k_auto_height);
-        gui.row_multibox("Ranges", hazard_names, ui.hazards, ui.hazard_colors, 2,
-            "Select which grenade hazard ranges to draw; each entry has its own color.");
-        gui.end_group_box();
-        gui.end_grid();
-
-        world.box = ui.items[0];
-        world.name = ui.items[1];
-        world.icon = ui.items[2];
-        world.ammo_bar = ui.items[3];
-        world.smoke_range = ui.hazards[0];
-        world.molotov_range = ui.hazards[1];
-        world.box_color = to_config_color(ui.item_colors[0].a);
-        world.name_color = to_config_color(ui.item_colors[1].a);
-        world.icon_color = to_config_color(ui.item_colors[2].a);
-        world.ammo_color = to_config_color(ui.item_colors[3].a);
-        world.smoke_color = to_config_color(ui.hazard_colors[0].a);
-        world.molotov_color = to_config_color(ui.hazard_colors[1].a);
-        return;
-    }
-
-    gui.begin_grid(1);
+    gui.begin_grid(2);
     gui.grid_col(0);
+    gui.grid_box("WORLD", k_auto_height);
+    gui.row_begin(); ImGui::SliderInt("Exposure", &g_cfg->world.m_exposure, 0, 100);
+    gui.row_begin(); ImGui::SliderFloat("Brightness", &g_cfg->world.m_brightness, 0.f, 1.f, "%.2f");
+    gui.row_checkbox("Remove Fog", &g_cfg->world.m_render_fog);
+    gui.end_group_box();
+
+    gui.grid_box("WEAPON ESP", k_auto_height);
+    gui.row_checkbox("Enabled", &world.enabled);
+    gui.row_checkbox("Box", &world.box, &box_color);
+    gui.row_checkbox("Name", &world.name, &name_color);
+    gui.row_checkbox("Icon", &world.icon, &icon_color);
+    gui.row_checkbox("Ammo Bar", &world.ammo_bar, &ammo_color);
+    gui.row_checkbox("Smoke Range", &world.smoke_range, &smoke_color);
+    gui.row_checkbox("Molotov Range", &world.molotov_range, &molotov_color);
+    gui.end_group_box();
+
+    gui.grid_col(1);
     gui.grid_box("THIRDPERSON", k_auto_height);
     gui.row_checkbox("Enabled", &g_cfg->world_esp.m_enable_thirdperson);
     gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
     gui.end_group_box();
     gui.end_grid();
+
+    world.box_color = to_config_color(box_color.a);
+    world.name_color = to_config_color(name_color.a);
+    world.icon_color = to_config_color(icon_color.a);
+    world.ammo_color = to_config_color(ammo_color.a);
+    world.smoke_color = to_config_color(smoke_color.a);
+    world.molotov_color = to_config_color(molotov_color.a);
 }
 } // namespace
 
