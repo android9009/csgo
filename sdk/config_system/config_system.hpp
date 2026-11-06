@@ -381,7 +381,7 @@ public:
         // Movement
         bool m_bunny_hop = false;
         bool m_auto_strafe = false;
-        int m_strafe_type = 0;  // 0=legit, 1=directional, 2=rage
+        int m_strafe_type = 0;  // 0=legit, 1=directional
         int m_strafe_smooth = 70;
         
         bool m_edge_jump = false;

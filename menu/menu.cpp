@@ -148,7 +148,7 @@ void register_bind_targets() {
 
     menu_binds::register_bool("misc.bunny_hop", "Bunny Hop", &g_cfg->misc.m_bunny_hop);
     menu_binds::register_bool("misc.auto_strafe", "Automatic Strafe", &g_cfg->misc.m_auto_strafe);
-    menu_binds::register_int("misc.strafe_type", "Strafe Type", &g_cfg->misc.m_strafe_type, 0, 2);
+    menu_binds::register_int("misc.strafe_type", "Strafe Type", &g_cfg->misc.m_strafe_type, 0, 1);
     menu_binds::register_int("misc.strafe_smooth", "Strafe Smooth", &g_cfg->misc.m_strafe_smooth, 0, 100);
     menu_binds::register_bool("menu.shader", "Menu Shader", &shader_bg::state().enabled);
     menu_binds::register_float("menu.shader_opacity", "Shader Opacity", &shader_bg::state().opacity, 0.f, 1.f);
@@ -338,10 +338,14 @@ void c_menu::render() {
         gui.name_plate(pos, 170.f * s);
         shader_bg::update(size, pos);
 
-        draw->AddLine(pos + ImVec2(185.f * s, 60.f * s),
+        // Fixed chrome separators: both horizontal runs meet the sidebar seam, which is drawn
+        // once in the parent window independently of tab and popup row layout.
+        draw->AddLine(pos + ImVec2(170.f * s, 60.f * s),
                       pos + ImVec2(size.x - 15.f * s, 60.f * s), gui.border.to_im_color());
         draw->AddLine(pos + ImVec2(10.f * s, 60.f * s),
-                      pos + ImVec2(160.f * s, 60.f * s), gui.border.to_im_color());
+                      pos + ImVec2(170.f * s, 60.f * s), gui.border.to_im_color());
+        draw->AddLine(pos + ImVec2(170.f * s, 0.f),
+                      pos + ImVec2(170.f * s, size.y), gui.border.to_im_color(), 1.f * s);
         gui.user_profile(pos + ImVec2(10.f * s, size.y - 48.f * s),
                          pos + ImVec2(160.f * s, size.y - 8.f * s), steam_avatar::texture());
 

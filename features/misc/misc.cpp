@@ -5,23 +5,20 @@
 
 namespace {
 struct misc_visual_only_state {
-    bool jump_bug = false;
+    bool no_fall_damage = false;
     bool edge_quick_stop = false;
     bool standalone_quick_stop = false;
-    bool strafe_assist = false;
     bool edge_jump = false;
     bool slow_walk = false;
+    int slow_walk_speed = 34;
     bool fast_ladder = false;
 
     bool quick_switch = false;
     bool super_toss = false;
-    bool knife_bot = false;
-    bool prevent_afk_kick = false;
     bool hit_sound = false;
     bool automatic_purchase = false;
     bool automatic_grenade_release = false;
     bool auto_accept_matchmaking = false;
-    bool disable_profanity_filter = false;
     bool reveal_enemy_chat = false;
     bool filter_console_output = false;
 
@@ -48,7 +45,7 @@ void draw_visual_only_toggle(const char* label, bool& value, bool with_options =
 
 void c_menu::draw_misc() {
     static misc_visual_only_state state;
-    static const char* strafe_modes[] = { "Legit", "Directional", "Rage" };
+    static const char* strafe_modes[] = { "Legit", "Directional" };
     static const char* filter_chat_modes[] = { "Select" };
     static const char* log_event_modes[] = { "Damage Dealt" };
 
@@ -58,6 +55,7 @@ void c_menu::draw_misc() {
     gui.grid_col(0);
     gui.grid_box("MOVEMENT", k_auto_height);
     gui.row_checkbox("Bunny Hop", &misc.m_bunny_hop);
+    misc.m_strafe_type = ImClamp(misc.m_strafe_type, 0, IM_ARRAYSIZE(strafe_modes) - 1);
 
     gui.row_begin();
     if (gui.row_options_begin("##misc_air_strafe_options", 250.f, c_gui::row_control::toggle)) {
@@ -67,12 +65,16 @@ void c_menu::draw_misc() {
     }
     gui.row_checkbox("Air Strafe", &misc.m_auto_strafe);
 
-    draw_visual_only_toggle("Jump Bug", state.jump_bug, true);
+    draw_visual_only_toggle("No Fall Damage", state.no_fall_damage);
     draw_visual_only_toggle("Edge Quick Stop", state.edge_quick_stop);
     draw_visual_only_toggle("Standalone Quick Stop", state.standalone_quick_stop);
-    draw_visual_only_toggle("Strafe Assist", state.strafe_assist);
     draw_visual_only_toggle("Edge Jump", state.edge_jump);
-    draw_visual_only_toggle("Slow Walk", state.slow_walk, true);
+    gui.row_begin();
+    if (gui.row_options_begin("##misc_slow_walk_options", 216.f, c_gui::row_control::toggle)) {
+        gui.row_begin(); ImGui::SliderInt("Units", &state.slow_walk_speed, 0, 250, "%d units");
+        gui.row_options_end();
+    }
+    gui.row_checkbox("Slow Walk", &state.slow_walk);
     draw_visual_only_toggle("Fast Ladder", state.fast_ladder);
     gui.end_group_box();
 
@@ -90,13 +92,10 @@ void c_menu::draw_misc() {
     gui.grid_box("FEATURES", 0, true);
     draw_visual_only_toggle("Quick Switch", state.quick_switch);
     draw_visual_only_toggle("Super Toss", state.super_toss);
-    draw_visual_only_toggle("Knife Bot", state.knife_bot, true);
-    draw_visual_only_toggle("Prevent AFK Kick", state.prevent_afk_kick);
     draw_visual_only_toggle("Hit Sound", state.hit_sound, true);
     draw_visual_only_toggle("Automatic Purchase", state.automatic_purchase, true);
     draw_visual_only_toggle("Automatic Grenade Release", state.automatic_grenade_release, true);
     draw_visual_only_toggle("Auto-Accept Matchmaking", state.auto_accept_matchmaking);
-    draw_visual_only_toggle("Disable Profanity Filter", state.disable_profanity_filter);
     draw_visual_only_toggle("Reveal Enemy Chat", state.reveal_enemy_chat);
     draw_visual_only_toggle("Filter Console Output", state.filter_console_output);
     gui.row_begin(); ImGui::Combo("Filter Chat Messages", &state.filter_chat_messages,

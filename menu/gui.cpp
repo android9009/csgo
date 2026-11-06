@@ -185,6 +185,39 @@ bool c_gui::subtab( const char* label, bool selected, int size, ImDrawFlags flag
     return pressed;
 }
 
+static constexpr char k_row_started_state[] = "##DarksideRowStarted";
+static constexpr char k_row_claims_state[] = "##DarksideRowClaims";
+static constexpr char k_row_no_separator_state[] = "##DarksideRowNoSeparator";
+static constexpr char k_row_options_state[] = "##DarksideRowOptions";
+
+ImGuiID c_gui::row_state_id(const char* name) const {
+    int scope = m_search_tab;
+    if (scope == 3)
+        scope = 100 + m_visuals_subtab; // Players and World are separate pages of the Visuals tab.
+    return ImHashData(&scope, sizeof(scope), ImHashStr(name));
+}
+
+int c_gui::row_state_value(const char* name, int fallback) const {
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    return window ? window->StateStorage.GetInt(row_state_id(name), fallback) : fallback;
+}
+
+void c_gui::set_row_state_value(const char* name, int value) {
+    if (ImGuiWindow* window = ImGui::GetCurrentWindow())
+        window->StateStorage.SetInt(row_state_id(name), value);
+}
+
+void c_gui::reset_row_state() {
+    set_row_state_value(k_row_started_state, 0);
+    set_row_state_value(k_row_claims_state, 0);
+    set_row_state_value(k_row_no_separator_state, 0);
+    set_row_state_value(k_row_options_state, 0);
+}
+
+bool c_gui::full_size_popup_sliders() const {
+    return row_state_value(k_row_options_state) > 0;
+}
+
 void c_gui::group_box( const char* name, ImVec2 size_arg, bool scrollable ) {
     if (m_search_tab >= 0) m_search_box = name;
 
@@ -197,7 +230,6 @@ void c_gui::group_box( const char* name, ImVec2 size_arg, bool scrollable ) {
     bool want_auto_size = size_arg.y <= 0.f;
     m_cur_box_auto = want_auto_size || m_force_measure;
     m_force_measure = false;
-    m_row_started = false;
 
     if ( want_auto_size ) {
         auto it = m_auto_box_heights.find( m_cur_box_id );
@@ -227,6 +259,7 @@ void c_gui::group_box( const char* name, ImVec2 size_arg, bool scrollable ) {
     BeginChild( name, { size_arg.x, size_arg.y - header_h }, 0, content_flags );
     ImGuiWindow* content = GetCurrentWindow();
     content->StateStorage.SetInt(ImHashStr("##ScrollFadeStart"), scrollable ? content->DrawList->VtxBuffer.Size : -1);
+    reset_row_state();
 
     BeginGroup( );
 
@@ -394,6 +427,7 @@ void c_gui::popup_group_box( const char* name, ImVec2 size_arg ) {
     SetCursorPos( ImVec2( 0, 45 * gui.m_scale ) );
     PushStyleVar( ImGuiStyleVar_WindowPadding, { 12 * gui.m_scale, 4 * gui.m_scale } );
     BeginChild( name, { size_arg.x, size_arg.y - (45 * gui.m_scale) }, 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysUseWindowPadding );
+    reset_row_state();
 
     BeginGroup( );
 
@@ -455,11 +489,13 @@ void c_gui::row_begin() {
     // A row whose slot has already been claimed (options gear, colour swatch) has begun: the
     // widget it belongs to is still to come. Starting a "new" row there would drop a separator
     // between the gear and its own widget and forget the claim, so the label would run under it.
-    if ( m_row_slot_claims > 0 )
+    if ( row_state_value(k_row_claims_state) > 0 )
         return;
-    if ( m_row_started && m_no_separator_depth == 0 ) Separator( );
-    m_row_started = true;
-    m_row_slot_claims = 0; // a fresh row: nothing owns the slot left of its control yet
+    if ( row_state_value(k_row_started_state) != 0 &&
+         row_state_value(k_row_no_separator_state) == 0 )
+        Separator();
+    set_row_state_value(k_row_started_state, 1);
+    set_row_state_value(k_row_claims_state, 0); // a fresh row owns no control-adjacent slots yet
 }
 
 void c_gui::animated_row(const char* id, bool visible, const std::function<void()>& draw_row) {
@@ -502,8 +538,8 @@ float c_gui::take_row_slot_reserve() {
     // Called by the row widgets (Checkbox / BeginCombo / SliderScalar) when they lay their label
     // out: the claimed slots left of the control are room the label does not have. Taking it here
     // also clears the count, so a row that never called row_begin() cannot inherit it.
-    const float reserve = m_row_slot_claims * row_slot_step();
-    m_row_slot_claims = 0;
+    const float reserve = row_state_value(k_row_claims_state) * row_slot_step();
+    set_row_state_value(k_row_claims_state, 0);
     return reserve;
 }
 
@@ -850,13 +886,10 @@ bool c_gui::begin_animated_popup(ImGuiID id, const char* window_name, ImGuiWindo
         state.pos = window->Pos;
         state.size = window->Size;
     }
-    // The popup's content is its own window: its rows start a fresh separator run, so the first
-    // one doesn't inherit the "already drew a row" state of the group box the popup opened over
-    // (which would draw a stray divider at the top of the card). Keep the outer gear/swatches
-    // claim too: popup controls must not consume it and change the outer row's separator logic.
-    m_popup_scopes.push_back({ id, open, m_row_started, m_row_slot_claims });
-    m_row_started = false;
-    m_row_slot_claims = 0;
+    // Row state is stored per window, so this reset cannot erase the separator run or the
+    // gear/swatches claim of the outer row. Closing the popup naturally returns to that state.
+    m_popup_scopes.push_back({ id, open });
+    reset_row_state();
     if (!visible) {
         end_animated_popup();
         return false;
@@ -874,8 +907,6 @@ void c_gui::end_animated_popup() {
         ImGui::End();
     ImGui::EndDisabled();
     ImGui::PopStyleVar();
-    m_row_started = scope.saved_row_started; // resume the outer window's row-separator run
-    m_row_slot_claims = scope.saved_row_slot_claims;
 }
 
 bool c_gui::begin_popup_card(const char* popup_name, bool& wants_open, float anim, ImVec2 click_pos, float width, bool allow_outside, bool exact_pos) {
@@ -1220,7 +1251,8 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
     const ImRect bb( ImVec2( slot.Min.x - 3.f * s, slot.Min.y - 2.f * s ),
                      ImVec2( slot.Max.x + 3.f * s, slot.Max.y + 2.f * s ) );
 
-    ++m_row_slot_claims; // the row's widget clips its label by every slot claimed this way
+    // The row's widget clips its label by every slot claimed this way.
+    set_row_state_value(k_row_claims_state, row_state_value(k_row_claims_state) + 1);
 
     ImGui::PushID( id );
     const std::string popup_name = std::string( id ) + "Popup";
@@ -1260,8 +1292,9 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
         // A gear card is just stacked rows, so give them a vertical gap - otherwise several
         // controls pile up with no breathing room. Popped in row_options_end().
         ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 7.f * s ) );
-        ++m_no_separator_depth; // no dividers between a gear card's rows (restored in row_options_end)
-        ++m_row_options_depth;  // sliders keep the regular track, knob and value box in this card
+        // These counters belong to this card's window only; a nested or floating menu starts at 0.
+        set_row_state_value(k_row_no_separator_state, row_state_value(k_row_no_separator_state) + 1);
+        set_row_state_value(k_row_options_state, row_state_value(k_row_options_state) + 1);
         return true; // PopID + PopStyleVar in row_options_end()
     }
     ImGui::PopID( );
@@ -1269,9 +1302,11 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
 }
 
 void c_gui::row_options_end( ) {
-    IM_ASSERT( m_no_separator_depth > 0 && m_row_options_depth > 0 );
-    --m_no_separator_depth;
-    --m_row_options_depth;
+    const int no_separator = row_state_value(k_row_no_separator_state);
+    const int options = row_state_value(k_row_options_state);
+    IM_ASSERT( no_separator > 0 && options > 0 );
+    set_row_state_value(k_row_no_separator_state, ImMax(0, no_separator - 1));
+    set_row_state_value(k_row_options_state, ImMax(0, options - 1));
     ImGui::PopStyleVar( ); // the ItemSpacing pushed in row_options_begin()
     end_popup_card( );
     ImGui::PopID( );
@@ -1610,7 +1645,7 @@ bool c_gui::window_begin( const char* id, bool* open, ImVec2 size, bool* dots_cl
     }
 
     m_window_scopes.push_back( wid );
-    m_row_started = false; // rows drawn straight into the window start a fresh run
+    reset_row_state(); // rows drawn straight into the window start a fresh, independent run
     return true;
 }
 
@@ -1742,7 +1777,7 @@ bool c_gui::overlay_begin( const char* id, bool* open, bool* dots_clicked ) {
 
     // content starts under the corner buttons, on the menu's usual content line
     ImGui::SetCursorScreenPos( ImVec2( min.x + gap, min.y + 46.f * s ) );
-    m_row_started = false;
+    reset_row_state();
     return true;
 }
 
@@ -2967,7 +3002,7 @@ ImRect c_gui::row_slot_rect( row_control control ) const {
 
     // Every claimant of this row steps one slot further left, so a swatch and a gear side by side
     // do not land on each other.
-    const float right = control_left - 8.f * m_scale - m_row_slot_claims * row_slot_step( );
+    const float right = control_left - 8.f * m_scale - row_state_value(k_row_claims_state) * row_slot_step( );
     const float top = pos.y + IM_ROUND( ( row_h - sz ) * 0.5f );
     return ImRect( ImVec2( right - sz, top ), ImVec2( right, top + sz ) );
 }
@@ -3444,7 +3479,7 @@ bool c_gui::color_picker_begin( const char* id, color_slot* slots, int count ) {
     // say) one slot further left. Claimed before the row's widget runs, so its label gives the
     // swatch the room it sits in.
     const ImRect swatch = next_checkbox_swatch_rect( );
-    ++m_row_slot_claims;
+    set_row_state_value(k_row_claims_state, row_state_value(k_row_claims_state) + 1);
     return color_begin_at( id, slots, count, swatch, true );
 }
 
@@ -3552,7 +3587,7 @@ bool c_gui::row_combo( const char* label, color_value* col, int* index, const ch
         // Measured first, then claimed: the claim is what makes the Combo's label stop short of the
         // swatch instead of running under it.
         const ImRect swatch = next_combo_swatch_rect( );
-        ++m_row_slot_claims;
+        set_row_state_value(k_row_claims_state, row_state_value(k_row_claims_state) + 1);
         picker_once( &one, 1, [ & ] { return color_begin_at( label, &one, 1, swatch, true ); } );
     }
     return ImGui::Combo( label, index, items, count );
@@ -4802,6 +4837,7 @@ void c_gui::search_scope_begin( int tab, const char* tab_name ) {
     m_search_tab = tab;
     m_search_tab_name = tab_name ? tab_name : "";
     m_search_box.clear( );
+    reset_row_state(); // the tab itself is a row scope even when a page draws outside a group box
 }
 
 void c_gui::search_scope_end( ) {

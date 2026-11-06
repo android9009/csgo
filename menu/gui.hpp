@@ -68,11 +68,9 @@ public:
     int m_visuals_subtab = 1;
     float m_scale = 1.0f;
 
-    // How many widgets already own the slot just left of the row's control (the colour swatch,
-    // the options gear). row_begin() clears it and each claimant bumps it *before* the row's
-    // Checkbox/Combo/Slider runs; that widget then calls take_row_slot_reserve(), which returns
-    // the room its label has to give up and clears the count again for the next row.
-    int m_row_slot_claims = 0;
+    // Row layout and separator state lives in the current ImGui window's storage. A popup,
+    // floating window or another tab therefore cannot consume a row slot or inherit a divider
+    // run from the window underneath it.
     float row_slot_step( ) const { return 22.f * m_scale; }
     // Use the full row unless a caller/section explicitly supplied an item width.
     float row_content_width( ) const;
@@ -367,7 +365,7 @@ public:
     void row_options_end( );
     // Stock SliderScalar() switches to a compact strip in popups; gear cards opt back into the
     // regular track / knob / value-box layout while their options are being laid out.
-    bool full_size_popup_sliders() const { return m_row_options_depth > 0; }
+    bool full_size_popup_sliders() const;
 
     // --- Multibox (multi-select dropdown) ---
     // The menu's Combo, only the list stays open and every entry is a checkbox: same row geometry,
@@ -446,8 +444,6 @@ private:
     struct popup_scope {
         ImGuiID id;
         bool open;
-        bool saved_row_started = false; // row-separator run of the window the popup opened over
-        int saved_row_slot_claims = 0;  // gear/swatches belonging to that outer row
     };
     ImGuiContext* m_popup_context = nullptr;
     int m_popup_context_frame = -1;
@@ -471,9 +467,13 @@ private:
     ImGuiID m_cur_box_id = 0;
     bool    m_cur_box_auto = false;
     bool    m_force_measure = false; // grid_box(): re-measure content even though a concrete (clamped) height was passed
-    bool    m_row_started = false;   // row_checkbox()/row_sub_menu(): false until the first row in this box is drawn
-    int     m_no_separator_depth = 0; // >0 inside an options-gear card: row_begin() draws no dividers there
-    int     m_row_options_depth = 0;  // stock sliders use full-size rendering inside these cards
+
+    // Per-window, per-tab row state. Keeping it in ImGuiStorage preserves the outer row while a
+    // popup is current and gives every group box, tab and floating window an independent run.
+    ImGuiID row_state_id(const char* name) const;
+    int     row_state_value(const char* name, int fallback = 0) const;
+    void    set_row_state_value(const char* name, int value);
+    void    reset_row_state();
 
     // popup_section_begin()/end() state for the currently open section
     ImVec2 m_popup_section_pos{};
@@ -528,7 +528,7 @@ private:
     bool   color_card_begin( color_slot* slots, int count, bool clicked, const ImRect& swatch, bool allow_gradient );
     void   color_card_body( ImGuiID state_id, ImGuiID mode_id, ImGuiID view_id, color_value* col, bool allow_gradient );
     // The gap just left of the control a row is about to draw - where its swatch / options gear
-    // sit. Each claimant of the row steps one slot further left (see m_row_slot_claims).
+    // sit. Each claimant of the row steps one slot further left (per-window row slot state).
     ImRect row_slot_rect( row_control control ) const;
     ImRect next_checkbox_swatch_rect( ) const;
     ImRect next_combo_swatch_rect( ) const;
