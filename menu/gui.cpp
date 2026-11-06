@@ -2537,6 +2537,8 @@ namespace {
         { "Config",            "Конфиг",              "Yapılandırma" },
         { "Players",           "Игроки",              "Oyuncular" },
         { "World",             "Мир",                 "Dünya" },
+        { "WORLD MODULATION", "МОДУЛЯЦИЯ МИРА",      "DÜNYA MODÜLASYONU" },
+        { "THIRDPERSON",      "ТРЕТЬЕ ЛИЦО",          "ÜÇÜNCÜ ŞAHIS" },
         { "Miscellaneous",     "Разное",              "Çeşitli" },
         { "MAIN",              "ОСНОВНОЕ",            "ANA" },
         { "SELECTION",         "ВЫБОР",               "SEÇİM" },
