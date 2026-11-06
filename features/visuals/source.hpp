@@ -46,11 +46,9 @@ struct player_data {
     float readiness = -1.f;
     float hit_chance = -1.f;
     float delay_ms = -1.f;
-    // Dormant/fade state is retained for short transitions. The capture path
-    // refreshes the cached transform from the same render origin as live ESP,
-    // so dormant transitions do not reuse a stale box position between frames.
+    // Live player snapshots stay opaque; no previous-frame player snapshot is
+    // used to fill missing, dead or dormant entities.
     float alpha = 1.f;
-    bool dormant = false;
     bool armor_valid = false;
     bool money_valid = false;
     bool immunity_valid = false;

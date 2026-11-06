@@ -218,14 +218,6 @@ std::atomic<bool> core_ready = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 std::mutex initialize_mutex;
 
-struct cached_player {
-    player_data data;
-    ULONGLONG last_seen = 0;
-    bool valid = false;
-};
-cached_player player_cache[65];
-ULONGLONG last_capture_time = 0;
-
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
@@ -1228,24 +1220,14 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.taser = data.taser || data.weapon_id == 31;
     collect_model_geometry(local, value<int>(local, nv.hitbox_set, 0), data,
         settings.main[player_visuals::main_skeleton], false);
-    data.dormant = false;
     data.alpha = 1.f;
     output.players.push_back(std::move(data));
 }
 
 void capture(frame_data& output) {
     output = {};
-    if (!is_in_game()) {
-        for (auto& cached : player_cache)
-            cached.valid = false;
-        last_capture_time = 0;
+    if (!is_in_game())
         return;
-    }
-    const ULONGLONG now = GetTickCount64();
-    const float delta_time = last_capture_time
-        ? std::clamp(static_cast<float>(now - last_capture_time) / 1000.f, 0.f, 0.25f)
-        : 1.f / 60.f;
-    last_capture_time = now;
     output.in_game = true;
     output.local_index = local_index();
     void* local = entity_at(output.local_index);
@@ -1270,94 +1252,24 @@ void capture(frame_data& output) {
     output.view_angles = view_angles();
     void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
 
-    // Keep the last complete snapshot for dormant players, as Airflow does.
-    // No entity pointers are retained in this cache, only value-type ESP data.
-    const auto append_cached = [&](int index, bool is_dormant, bool dead) {
-        if (index < 1 || index > 64)
-            return;
-        auto& cached = player_cache[index];
-        if (!cached.valid)
-            return;
-        const ULONGLONG age = now - cached.last_seen;
-        if ((is_dormant && age > 5000) || dead) {
-            const float target = dead || age > 5000 ? 0.f : 0.45f;
-            const float blend = std::clamp(delta_time * 5.f, 0.f, 1.f);
-            cached.data.alpha += (target - cached.data.alpha) * blend;
-        } else if (is_dormant) {
-            const float blend = std::clamp(delta_time * 5.f, 0.f, 1.f);
-            cached.data.alpha += (0.45f - cached.data.alpha) * blend;
-        }
-        cached.data.dormant = is_dormant;
-        if (dead)
-            cached.data.health = 0;
-        const auto& side = player_visuals::settings(cached.data.side);
-        if (cached.data.alpha > 0.01f && side.esp_enabled)
-            output.players.push_back(cached.data);
-        if (cached.data.alpha <= 0.01f && (dead || age > 5000))
-            cached.valid = false;
-    };
-
     output.players.reserve(32);
     for (int index = 1; index <= 64; ++index) {
         if (index == output.local_index)
             continue;
         void* player = entity_at(index);
-        if (!player) {
-            append_cached(index, false, true);
+        if (!player)
             continue;
-        }
         const auto life_state = value<unsigned char>(player, nv.life_state, 0);
         const int health = value<int>(player, nv.health, 0);
         const int team = value<int>(player, nv.team, 0);
-        // Read death/team before dormancy. Otherwise a dead or repurposed entity
-        // can keep an old alive snapshot alive in the fade cache.
-        if (team != 2 && team != 3) {
-            player_cache[index].valid = false;
+        // Player ESP is deliberately fresh-only. A dead, missing or dormant
+        // entity must not resurrect a previous frame's transform.
+        if (team != 2 && team != 3)
             continue;
-        }
-        if (life_state != 0 || health <= 0) {
-            append_cached(index, false, true);
+        if (life_state != 0 || health <= 0 || dormant(player))
             continue;
-        }
         if (local_team != 2 && local_team != 3)
             continue;
-        if (dormant(player)) {
-            auto& cached = player_cache[index];
-            if (cached.valid) {
-                // Dormant metadata may be retained, but its transform must not
-                // jump back to the last network snapshot between live frames.
-                cached.data.team = team;
-                cached.data.health = health;
-                cached.data.side = team == local_team ? 1 : 0;
-                const vector3 origin = render_origin(player, value<vector3>(player, nv.origin));
-                const vector3 delta{ origin.x - cached.data.origin.x,
-                    origin.y - cached.data.origin.y, origin.z - cached.data.origin.z };
-                if (std::isfinite(delta.x) && std::isfinite(delta.y) && std::isfinite(delta.z)) {
-                    // The cached bone lines are world-space too. Move them with
-                    // the origin instead of leaving a second, stale anchor.
-                    for (auto& line : cached.data.skeleton) {
-                        line.from.x += delta.x; line.from.y += delta.y; line.from.z += delta.z;
-                        line.to.x += delta.x; line.to.y += delta.y; line.to.z += delta.z;
-                    }
-                    for (auto& line : cached.data.hitboxes) {
-                        line.from.x += delta.x; line.from.y += delta.y; line.from.z += delta.z;
-                        line.to.x += delta.x; line.to.y += delta.y; line.to.z += delta.z;
-                    }
-                    for (auto& marker : cached.data.hitbox_markers) {
-                        marker.center.x += delta.x;
-                        marker.center.y += delta.y;
-                        marker.center.z += delta.z;
-                    }
-                }
-                cached.data.origin = origin;
-                cached.data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
-                cached.data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
-                cached.data.distance = vector_length({ cached.data.origin.x - local_origin.x,
-                    cached.data.origin.y - local_origin.y, cached.data.origin.z - local_origin.z }) * 0.0254f;
-            }
-            append_cached(index, true, false);
-            continue;
-        }
         player_data data;
         data.index = index;
         data.team = team;
@@ -1428,14 +1340,7 @@ void capture(frame_data& output) {
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), data,
             side_settings.main[player_visuals::main_skeleton],
             side_settings.aimbot[player_visuals::aimbot_hitboxes]);
-        auto& cached = player_cache[index];
-        data.dormant = false;
-        data.alpha = cached.valid
-            ? cached.data.alpha + (1.f - cached.data.alpha) * std::clamp(delta_time * 5.f, 0.f, 1.f)
-            : 1.f;
-        cached.data = data;
-        cached.last_seen = now;
-        cached.valid = true;
+        data.alpha = 1.f;
         output.players.push_back(std::move(data));
     }
 
