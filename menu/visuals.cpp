@@ -516,6 +516,7 @@ void draw_esp_settings(player_side_ui_state& side, bool self = false) {
         for (int i = 0; i < player_visuals::aimbot_count; ++i)
             gui.row_checkbox(aimbot_items[i], &side.esp_items.aimbot_items[i], &side.aimbot_colors[i]);
     }
+    draw_overlay_checkbox(side, self);
     gui.end_group_box();
 }
 
@@ -530,7 +531,6 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
-    draw_overlay_checkbox(side, false);
     draw_chams_row("Player", &side.player_model, side.player_overlay, &side.player_color,
         side.overlay_chams, visuals_chams::mode_names);
     draw_chams_row("Behind Walls", &side.behind_walls_model, side.behind_walls_overlay,
@@ -555,7 +555,6 @@ void draw_teammate_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("TEAMMATE MODEL", k_auto_height);
-    draw_overlay_checkbox(side, false);
     draw_chams_row("Player", &side.player_model, side.player_overlay, &side.player_color,
         side.overlay_chams, visuals_chams::mode_names);
     draw_chams_row("Behind Walls", &side.behind_walls_model, side.behind_walls_overlay,
@@ -609,7 +608,6 @@ void draw_self_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("LOCAL CHAMS", k_auto_height);
-    draw_overlay_checkbox(side, true);
     draw_chams_row("Local Player", &side.local_chams_model, side.local_overlay, &side.player_color,
         side.overlay_chams, self_chams_mode_names());
     // Fake remains a UI/config placeholder; no fake model record is rendered.
