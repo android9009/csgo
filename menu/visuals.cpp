@@ -24,6 +24,12 @@ struct esp_items_ui_state {
     bool aimbot_items[player_visuals::aimbot_count] = {};
 };
 
+struct chams_ui_selection {
+    // Persistent storage is required by menu_binds::multibox_item().
+    bool values[visuals_chams::mode_count] = {};
+    color_value colors[visuals_chams::mode_count];
+};
+
 struct player_side_ui_state {
     // Missing backends stay in per-side UI state, so Enemies, Teammates and Self never
     // overwrite one another while another page is hidden.
@@ -45,6 +51,18 @@ struct player_side_ui_state {
     int viewmodel_chams_model = 0;
     int weapon_chams_model = 0;
     int attachments_chams_model = 0;
+    bool overlay_chams = false;
+    chams_ui_selection player_overlay;
+    chams_ui_selection behind_walls_overlay;
+    chams_ui_selection hitbox_overlay;
+    chams_ui_selection on_shot_overlay;
+    chams_ui_selection history_overlay;
+    chams_ui_selection ragdoll_overlay;
+    chams_ui_selection local_overlay;
+    chams_ui_selection local_fake_overlay;
+    chams_ui_selection viewmodel_overlay;
+    chams_ui_selection weapon_overlay;
+    chams_ui_selection attachments_overlay;
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
     color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
@@ -114,6 +132,83 @@ void store_esp_colors(player_visuals::esp_color (&config)[N], const color_value 
     }
 }
 
+bool same_chams_color(const color_value& lhs, const color_value& rhs) {
+    const auto same_vec = [](const ImVec4& a, const ImVec4& b) {
+        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+    };
+    return same_vec(lhs.a, rhs.a) && same_vec(lhs.b, rhs.b) && lhs.gradient == rhs.gradient;
+}
+
+void load_chams_selection(chams_ui_selection& view,
+                          const player_visuals::material_selection& config,
+                          const color_value& color) {
+    for (int i = 0; i < visuals_chams::mode_count; ++i) {
+        view.values[i] = config.values[i];
+        view.colors[i] = color;
+    }
+    view.values[visuals_chams::disabled] = false;
+}
+
+void store_chams_selection(player_visuals::material_selection& config,
+                           const chams_ui_selection& view) {
+    for (int i = 0; i < visuals_chams::mode_count; ++i)
+        config.values[i] = view.values[i];
+    config.values[visuals_chams::disabled] = false;
+}
+
+void seed_chams_selection(chams_ui_selection& selection, int material) {
+    if (material <= visuals_chams::disabled || material >= visuals_chams::mode_count)
+        return;
+    for (int i = 1; i < visuals_chams::mode_count; ++i)
+        if (selection.values[i])
+            return;
+    selection.values[material] = true;
+}
+
+void draw_overlay_checkbox(player_side_ui_state& side, bool self) {
+    if (!gui.row_checkbox("Overlay Chams", &side.overlay_chams,
+                          "Enable multi-material chams; an empty selection disables that pass.") ||
+        !side.overlay_chams) {
+        return;
+    }
+    if (self) {
+        seed_chams_selection(side.local_overlay, side.local_chams_model);
+        seed_chams_selection(side.local_fake_overlay, side.local_fake_chams_model);
+        seed_chams_selection(side.viewmodel_overlay, side.viewmodel_chams_model);
+        seed_chams_selection(side.weapon_overlay, side.weapon_chams_model);
+        seed_chams_selection(side.attachments_overlay, side.attachments_chams_model);
+    } else {
+        seed_chams_selection(side.player_overlay, side.player_model);
+        seed_chams_selection(side.behind_walls_overlay, side.behind_walls_model);
+        seed_chams_selection(side.hitbox_overlay, side.hitbox_model);
+        seed_chams_selection(side.on_shot_overlay, side.on_shot_model);
+        seed_chams_selection(side.history_overlay, side.history_model);
+        seed_chams_selection(side.ragdoll_overlay, side.ragdolls_model);
+    }
+}
+
+void draw_chams_row(const char* label, int* material, chams_ui_selection& selection,
+                    color_value* color, bool overlay, const char* const* names) {
+    if (!overlay) {
+        gui.row_combo(label, color, material, names, visuals_chams::mode_count);
+        return;
+    }
+    gui.row_multibox(label, names + 1, selection.values + 1, selection.colors + 1,
+        visuals_chams::mode_count - 1, "Select multiple materials; empty selection disables this pass.");
+    if (!color)
+        return;
+    // All materials in one row share the existing category color. Keep the
+    // standard per-row picker semantics without inventing a second color schema.
+    for (int i = 1; i < visuals_chams::mode_count; ++i) {
+        if (same_chams_color(selection.colors[i], *color))
+            continue;
+        *color = selection.colors[i];
+        for (int j = 1; j < visuals_chams::mode_count; ++j)
+            selection.colors[j] = *color;
+        break;
+    }
+}
+
 void load_shared_player_views(players_ui_state& ui) {
     for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
         const auto& config = player_visuals::settings(side_index);
@@ -146,6 +241,13 @@ void load_shared_player_views(players_ui_state& ui) {
         view.ragdolls_color.a = to_vec4(config.ragdoll_color);
         view.ragdolls_color.b = to_vec4(config.ragdoll_secondary);
         view.ragdolls_color.gradient = config.ragdoll_gradient;
+        view.overlay_chams = config.overlay_chams;
+        load_chams_selection(view.player_overlay, config.player_overlay, view.player_color);
+        load_chams_selection(view.behind_walls_overlay, config.behind_walls_overlay, view.behind_walls_color);
+        load_chams_selection(view.hitbox_overlay, config.hitbox_overlay, view.hitbox_color);
+        load_chams_selection(view.on_shot_overlay, config.on_shot_overlay, view.on_shot_color);
+        load_chams_selection(view.history_overlay, config.history_overlay, view.history_color);
+        load_chams_selection(view.ragdoll_overlay, config.ragdoll_overlay, view.ragdolls_color);
         std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
         view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
         std::copy(std::begin(config.main), std::end(config.main), std::begin(view.esp_items.main_items));
@@ -189,6 +291,13 @@ void store_shared_player_views(players_ui_state& ui) {
         config.ragdoll_color = to_config_color(view.ragdolls_color.a);
         config.ragdoll_secondary = to_config_color(view.ragdolls_color.b);
         config.ragdoll_gradient = view.ragdolls_color.gradient;
+        config.overlay_chams = view.overlay_chams;
+        store_chams_selection(config.player_overlay, view.player_overlay);
+        store_chams_selection(config.behind_walls_overlay, view.behind_walls_overlay);
+        store_chams_selection(config.hitbox_overlay, view.hitbox_overlay);
+        store_chams_selection(config.on_shot_overlay, view.on_shot_overlay);
+        store_chams_selection(config.history_overlay, view.history_overlay);
+        store_chams_selection(config.ragdoll_overlay, view.ragdoll_overlay);
         config.custom_sprite = view.custom_sprite;
         std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(config.main));
         std::copy(std::begin(view.esp_items.flags), std::end(view.esp_items.flags), std::begin(config.flags));
@@ -223,6 +332,16 @@ void load_shared_self_view(player_side_ui_state& view) {
     view.hitbox_color.b = to_vec4(config.weapon_secondary);
     view.on_shot_color.a = to_vec4(config.attachments_color);
     view.on_shot_color.b = to_vec4(config.attachments_secondary);
+    view.glow = config.glow_enabled;
+    view.glow_color.a = to_vec4(config.glow_color);
+    view.glow_color.b = to_vec4(config.glow_secondary);
+    view.glow_color.gradient = false;
+    view.overlay_chams = config.overlay_chams;
+    load_chams_selection(view.local_overlay, config.local_overlay, view.player_color);
+    load_chams_selection(view.local_fake_overlay, config.local_fake_overlay, view.local_fake_color);
+    load_chams_selection(view.viewmodel_overlay, config.viewmodel_overlay, view.behind_walls_color);
+    load_chams_selection(view.weapon_overlay, config.weapon_overlay, view.hitbox_color);
+    load_chams_selection(view.attachments_overlay, config.attachments_overlay, view.on_shot_color);
     std::strncpy(view.custom_sprite, config.custom_sprite.c_str(), sizeof(view.custom_sprite) - 1);
     view.custom_sprite[sizeof(view.custom_sprite) - 1] = '\0';
     const auto& esp = player_visuals::self_esp_settings();
@@ -270,6 +389,15 @@ void store_shared_self_view(player_side_ui_state& view) {
     config.weapon_secondary = to_config_color(view.hitbox_color.b);
     config.attachments_color = to_config_color(view.on_shot_color.a);
     config.attachments_secondary = to_config_color(view.on_shot_color.b);
+    config.glow_enabled = view.glow;
+    config.glow_color = to_config_color(view.glow_color.a);
+    config.glow_secondary = to_config_color(view.glow_color.b);
+    config.overlay_chams = view.overlay_chams;
+    store_chams_selection(config.local_overlay, view.local_overlay);
+    store_chams_selection(config.local_fake_overlay, view.local_fake_overlay);
+    store_chams_selection(config.viewmodel_overlay, view.viewmodel_overlay);
+    store_chams_selection(config.weapon_overlay, view.weapon_overlay);
+    store_chams_selection(config.attachments_overlay, view.attachments_overlay);
     config.custom_sprite = view.custom_sprite;
     auto& esp = player_visuals::self_esp_settings();
     std::copy(std::begin(view.esp_items.main_items), std::end(view.esp_items.main_items), std::begin(esp.main));
@@ -283,7 +411,19 @@ void store_shared_self_view(player_side_ui_state& view) {
 }
 
 void draw_custom_sprite_row(player_side_ui_state& side) {
-    if (side.player_model != visuals_chams::custom_sprite &&
+    const bool overlay_sprite = side.overlay_chams &&
+        (side.player_overlay.values[visuals_chams::custom_sprite] ||
+         side.behind_walls_overlay.values[visuals_chams::custom_sprite] ||
+         side.hitbox_overlay.values[visuals_chams::custom_sprite] ||
+         side.on_shot_overlay.values[visuals_chams::custom_sprite] ||
+         side.history_overlay.values[visuals_chams::custom_sprite] ||
+         side.ragdoll_overlay.values[visuals_chams::custom_sprite] ||
+         side.local_overlay.values[visuals_chams::custom_sprite] ||
+         side.local_fake_overlay.values[visuals_chams::custom_sprite] ||
+         side.viewmodel_overlay.values[visuals_chams::custom_sprite] ||
+         side.weapon_overlay.values[visuals_chams::custom_sprite] ||
+         side.attachments_overlay.values[visuals_chams::custom_sprite]);
+    if (!overlay_sprite && side.player_model != visuals_chams::custom_sprite &&
         side.behind_walls_model != visuals_chams::custom_sprite &&
         side.hitbox_model != visuals_chams::custom_sprite &&
         side.on_shot_model != visuals_chams::custom_sprite &&
@@ -390,13 +530,20 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
-    gui.row_combo("Player", &side.player_color, &side.player_model, visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_overlay_checkbox(side, false);
+    draw_chams_row("Player", &side.player_model, side.player_overlay, &side.player_color,
+        side.overlay_chams, visuals_chams::mode_names);
+    draw_chams_row("Behind Walls", &side.behind_walls_model, side.behind_walls_overlay,
+        &side.behind_walls_color, side.overlay_chams, visuals_chams::mode_names);
     draw_custom_sprite_row(side);
-    gui.row_combo("Hitboxes", &side.hitbox_color, &side.hitbox_model, visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("On Shot", &side.on_shot_color, &side.on_shot_model, visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("History", &side.history_color, &side.history_model, visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Ragdolls", &side.ragdolls_color, &side.ragdolls_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_chams_row("Hitboxes", &side.hitbox_model, side.hitbox_overlay, &side.hitbox_color,
+        side.overlay_chams, visuals_chams::mode_names);
+    draw_chams_row("On Shot", &side.on_shot_model, side.on_shot_overlay, &side.on_shot_color,
+        side.overlay_chams, visuals_chams::mode_names);
+    draw_chams_row("History", &side.history_model, side.history_overlay, &side.history_color,
+        side.overlay_chams, visuals_chams::mode_names);
+    draw_chams_row("Ragdolls", &side.ragdolls_model, side.ragdoll_overlay, &side.ragdolls_color,
+        side.overlay_chams, visuals_chams::mode_names);
     gui.row_checkbox("Kill Effect", &effects.m_kill_effect, &side.kill_effect_color);
     gui.row_checkbox("Glow", &glow.m_enabled, &side.glow_color);
     gui.end_group_box();
@@ -408,8 +555,11 @@ void draw_teammate_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("TEAMMATE MODEL", k_auto_height);
-    gui.row_combo("Player", &side.player_color, &side.player_model, visuals_chams::mode_names, visuals_chams::mode_count);
-    gui.row_combo("Behind Walls", &side.behind_walls_color, &side.behind_walls_model, visuals_chams::mode_names, visuals_chams::mode_count);
+    draw_overlay_checkbox(side, false);
+    draw_chams_row("Player", &side.player_model, side.player_overlay, &side.player_color,
+        side.overlay_chams, visuals_chams::mode_names);
+    draw_chams_row("Behind Walls", &side.behind_walls_model, side.behind_walls_overlay,
+        &side.behind_walls_color, side.overlay_chams, visuals_chams::mode_names);
     draw_custom_sprite_row(side);
     gui.row_checkbox("Disable Model Rendering", &side.disable_model_rendering);
     gui.row_checkbox("Glow", &side.glow, &side.glow_color);
@@ -459,18 +609,20 @@ void draw_self_side(player_side_ui_state& side) {
     gui.end_group_box();
 
     gui.grid_box("LOCAL CHAMS", k_auto_height);
-    gui.row_combo("Local Player", &side.player_color, &side.local_chams_model,
-        self_chams_mode_names(), visuals_chams::mode_count);
+    draw_overlay_checkbox(side, true);
+    draw_chams_row("Local Player", &side.local_chams_model, side.local_overlay, &side.player_color,
+        side.overlay_chams, self_chams_mode_names());
     // Fake remains a UI/config placeholder; no fake model record is rendered.
-    gui.row_combo("Local Player Fake", &side.local_fake_color, &side.local_fake_chams_model,
-        self_chams_mode_names(), visuals_chams::mode_count);
-    gui.row_combo("Viewmodel", &side.behind_walls_color, &side.viewmodel_chams_model,
-        self_chams_mode_names(), visuals_chams::mode_count);
-    gui.row_combo("Weapon", &side.hitbox_color, &side.weapon_chams_model,
-        self_chams_mode_names(), visuals_chams::mode_count);
-    gui.row_combo("Attachments", &side.on_shot_color, &side.attachments_chams_model,
-        self_chams_mode_names(), visuals_chams::mode_count);
+    draw_chams_row("Local Player Fake", &side.local_fake_chams_model, side.local_fake_overlay,
+        &side.local_fake_color, side.overlay_chams, self_chams_mode_names());
+    draw_chams_row("Viewmodel", &side.viewmodel_chams_model, side.viewmodel_overlay,
+        &side.behind_walls_color, side.overlay_chams, self_chams_mode_names());
+    draw_chams_row("Weapon", &side.weapon_chams_model, side.weapon_overlay, &side.hitbox_color,
+        side.overlay_chams, self_chams_mode_names());
+    draw_chams_row("Attachments", &side.attachments_chams_model, side.attachments_overlay,
+        &side.on_shot_color, side.overlay_chams, self_chams_mode_names());
     draw_custom_sprite_row(side);
+    gui.row_checkbox("Glow", &side.glow, &side.glow_color);
     gui.end_group_box();
 }
 

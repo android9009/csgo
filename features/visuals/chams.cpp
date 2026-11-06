@@ -115,6 +115,7 @@ struct pass_pair {
     visuals_chams::pass_settings player;
     visuals_chams::pass_settings behind_walls;
     visuals_chams::special_passes special;
+    visuals_chams::side_overlay_passes overlay;
     char sprite_path[128] = "models/weapons/customization/paints/custom/money";
 };
 
@@ -968,6 +969,26 @@ void draw_pass(const draw_call& call, const visuals_chams::pass_settings& pass,
     draw_single_material(call, pass, hidden, sprite_path);
 }
 
+bool selection_enabled(const visuals_chams::pass_settings& single,
+                       const visuals_chams::pass_list& multiple, bool overlay) {
+    return overlay ? multiple.count > 0 : single.material != visuals_chams::disabled;
+}
+
+bool draw_pass_selection(const draw_call& call, const visuals_chams::pass_settings& single,
+                         const visuals_chams::pass_list& multiple, bool overlay, bool hidden,
+                         const char* sprite_path) {
+    if (overlay) {
+        const int count = std::min(multiple.count, static_cast<int>(visuals_chams::mode_count));
+        for (int i = 0; i < count; ++i)
+            draw_pass(call, multiple.values[i], hidden, sprite_path);
+        return count > 0;
+    }
+    if (single.material == visuals_chams::disabled)
+        return false;
+    draw_pass(call, single, hidden, sprite_path);
+    return true;
+}
+
 void draw_record(void* context, const model_record& record,
                  const visuals_chams::pass_settings& pass, const char* sprite_path) {
     if (pass.material == visuals_chams::disabled)
@@ -980,6 +1001,26 @@ void draw_record(void* context, const model_record& record,
     call.bones = const_cast<matrix3x4_t*>(record.bones.data());
     draw_pass(call, pass, true, sprite_path);
     force_material(nullptr, true);
+}
+
+void draw_record_selection(void* context, const model_record& record,
+                           const visuals_chams::pass_settings& single,
+                           const visuals_chams::pass_list& multiple, bool overlay,
+                           const char* sprite_path, float alpha = 1.f) {
+    if (overlay) {
+        const int count = std::min(multiple.count, static_cast<int>(visuals_chams::mode_count));
+        for (int i = 0; i < count; ++i) {
+            auto pass = multiple.values[i];
+            pass.color[3] *= alpha;
+            pass.secondary[3] *= alpha;
+            draw_record(context, record, pass, sprite_path);
+        }
+        return;
+    }
+    auto pass = single;
+    pass.color[3] *= alpha;
+    pass.secondary[3] *= alpha;
+    draw_record(context, record, pass, sprite_path);
 }
 
 void draw_on_shot_records(void* context) {
@@ -996,8 +1037,10 @@ void draw_on_shot_records(void* context) {
         std::scoped_lock lock(settings_mutex);
         snapshot = game_settings[0];
     }
-    if (!snapshot.configured || snapshot.special.on_shot.material == visuals_chams::disabled)
+    if (!snapshot.configured ||
+        !selection_enabled(snapshot.special.on_shot, snapshot.overlay.on_shot, snapshot.overlay.enabled)) {
         return;
+    }
     last_frame = frame;
     const ULONGLONG now = GetTickCount64();
     std::array<model_record, 4> records;
@@ -1027,10 +1070,8 @@ void draw_on_shot_records(void* context) {
     modulation_scope modulation(true);
     reset_modulation(true);
     for (std::size_t i = 0; i < count; ++i) {
-        auto pass = snapshot.special.on_shot;
-        pass.color[3] *= alphas[i];
-        pass.secondary[3] *= alphas[i];
-        draw_record(context, records[i], pass, snapshot.sprite_path);
+        draw_record_selection(context, records[i], snapshot.special.on_shot,
+            snapshot.overlay.on_shot, snapshot.overlay.enabled, snapshot.sprite_path, alphas[i]);
     }
     force_material(nullptr, true);
     reset_modulation(true);
@@ -1204,27 +1245,53 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
             }
             in_game_chams = false;
         };
+        const auto draw_self_selection = [&](const visuals_chams::pass_settings& single,
+                                             const visuals_chams::pass_list& multiple) {
+            in_game_chams = true;
+            bool drawn = false;
+            {
+                modulation_scope modulation(true);
+                draw_call call;
+                call.bones = bones;
+                call.game = true;
+                call.context = context;
+                call.state = &state;
+                call.render_info = &info;
+                reset_modulation(true);
+                drawn = draw_pass_selection(call, single, multiple,
+                    self_snapshot.overlay.enabled, false, sprite_path);
+                force_material(nullptr, true);
+                reset_modulation(true);
+            }
+            in_game_chams = false;
+            return drawn;
+        };
 
         visuals_source::renderable_entity_data self_entity;
         void* self_renderable = state.renderable ? state.renderable : info.renderable;
         if (visuals_source::resolve_renderable_entity(self_renderable, self_entity)) {
             if (visuals_source::is_local_entity(self_entity.entity) &&
-                player_model_name(model_name, model_name_size) &&
-                self_snapshot.local_player.material != visuals_chams::disabled) {
-                draw_self(self_snapshot.local_player);
-                return;
+                player_model_name(model_name, model_name_size)) {
+                bool drawn = draw_self_selection(self_snapshot.local_player,
+                    self_snapshot.overlay.local_player);
+                if (self_snapshot.glow.material != visuals_chams::disabled) {
+                    // The standalone Self Glow is additive to the chosen materials.
+                    // Do not turn Glow off/on into an implicit flat material.
+                    draw_self(self_snapshot.glow);
+                    drawn = true;
+                }
+                if (drawn)
+                    return;
             }
             if (self_entity.viewmodel) {
                 const bool arms = model_name && std::strstr(model_name, "arms");
                 const auto& pass = arms ? self_snapshot.viewmodel : self_snapshot.weapon;
-                if (pass.material != visuals_chams::disabled) {
-                    draw_self(pass);
+                const auto& passes = arms ? self_snapshot.overlay.viewmodel : self_snapshot.overlay.weapon;
+                if (draw_self_selection(pass, passes))
                     return;
-                }
             }
-            if (self_snapshot.attachments.material != visuals_chams::disabled &&
-                visuals_source::entity_parented_to_local(self_entity.entity)) {
-                draw_self(self_snapshot.attachments);
+            if (visuals_source::entity_parented_to_local(self_entity.entity) &&
+                draw_self_selection(self_snapshot.attachments, self_snapshot.overlay.attachments)) {
                 return;
             }
         }
@@ -1262,12 +1329,20 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         std::scoped_lock lock(settings_mutex);
         snapshot = game_settings[side];
     }
-    const bool normal_pass_enabled = snapshot.player.material != visuals_chams::disabled ||
-        snapshot.behind_walls.material != visuals_chams::disabled ||
-        snapshot.special.history.material != visuals_chams::disabled ||
-        snapshot.special.on_shot.material != visuals_chams::disabled;
+    const bool player_enabled = selection_enabled(snapshot.player, snapshot.overlay.player,
+        snapshot.overlay.enabled);
+    const bool behind_walls_enabled = selection_enabled(snapshot.behind_walls,
+        snapshot.overlay.behind_walls, snapshot.overlay.enabled);
+    const bool history_enabled = selection_enabled(snapshot.special.history,
+        snapshot.overlay.history, snapshot.overlay.enabled);
+    const bool on_shot_enabled = selection_enabled(snapshot.special.on_shot,
+        snapshot.overlay.on_shot, snapshot.overlay.enabled);
+    const bool ragdolls_enabled = selection_enabled(snapshot.special.ragdolls,
+        snapshot.overlay.ragdolls, snapshot.overlay.enabled);
+    const bool normal_pass_enabled = player_enabled || behind_walls_enabled ||
+        history_enabled || on_shot_enabled;
     if (!snapshot.configured ||
-        (ragdoll && snapshot.special.ragdolls.material == visuals_chams::disabled) ||
+        (ragdoll && !ragdolls_enabled) ||
         (!ragdoll && !normal_pass_enabled)) {
         original_model_execute(self, context, state, info, bones);
         return;
@@ -1284,9 +1359,8 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     reset_modulation(true);
 
     if (ragdoll) {
-        if (snapshot.special.ragdolls.material != visuals_chams::disabled)
-            draw_pass(call, snapshot.special.ragdolls, true, snapshot.sprite_path);
-        else {
+        if (!draw_pass_selection(call, snapshot.special.ragdolls, snapshot.overlay.ragdolls,
+                snapshot.overlay.enabled, true, snapshot.sprite_path)) {
             force_material(nullptr, true);
             draw_original(call);
         }
@@ -1297,7 +1371,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
     }
 
     const ULONGLONG now = GetTickCount64();
-    if (snapshot.special.history.material != visuals_chams::disabled) {
+    if (history_enabled) {
         model_record record;
         bool found = false;
         {
@@ -1315,19 +1389,17 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
             }
         }
         if (found)
-            draw_record(context, record, snapshot.special.history, snapshot.sprite_path);
+            draw_record_selection(context, record, snapshot.special.history,
+                snapshot.overlay.history, snapshot.overlay.enabled, snapshot.sprite_path);
     }
 
-    if (snapshot.special.history.material != visuals_chams::disabled ||
-        snapshot.special.on_shot.material != visuals_chams::disabled) {
+    if (history_enabled || on_shot_enabled)
         capture_history(info.entity_index, state, info, bones, now);
-    }
 
-    if (snapshot.behind_walls.material != visuals_chams::disabled)
-        draw_pass(call, snapshot.behind_walls, true, snapshot.sprite_path);
-    if (snapshot.player.material != visuals_chams::disabled)
-        draw_pass(call, snapshot.player, false, snapshot.sprite_path);
-    else {
+    draw_pass_selection(call, snapshot.behind_walls, snapshot.overlay.behind_walls,
+        snapshot.overlay.enabled, true, snapshot.sprite_path);
+    if (!draw_pass_selection(call, snapshot.player, snapshot.overlay.player,
+            snapshot.overlay.enabled, false, snapshot.sprite_path)) {
         force_material(nullptr, true);
         draw_original(call);
     }
@@ -1464,6 +1536,25 @@ void configure_pair(pass_pair& target, int side, const pass_settings& player,
         target.sprite_path[sizeof(target.sprite_path) - 1] = '\0';
     }
 }
+
+void sanitize_pass_list(pass_list& list) {
+    int output = 0;
+    const int count = std::clamp(list.count, 0, static_cast<int>(mode_count));
+    for (int i = 0; i < count; ++i) {
+        auto pass = list.values[i];
+        if (pass.material <= disabled || pass.material >= mode_count)
+            continue;
+        for (int channel = 0; channel < 4; ++channel) {
+            pass.color[channel] = std::clamp(pass.color[channel], 0.f, 1.f);
+            pass.secondary[channel] = std::clamp(pass.secondary[channel], 0.f, 1.f);
+        }
+        list.values[output++] = pass;
+    }
+    list.count = output;
+    for (int i = output; i < mode_count; ++i)
+        list.values[i] = pass_settings{};
+}
+
 }
 
 void set_side_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
@@ -1493,6 +1584,19 @@ void set_side_special_passes(int side, const special_passes& passes) {
         sanitize(*pass);
 }
 
+void set_side_overlay_passes(int side, const side_overlay_passes& passes) {
+    if (side != 0 && side != 1)
+        return;
+    std::scoped_lock lock(settings_mutex);
+    auto& target = game_settings[side];
+    target.overlay = passes;
+    for (auto* list : {&target.overlay.player, &target.overlay.behind_walls,
+                       &target.overlay.hitboxes, &target.overlay.on_shot,
+                       &target.overlay.history, &target.overlay.ragdolls}) {
+        sanitize_pass_list(*list);
+    }
+}
+
 void set_self_passes(const self_passes& passes, const char* sprite_path) {
     std::scoped_lock lock(settings_mutex);
     self_game_settings = passes;
@@ -1508,10 +1612,21 @@ void set_self_passes(const self_passes& passes, const char* sprite_path) {
     sanitize(self_game_settings.viewmodel);
     sanitize(self_game_settings.weapon);
     sanitize(self_game_settings.attachments);
-    self_chams_enabled.store(self_game_settings.local_player.material != disabled ||
-        self_game_settings.viewmodel.material != disabled ||
-        self_game_settings.weapon.material != disabled ||
-        self_game_settings.attachments.material != disabled, std::memory_order_release);
+    sanitize(self_game_settings.glow);
+    for (auto* list : {&self_game_settings.overlay.local_player,
+                       &self_game_settings.overlay.local_fake,
+                       &self_game_settings.overlay.viewmodel,
+                       &self_game_settings.overlay.weapon,
+                       &self_game_settings.overlay.attachments}) {
+        sanitize_pass_list(*list);
+    }
+    const auto& overlay = self_game_settings.overlay;
+    self_chams_enabled.store(self_game_settings.glow.material != disabled ||
+        selection_enabled(self_game_settings.local_player, overlay.local_player, overlay.enabled) ||
+        selection_enabled(self_game_settings.viewmodel, overlay.viewmodel, overlay.enabled) ||
+        selection_enabled(self_game_settings.weapon, overlay.weapon, overlay.enabled) ||
+        selection_enabled(self_game_settings.attachments, overlay.attachments, overlay.enabled),
+        std::memory_order_release);
     if (sprite_path && sprite_path[0]) {
         std::strncpy(self_sprite_path, sprite_path, sizeof(self_sprite_path) - 1);
         self_sprite_path[sizeof(self_sprite_path) - 1] = '\0';

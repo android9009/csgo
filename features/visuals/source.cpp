@@ -1276,7 +1276,7 @@ void capture(frame_data& output) {
             cached.data.health = 0;
         const auto& side = player_visuals::settings(cached.data.side);
         if (cached.data.alpha > 0.01f &&
-            (side.esp_enabled || side.hitbox_material > 0)) {
+            (side.esp_enabled || player_visuals::has_hitbox_chams(side))) {
             output.players.push_back(cached.data);
         }
         if (cached.data.alpha <= 0.01f && (dead || age > 5000))
@@ -1316,7 +1316,7 @@ void capture(frame_data& output) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        const bool chams_hitboxes = side_settings.hitbox_material > 0;
+        const bool chams_hitboxes = player_visuals::has_hitbox_chams(side_settings);
         if (!side_settings.esp_enabled && !chams_hitboxes)
             continue;
         data.origin = value<vector3>(player, nv.origin);

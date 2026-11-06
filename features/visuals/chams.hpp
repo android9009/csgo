@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 // Shared material/pass definitions. Gameplay uses IVModelRender::DrawModelExecute;
 // the same settings are consumed by the Panorama IStudioRender preview path.
 namespace visuals_chams {
@@ -48,6 +50,30 @@ struct pass_settings {
     float secondary[4] = { 1.f, 1.f, 1.f, 1.f };
 };
 
+struct pass_list {
+    std::array<pass_settings, mode_count> values{};
+    int count = 0;
+};
+
+struct side_overlay_passes {
+    bool enabled = false;
+    pass_list player;
+    pass_list behind_walls;
+    pass_list hitboxes;
+    pass_list on_shot;
+    pass_list history;
+    pass_list ragdolls;
+};
+
+struct self_overlay_passes {
+    bool enabled = false;
+    pass_list local_player;
+    pass_list local_fake;
+    pass_list viewmodel;
+    pass_list weapon;
+    pass_list attachments;
+};
+
 struct special_passes {
     pass_settings hitboxes;
     pass_settings on_shot;
@@ -60,6 +86,8 @@ struct self_passes {
     pass_settings viewmodel;
     pass_settings weapon;
     pass_settings attachments;
+    pass_settings glow;
+    self_overlay_passes overlay;
 };
 
 // side: 0 = Enemies, 1 = Teammates. Game settings persist independently of the
@@ -67,6 +95,7 @@ struct self_passes {
 void set_side_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                      const char* sprite_path);
 void set_side_special_passes(int side, const special_passes& passes);
+void set_side_overlay_passes(int side, const side_overlay_passes& passes);
 void set_self_passes(const self_passes& passes, const char* sprite_path);
 void set_preview_passes(int side, const pass_settings& player, const pass_settings& behind_walls,
                         const char* sprite_path);

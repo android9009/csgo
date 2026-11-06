@@ -147,6 +147,10 @@ void c_config_system::setup_values( )
 		push_item( &value.secondary, category, name + "_secondary", value.secondary );
 		push_item( &value.gradient, category, name + "_gradient", value.gradient );
 	};
+	auto push_overlay = [&]( player_visuals::material_selection& selection, const std::string& category, const std::string& name ) {
+		for (int i = 1; i < visuals_chams::mode_count; ++i)
+			push_item(&selection.values[i], category, std::format("{}_{}", name, i), selection.values[i]);
+	};
 	for (int side_index = 0; side_index < player_visuals::side_count; ++side_index) {
 		auto& side = player_visuals::settings(side_index);
 		const std::string category = side_index == 0 ? "enemy_visuals" : "teammate_visuals";
@@ -162,6 +166,13 @@ void c_config_system::setup_values( )
 		push_item(&side.behind_walls_secondary, category, "behind_walls_secondary", side.behind_walls_secondary);
 		push_item(&side.player_gradient, category, "player_gradient", side.player_gradient);
 		push_item(&side.behind_walls_gradient, category, "behind_walls_gradient", side.behind_walls_gradient);
+		push_item(&side.overlay_chams, category, "overlay_chams", side.overlay_chams);
+		push_overlay(side.player_overlay, category, "overlay_player");
+		push_overlay(side.behind_walls_overlay, category, "overlay_behind_walls");
+		push_overlay(side.hitbox_overlay, category, "overlay_hitboxes");
+		push_overlay(side.on_shot_overlay, category, "overlay_on_shot");
+		push_overlay(side.history_overlay, category, "overlay_history");
+		push_overlay(side.ragdoll_overlay, category, "overlay_ragdolls");
 		push_item(&side.hitbox_material, category, "hitbox_material", side.hitbox_material);
 		push_item(&side.hitbox_color, category, "hitbox_color", side.hitbox_color);
 		push_item(&side.hitbox_secondary, category, "hitbox_secondary", side.hitbox_secondary);
@@ -245,6 +256,15 @@ void c_config_system::setup_values( )
 	push_item(&self.weapon_secondary, "self_visuals", "weapon_secondary", self.weapon_secondary);
 	push_item(&self.attachments_color, "self_visuals", "attachments_color", self.attachments_color);
 	push_item(&self.attachments_secondary, "self_visuals", "attachments_secondary", self.attachments_secondary);
+	push_item(&self.glow_enabled, "self_visuals", "glow_enabled", self.glow_enabled);
+	push_item(&self.glow_color, "self_visuals", "glow_color", self.glow_color);
+	push_item(&self.glow_secondary, "self_visuals", "glow_secondary", self.glow_secondary);
+	push_item(&self.overlay_chams, "self_visuals", "overlay_chams", self.overlay_chams);
+	push_overlay(self.local_overlay, "self_visuals", "overlay_local");
+	push_overlay(self.local_fake_overlay, "self_visuals", "overlay_local_fake");
+	push_overlay(self.viewmodel_overlay, "self_visuals", "overlay_viewmodel");
+	push_overlay(self.weapon_overlay, "self_visuals", "overlay_weapon");
+	push_overlay(self.attachments_overlay, "self_visuals", "overlay_attachments");
 	push_item(&self.custom_sprite, "self_visuals", "custom_sprite", self.custom_sprite);
 	auto& world = player_visuals::world_settings();
 	push_item(&world.enabled, "world_esp", "enabled", world.enabled);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../sdk/typedefs/c_color.hpp"
+#include "chams.hpp"
 
 #include <array>
 #include <cstddef>
@@ -83,6 +84,17 @@ inline void set_esp_color(esp_color& target, const c_color& value) {
     target.gradient = false;
 }
 
+struct material_selection {
+    bool values[visuals_chams::mode_count] = {};
+
+    bool any() const {
+        for (int i = 1; i < visuals_chams::mode_count; ++i)
+            if (values[i])
+                return true;
+        return false;
+    }
+};
+
 struct side_settings {
     bool esp_enabled = false;
     bool offscreen_arrow = false;
@@ -109,6 +121,16 @@ struct side_settings {
     bool player_gradient = false;
     bool behind_walls_gradient = false;
 
+    // Optional multi-material mode. The legacy single-material fields above
+    // remain untouched so switching modes does not lose the old selection.
+    bool overlay_chams = false;
+    material_selection player_overlay;
+    material_selection behind_walls_overlay;
+    material_selection hitbox_overlay;
+    material_selection on_shot_overlay;
+    material_selection history_overlay;
+    material_selection ragdoll_overlay;
+
     int hitbox_material = 0;
     int on_shot_material = 0;
     int history_material = 0;
@@ -129,6 +151,10 @@ struct side_settings {
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
 };
 
+inline bool has_hitbox_chams(const side_settings& settings) {
+    return settings.overlay_chams ? settings.hitbox_overlay.any() : settings.hitbox_material > 0;
+}
+
 struct self_chams_settings {
     // Kept for compatibility with the checkbox-era config schema. The Self UI
     // now treats material == Disabled as the canonical Off state.
@@ -142,6 +168,12 @@ struct self_chams_settings {
     int viewmodel_material = 0;
     int weapon_material = 0;
     int attachments_material = 0;
+    bool overlay_chams = false;
+    material_selection local_overlay;
+    material_selection local_fake_overlay;
+    material_selection viewmodel_overlay;
+    material_selection weapon_overlay;
+    material_selection attachments_overlay;
     c_color local_color{ 0.60f, 0.65f, 1.f, 1.f };
     c_color local_secondary = local_color;
     c_color local_fake_color{ 0.60f, 0.65f, 1.f, 1.f };
@@ -152,6 +184,10 @@ struct self_chams_settings {
     c_color weapon_secondary = weapon_color;
     c_color attachments_color{ 0.60f, 0.65f, 1.f, 1.f };
     c_color attachments_secondary = attachments_color;
+    // Independent local-player pass, separate from the Glow material option.
+    bool glow_enabled = false;
+    c_color glow_color{ 0.80f, 0.75f, 1.f, 1.f };
+    c_color glow_secondary = glow_color;
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
 };
 
