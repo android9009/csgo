@@ -834,12 +834,75 @@ int fallback_max_clip(int id) {
 weapon_info_t* weapon_info(int id) {
     if (!weapon_system || id <= 0)
         return nullptr;
+    struct info_cache_entry {
+        weapon_info_t* info = nullptr;
+        bool resolved = false;
+    };
+    // Item definitions and their engine-owned CCSWeaponData are stable. Cache
+    // both hits and misses instead of repeating GetWeaponData + VirtualQuery
+    // for every player holding the same weapon on every frame.
+    static thread_local std::array<info_cache_entry, 1024> info_cache;
+    const bool cacheable = id < static_cast<int>(info_cache.size());
+    if (cacheable && info_cache[id].resolved)
+        return info_cache[id].info;
     static thread_local virtual_cache<get_weapon_data_t> cache;
     const auto function = cached_virtual(weapon_system, 2, client_module, cache);
     if (!function)
         return nullptr;
     auto* result = function(weapon_system, static_cast<unsigned int>(id));
-    return readable_range(result, sizeof(weapon_info_t)) ? result : nullptr;
+    if (!readable_range(result, sizeof(weapon_info_t)))
+        result = nullptr;
+    if (cacheable)
+        info_cache[id] = { result, true };
+    return result;
+}
+
+bool weapon_capture_needed(const player_visuals::side_settings& settings) {
+    return settings.main[player_visuals::main_ammo_bar] ||
+        settings.flags[player_visuals::flag_reload] ||
+        settings.flags[player_visuals::flag_bomb] ||
+        settings.flags[player_visuals::flag_pin_pulled] ||
+        settings.weapon[player_visuals::weapon_text] ||
+        settings.weapon[player_visuals::weapon_icon] ||
+        settings.weapon[player_visuals::weapon_readiness_bar] ||
+        settings.weapon[player_visuals::weapon_bomb] ||
+        settings.weapon[player_visuals::weapon_taser];
+}
+
+void capture_weapon(void* weapon, const player_visuals::side_settings& settings,
+                    player_data& output) {
+    if (!weapon)
+        return;
+    // Keep the identity/name snapshot even when its display element is off;
+    // dormant records must retain it for a later settings change.
+    output.weapon_id = item_definition(weapon);
+    if (output.weapon_id > 0)
+        output.weapon_name = weapon_name(output.weapon_id);
+    if (!weapon_capture_needed(settings))
+        return;
+    const bool ammo = settings.main[player_visuals::main_ammo_bar];
+    const bool readiness = settings.weapon[player_visuals::weapon_readiness_bar];
+    if (ammo)
+        output.clip = value<int>(weapon, nv.clip, -1);
+    if (settings.flags[player_visuals::flag_reload])
+        output.reloading = value<bool>(weapon, nv.reloading, false);
+    if (settings.flags[player_visuals::flag_pin_pulled])
+        output.pin_pulled = value<bool>(weapon, nv.pin_pulled, false);
+    if (!ammo && !readiness)
+        return;
+    if (const auto* info = weapon_info(output.weapon_id)) {
+        if (ammo)
+            output.max_clip = info->max_clip1;
+        if (readiness && global_vars && info->cycle_time > 0.001f && info->cycle_time < 10.f) {
+            float ready_time = value<float>(weapon, nv.next_primary_attack, global_vars->current_time);
+            ready_time = std::max(ready_time,
+                value<float>(weapon, nv.postpone_fire_ready, ready_time));
+            output.readiness = std::clamp(1.f - std::max(0.f,
+                ready_time - global_vars->current_time) / info->cycle_time, 0.f, 1.f);
+        }
+    }
+    if (ammo && output.max_clip <= 0)
+        output.max_clip = fallback_max_clip(output.weapon_id);
 }
 
 float vector_length(const vector3& value) {
@@ -1375,7 +1438,7 @@ void capture_world(frame_data& output, const vector3& local_origin) {
     }
 }
 
-void capture_local_player(frame_data& output, void* local, void* local_weapon, int local_team) {
+void capture_local_player(frame_data& output, void* local, int local_team) {
     const auto& settings = player_visuals::self_esp_settings();
     if (!output.local_alive || (local_team != 2 && local_team != 3) || dormant(local) ||
         !settings.esp_enabled) {
@@ -1415,27 +1478,8 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
     data.blind = value<float>(local, nv.flash_duration, 0.f) > 0.01f;
     data.slowed = value<float>(local, nv.velocity_modifier, 1.f) < 0.99f;
     data.hostage = entity_from_handle(value<unsigned int>(local, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
-    if (local_weapon) {
-        data.weapon_id = item_definition(local_weapon);
-        if (data.weapon_id > 0)
-            data.weapon_name = weapon_name(data.weapon_id);
-        data.clip = value<int>(local_weapon, nv.clip, -1);
-        data.reserve_ammo = value<int>(local_weapon, nv.reserve_ammo, -1);
-        data.reloading = value<bool>(local_weapon, nv.reloading, false);
-        data.pin_pulled = value<bool>(local_weapon, nv.pin_pulled, false);
-        if (const auto* info = weapon_info(data.weapon_id)) {
-            data.max_clip = info->max_clip1;
-            if (global_vars && info->cycle_time > 0.001f && info->cycle_time < 10.f) {
-                float ready_time = value<float>(local_weapon, nv.next_primary_attack, global_vars->current_time);
-                ready_time = std::max(ready_time,
-                    value<float>(local_weapon, nv.postpone_fire_ready, ready_time));
-                data.readiness = std::clamp(1.f - std::max(0.f,
-                    ready_time - global_vars->current_time) / info->cycle_time, 0.f, 1.f);
-            }
-        }
-        if (data.max_clip <= 0)
-            data.max_clip = fallback_max_clip(data.weapon_id);
-    }
+    void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
+    capture_weapon(local_weapon, settings, data);
     if (settings.flags[player_visuals::flag_bomb] ||
         settings.weapon[player_visuals::weapon_bomb] ||
         settings.weapon[player_visuals::weapon_taser]) {
@@ -1486,7 +1530,6 @@ void capture_now(frame_data& output, float alpha_blend) {
     const vector3 local_origin = abs_origin(local, value<vector3>(local, nv.origin));
     output.local_origin = local_origin;
     output.view_angles = view_angles();
-    void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
 
     // This is the main branch's complete value-only dormant/fade record. It is
     // intentionally separate from chams history and never stores entity pointers.
@@ -1596,27 +1639,7 @@ void capture_now(frame_data& output, float alpha_blend) {
         data.slowed = value<float>(player, nv.velocity_modifier, 1.f) < 0.99f;
         data.hostage = entity_from_handle(value<unsigned int>(player, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
         void* weapon = entity_from_handle(value<unsigned int>(player, nv.active_weapon, 0xFFFFFFFFu));
-        if (weapon) {
-            data.weapon_id = item_definition(weapon);
-            if (data.weapon_id > 0)
-                data.weapon_name = weapon_name(data.weapon_id);
-            data.clip = value<int>(weapon, nv.clip, -1);
-            data.reserve_ammo = value<int>(weapon, nv.reserve_ammo, -1);
-            data.reloading = value<bool>(weapon, nv.reloading, false);
-            data.pin_pulled = value<bool>(weapon, nv.pin_pulled, false);
-            if (const auto* info = weapon_info(data.weapon_id)) {
-                data.max_clip = info->max_clip1;
-                if (global_vars && info->cycle_time > 0.001f && info->cycle_time < 10.f) {
-                    float ready_time = value<float>(weapon, nv.next_primary_attack, global_vars->current_time);
-                    ready_time = std::max(ready_time,
-                        value<float>(weapon, nv.postpone_fire_ready, ready_time));
-                    data.readiness = std::clamp(1.f - std::max(0.f,
-                        ready_time - global_vars->current_time) / info->cycle_time, 0.f, 1.f);
-                }
-            }
-            if (data.max_clip <= 0)
-                data.max_clip = fallback_max_clip(data.weapon_id);
-        }
+        capture_weapon(weapon, side_settings, data);
         if (side_settings.esp_enabled &&
             (side_settings.flags[player_visuals::flag_bomb] ||
              side_settings.weapon[player_visuals::weapon_bomb] ||
@@ -1642,7 +1665,7 @@ void capture_now(frame_data& output, float alpha_blend) {
             output.players.push_back(std::move(data));
     }
 
-    capture_local_player(output, local, local_weapon, local_team);
+    capture_local_player(output, local, local_team);
     capture_world(output, local_origin);
 }
 

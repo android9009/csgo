@@ -231,21 +231,23 @@ void drag_handle(ImDrawList* draw, int side, int item, const rect_f& handle,
     window->DC.CursorMaxPos = saved_cursor_max;
 }
 
-rect_f draw_text(ImDrawList* draw, ImVec2 center, const std::string& text, ImU32 ink,
+rect_f draw_text(ImDrawList* draw, ImVec2 center, std::string_view text, ImU32 ink,
                  float scale, int alignment = 0) { // 0 center, 1 left, -1 right
     if (text.empty())
         return {};
     ImFont* font = ImGui::GetFont();
     const float font_size = std::max(8.f, 12.f * scale);
-    const ImVec2 size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, text.c_str());
+    const char* begin = text.data();
+    const char* end = begin + text.size();
+    const ImVec2 size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, begin, end);
     ImVec2 top_left = center - ImVec2(size.x * 0.5f, size.y * 0.5f);
     if (alignment > 0)
         top_left.x = center.x;
     else if (alignment < 0)
         top_left.x = center.x - size.x;
     const ImU32 shadow = color(0.f, 0.f, 0.f, 0.85f);
-    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, text.c_str());
-    draw->AddText(font, font_size, top_left, ink, text.c_str());
+    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, begin, end);
+    draw->AddText(font, font_size, top_left, ink, begin, end);
     return { top_left, top_left + size };
 }
 
@@ -278,9 +280,10 @@ struct main_esp_object {
     float bar_max = 1.f;
     c_color ink{ 1.f, 1.f, 1.f, 1.f };
     c_color outline{ 0.f, 0.f, 0.f, 1.f };
-    // ESP labels are bounded (names are truncated to 24 chars); avoid a heap
-    // allocation for every object on every Present.
-    char text[96] = {};
+    // ESP labels are bounded (names are truncated to 24 chars). String objects
+    // initialize exactly the bytes they use; bars/icons never read this array.
+    char text[96];
+    main_esp_object() { text[0] = '\0'; }
 };
 
 struct main_render_context {
@@ -436,9 +439,14 @@ void render_main_bar(main_render_context& context, const main_esp_object& object
     context.draw->AddRectFilled(outline_min, outline_max, color(object.outline, 0.6f));
     context.draw->AddRectFilled(fill_min, fill_max, color(object.ink));
     if (object.bar < object.bar_max) {
-        const std::string value_string = std::to_string(static_cast<int>(object.bar));
-        draw_text(context.draw, text_position, value_string,
-            color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
+        char value_string[16];
+        const int length = std::snprintf(value_string, sizeof(value_string), "%d",
+            static_cast<int>(object.bar));
+        if (length > 0) {
+            draw_text(context.draw, text_position,
+                std::string_view(value_string, static_cast<std::size_t>(length)),
+                color(1.f, 1.f, 1.f, 0.9f), scale * 0.8f);
+        }
     }
     if (object.item >= 0) {
         maybe_drag(context.draw, context.preview_side, object.item,
@@ -448,8 +456,7 @@ void render_main_bar(main_render_context& context, const main_esp_object& object
 }
 
 
-std::string flag_text(int flag, const player_data& data) {
-    char buffer[96];
+std::string_view flag_text(int flag, const player_data& data, char (&buffer)[96]) {
     switch (flag) {
     case player_visuals::flag_defuser:
         return data.defuser ? "DEFUSER" : "";
@@ -471,11 +478,14 @@ std::string flag_text(int flag, const player_data& data) {
         return data.defusing ? "DEFUSING" : "";
     case player_visuals::flag_pin_pulled:
         return data.pin_pulled ? "PIN PULLED" : "";
-    case player_visuals::flag_money:
+    case player_visuals::flag_money: {
         if (!data.money_valid)
             return {};
-        std::snprintf(buffer, sizeof(buffer), "$%d", data.money);
-        return buffer;
+        const int length = std::snprintf(buffer, sizeof(buffer), "$%d", data.money);
+        return length > 0
+            ? std::string_view(buffer, std::min(static_cast<std::size_t>(length), sizeof(buffer) - 1))
+            : std::string_view{};
+    }
     default:
         return {};
     }
@@ -551,7 +561,7 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 
     constexpr int max_main_objects = 32;
-    std::array<main_esp_object, max_main_objects> objects{};
+    std::array<main_esp_object, max_main_objects> objects;
     int object_count = 0;
     const auto add_string = [&](int position, int item, std::string_view text,
                                 const c_color& ink) {
@@ -633,17 +643,23 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             settings.weapon_colors[player_visuals::weapon_readiness_bar].primary);
     }
     if (data.health > 0 && alpha > 0.5f) {
+        char flag_buffer[96];
         for (int flag = 0; flag < player_visuals::flag_count; ++flag) {
             if (!settings.flags[flag])
                 continue;
-            add_string(main_right, player_visuals::flag_item_id(flag), flag_text(flag, data),
-                settings.flag_colors[flag].primary);
+            add_string(main_right, player_visuals::flag_item_id(flag),
+                flag_text(flag, data, flag_buffer), settings.flag_colors[flag].primary);
         }
     }
     if (settings.main[player_visuals::main_distance]) {
-        add_string(main_down, player_visuals::main_distance,
-            std::to_string(static_cast<int>(data.distance)) + "m",
-            settings.main_colors[player_visuals::main_distance].primary);
+        char distance[24];
+        const int length = std::snprintf(distance, sizeof(distance), "%dm",
+            static_cast<int>(data.distance));
+        if (length > 0) {
+            add_string(main_down, player_visuals::main_distance,
+                std::string_view(distance, static_cast<std::size_t>(length)),
+                settings.main_colors[player_visuals::main_distance].primary);
+        }
     }
     add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_bomb),
         settings.weapon[player_visuals::weapon_bomb] && data.bomb ? "C4" : "",

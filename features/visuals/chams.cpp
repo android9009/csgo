@@ -110,6 +110,7 @@ enum self_pass_bit : unsigned {
 };
 std::atomic<unsigned> self_chams_mask = 0;
 std::atomic<unsigned> self_settings_generation = 1;
+std::atomic<unsigned> game_settings_generation = 1;
 std::atomic<bool> on_shot_chams_enabled = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 thread_local int engine_model_draw_depth = 0;
@@ -153,6 +154,15 @@ struct self_frame_snapshot {
     char sprite_path[128] = {};
 };
 thread_local self_frame_snapshot self_frame;
+
+struct side_frame_snapshot {
+    int frame = -1;
+    unsigned generation = 0;
+    pass_pair settings;
+};
+thread_local std::array<side_frame_snapshot, 2> side_frames;
+
+const pass_pair& game_snapshot_for_frame(int side);
 
 struct model_record {
     draw_model_state_t state{};
@@ -561,7 +571,7 @@ using material_get_flag_t = bool(__thiscall*)(void*, int);
 using material_var_vec_t = void(__thiscall*)(void*, float, float, float);
 using material_var_string_t = void(__thiscall*)(void*, const char*);
 using get_render_context_t = void* (__thiscall*)(void*);
-using override_depth_t = void(__thiscall*)(void*, bool, bool);
+using override_depth_t = void(__thiscall*)(void*, bool, bool, bool);
 using studio_forced_t = void(__thiscall*)(void*, void*, int, int);
 using studio_color_t = void(__thiscall*)(void*, const float*);
 using studio_alpha_t = void(__thiscall*)(void*, float);
@@ -630,6 +640,12 @@ void cache_material_apis() {
         cached.set_color = virtual_function<material_color_t>(cached.material, 28);
         cached.set_flag = virtual_function<material_flag_t>(cached.material, 29);
         cached.get_flag = virtual_function<material_get_flag_t>(cached.material, 30);
+        // These flags are invariant for our private materials. Set them once
+        // instead of paying for two virtual calls on every player/pass.
+        if (cached.set_flag) {
+            cached.set_flag(cached.material, k_material_var_translucent, true);
+            cached.set_flag(cached.material, k_material_var_nofog, true);
+        }
         const auto find = virtual_function<find_var_t>(cached.material, 11);
         cache_variable(cached.envmap_tint, find, cached.material, "$envmaptint");
         cache_variable(cached.fresnel, find, cached.material, "$envmapfresnelminmaxexp");
@@ -663,21 +679,21 @@ void set_material_flag(cached_material& material, int flag, bool enabled) {
         material.set_flag(material.material, flag, enabled);
 }
 
-// Source 1 IMatRenderContext::OverrideDepthEnable (slot 121) keeps the
-// depth test but disables depth writes. Without this, later chams passes fail
-// their depth test against the first pass at identical depth.
+// Source 1 IMatRenderContext::OverrideDepthEnable (slot 80) keeps the
+// depth test but disables depth writes. Slot 121 is BindLightmapTexture: passing
+// its ITexture* parameter a boolean makes materialsystem dereference address 1.
 struct depth_write_scope {
     bool active = false;
 
     depth_write_scope() {
         if (!material_render_context || !override_depth_enable)
             return;
-        override_depth_enable(material_render_context, true, false);
+        override_depth_enable(material_render_context, true, false, true);
         active = true;
     }
     ~depth_write_scope() {
         if (active)
-            override_depth_enable(material_render_context, false, false);
+            override_depth_enable(material_render_context, false, false, true);
     }
 };
 
@@ -940,8 +956,12 @@ void draw_single_material(const draw_call& call,
     }
 
     set_material_color(material_api, 1.f, 1.f, 1.f);
-    set_material_flag(material_api, k_material_var_translucent, true);
-    set_material_flag(material_api, k_material_var_nofog, true);
+    // Legacy uses a game-owned material; retain the old reassertion there.
+    // Private materials received these invariant flags in cache_material_apis.
+    if (pass.material == legacy) {
+        set_material_flag(material_api, k_material_var_translucent, true);
+        set_material_flag(material_api, k_material_var_nofog, true);
+    }
     set_material_flag(material_api, k_material_var_ignorez, hidden);
 
     constexpr float white[3] = { 1.f, 1.f, 1.f };
@@ -1050,11 +1070,9 @@ bool draw_pass_selection(const draw_call& call, const visuals_chams::pass_settin
     if (overlay) {
         const int count = std::min(multiple.count, static_cast<int>(visuals_chams::mode_count));
         for (int i = 0; i < count; ++i) {
+            // draw_single_material() leaves neutral modulation after every
+            // pass; the enclosing modulation_scope restores the engine values.
             draw_pass(call, multiple.values[i], hidden, sprite_path, i > 0);
-            // Each pass starts from neutral RenderView/Studio modulation; the
-            // enclosing modulation_scope still restores the engine's original
-            // values after the complete selection has been drawn.
-            reset_modulation(call.game);
         }
         return count > 0;
     }
@@ -1090,7 +1108,6 @@ void draw_record_selection(void* context, const model_record& record,
             pass.color[3] *= alpha;
             pass.secondary[3] *= alpha;
             draw_record(context, record, pass, sprite_path, i > 0);
-            reset_modulation(true);
         }
         return;
     }
@@ -1109,11 +1126,7 @@ void draw_on_shot_records(void* context) {
     static int last_frame = -1;
     if (frame == last_frame)
         return;
-    pass_pair snapshot;
-    {
-        std::scoped_lock lock(settings_mutex);
-        snapshot = game_settings[0];
-    }
+    const auto& snapshot = game_snapshot_for_frame(0);
     if (!snapshot.configured ||
         !selection_enabled(snapshot.special.on_shot, snapshot.overlay.on_shot, snapshot.overlay.enabled)) {
         return;
@@ -1194,10 +1207,15 @@ bool player_model_name(const char* name, std::size_t maximum) {
            std::strstr(normalized, ".mdl") != nullptr;
 }
 
-const self_frame_snapshot& self_snapshot_for_frame() {
+int chams_frame_number() {
     int frame = visuals_source::frame_number();
     if (frame <= 0)
         frame = static_cast<int>(GetTickCount64() / 16);
+    return frame;
+}
+
+const self_frame_snapshot& self_snapshot_for_frame() {
+    const int frame = chams_frame_number();
     const unsigned generation = self_settings_generation.load(std::memory_order_acquire);
     if (self_frame.frame == frame && self_frame.generation == generation)
         return self_frame;
@@ -1215,6 +1233,24 @@ const self_frame_snapshot& self_snapshot_for_frame() {
     self_frame.frame = frame;
     self_frame.generation = generation;
     return self_frame;
+}
+
+const pass_pair& game_snapshot_for_frame(int side) {
+    auto& cached = side_frames[side == 1 ? 1 : 0];
+    const int frame = chams_frame_number();
+    const unsigned generation = game_settings_generation.load(std::memory_order_acquire);
+    if (cached.frame == frame && cached.generation == generation)
+        return cached.settings;
+
+    // A side snapshot contains every overlay list. Copy it once per render
+    // frame/generation instead of copying several kilobytes for each player DME.
+    {
+        std::scoped_lock lock(settings_mutex);
+        cached.settings = game_settings[side == 1 ? 1 : 0];
+    }
+    cached.frame = frame;
+    cached.generation = generation;
+    return cached.settings;
 }
 
 void __fastcall hooked_studio_draw(void* self, void*, void* results,
@@ -1443,11 +1479,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         return;
     }
 
-    pass_pair snapshot;
-    {
-        std::scoped_lock lock(settings_mutex);
-        snapshot = game_settings[side];
-    }
+    const auto& snapshot = game_snapshot_for_frame(side);
     const bool player_enabled = selection_enabled(snapshot.player, snapshot.overlay.player,
         snapshot.overlay.enabled);
     const bool behind_walls_enabled = selection_enabled(snapshot.behind_walls,
@@ -1570,7 +1602,7 @@ bool acquire_interfaces() {
     if (get_context && function_in_module(material_module, reinterpret_cast<const void*>(get_context))) {
         material_render_context = get_context(material_system);
         if (material_render_context) {
-            const auto depth = virtual_function<override_depth_t>(material_render_context, 121);
+            const auto depth = virtual_function<override_depth_t>(material_render_context, 80);
             if (depth && function_in_module(material_module, reinterpret_cast<const void*>(depth))) {
                 override_depth_enable = depth;
             }
@@ -1702,6 +1734,7 @@ void set_side_passes(int side, const pass_settings& player, const pass_settings&
         return;
     std::scoped_lock lock(settings_mutex);
     configure_pair(game_settings[side], side, player, behind_walls, sprite_path);
+    game_settings_generation.fetch_add(1, std::memory_order_release);
 }
 
 void set_side_special_passes(int side, const special_passes& passes) {
@@ -1722,6 +1755,7 @@ void set_side_special_passes(int side, const special_passes& passes) {
                        &target.special.ragdolls})
         sanitize(*pass);
     update_on_shot_state(side);
+    game_settings_generation.fetch_add(1, std::memory_order_release);
 }
 
 void set_side_overlay_passes(int side, const side_overlay_passes& passes) {
@@ -1736,6 +1770,7 @@ void set_side_overlay_passes(int side, const side_overlay_passes& passes) {
         sanitize_pass_list(*list);
     }
     update_on_shot_state(side);
+    game_settings_generation.fetch_add(1, std::memory_order_release);
 }
 
 void set_self_passes(const self_passes& passes, const char* sprite_path) {
