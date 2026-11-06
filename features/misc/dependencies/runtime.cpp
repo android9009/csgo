@@ -2,6 +2,7 @@
 #include "gameplay.hpp"
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
+#include "../../visuals/world.hpp"
 
 #include <Windows.h>
 #include <algorithm>
@@ -188,6 +189,9 @@ void* engine_trace = nullptr;
 void* engine_sound = nullptr;
 void* game_event_manager = nullptr;
 void* weapon_system = nullptr;
+void* world_input = nullptr;
+void* cvar_interface = nullptr;
+void* client_mode_instance = nullptr;
 global_vars* globals = nullptr;
 netvar_offsets nv;
 int move_type_offset = -2;
@@ -1064,25 +1068,26 @@ bool register_events() {
 }
 
 bool install_create_move() {
-    if (create_move_installed)
-        return true;
-    const auto process_input = virtual_function<void*>(client, 10);
-    if (!process_input || !function_in_module(client_module, process_input))
-        return false;
-    const auto* operand = static_cast<const std::uint8_t*>(process_input) + 5;
-    if (!readable_range(operand, sizeof(std::uintptr_t)))
-        return false;
-    std::uintptr_t pointer = 0;
-    std::memcpy(&pointer, operand, sizeof(pointer));
-    if (!readable_range(reinterpret_cast<const void*>(pointer), sizeof(void*)))
-        return false;
-    void* client_mode = nullptr;
-    std::memcpy(&client_mode, reinterpret_cast<const void*>(pointer), sizeof(client_mode));
-    const auto target = virtual_function<void*>(client_mode, 24);
-    if (!target || !function_in_module(client_module, target))
-        return false;
-    create_move_installed = hook_slot(client_mode, 24, reinterpret_cast<void*>(&hooked_create_move),
-        reinterpret_cast<void**>(&original_create_move));
+    if (!create_move_installed) {
+        const auto process_input = virtual_function<void*>(client, 10);
+        if (!process_input || !function_in_module(client_module, process_input))
+            return false;
+        const auto* operand = static_cast<const std::uint8_t*>(process_input) + 5;
+        if (!readable_range(operand, sizeof(std::uintptr_t)))
+            return false;
+        std::uintptr_t pointer = 0;
+        std::memcpy(&pointer, operand, sizeof(pointer));
+        if (!readable_range(reinterpret_cast<const void*>(pointer), sizeof(void*)))
+            return false;
+        std::memcpy(&client_mode_instance, reinterpret_cast<const void*>(pointer), sizeof(client_mode_instance));
+        const auto target = virtual_function<void*>(client_mode_instance, 24);
+        if (!target || !function_in_module(client_module, target))
+            return false;
+        create_move_installed = hook_slot(client_mode_instance, 24,
+            reinterpret_cast<void*>(&hooked_create_move), reinterpret_cast<void**>(&original_create_move));
+    }
+    if (client_mode_instance)
+        world_visuals::initialize(client_mode_instance, world_input, cvar_interface, engine, entity_list);
     return create_move_installed;
 }
 
@@ -1110,6 +1115,13 @@ bool acquire() {
     engine_trace = create_interface(engine_module, "EngineTraceClient004");
     engine_sound = create_interface(engine_module, "IEngineSoundClient003");
     game_event_manager = create_interface(engine_module, "GAMEEVENTSMANAGER002");
+    const HMODULE vstdlib_module = GetModuleHandleW(L"vstdlib.dll");
+    cvar_interface = create_interface(vstdlib_module, "VEngineCvar007");
+    static constexpr int input_pattern[] = {
+        0xB9, -1, -1, -1, -1, 0xF3, 0x0F, 0x11, 0x04, 0x24, 0xFF, 0x50, 0x10
+    };
+    const auto* input_address = find_pattern(client_module, input_pattern);
+    world_input = absolute_pointer<void>(input_address ? input_address + 1 : nullptr);
     if (!client || !engine || !entity_list)
         return false;
 

@@ -120,6 +120,8 @@ void c_config_system::setup_values( )
 
 	push_item( &g_cfg->world_esp.m_enable_thirdperson, "thirdperson", "enabled", g_cfg->world_esp.m_enable_thirdperson );
 	push_item( &g_cfg->world_esp.m_distance, "thirdperson", "distance", g_cfg->world_esp.m_distance );
+	push_item( &g_cfg->world_esp.m_enable_override_fov, "perspective", "override_fov_enabled", g_cfg->world_esp.m_enable_override_fov );
+	push_item( &g_cfg->world_esp.m_override_fov, "perspective", "override_fov", g_cfg->world_esp.m_override_fov );
 	push_item( &g_cfg->world_esp.m_thirdperson_key_bind, "thirdperson", "thirdperson_keybind", g_cfg->world_esp.m_thirdperson_key_bind );
 	push_item( &g_cfg->world_esp.m_thirdperson_key_bind_style, "thirdperson", "thirdperson_keybind_style", g_cfg->world_esp.m_thirdperson_key_bind_style );
 
@@ -129,6 +131,13 @@ void c_config_system::setup_values( )
 	push_item( &g_cfg->world.m_exposure, "world", "exposure", g_cfg->world.m_exposure );
 	push_item( &g_cfg->world.m_lighting, "world", "lighting", g_cfg->world.m_lighting );
 	push_item( &g_cfg->world.m_render_fog, "world", "render_fog", g_cfg->world.m_render_fog );
+	push_item( &g_cfg->world.m_fov, "world", "fov", g_cfg->world.m_fov );
+	push_item( &g_cfg->world.m_viewmodel_fov, "world", "viewmodel_fov", g_cfg->world.m_viewmodel_fov );
+	push_item( &g_cfg->world.m_viewmodel_offset_x, "world", "viewmodel_offset_x", g_cfg->world.m_viewmodel_offset_x );
+	push_item( &g_cfg->world.m_viewmodel_offset_y, "world", "viewmodel_offset_y", g_cfg->world.m_viewmodel_offset_y );
+	push_item( &g_cfg->world.m_viewmodel_offset_z, "world", "viewmodel_offset_z", g_cfg->world.m_viewmodel_offset_z );
+	push_item( &g_cfg->world.m_remove_viewmodel_move, "world", "remove_viewmodel_move", g_cfg->world.m_remove_viewmodel_move );
+	push_item( &g_cfg->world.m_remove_landing_bob, "world", "remove_landing_bob", g_cfg->world.m_remove_landing_bob );
 	push_item( &g_cfg->world.m_sky, "world", "sky_color", g_cfg->world.m_sky );
 	push_item( &g_cfg->world.m_sky_clouds, "world", "sky_clouds_color", g_cfg->world.m_sky_clouds );
 	push_item( &g_cfg->world.m_wall, "world", "m_wall_color", g_cfg->world.m_wall );

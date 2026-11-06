@@ -350,7 +350,7 @@ public:
         bool m_enable_thirdperson = false;
         bool m_enable_override_fov = false;
         int m_distance = 120;
-        int m_override_fov = 0;
+        int m_override_fov = 90;
         int m_thirdperson_key_bind = 0;
         int m_thirdperson_key_bind_style = 2;
     } world_esp;
@@ -371,6 +371,11 @@ public:
         
         int m_fov = 0;
         int m_viewmodel_fov = 0;
+        float m_viewmodel_offset_x = 0.f;
+        float m_viewmodel_offset_y = 0.f;
+        float m_viewmodel_offset_z = 0.f;
+        bool m_remove_viewmodel_move = false;
+        bool m_remove_landing_bob = false;
         int m_removals = 0;
     } world;
 

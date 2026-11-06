@@ -23,6 +23,7 @@ add_library(airflow_shell SHARED
   features/visuals/chams/chams.cpp
   features/visuals/dependencies/source.cpp
   features/visuals/esp/esp.cpp
+  features/visuals/world.cpp
   menu/binds.cpp
   menu/blur.cpp
   menu/effects.cpp

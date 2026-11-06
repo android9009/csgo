@@ -145,6 +145,14 @@ void register_bind_targets() {
     menu_binds::register_bool("world.remove_fog", "Remove Fog", &g_cfg->world.m_render_fog);
     menu_binds::register_bool("thirdperson.enabled", "Thirdperson", &g_cfg->world_esp.m_enable_thirdperson);
     menu_binds::register_int("thirdperson.distance", "Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300);
+    menu_binds::register_bool("perspective.override_fov", "Override FOV", &g_cfg->world_esp.m_enable_override_fov);
+    menu_binds::register_int("perspective.fov", "View FOV", &g_cfg->world_esp.m_override_fov, 60, 130);
+    menu_binds::register_int("viewmodel.fov", "Viewmodel FOV", &g_cfg->world.m_viewmodel_fov, 0, 30);
+    menu_binds::register_float("viewmodel.offset_x", "Viewmodel Offset X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f);
+    menu_binds::register_float("viewmodel.offset_y", "Viewmodel Offset Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f);
+    menu_binds::register_float("viewmodel.offset_z", "Viewmodel Offset Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f);
+    menu_binds::register_bool("viewmodel.remove_move", "Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
+    menu_binds::register_bool("viewmodel.landing_bob", "Landing Bob", &g_cfg->world.m_remove_landing_bob);
 
     menu_binds::register_bool("misc.bunny_hop", "Bunny Hop", &g_cfg->misc.m_bunny_hop);
     menu_binds::register_bool("misc.auto_strafe", "Automatic Strafe", &g_cfg->misc.m_auto_strafe);

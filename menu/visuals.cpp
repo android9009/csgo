@@ -34,7 +34,6 @@ struct player_side_ui_state {
     // Missing backends stay in per-side UI state, so Enemies, Teammates and Self never
     // overwrite one another while another page is hidden.
     bool offscreen_arrow = false;
-    bool sounds = false;
     int player_model = 0;
     int behind_walls_model = 0;
     int on_shot_model = 0;
@@ -63,7 +62,6 @@ struct player_side_ui_state {
     chams_ui_selection attachments_overlay;
 
     color_value offscreen_color = make_ui_color(0.92f, 0.94f, 1.f);
-    color_value sounds_color = make_ui_color(1.f, 0.25f, 0.55f);
     color_value player_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value local_fake_color = make_ui_color(0.60f, 0.65f, 1.f);
     color_value behind_walls_color = make_ui_color(0.35f, 0.90f, 1.f);
@@ -517,7 +515,6 @@ void draw_enemy_side(player_side_ui_state& side) {
     gui.grid_box("ENEMY", k_auto_height);
     gui.row_checkbox("Enabled", &player_visuals::settings(0).esp_enabled);
     gui.row_checkbox("Offscreen Arrow", &side.offscreen_arrow, &side.offscreen_color);
-    gui.row_checkbox("Sounds", &side.sounds, &side.sounds_color);
     gui.end_group_box();
 
     gui.grid_box("ENEMY MODEL", k_auto_height);
@@ -598,9 +595,6 @@ void draw_self_side(player_side_ui_state& side) {
     gui.grid_box("LOCAL CHAMS", k_auto_height);
     draw_chams_row("Local Player", &side.local_chams_model, side.local_overlay, &side.player_color,
         side.overlay_chams, self_chams_mode_names());
-    // Fake remains a UI/config placeholder; no fake model record is rendered.
-    draw_chams_row("Local Player Fake", &side.local_fake_chams_model, side.local_fake_overlay,
-        &side.local_fake_color, side.overlay_chams, self_chams_mode_names());
     draw_chams_row("Viewmodel", &side.viewmodel_chams_model, side.viewmodel_overlay,
         &side.behind_walls_color, side.overlay_chams, self_chams_mode_names());
     draw_chams_row("Weapon", &side.weapon_chams_model, side.weapon_overlay, &side.weapon_color,
@@ -745,13 +739,22 @@ void draw_visuals_world() {
     gui.end_group_box();
 
     gui.grid_col(1);
-    gui.grid_box("THIRDPERSON", k_auto_height);
-    gui.row_begin();
-    if (gui.row_options_begin("##world_thirdperson_options", 250.f, c_gui::row_control::toggle)) {
-        gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300);
-        gui.row_options_end();
-    }
-    gui.row_checkbox("Enabled", &g_cfg->world_esp.m_enable_thirdperson);
+    gui.grid_box("PERSPECTIVE OPTIONS", k_auto_height);
+    gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
+    gui.row_begin(); ImGui::SliderInt("View FOV", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
+    gui.row_checkbox("Thirdperson", &g_cfg->world_esp.m_enable_thirdperson,
+        "Right-click this row to bind a hold or toggle key. Camera distance is collision-limited by the game.");
+    gui.row_begin(); ImGui::SliderInt("Thirdperson Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
+    gui.end_group_box();
+
+    gui.grid_box("VIEWMODEL OPTIONS", k_auto_height);
+    gui.row_begin(); ImGui::SliderInt("Viewmodel FOV", &g_cfg->world.m_viewmodel_fov, 0, 30, "+%d°");
+    gui.row_begin(); ImGui::SliderFloat("Offset X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
+    gui.row_begin(); ImGui::SliderFloat("Offset Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
+    gui.row_begin(); ImGui::SliderFloat("Offset Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
+    gui.row_checkbox("Remove Viewmodel Move", &g_cfg->world.m_remove_viewmodel_move);
+    gui.row_checkbox("Landing Bob", &g_cfg->world.m_remove_landing_bob,
+        "Disable the viewmodel's landing shift; this setting is applied through the client animation convars.");
     gui.end_group_box();
     gui.end_grid();
 

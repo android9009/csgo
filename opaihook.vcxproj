@@ -96,6 +96,7 @@
     <ClCompile Include="features\skins\skins.cpp" />
     <ClCompile Include="features\visuals\chams\chams.cpp" />
     <ClCompile Include="features\visuals\esp\esp.cpp" />
+    <ClCompile Include="features\visuals\world.cpp" />
     <ClCompile Include="features\visuals\dependencies\source.cpp" />
     <ClCompile Include="menu\binds.cpp" />
     <ClCompile Include="menu\blur.cpp" />
@@ -133,6 +134,7 @@
     <ClInclude Include="features\misc\dependencies\source_types.hpp" />
     <ClInclude Include="features\visuals\esp\esp.hpp" />
     <ClInclude Include="features\visuals\settings.hpp" />
+    <ClInclude Include="features\visuals\world.hpp" />
     <ClInclude Include="features\visuals\dependencies\source.hpp" />
     <ClInclude Include="menu\binds.hpp" />
     <ClInclude Include="menu\blur.hpp" />
