@@ -1207,7 +1207,7 @@ static bool cfg_choice_row(const char* id, const char* label, float w, float h, 
     return clicked;
 }
 
-bool c_gui::row_options_begin( const char* id, float width, row_control control, const char* icon ) {
+bool c_gui::row_options_begin( const char* id, float width, row_control control ) {
     ImGuiWindow* window = ImGui::GetCurrentWindow( );
     if ( window->SkipItems )
         return false;
@@ -1237,16 +1237,15 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control,
     if ( t > 0.01f )
         draw->AddRectFilled( bb.Min, bb.Max, frame_inactive.to_im_color( 0.85f * t ), 6.f * s );
 
-    // FontAwesome is merged into the menu's body font, so the options icon uses the current one.
+    // The gear: FontAwesome is merged into the menu's body font, so it draws with the current one.
     const ImU32 col = cfg_mix( text_disabled.to_vec4( 1.f, false ), text.to_vec4( 1.f, false ), ImMax( t, up ? 1.f : 0.f ) );
     ImFont* font = ImGui::GetFont( );
-    const char* shown_icon = icon ? icon : ICON_FA_COG;
     const float icon_fs = 13.f * s;
-    const ImVec2 icon_size = font->CalcTextSizeA( icon_fs, FLT_MAX, 0.f, shown_icon );
+    const ImVec2 icon_size = font->CalcTextSizeA( icon_fs, FLT_MAX, 0.f, ICON_FA_COG );
     draw->AddText( font, icon_fs,
                    ImVec2( IM_ROUND( bb.GetCenter( ).x - icon_size.x * 0.5f ),
                            IM_ROUND( bb.GetCenter( ).y - icon_size.y * 0.5f ) ),
-                   col, shown_icon );
+                   col, ICON_FA_COG );
 
     bool wants_open = false;
     const float anim = popup_animation( popup_name.c_str( ), clicked, wants_open );

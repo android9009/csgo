@@ -355,16 +355,15 @@ public:
     bool popup_begin( const char* name, bool clicked, float width = 216.f, bool titled = true, bool beside = true );
     void popup_end();
 
-    // An options button in the slot left of the row's control, opening a card beside the row - for
-    // the extra settings of that row. `control` says what the row is about to draw, which is what
-    // puts the button next to the control instead of next to the label. The default icon is a gear;
-    // pass a chevron for Neverlose-style sub-pages. Fill the card exactly like row_popup:
+    // A gear button in the slot left of the row's control, opening a card beside the row - for the
+    // extra settings of that row. `control` says what the row is about to draw, which is what puts
+    // the gear next to the control instead of next to the label. Fill the card with popup rows /
+    // sections, exactly like row_popup:
     //
     //   gui.row_begin( );
     //   if ( gui.row_options_begin( "##traj", 216.f, c_gui::row_control::toggle ) ) { ...rows... gui.row_options_end( ); }
     //   gui.row_checkbox( "Grenade Trajectory", &traj );
-    bool row_options_begin( const char* id, float width = 216.f, row_control control = row_control::toggle,
-                            const char* icon = nullptr );
+    bool row_options_begin( const char* id, float width = 216.f, row_control control = row_control::toggle );
     void row_options_end( );
     // Stock SliderScalar() switches to a compact strip in popups; gear cards opt back into the
     // regular track / knob / value-box layout while their options are being laid out.
