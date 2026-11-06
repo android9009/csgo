@@ -597,9 +597,9 @@ void update_view_projection(frame_data& output) {
         output.has_view_matrix = true;
     } else if (const auto matrix_fn = virtual_function<world_matrix_t>(engine, 37);
         matrix_fn && function_in_module(engine_module, reinterpret_cast<const void*>(matrix_fn))) {
-        const float* matrix = matrix_fn(engine);
-        if (matrix && readable_range(matrix, sizeof(output.view_matrix))) {
-            std::memcpy(output.view_matrix, matrix, sizeof(output.view_matrix));
+        const float* engine_matrix = matrix_fn(engine);
+        if (engine_matrix && readable_range(engine_matrix, sizeof(output.view_matrix))) {
+            std::memcpy(output.view_matrix, engine_matrix, sizeof(output.view_matrix));
             output.has_view_matrix = true;
         }
     }

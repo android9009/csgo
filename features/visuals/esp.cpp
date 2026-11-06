@@ -289,6 +289,10 @@ struct main_render_context {
     ImVec2 preview_max{};
 };
 
+// Defined below with the preview helpers; main object rendering calls it too.
+void maybe_drag(ImDrawList* draw, int preview_side, int item, const rect_f& rect,
+                const ImVec2& preview_min, const ImVec2& preview_max, float scale);
+
 ImVec2 main_anchor(const main_render_context& context, int position) {
     const auto& box = context.box;
     switch (position) {
@@ -614,7 +618,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             configured.b + (0.13f - configured.b) * damage,
             configured.a
         };
-        add_bar(main_left, player_visuals::main_health_bar, data.health, 100.f, health_color);
+        add_bar(main_left, player_visuals::main_health_bar,
+            static_cast<float>(data.health), 100.f, health_color);
     }
     if (settings.weapon[player_visuals::weapon_text]) {
         add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_text),
@@ -626,7 +631,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             settings.weapon_colors[player_visuals::weapon_icon].primary);
     }
     if (settings.main[player_visuals::main_ammo_bar] && data.clip > 0 && data.max_clip > 0) {
-        add_bar(main_down, player_visuals::main_ammo_bar, data.clip, data.max_clip,
+        add_bar(main_down, player_visuals::main_ammo_bar,
+            static_cast<float>(data.clip), static_cast<float>(data.max_clip),
             settings.main_colors[player_visuals::main_ammo_bar].primary);
     }
     if (settings.weapon[player_visuals::weapon_readiness_bar] && data.readiness >= 0.f) {
