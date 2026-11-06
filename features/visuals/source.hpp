@@ -46,8 +46,9 @@ struct player_data {
     float readiness = -1.f;
     float hit_chance = -1.f;
     float delay_ms = -1.f;
-    // Airflow keeps a short-lived dormant/fade state instead of dropping the
-    // player as soon as the server stops sending a fresh entity snapshot.
+    // Dormant/fade state is retained for short transitions. The capture path
+    // refreshes the cached transform from the same render origin as live ESP,
+    // so dormant transitions do not reuse a stale box position between frames.
     float alpha = 1.f;
     bool dormant = false;
     bool armor_valid = false;

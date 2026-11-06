@@ -459,6 +459,7 @@ using engine_bool_t = bool(__thiscall*)(void*);
 using get_player_info_t = bool(__thiscall*)(void*, int, void*);
 using get_view_angles_t = void (__thiscall*)(void*, vector3&);
 using world_matrix_t = const float* (__thiscall*)(void*);
+using render_origin_t = const vector3& (__thiscall*)(void*);
 using entity_void_t = void* (__thiscall*)(void*);
 using get_client_class_t = client_class_t* (__thiscall*)(void*);
 using setup_bones_t = bool(__thiscall*)(void*, matrix3x4_t*, int, int, float);
@@ -497,6 +498,28 @@ bool dormant(void* entity) {
     void* networkable = reinterpret_cast<unsigned char*>(entity) + 8;
     const auto function = virtual_function<dormant_t>(networkable, 9);
     return !function || function(networkable);
+}
+
+void* client_renderable(void* entity) {
+    // IClientEntity's renderable subobject is immediately after the primary
+    // vtable pointer on the Source 1 x86 entity layout.
+    return entity ? reinterpret_cast<unsigned char*>(entity) + 4 : nullptr;
+}
+
+vector3 render_origin(void* entity, const vector3& fallback) {
+    void* renderable = client_renderable(entity);
+    const auto function = virtual_function<render_origin_t>(renderable, 1);
+    if (!function || !function_in_module(client_module, reinterpret_cast<const void*>(function)))
+        return fallback;
+
+    // GetRenderOrigin is the interpolated position used by the model renderer;
+    // m_vecOrigin can belong to a different network/interpolation snapshot.
+    const auto& value = function(renderable);
+    if (!readable_range(&value, sizeof(vector3)))
+        return fallback;
+    const vector3 result = value;
+    return std::isfinite(result.x) && std::isfinite(result.y) && std::isfinite(result.z)
+        ? result : fallback;
 }
 
 client_class_t* entity_class(void* entity) {
@@ -678,12 +701,16 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
     const auto* studio = studio_wrapper->studio;
     if (studio->bone_count <= 0 || studio->bone_count > 256 || studio->bone_index <= 0)
         return;
-    const auto setup = virtual_function<setup_bones_t>(entity, 197);
+    // SetupBones is IClientRenderable slot 13, not a method in the primary
+    // C_CSPlayer vtable. Using the latter with this signature corrupts the
+    // x86 stack and can also perturb the model's subsequent bone state.
+    void* renderable = client_renderable(entity);
+    const auto setup = virtual_function<setup_bones_t>(renderable, 13);
     if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
         return;
     alignas(16) matrix3x4_t bones[256]{};
     const float time = global_vars ? global_vars->current_time : 0.f;
-    if (!setup(entity, bones, 256, 0x0007FF00, time))
+    if (!setup(renderable, bones, 256, 0x0007FF00, time))
         return;
 
     const auto* bone_array = reinterpret_cast<const mstudiobone_t*>(
@@ -1238,7 +1265,7 @@ void capture(frame_data& output) {
     output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
         value<int>(local, nv.health, 0) > 0;
     const int local_team = value<int>(local, nv.team, 0);
-    const vector3 local_origin = value<vector3>(local, nv.origin);
+    const vector3 local_origin = render_origin(local, value<vector3>(local, nv.origin));
     output.local_origin = local_origin;
     output.view_angles = view_angles();
     void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
@@ -1279,33 +1306,67 @@ void capture(frame_data& output) {
             append_cached(index, false, true);
             continue;
         }
-        if (dormant(player)) {
-            append_cached(index, true, false);
-            continue;
-        }
-        if (value<unsigned char>(player, nv.life_state, 0) != 0) {
-            append_cached(index, false, true);
-            continue;
-        }
-        player_data data;
-        data.index = index;
-        data.team = value<int>(player, nv.team, 0);
-        data.health = value<int>(player, nv.health, 0);
-        if (data.health <= 0) {
-            append_cached(index, false, true);
-            continue;
-        }
-        if (data.team != 2 && data.team != 3) {
+        const auto life_state = value<unsigned char>(player, nv.life_state, 0);
+        const int health = value<int>(player, nv.health, 0);
+        const int team = value<int>(player, nv.team, 0);
+        // Read death/team before dormancy. Otherwise a dead or repurposed entity
+        // can keep an old alive snapshot alive in the fade cache.
+        if (team != 2 && team != 3) {
             player_cache[index].valid = false;
+            continue;
+        }
+        if (life_state != 0 || health <= 0) {
+            append_cached(index, false, true);
             continue;
         }
         if (local_team != 2 && local_team != 3)
             continue;
+        if (dormant(player)) {
+            auto& cached = player_cache[index];
+            if (cached.valid) {
+                // Dormant metadata may be retained, but its transform must not
+                // jump back to the last network snapshot between live frames.
+                cached.data.team = team;
+                cached.data.health = health;
+                cached.data.side = team == local_team ? 1 : 0;
+                const vector3 origin = render_origin(player, value<vector3>(player, nv.origin));
+                const vector3 delta{ origin.x - cached.data.origin.x,
+                    origin.y - cached.data.origin.y, origin.z - cached.data.origin.z };
+                if (std::isfinite(delta.x) && std::isfinite(delta.y) && std::isfinite(delta.z)) {
+                    // The cached bone lines are world-space too. Move them with
+                    // the origin instead of leaving a second, stale anchor.
+                    for (auto& line : cached.data.skeleton) {
+                        line.from.x += delta.x; line.from.y += delta.y; line.from.z += delta.z;
+                        line.to.x += delta.x; line.to.y += delta.y; line.to.z += delta.z;
+                    }
+                    for (auto& line : cached.data.hitboxes) {
+                        line.from.x += delta.x; line.from.y += delta.y; line.from.z += delta.z;
+                        line.to.x += delta.x; line.to.y += delta.y; line.to.z += delta.z;
+                    }
+                    for (auto& marker : cached.data.hitbox_markers) {
+                        marker.center.x += delta.x;
+                        marker.center.y += delta.y;
+                        marker.center.z += delta.z;
+                    }
+                }
+                cached.data.origin = origin;
+                cached.data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
+                cached.data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
+                cached.data.distance = vector_length({ cached.data.origin.x - local_origin.x,
+                    cached.data.origin.y - local_origin.y, cached.data.origin.z - local_origin.z }) * 0.0254f;
+            }
+            append_cached(index, true, false);
+            continue;
+        }
+        player_data data;
+        data.index = index;
+        data.team = team;
+        data.health = health;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
         if (!side_settings.esp_enabled)
             continue;
-        data.origin = value<vector3>(player, nv.origin);
+        data.origin = render_origin(player, value<vector3>(player, nv.origin));
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
         data.distance = vector_length({ data.origin.x - local_origin.x,
