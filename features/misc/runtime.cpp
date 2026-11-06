@@ -229,6 +229,7 @@ void* entity_list = nullptr;
 void* engine_trace = nullptr;
 void* engine_sound = nullptr;
 void* game_event_manager = nullptr;
+void* weapon_system = nullptr;
 global_vars* globals = nullptr;
 netvar_offsets nv;
 int move_type_offset = -2;
@@ -364,6 +365,7 @@ using player_for_user_t = int(__thiscall*)(void*, int);
 using get_player_info_t = bool(__thiscall*)(void*, int, void*);
 using client_command_t = void(__thiscall*)(void*, const char*, const char*);
 using trace_ray_t = void(__thiscall*)(void*, const ray&, unsigned int, void*, game_trace*);
+using get_weapon_data_t = void* (__thiscall*)(void*, unsigned int);
 using pred_desc_map_t = datamap* (__thiscall*)(void*);
 
 get_all_classes_t get_all_classes = nullptr;
@@ -375,6 +377,7 @@ player_for_user_t player_for_user_fn = nullptr;
 get_player_info_t get_player_info_fn = nullptr;
 client_command_t client_command_fn = nullptr;
 trace_ray_t trace_ray_fn = nullptr;
+get_weapon_data_t get_weapon_data_fn = nullptr;
 
 int find_offset(const recv_table* table, const char* name, int depth = 0) {
     if (!table || depth > 24 || !readable_range(table, sizeof(recv_table)) ||
@@ -625,6 +628,23 @@ vec3 angle_vectors(const vec3& angles) {
     return { cp * std::cos(yaw), cp * std::sin(yaw), -std::sin(pitch) };
 }
 
+vec3 vector_angles(const vec3& direction) {
+    const float flat = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+    if (flat <= 0.000001f)
+        return { direction.z > 0.f ? -90.f : 90.f, 0.f, 0.f };
+    return { -std::atan2(direction.z, flat) * 180.f / pi,
+        std::atan2(direction.y, direction.x) * 180.f / pi, 0.f };
+}
+
+vec3 normalized(const vec3& value) {
+    const float length = value.length();
+    return length > 0.000001f ? value / length : vec3{};
+}
+
+float dot(const vec3& a, const vec3& b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
 bool trace_ground(const vec3& from, float distance, const vec3& mins, const vec3& maxs,
                   game_trace& output) {
     if (!trace_ray_fn)
@@ -823,10 +843,101 @@ void slow_walk(user_cmd* cmd, int flags) {
     cmd->sidemove *= scale;
 }
 
+float grenade_throw_velocity(int id) {
+    if (!get_weapon_data_fn || !weapon_system || id <= 0)
+        return 0.f;
+    void* info = get_weapon_data_fn(weapon_system, static_cast<unsigned int>(id));
+    if (!readable_range(info, 0x110))
+        return 0.f;
+    float result = 0.f;
+    std::memcpy(&result, static_cast<unsigned char*>(info) + 0x10C, sizeof(result));
+    return std::isfinite(result) && result >= 15.f && result <= 2000.f ? result : 0.f;
+}
+
+vec3 ray_circle_intersection(const vec3& ray, const vec3& center, float radius) {
+    const float projection = ray.x * center.x + ray.y * center.y;
+    const float c = center.x * center.x + center.y * center.y - radius * radius;
+    const float discriminant = 4.f * (projection * projection - c);
+    if (discriminant < 0.f) {
+        vec3 nearest = ray * projection;
+        vec3 difference = { nearest.x - center.x, nearest.y - center.y, 0.f };
+        const float length = difference.length_2d();
+        if (length <= 0.000001f)
+            difference = { -ray.y, ray.x, 0.f };
+        else
+            difference = difference / length;
+        return { center.x + difference.x * radius, center.y + difference.y * radius, 0.f };
+    }
+    const float root = std::sqrt(discriminant);
+    const float t = projection + root * 0.5f;
+    return { ray.x * t, ray.y * t, 0.f };
+}
+
+float calculate_throw_yaw(const vec3& wish_direction, const vec3& velocity,
+                          float throw_velocity, float strength) {
+    vec3 direction = { wish_direction.x, wish_direction.y, 0.f };
+    const float horizontal = direction.length_2d();
+    const float total = wish_direction.length();
+    if (horizontal <= 0.000001f || total <= 0.000001f)
+        return std::atan2(wish_direction.y, wish_direction.x) * 180.f / pi;
+    direction = direction / horizontal;
+    const float cos_pitch = std::clamp(dot(direction, wish_direction) / total, 0.f, 1.f);
+    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
+        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
+    const vec3 inherited = velocity * 1.25f;
+    const vec3 intersection = ray_circle_intersection(direction, inherited, launch_speed * cos_pitch);
+    const vec3 relative = intersection - inherited;
+    return std::atan2(relative.y, relative.x) * 180.f / pi;
+}
+
+float calculate_throw_pitch(const vec3& wish_direction, const vec3& velocity,
+                            float throw_velocity, float strength) {
+    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
+        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
+    const vec3 current_velocity = velocity * 1.25f + wish_direction * launch_speed;
+    const float difference = vector_angles(wish_direction).x - vector_angles(current_velocity).x;
+    return difference * (std::cos(difference * pi / 180.f) + 1.f) * 0.5f;
+}
+
+bool compensate_grenade_throw(user_cmd* cmd, int id, const vec3& velocity,
+                              const vec3& previous_velocity, float strength) {
+    const float throw_velocity = grenade_throw_velocity(id);
+    if (throw_velocity <= 0.f || !std::isfinite(strength) ||
+        !std::isfinite(velocity.x) || !std::isfinite(velocity.y) || !std::isfinite(velocity.z) ||
+        !std::isfinite(previous_velocity.x) || !std::isfinite(previous_velocity.y) ||
+        !std::isfinite(previous_velocity.z)) {
+        return false;
+    }
+    const vec3 smoothed_velocity = (velocity + previous_velocity) * 0.5f;
+    const vec3 input_angles = cmd->viewangles;
+    const vec3 direction = angle_vectors(input_angles);
+    const float launch_speed = std::clamp(throw_velocity * 0.9f, 15.f, 750.f) *
+        (std::clamp(strength, 0.f, 1.f) * 0.7f + 0.3f);
+    const vec3 base_velocity = direction * launch_speed;
+    const vec3 current_throw_velocity = velocity * 1.25f + base_velocity;
+    vec3 target_velocity = normalized(base_velocity + smoothed_velocity * 1.25f);
+    if (dot(current_throw_velocity, direction) > 0.f)
+        target_velocity = direction;
+    if (target_velocity.length() <= 0.000001f)
+        return false;
+
+    vec3 adjusted_angles = input_angles;
+    adjusted_angles.x += calculate_throw_pitch(direction, smoothed_velocity, throw_velocity, strength);
+    adjusted_angles.y = calculate_throw_yaw(target_velocity, previous_velocity, throw_velocity, strength);
+    if (!std::isfinite(adjusted_angles.x) || !std::isfinite(adjusted_angles.y))
+        return false;
+    cmd->viewangles.x = adjusted_angles.x;
+    cmd->viewangles.y = normalize_yaw(adjusted_angles.y);
+    return true;
+}
+
 bool purchase_pending = false;
 int purchase_delay = 0;
 int grenade_pin_ticks = 0;
 bool quick_stop_complete = false;
+bool suppress_view_update = false;
+vec3 previous_local_velocity{};
+bool have_previous_local_velocity = false;
 int previous_buttons = 0;
 
 void run_purchase() {
@@ -877,6 +988,9 @@ void run_create_move(user_cmd* cmd) {
         return;
     const int flags = value<int>(local, nv.flags, 0);
     const vec3 velocity = value<vec3>(local, nv.velocity);
+    const vec3 previous_velocity = have_previous_local_velocity ? previous_local_velocity : velocity;
+    previous_local_velocity = velocity;
+    have_previous_local_velocity = true;
     const vec3 origin = value<vec3>(local, nv.origin);
     const auto& state = misc_features::settings();
 
@@ -914,8 +1028,8 @@ void run_create_move(user_cmd* cmd) {
         throw_time >= current_time() - tick_interval() * 2.f;
     if (holding_grenade && state.super_toss && (pin_pulled || recent_throw) &&
         (manual_release || automatic_release || recent_throw)) {
-        // Super Toss must not steer the camera. Keep only its non-view
-        // movement modifier on the release command.
+        // Send the compensated command angles without syncing them to the local camera.
+        suppress_view_update = compensate_grenade_throw(cmd, id, velocity, previous_velocity, throw_strength);
         cmd->buttons |= in_speed;
         grenade_command = true;
     }
@@ -963,12 +1077,15 @@ using create_move_t = bool(__thiscall*)(void*, float, user_cmd*);
 create_move_t original_create_move = nullptr;
 
 bool __fastcall hooked_create_move(void* self, void*, float sample_time, user_cmd* cmd) {
+    suppress_view_update = false;
     if (!original_create_move)
         return false;
     const bool result = original_create_move(self, sample_time, cmd);
     if (cmd && cmd->command_number)
         run_create_move(cmd);
-    return result;
+    // Airflow's CreateMove hook returns false after retaining command edits so
+    // the engine does not copy compensated grenade angles into the local view.
+    return result && !suppress_view_update;
 }
 
 using emit_sound_t = int(__thiscall*)(void*, void*, int, int, const char*, unsigned int,
@@ -1061,6 +1178,8 @@ public:
             quick_stop_complete = false;
             grenade_pin_ticks = 0;
             previous_buttons = 0;
+            have_previous_local_velocity = false;
+            previous_local_velocity = {};
             return;
         }
         if (std::strcmp(name, "weapon_fire") == 0) {
@@ -1224,9 +1343,17 @@ bool acquire() {
         0xA1, -1, -1, -1, -1, 0xF3, 0x0F, 0x10, 0x40, -1,
         0x0F, 0x5A, 0xC0, 0xF2, 0x0F, 0x11, 0x04
     };
+    static constexpr int weapon_system_pattern[] = {
+        0x8B, 0x35, -1, -1, -1, -1, 0xFF, 0x10, 0x0F, 0xB7, 0xC0
+    };
     const auto* global_address = find_pattern(client_module, global_pattern);
     // mov eax, dword ptr [global_vars]; the absolute operand follows the opcode.
     globals = absolute_pointer<global_vars>(global_address ? global_address + 1 : nullptr);
+    const auto* weapon_address = find_pattern(client_module, weapon_system_pattern);
+    weapon_system = absolute_pointer<void>(weapon_address ? weapon_address + 2 : nullptr);
+    get_weapon_data_fn = virtual_function<get_weapon_data_t>(weapon_system, 2);
+    if (get_weapon_data_fn && !function_in_module(client_module, reinterpret_cast<const void*>(get_weapon_data_fn)))
+        get_weapon_data_fn = nullptr;
     if (globals && !readable_range(globals, sizeof(global_vars)))
         globals = nullptr;
 
