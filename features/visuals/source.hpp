@@ -128,6 +128,12 @@ bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();
 int aimed_player_index(); // enemy nearest to the local shot ray, 0 when none
 int frame_number();
+// DME supplies the actual player render snapshot for the current engine frame.
+// The snapshot is never a dormant/dead history record and is ignored when its
+// frame no longer matches the frame being captured by ESP.
+bool player_geometry_requested(int side);
+void submit_rendered_player(int index, const vector3& origin, const void* bones,
+                            bool include_bones);
 bool entity_exists(int entity_index);
 void capture(frame_data& output);
 

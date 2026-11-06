@@ -218,6 +218,28 @@ std::atomic<bool> core_ready = false;
 std::atomic<ULONGLONG> next_initialize_attempt = 0;
 std::mutex initialize_mutex;
 
+// DrawModelExecute is the only place where the engine hands us the exact
+// bones used for the visible model. Keep just that render-frame snapshot; it
+// is not a dormant/history cache and is never intentionally carried to a later
+// engine frame.
+struct rendered_player_snapshot {
+    vector3 origin;
+    alignas(16) matrix3x4_t bones[256] = {};
+    ULONGLONG time = 0;
+    int frame = -1;
+    bool valid = false;
+    bool bones_valid = false;
+};
+rendered_player_snapshot rendered_players[65];
+std::mutex rendered_players_mutex;
+
+int snapshot_frame() {
+    const int frame = global_vars ? global_vars->frame_count : 0;
+    // A time token is only a fallback for a missing global-vars pointer. It
+    // still prevents a single DME record from becoming an unbounded cache.
+    return frame > 0 ? frame : static_cast<int>(GetTickCount64() / 16);
+}
+
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
@@ -514,6 +536,53 @@ vector3 render_origin(void* entity, const vector3& fallback) {
         ? result : fallback;
 }
 
+bool current_rendered_snapshot(const rendered_player_snapshot& snapshot, int frame,
+                               ULONGLONG now) {
+    // The age guard also protects a map/restart transition where frame_count
+    // can start over while an old index still happens to match.
+    return snapshot.valid && snapshot.frame == frame && now >= snapshot.time &&
+        now - snapshot.time <= 100;
+}
+
+bool read_rendered_origin(int index, vector3& output) {
+    if (index < 1 || index > 64)
+        return false;
+    const int frame = snapshot_frame();
+    const ULONGLONG now = GetTickCount64();
+    std::lock_guard<std::mutex> lock(rendered_players_mutex);
+    const auto& snapshot = rendered_players[index];
+    if (!current_rendered_snapshot(snapshot, frame, now))
+        return false;
+    output = snapshot.origin;
+    return std::isfinite(output.x) && std::isfinite(output.y) && std::isfinite(output.z);
+}
+
+bool read_rendered_bones(int index, matrix3x4_t* output) {
+    if (!output || index < 1 || index > 64)
+        return false;
+    const int frame = snapshot_frame();
+    const ULONGLONG now = GetTickCount64();
+    std::lock_guard<std::mutex> lock(rendered_players_mutex);
+    const auto& snapshot = rendered_players[index];
+    if (!snapshot.bones_valid || !current_rendered_snapshot(snapshot, frame, now))
+        return false;
+    std::memcpy(output, snapshot.bones, sizeof(snapshot.bones));
+    return true;
+}
+
+void clear_rendered_players() {
+    std::lock_guard<std::mutex> lock(rendered_players_mutex);
+    for (auto& snapshot : rendered_players)
+        snapshot.valid = false;
+}
+
+vector3 current_player_origin(int index, void* entity) {
+    vector3 rendered;
+    if (read_rendered_origin(index, rendered))
+        return rendered;
+    return render_origin(entity, value<vector3>(entity, nv.origin, {}));
+}
+
 client_class_t* entity_class(void* entity) {
     if (!entity)
         return nullptr;
@@ -693,17 +762,22 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
     const auto* studio = studio_wrapper->studio;
     if (studio->bone_count <= 0 || studio->bone_count > 256 || studio->bone_index <= 0)
         return;
-    // SetupBones is IClientRenderable slot 13, not a method in the primary
-    // C_CSPlayer vtable. Using the latter with this signature corrupts the
-    // x86 stack and can also perturb the model's subsequent bone state.
-    void* renderable = client_renderable(entity);
-    const auto setup = virtual_function<setup_bones_t>(renderable, 13);
-    if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
-        return;
     alignas(16) matrix3x4_t bones[256]{};
-    const float time = global_vars ? global_vars->current_time : 0.f;
-    if (!setup(renderable, bones, 256, 0x0007FF00, time))
-        return;
+    if (!read_rendered_bones(output.index, bones)) {
+        // Fallback for configurations where the DME hook is not installed.
+        // When DME is active, collect_model_geometry normally consumes the
+        // exact matrices submitted by the renderer instead of rebuilding them.
+        // SetupBones is IClientRenderable slot 13, not a method in the primary
+        // C_CSPlayer vtable. Using the latter with this signature corrupts the
+        // x86 stack and can also perturb the model's subsequent bone state.
+        void* renderable = client_renderable(entity);
+        const auto setup = virtual_function<setup_bones_t>(renderable, 13);
+        if (!setup || !function_in_module(client_module, reinterpret_cast<const void*>(setup)))
+            return;
+        const float time = global_vars ? global_vars->current_time : 0.f;
+        if (!setup(renderable, bones, 256, 0x0007FF00, time))
+            return;
+    }
 
     const auto* bone_array = reinterpret_cast<const mstudiobone_t*>(
         reinterpret_cast<const unsigned char*>(studio) + studio->bone_index);
@@ -1022,6 +1096,7 @@ int aimed_player_index() {
         if ((team != 2 && team != 3) || team == local_team)
             continue;
         player_data geometry;
+        geometry.index = index;
         collect_model_geometry(player, value<int>(player, nv.hitbox_set, 0), geometry, false, true);
         vector3 point = value<vector3>(player, nv.origin);
         point.z += 64.f;
@@ -1048,6 +1123,46 @@ int aimed_player_index() {
 
 int frame_number() {
     return global_vars ? global_vars->frame_count : 0;
+}
+
+bool player_geometry_requested(int side) {
+    if (side == 2) {
+        const auto& settings = player_visuals::self_esp_settings();
+        return settings.esp_enabled && settings.main[player_visuals::main_skeleton];
+    }
+    if (side != 0 && side != 1)
+        return false;
+    const auto& settings = player_visuals::settings(side);
+    return settings.esp_enabled &&
+        (settings.main[player_visuals::main_skeleton] ||
+         settings.aimbot[player_visuals::aimbot_hitboxes]);
+}
+
+void submit_rendered_player(int index, const vector3& origin, const void* bones,
+                            bool include_bones) {
+    if (index < 1 || index > 64 || !std::isfinite(origin.x) ||
+        !std::isfinite(origin.y) || !std::isfinite(origin.z)) {
+        return;
+    }
+    const int frame = snapshot_frame();
+    const ULONGLONG now = GetTickCount64();
+    std::lock_guard<std::mutex> lock(rendered_players_mutex);
+    auto& snapshot = rendered_players[index];
+    // Keep the first real player draw for this frame. Later chams/reflection
+    // passes must not replace a coherent snapshot with another view of it.
+    if (!snapshot.valid || snapshot.frame != frame || now < snapshot.time ||
+        now - snapshot.time > 100) {
+        snapshot = {};
+        snapshot.frame = frame;
+        snapshot.time = now;
+        snapshot.origin = origin;
+        snapshot.valid = true;
+    }
+    if (include_bones && bones && !snapshot.bones_valid &&
+        readable_range(bones, sizeof(snapshot.bones))) {
+        std::memcpy(snapshot.bones, bones, sizeof(snapshot.bones));
+        snapshot.bones_valid = true;
+    }
 }
 
 bool entity_exists(int entity_index) {
@@ -1226,12 +1341,15 @@ void capture_local_player(frame_data& output, void* local, void* local_weapon, i
 
 void capture(frame_data& output) {
     output = {};
-    if (!is_in_game())
+    if (!is_in_game()) {
+        clear_rendered_players();
         return;
+    }
     output.in_game = true;
     output.local_index = local_index();
     void* local = entity_at(output.local_index);
     if (!local) {
+        clear_rendered_players();
         output.in_game = false;
         return;
     }
@@ -1247,7 +1365,7 @@ void capture(frame_data& output) {
     output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
         value<int>(local, nv.health, 0) > 0;
     const int local_team = value<int>(local, nv.team, 0);
-    const vector3 local_origin = render_origin(local, value<vector3>(local, nv.origin));
+    const vector3 local_origin = current_player_origin(output.local_index, local);
     output.local_origin = local_origin;
     output.view_angles = view_angles();
     void* local_weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
@@ -1278,7 +1396,7 @@ void capture(frame_data& output) {
         const auto& side_settings = player_visuals::settings(data.side);
         if (!side_settings.esp_enabled)
             continue;
-        data.origin = render_origin(player, value<vector3>(player, nv.origin));
+        data.origin = current_player_origin(index, player);
         data.mins = value<vector3>(player, nv.mins, { -16.f, -16.f, 0.f });
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
         data.distance = vector_length({ data.origin.x - local_origin.x,
