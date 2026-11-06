@@ -37,6 +37,9 @@
     <Filter Include="Header Files\features\visuals">
       <UniqueIdentifier>{45D206B4-69C4-4B42-8F0D-69CDB1568B72}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\features\misc">
+      <UniqueIdentifier>{A11DC3B7-50D4-49A4-943F-9E827C62A940}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\menu">
       <UniqueIdentifier>{D348432D-B1F1-5599-8C28-B36CB56A76E7}</UniqueIdentifier>
     </Filter>
@@ -133,6 +136,9 @@
       <Filter>Source Files\features\legit</Filter>
     </ClCompile>
     <ClCompile Include="features\misc\misc.cpp">
+      <Filter>Source Files\features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\runtime.cpp">
       <Filter>Source Files\features\misc</Filter>
     </ClCompile>
     <ClCompile Include="features\rage\anti_aim.cpp">
@@ -239,6 +245,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="features\misc\misc.hpp">
+      <Filter>Header Files\features\misc</Filter>
+    </ClInclude>
     <ClInclude Include="features\visuals\chams.hpp">
       <Filter>Header Files\features\visuals</Filter>
     </ClInclude>

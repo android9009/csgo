@@ -19,6 +19,7 @@
 #include "imgui_impl_win32.h"
 #include "../menu/agent_preview.hpp"
 #include "../features/visuals/esp.hpp"
+#include "../features/misc/misc.hpp"
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"
 #include "../menu/menu.hpp"
@@ -312,6 +313,8 @@ void render_frame(IDirect3DDevice9* present_device) {
     // width there. Doing it after Begin() leaves popup controls using the previous DPI metrics.
     ImGui::GetIO().FontGlobalScale = gui.m_scale;
     ImGui::NewFrame();
+    AIRFLOW_DEBUG_STAGE("misc_features.initialize");
+    misc_features::initialize();
     AIRFLOW_DEBUG_STAGE("player_esp.render");
     player_esp::render();
     AIRFLOW_DEBUG_STAGE("c_menu.draw");
@@ -452,8 +455,8 @@ DWORD WINAPI worker(LPVOID) {
     } else {
         AIRFLOW_DEBUG_LOG("D3D9 hooks installed");
     }
-    // Source interfaces/materials are initialized by player_esp::render() on the
-    // game's render thread, not on this background worker.
+    // Source interfaces, materials and gameplay hooks are initialized lazily on
+    // the game's render thread, not on this background worker.
     AIRFLOW_DEBUG_STAGE("runtime worker idle");
     return 0;
 }
