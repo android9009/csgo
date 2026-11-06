@@ -213,7 +213,7 @@
     <ClCompile Include="menu\menu.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
-    <ClCompile Include="menu\misc.cpp">
+    <ClCompile Include="menu\misc_menu.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu_shared.cpp">

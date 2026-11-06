@@ -28,7 +28,7 @@ add_library(airflow_shell SHARED
   menu/effects.cpp
   menu/gui.cpp
   menu/menu.cpp
-  menu/misc.cpp
+  menu/misc_menu.cpp
   menu/menu_shared.cpp
   menu/weapon_icons.cpp
   menu/weapon_presets.cpp
