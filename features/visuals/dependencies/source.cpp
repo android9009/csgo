@@ -1399,6 +1399,30 @@ bool offset_viewmodel_origin(const vector3& angles, float right, float up, float
     return true;
 }
 
+std::vector<int> local_spectators() {
+    std::vector<int> result;
+    if (!is_in_game() || nv.observer_target < 0)
+        return result;
+    const int local = local_index();
+    void* local_entity = entity_at(local);
+    if (!local_entity)
+        return result;
+    for (int i = 0; i < 64; ++i) {
+        if (i == local)
+            continue;
+        void* entity = entity_at(i);
+        if (!entity)
+            continue;
+        if (value<unsigned char>(entity, nv.life_state, 0) == 0)
+            continue;   // alive players are not spectating
+        void* target = entity_from_handle(value<unsigned int>(entity, nv.observer_target,
+            0xFFFFFFFFu));
+        if (target && target == local_entity)
+            result.push_back(i);
+    }
+    return result;
+}
+
 bool set_viewmodel_angles(const vector3& angles) {
     if (!is_in_game() || nv.viewmodel < 0 || nv.angles < 0)
         return false;
