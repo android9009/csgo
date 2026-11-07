@@ -80,19 +80,27 @@ void render_scope_overlay(ImDrawList* draw, const ImVec2& display) {
     const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
     const ImU32 main_color = color(page.scope_color_main);
     const ImU32 edge_color = color(page.scope_color_edge);
+    const float lens_radius = std::min(display.x, display.y) * 0.42f;
     if (mode == 1) {
-        // Lines: the plain overlay - four short strokes, engine gap untouched.
-        constexpr float gap = 10.f;
-        constexpr float length = 44.f;
-        constexpr float thickness = 1.f;
-        draw->AddLine(ImVec2(center.x, center.y - gap), ImVec2(center.x, center.y - gap - length),
-            main_color, thickness);
-        draw->AddLine(ImVec2(center.x, center.y + gap), ImVec2(center.x, center.y + gap + length),
-            main_color, thickness);
-        draw->AddLine(ImVec2(center.x - gap, center.y), ImVec2(center.x - gap - length, center.y),
-            main_color, thickness);
-        draw->AddLine(ImVec2(center.x + gap, center.y), ImVec2(center.x + gap + length, center.y),
-            main_color, thickness);
+        // Lines: the whole scope body, not just the hairlines - a darkened ring
+        // outside the lens (the engine's black mask is suppressed in this mode),
+        // the lens outline and the four long lines the game draws inside it.
+        for (int ring = 0; ring < 26; ++ring) {
+            const float step = static_cast<float>(ring) / 25.f;
+            const float alpha = 0.16f + step * 0.34f;
+            draw->AddCircle(center, lens_radius + 2.f + step * 44.f,
+                color(0.f, 0.f, 0.f, alpha), 160, 4.f);
+        }
+        draw->AddCircle(center, lens_radius, color(0.f, 0.f, 0.f, 0.9f), 160, 3.f);
+        constexpr float gap = 6.f;
+        draw->AddLine(ImVec2(center.x - lens_radius, center.y), ImVec2(center.x - gap, center.y),
+            main_color, 1.f);
+        draw->AddLine(ImVec2(center.x + gap, center.y), ImVec2(center.x + lens_radius, center.y),
+            main_color, 1.f);
+        draw->AddLine(ImVec2(center.x, center.y - lens_radius), ImVec2(center.x, center.y - gap),
+            main_color, 1.f);
+        draw->AddLine(ImVec2(center.x, center.y + gap), ImVec2(center.x, center.y + lens_radius),
+            main_color, 1.f);
         return;
     }
     // Custom scope: the Lua scales both sliders by screen height / 1080.

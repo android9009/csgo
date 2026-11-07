@@ -798,6 +798,7 @@ void draw_visuals_world() {
     static const char* event_log_items[] = { "Miss", "Hit", "Evaded" };
     static const char* scope_modes[] = { "Default", "Lines", "Custom" };
     static const char* scope_styles[] = { "Default", "Rotated" };
+    static const char* toggle_modes[] = { "Disabled", "Enabled" };
     static const char* aspect_modes[] = { "Horizontal", "Vertical" };
     static const char* window_item_names[] = { "Time", "Username", "Ping", "FPS" };
     static const char* window_positions[] = { "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right" };
@@ -908,7 +909,10 @@ void draw_visuals_world() {
         gui.popup_end();
     }
     gui.row_begin(); ImGui::Combo("Unlock Spectating", &world.unlock_spectating_mode, unlock_modes, IM_ARRAYSIZE(unlock_modes));
-    gui.row_checkbox("Visual Recoil", &g_cfg->world.m_visual_recoil);
+    // Visual Recoil is an enable/disable combobox, not a checkbox.
+    int recoil_toggle = g_cfg->world.m_visual_recoil ? 1 : 0;
+    gui.row_begin(); ImGui::Combo("Visual Recoil", &recoil_toggle, toggle_modes, IM_ARRAYSIZE(toggle_modes));
+    g_cfg->world.m_visual_recoil = recoil_toggle == 1;
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
