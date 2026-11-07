@@ -1,5 +1,6 @@
 #include "source.hpp"
 #include "../settings.hpp"
+#include "../world/world_render.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
 
 #include <Windows.h>
@@ -1481,7 +1482,9 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, v
             eye_angles.y += std::clamp(page.viewmodel_yaw, -180.f, 180.f);
             eye_angles.z = std::clamp(page.viewmodel_roll, -180.f, 180.f);
         }
-        if (g_cfg->world.m_visual_recoil && state_valid && state.alive) {
+        // World > Visual Recoil: Enabled keeps the engine's kick (see the
+        // OverrideView path for the same inversion).
+        if (!g_cfg->world.m_visual_recoil && state_valid && state.alive) {
             eye_angles.x -= state.aim_punch.x * 0.9f + state.view_punch.x;
             eye_angles.y -= state.aim_punch.y * 0.9f + state.view_punch.y;
         }
@@ -1550,10 +1553,15 @@ bool install_viewmodel_hook() {
     return true;
 }
 
-// World > HUD > Radar: flagging entities is what feeds the in-game radar, so
-// this replaces the old hand-drawn radar map. Previous flags are cleared when
-// the option goes away, otherwise the game would keep them spotted.
+// World > HUD > Radar. Fatality reveals enemies in PostDataUpdate by setting
+// CBasePlayer::m_bSpotted, and it writes that flag on every single network
+// update. It has to: m_bSpotted is a networked property, so the server's copy
+// lands on the next update and a write-once shortcut loses the reveal again -
+// the old "flagged" cache here only ever wrote the flag once, which is why the
+// radar kept showing nothing.
 void update_radar_reveal() {
+    if (!is_in_game())
+        return;
     static std::array<bool, 65> flagged{};
     const auto& options = player_visuals::world_settings().radar_options;
     const bool want_enemies = options[0];
@@ -1561,7 +1569,7 @@ void update_radar_reveal() {
     const bool want_bomb = options[2];
     const bool any_flagged = std::any_of(flagged.begin(), flagged.end(),
         [](bool value) { return value; });
-    if (!is_in_game() || (!want_enemies && !want_hostages && !want_bomb && !any_flagged))
+    if (!want_enemies && !want_hostages && !want_bomb && !any_flagged)
         return;
     void* local = entity_at(local_index());
     if (!local)
@@ -1571,8 +1579,10 @@ void update_radar_reveal() {
     // The whole walking loop is [1, 64]; hostages and the C4 share the range.
     for (int index = 1; index <= 64; ++index) {
         void* entity = entity_at(index);
-        if (!entity)
+        if (!entity) {
+            flagged[index] = false;
             continue;
+        }
         const client_class_t* client_class = entity_class(entity);
         if (!client_class || !readable_range(client_class->name, 1))
             continue;
@@ -1589,10 +1599,14 @@ void update_radar_reveal() {
         } else {
             continue;
         }
-        if (wanted == flagged[index])
-            continue;
-        reveal_entity_on_radar(entity, wanted, local_index_value);
-        flagged[index] = wanted;
+        if (wanted) {
+            reveal_entity_on_radar(entity, true, local_index_value);
+            flagged[index] = true;
+        } else if (flagged[index]) {
+            // Only clear what we set ourselves.
+            reveal_entity_on_radar(entity, false, local_index_value);
+            flagged[index] = false;
+        }
     }
 }
 
@@ -2113,6 +2127,12 @@ void __fastcall hooked_frame_stage(void* self, void*, int stage) {
         airflow_animation_speed();
     if (original_frame_stage)
         original_frame_stage(self, stage);
+    // Fatality: the radar flag is written in PostDataUpdate (FRAME_NET_UPDATE_POSTDATAUPDATE_END
+    // here) and thirdperson runs at FRAME_RENDER_END.
+    if (stage == 3)
+        update_radar_reveal();
+    if (stage == 6)
+        world_visuals::run_thirdperson();
     if (stage != 6 || !frame_stage_hook_ready.load(std::memory_order_acquire))
         return;
 

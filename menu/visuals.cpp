@@ -973,22 +973,23 @@ void draw_visuals_world() {
     gui.column_title("HUD");
     gui.grid_box("##world_hud", k_auto_height);
     gui.row_multibox("Radar", radar_items, world.radar_options.data(), IM_ARRAYSIZE(radar_items));
-    gui.row_begin(); ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
-    if (world.scope_overlay_mode == 2) {
-        // Custom scope: the NL script's five knobs (style, offset, position,
-        // thickness, main/edge colour) only show up for the custom mode.
-        if (gui.row_popup("Custom Scope", nullptr, 280.f)) {
-            gui.popup_section_begin("##custom_scope");
-            gui.row_begin(); ImGui::Combo("Style", &world.scope_style, scope_styles, IM_ARRAYSIZE(scope_styles));
-            gui.row_begin(); ImGui::SliderFloat("Offset", &world.scope_offset, 0.f, 500.f, "%.0f px");
-            gui.row_begin(); ImGui::SliderFloat("Position", &world.scope_position, 0.f, 500.f, "%.0f px");
-            gui.row_begin(); ImGui::SliderFloat("Thickness", &world.scope_thickness, 1.f, 10.f, "%.1f px");
-            gui.row_color("Main", &scope_main_color);
-            gui.row_color("Edge", &scope_edge_color);
-            gui.popup_section_end();
-            gui.popup_end();
-        }
+    gui.row_begin();
+    // Custom scope settings hang off the row itself: a gear appears in the gap left
+    // of the combo (same control every other row uses) only while the custom mode is
+    // selected. The extra "Custom Scope" row with its arrow is gone.
+    if (world.scope_overlay_mode == 2 &&
+        gui.row_options_begin("##custom_scope_options", 280.f, c_gui::row_control::box)) {
+        gui.popup_section_begin("##custom_scope");
+        gui.row_begin(); ImGui::Combo("Style", &world.scope_style, scope_styles, IM_ARRAYSIZE(scope_styles));
+        gui.row_begin(); ImGui::SliderFloat("Offset", &world.scope_offset, 0.f, 500.f, "%.0f px");
+        gui.row_begin(); ImGui::SliderFloat("Position", &world.scope_position, 0.f, 500.f, "%.0f px");
+        gui.row_begin(); ImGui::SliderFloat("Thickness", &world.scope_thickness, 1.f, 10.f, "%.1f px");
+        gui.row_color("Main", &scope_main_color);
+        gui.row_color("Edge", &scope_edge_color);
+        gui.popup_section_end();
+        gui.row_options_end();
     }
+    ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
     gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay, &inaccuracy_color);
     if (gui.row_popup("Death Notices", nullptr, 280.f)) {
         gui.popup_section_begin("##death_notices");

@@ -28,8 +28,9 @@ struct view_setup {
     vector3 angles;
 };
 
+// IInput layout as Fatality's sdk/interfaces/IInput.h has it: the pad is 0xA9
+// bytes, so m_fCameraInThirdPerson sits at 0xA9 and m_vecCameraOffset at 0xAC.
 constexpr std::size_t input_camera_in_third_person = 0xA9;
-constexpr std::size_t input_camera_offset = 0xAC;
 constexpr std::size_t convar_parent_offset = 0x1C;
 constexpr std::size_t convar_float_offset = 0x2C;
 constexpr std::size_t convar_find_var_vfunc = 16;
@@ -47,7 +48,7 @@ struct convar_state {
     float last_applied = 0.f;
 };
 
-std::array<convar_state, 21> convars{{
+std::array<convar_state, 24> convars{{
     { "viewmodel_fov" },
     { "viewmodel_offset_x" },
     { "viewmodel_offset_y" },
@@ -68,7 +69,12 @@ std::array<convar_state, 21> convars{{
     { "spec_allow_roaming" },
     { "cl_crosshairalpha" },
     { "cl_disable_ragdolls" },
-    { "cl_ragdoll_physics_enable" }
+    { "cl_ragdoll_physics_enable" },
+    // Fatality's thirdperson drives the engine's own camera through these three:
+    // the view distance, wall collision and the snap used by CInput::CAM_Think.
+    { "cam_idealdist" },
+    { "cam_collision" },
+    { "cam_snapto" }
 }};
 convar_state tonemap_scale{ "mat_force_tonemap_scale" };
 
@@ -361,52 +367,6 @@ int local_player_index() {
     return function ? function(engine_client) : 0;
 }
 
-void update_camera() {
-    if (!readable_range(input_object, input_camera_offset + sizeof(vector3)))
-        return;
-
-    const auto& cfg = g_cfg->world_esp;
-    auto* bytes = static_cast<std::uint8_t*>(input_object);
-    auto* camera_flag = reinterpret_cast<bool*>(bytes + input_camera_in_third_person);
-    auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
-    if (!readable_range(camera_flag, 1) || !readable_range(camera_offset, sizeof(vector3)))
-        return;
-    if (!visuals_source::writable_range(camera_flag, 1) ||
-        !visuals_source::writable_range(camera_offset, sizeof(vector3)))
-        return;
-    const int local_index = local_player_index();
-    using entity_at_t = void*(__thiscall*)(void*, int);
-    const auto entity_at = reinterpret_cast<entity_at_t>(vfunc(entity_list, 3));
-    const bool has_local_player = local_index > 0 && entity_at && entity_at(entity_list, local_index);
-    visuals_source::local_view_state view_state{};
-    const bool has_view_state = visuals_source::get_local_view_state(view_state);
-    const bool alive = has_view_state ? view_state.alive : visuals_source::local_player_alive();
-    const bool active = cfg.m_enable_thirdperson && engine_in_game() && has_local_player &&
-        (alive || cfg.m_thirdperson_while_dead);
-
-    // main's c_thirdperson::run_alive: the camera offset is the current view
-    // angles with the distance in z, written every frame. Owning both cells this
-    // way means no previous-state bookkeeping that can wedge the camera.
-    if (active) {
-        using get_angles_t = void(__thiscall*)(void*, vector3&);
-        const auto get_angles = reinterpret_cast<get_angles_t>(vfunc(engine_client, 18));
-        vector3 angles{};
-        if (get_angles)
-            get_angles(engine_client, angles);
-        // World > Thirdperson > Disable overhead: clamp the pitch the camera is
-        // placed with, so looking down no longer lifts the camera above the head.
-        if (player_visuals::world_settings().thirdperson_disable_overhead)
-            angles.x = std::clamp(angles.x, -89.f, 20.f);
-        angles.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
-        AIRFLOW_DEBUG_STAGE("world.override_view.camera_write");
-        *camera_offset = angles;
-        *camera_flag = true;
-    } else if (*camera_flag) {
-        *camera_flag = false;
-        *camera_offset = { 0.f, 0.f, 0.f };
-    }
-}
-
 void update_world_cvars() {
     const auto& world = g_cfg->world;
     const auto& world_esp = g_cfg->world_esp;
@@ -502,7 +462,6 @@ void update_world_cvars() {
 
 void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     AIRFLOW_DEBUG_STAGE("world.override_view.camera");
-    update_camera();
     AIRFLOW_DEBUG_STAGE("world.override_view.cvars");
     update_world_cvars();
     AIRFLOW_DEBUG_STAGE("world.override_view.original");
@@ -524,9 +483,10 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     visuals_source::local_view_state view_state{};
     if (visuals_source::get_local_view_state(view_state)) {
         const auto& page = player_visuals::world_settings();
-        // World > Visual Recoil is a plain on/off: subtract the punch the engine
-        // itself adds to the camera.
-        if (view_state.alive && g_cfg->world.m_visual_recoil &&
+        // World > Visual Recoil follows its label: Enabled keeps the kick the
+        // engine adds, Disabled is the one that subtracts it (the combo used to
+        // be wired the other way round).
+        if (view_state.alive && !g_cfg->world.m_visual_recoil &&
             visuals_source::writable_range(&setup->angles, sizeof(vector3))) {
             setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
             setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
@@ -555,6 +515,37 @@ using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
 } // namespace
 
 namespace world_visuals {
+// Fatality's thirdperson (features/thirdperson.cpp::run): flip
+// IInput::m_fCameraInThirdPerson and let the engine move the camera itself via
+// cam_idealdist / cam_collision / cam_snapto. The old code wrote
+// m_vecCameraOffset instead - that is the spectator/replay camera and never
+// moved the first-person view, which is why the feature did nothing.
+void run_thirdperson() {
+    if (!input_object || !readable_range(input_object, input_camera_in_third_person + 1))
+        return;
+    auto* camera_flag = reinterpret_cast<bool*>(static_cast<std::uint8_t*>(input_object) +
+        input_camera_in_third_person);
+    if (!visuals_source::writable_range(camera_flag, 1))
+        return;
+
+    const auto& cfg = g_cfg->world_esp;
+    const auto& page = player_visuals::world_settings();
+    const bool in_game = engine_in_game() && local_player_index() > 0;
+    const bool alive = visuals_source::local_player_alive();
+    const bool active = cfg.m_enable_thirdperson && in_game && (alive || cfg.m_thirdperson_while_dead);
+
+    if (active) {
+        *camera_flag = true;
+        // Distance is a float convar in the engine, so the slider value goes in raw.
+        set_override_raw("cam_idealdist", true,
+            std::clamp(static_cast<float>(cfg.m_distance), 50.f, 300.f));
+        set_override_raw("cam_collision", true, page.thirdperson_close_to_wall ? 1.f : 0.f);
+        set_override_raw("cam_snapto", true, 1.f);
+    } else if (*camera_flag) {
+        *camera_flag = false;
+    }
+}
+
 // Panel filtering lives here so both renderers agree; the PaintTraverse hook
 // itself is installed once in the D3D9 runtime (the old code installed a second
 // hook from this file, which made the chain order dependent).
