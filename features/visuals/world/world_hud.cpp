@@ -52,9 +52,14 @@ void render_event_logs(ImDrawList* draw, const ImVec2& display) {
         const ImVec2 measured = font->CalcTextSizeA(text_size, FLT_MAX, 0.f, it->text.c_str());
         const ImVec2 max_point(display.x - 14.f, y + 20.f);
         const ImVec2 min_point(max_point.x - measured.x - pad * 2.f - 3.f, y);
-        draw->AddRectFilled(min_point, max_point, color(0.f, 0.f, 0.f, 0.55f * alpha), 3.f);
+        // World > Windows > style: the plate uses the shared window colour,
+        // line opacity and background opacity instead of hard-coded values.
+        const float background = std::clamp(page.windows_background_opacity, 0.f, 1.f) * alpha;
+        const float line = std::clamp(page.windows_line_opacity, 0.f, 1.f) * alpha;
+        draw->AddRectFilled(min_point, max_point,
+            color(page.windows_color, background * 0.45f), 3.f);
         draw->AddRectFilled(min_point, ImVec2(min_point.x + 2.f, max_point.y),
-            color(ink.r, ink.g, ink.b, alpha), 1.f);
+            color(page.windows_color, line), 1.f);
         draw->AddText(font, text_size, ImVec2(min_point.x + pad + 2.f, y + 3.f),
             color(ink, alpha), it->text.c_str());
         y += 23.f;
