@@ -68,8 +68,17 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
     const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
     const char* name = get_name ? get_name(ecx, panel) : nullptr;
     // World > Removals: one filter for both renderers, exact panel names only.
-    if (name && world_visuals::should_skip_panel(name))
+    if (name && world_visuals::should_skip_panel(name)) {
+        // Log each skipped panel once so a hidden HUD element (the old broad
+        // "Panorama" match could hide the team select) is visible in the log.
+        static char last_skipped[128] = {};
+        if (std::strcmp(last_skipped, name) != 0) {
+            std::strncpy(last_skipped, name, sizeof(last_skipped) - 1);
+            last_skipped[sizeof(last_skipped) - 1] = '\0';
+            AIRFLOW_DEBUG_LOGF("panel skipped: %s", name);
+        }
         return;
+    }
 
     original_paint_traverse(ecx, panel, repaint, force);
 
