@@ -27,6 +27,7 @@ add_library(airflow_shell SHARED
   features/visuals/world/world_cvars.cpp
   features/visuals/world/world_esp.cpp
   features/visuals/world/world_hud.cpp
+  features/visuals/world/world_scoreboard.cpp
   features/visuals/world/world_windows.cpp
   features/visuals/world/world_trajectory.cpp
   features/visuals/sound_esp.cpp
