@@ -149,6 +149,9 @@ struct local_view_state {
     // zoom level only feeds the separate x2 slider.
     bool holding_grenade = false;
     int zoom_level = 1;
+    // Engine zoom FOV of the local player: 0 while unzoomed, 40/15 for the
+    // first/second scope stage on the sniper rifles.
+    int player_fov = 0;
     vector3 origin{};
     // World > Crosshairs / Grenades read the same active-weapon state. Knife,
     // C4, sniper and pin state are plain weapon flags, so they cost one
@@ -191,12 +194,15 @@ bool is_local_entity(void* entity);
 bool local_player_alive();
 bool get_local_view_state(local_view_state& output, bool include_accuracy = false);
 
-// World > Viewmodel > Angles. Writes the local viewmodel entity angles; the game
-// recomputes them every frame, so this is called from OverrideView each frame.
-bool set_viewmodel_angles(const vector3& angles);
+// World > Viewmodel: hooks CalcViewModelView so position/angles/visual recoil
+// land on the eye position the game hands the viewmodel (main's path).
+bool install_viewmodel_hook();
 
-// World > Viewmodel > Position: raw origin offset, bypassing the clamped cvars.
-bool offset_viewmodel_origin(const vector3& angles, float right, float up, float forward);
+// World > HUD > Radar: keeps the in-game "spotted" flags in sync with the menu.
+void update_radar_reveal();
+
+// World > HUD > Radar: flag an entity as spotted so the in-game radar shows it.
+void reveal_entity_on_radar(void* entity, bool spotted, int local_index);
 
 // World > Windows > Spectators: entity indices currently spectating the local player.
 std::vector<int> local_spectators();

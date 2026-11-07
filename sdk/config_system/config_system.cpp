@@ -394,6 +394,12 @@ void c_config_system::setup_values( )
 	for (int i = 0; i < static_cast<int>(world.radar_options.size()); ++i)
 		push_item(&world.radar_options[i], "world_esp", "radar_option_" + std::to_string(i), world.radar_options[i]);
 	push_item(&world.scope_overlay_mode, "world_esp", "scope_overlay_mode", world.scope_overlay_mode);
+	push_item(&world.scope_style, "world_esp", "scope_style", world.scope_style);
+	push_item(&world.scope_offset, "world_esp", "scope_offset", world.scope_offset);
+	push_item(&world.scope_position, "world_esp", "scope_position", world.scope_position);
+	push_item(&world.scope_thickness, "world_esp", "scope_thickness", world.scope_thickness);
+	push_item(&world.scope_color_main, "world_esp", "scope_color_main", world.scope_color_main);
+	push_item(&world.scope_color_edge, "world_esp", "scope_color_edge", world.scope_color_edge);
 	push_item(&world.inaccuracy_color, "world_esp", "inaccuracy_color", world.inaccuracy_color);
 	push_item(&world.preserve_death_notices, "world_esp", "preserve_death_notices", world.preserve_death_notices);
 	push_item(&world.hide_teammate_assists, "world_esp", "hide_teammate_assists", world.hide_teammate_assists);

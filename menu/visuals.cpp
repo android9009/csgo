@@ -731,6 +731,8 @@ void draw_visuals_players() {
 void draw_visuals_world() {
     auto& world = player_visuals::world_settings();
     static color_value inaccuracy_color = make_ui_color(0.92f, 0.92f, 0.92f);
+    static color_value scope_main_color = make_ui_color(1.f, 1.f, 1.f);
+    static color_value scope_edge_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value bomb_color = make_ui_color(0.45f, 0.95f, 0.52f);
     static color_value bomb_defused_color = make_ui_color(0.70f, 0.82f, 0.94f);
     static color_value weapon_color = make_ui_color(0.92f, 0.94f, 1.f);
@@ -760,6 +762,8 @@ void draw_visuals_world() {
     static color_value impact_color = make_ui_color(0.90f, 0.60f, 0.90f);
     static color_value spark_color = make_ui_color(1.f, 1.f, 1.f);
     inaccuracy_color.a = to_vec4(world.inaccuracy_color);
+    scope_main_color.a = to_vec4(world.scope_color_main);
+    scope_edge_color.a = to_vec4(world.scope_color_edge);
     bomb_color.a = to_vec4(world.bomb.color);
     bomb_defused_color.a = to_vec4(world.bomb.secondary_color);
     weapon_color.a = to_vec4(world.weapon.color);
@@ -790,10 +794,10 @@ void draw_visuals_world() {
     spark_color.a = to_vec4(world.impact_sparks_color);
 
     static const char* unlock_modes[] = { "Select", "Roaming", "All Observer Modes" };
-    static const char* recoil_modes[] = { "Select", "Default", "Disabled", "Pitch Only", "Pitch + Yaw" };
-    static const char* radar_items[] = { "Reveal Enemies", "Reveal Hostages", "Reveal Bomb", "Override Player Angles" };
+    static const char* radar_items[] = { "Reveal Enemies", "Reveal Hostages", "Reveal Bomb" };
     static const char* event_log_items[] = { "Miss", "Hit", "Evaded" };
-    static const char* scope_modes[] = { "Default", "Lines", "None" };
+    static const char* scope_modes[] = { "Default", "Lines", "Custom" };
+    static const char* scope_styles[] = { "Default", "Rotated" };
     static const char* aspect_modes[] = { "Horizontal", "Vertical" };
     static const char* window_item_names[] = { "Time", "Username", "Ping", "FPS" };
     static const char* window_positions[] = { "Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right" };
@@ -848,11 +852,10 @@ void draw_visuals_world() {
     if (gui.row_popup("Scope Options", nullptr, 280.f)) {
         gui.popup_section_begin("##scope_fov");
         gui.row_checkbox("Override Scope", &world.scope_fov_override);
-        // Both scopes use the same 0-100% scale: 100% keeps the widest zoomed view the engine
-        // projects, lower values tighten it. The old 20-90 / 5-60 windows were arbitrary and made
-        // the two sliders feel like different units.
-        gui.row_begin(); ImGui::SliderInt("Scale (x1)", &world.scope_fov_x1, 0, 100, "%d%%");
-        gui.row_begin(); ImGui::SliderInt("Scale (x2)", &world.scope_fov_x2, 0, 100, "%d%%");
+        // Both sliders are the actual projected FOV, so the second scope has its own
+        // value instead of being derived from whatever setup->fov the game passed in.
+        gui.row_begin(); ImGui::SliderInt("FOV (x1)", &world.scope_fov_x1, 1, 90, "%d");
+        gui.row_begin(); ImGui::SliderInt("FOV (x2)", &world.scope_fov_x2, 1, 90, "%d");
         gui.popup_section_end();
         gui.popup_section_begin("##scope_misc");
         gui.row_checkbox("Instant Scope", &world.instant_scope);
@@ -868,9 +871,10 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_section_begin("##viewmodel_position");
         gui.row_checkbox("Override Position", &world.viewmodel_position_override);
-        gui.row_begin(); ImGui::SliderFloat("X", &g_cfg->world.m_viewmodel_offset_x, -2.5f, 2.5f, "%.2f");
-        gui.row_begin(); ImGui::SliderFloat("Y", &g_cfg->world.m_viewmodel_offset_y, -2.f, 2.f, "%.2f");
-        gui.row_begin(); ImGui::SliderFloat("Z", &g_cfg->world.m_viewmodel_offset_z, -2.f, 2.f, "%.2f");
+        // Applied in CalcViewModelView, so the engine's +-2 cvar clamp is gone.
+        gui.row_begin(); ImGui::SliderFloat("X", &g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Y", &g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Z", &g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f, "%.2f");
         gui.popup_section_end();
         gui.popup_section_begin("##viewmodel_angles");
         gui.row_checkbox("Override Angles", &world.viewmodel_angles_override);
@@ -904,7 +908,7 @@ void draw_visuals_world() {
         gui.popup_end();
     }
     gui.row_begin(); ImGui::Combo("Unlock Spectating", &world.unlock_spectating_mode, unlock_modes, IM_ARRAYSIZE(unlock_modes));
-    gui.row_begin(); ImGui::Combo("Visual Recoil", &world.visual_recoil_mode, recoil_modes, IM_ARRAYSIZE(recoil_modes));
+    gui.row_checkbox("Visual Recoil", &g_cfg->world.m_visual_recoil);
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
@@ -966,6 +970,21 @@ void draw_visuals_world() {
     gui.grid_box("##world_hud", k_auto_height);
     gui.row_multibox("Radar", radar_items, world.radar_options.data(), IM_ARRAYSIZE(radar_items));
     gui.row_begin(); ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
+    if (world.scope_overlay_mode == 2) {
+        // Custom scope: the NL script's five knobs (style, offset, position,
+        // thickness, main/edge colour) only show up for the custom mode.
+        if (gui.row_popup("Custom Scope", nullptr, 280.f)) {
+            gui.popup_section_begin("##custom_scope");
+            gui.row_begin(); ImGui::Combo("Style", &world.scope_style, scope_styles, IM_ARRAYSIZE(scope_styles));
+            gui.row_begin(); ImGui::SliderFloat("Offset", &world.scope_offset, 0.f, 500.f, "%.0f px");
+            gui.row_begin(); ImGui::SliderFloat("Position", &world.scope_position, 0.f, 500.f, "%.0f px");
+            gui.row_begin(); ImGui::SliderFloat("Thickness", &world.scope_thickness, 1.f, 10.f, "%.1f px");
+            gui.row_color("Main", &scope_main_color);
+            gui.row_color("Edge", &scope_edge_color);
+            gui.popup_section_end();
+            gui.popup_end();
+        }
+    }
     gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay, &inaccuracy_color);
     if (gui.row_popup("Death Notices", nullptr, 280.f)) {
         gui.popup_section_begin("##death_notices");
@@ -1118,9 +1137,8 @@ void draw_visuals_world() {
     world.icon = world.bomb.icon || world.weapon.icon || world.hostage.icon || world.grenade.icon;
     world.ammo_bar = world.weapon.progress_bar;
     g_cfg->world.m_draw_radar = std::any_of(world.radar_options.begin(), world.radar_options.end(), [](bool value) { return value; });
-    g_cfg->world.m_visual_recoil = world.visual_recoil_mode > 0;
     g_cfg->world.m_unlock_spectating = world.unlock_spectating_mode > 0;
-    g_cfg->world.m_remove_scope_overlay = world.scope_overlay_mode == 2;
+    g_cfg->world.m_remove_scope_overlay = world.scope_overlay_mode != 0;
     g_cfg->world.m_custom_crosshair = world.force_sniper_crosshair || world.force_crosshair_scoped ||
         world.force_crosshair_c4 || world.penetration_crosshair;
     g_cfg->visuals.m_effects.m_hitmarker = world.hitmarker_2d || world.hitmarker_3d || world.damage_marker;
@@ -1129,6 +1147,8 @@ void draw_visuals_world() {
     g_cfg->visuals.m_effects.m_bullet_impacts = world.bullet_impacts || world.impact_sparks;
     world.trajectory_color = to_config_color(trajectory_color.a);
     world.inaccuracy_color = to_config_color(inaccuracy_color.a);
+    world.scope_color_main = to_config_color(scope_main_color.a);
+    world.scope_color_edge = to_config_color(scope_edge_color.a);
     world.bomb.color = to_config_color(bomb_color.a);
     world.bomb.secondary_color = to_config_color(bomb_defused_color.a);
     world.weapon.color = to_config_color(weapon_color.a);

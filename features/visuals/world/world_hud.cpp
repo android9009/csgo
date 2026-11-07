@@ -66,6 +66,76 @@ void render_event_logs(ImDrawList* draw, const ImVec2& display) {
     }
 }
 
+// World > HUD > Scope Overlay. Default keeps the engine HudZoom, Lines and
+// Custom draw our own; Custom uses the same four gradient segments as the NL
+// "custom scope" script (offset = gap from the crosshair, position = length).
+void render_scope_overlay(ImDrawList* draw, const ImVec2& display) {
+    const auto& page = player_visuals::world_settings();
+    const int mode = std::clamp(page.scope_overlay_mode, 0, 2);
+    if (mode == 0)
+        return;
+    visuals_source::local_view_state state{};
+    if (!visuals_source::get_local_view_state(state) || !state.scoped || !state.alive)
+        return;
+    const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
+    const ImU32 main_color = color(page.scope_color_main);
+    const ImU32 edge_color = color(page.scope_color_edge);
+    if (mode == 1) {
+        // Lines: the plain overlay - four short strokes, engine gap untouched.
+        constexpr float gap = 10.f;
+        constexpr float length = 44.f;
+        constexpr float thickness = 1.f;
+        draw->AddLine(ImVec2(center.x, center.y - gap), ImVec2(center.x, center.y - gap - length),
+            main_color, thickness);
+        draw->AddLine(ImVec2(center.x, center.y + gap), ImVec2(center.x, center.y + gap + length),
+            main_color, thickness);
+        draw->AddLine(ImVec2(center.x - gap, center.y), ImVec2(center.x - gap - length, center.y),
+            main_color, thickness);
+        draw->AddLine(ImVec2(center.x + gap, center.y), ImVec2(center.x + gap + length, center.y),
+            main_color, thickness);
+        return;
+    }
+    // Custom scope: the Lua scales both sliders by screen height / 1080.
+    const float scale = display.y / 1080.f;
+    const float offset = std::clamp(page.scope_offset, 0.f, 500.f) * scale;
+    const float position = std::max(offset + 1.f, std::clamp(page.scope_position, 0.f, 500.f) * scale);
+    const float thickness = std::clamp(page.scope_thickness, 1.f, 10.f);
+    const float half = thickness * 0.5f;
+    const bool rotated = page.scope_style == 1;
+    if (!rotated) {
+        // Bottom-left/top-left = far end (edge color), near end = main color.
+        draw->AddRectFilledMultiColor(ImVec2(center.x - half, center.y - position),
+            ImVec2(center.x + half, center.y - offset),
+            edge_color, edge_color, main_color, main_color);
+        draw->AddRectFilledMultiColor(ImVec2(center.x - half, center.y + offset),
+            ImVec2(center.x + half, center.y + position),
+            main_color, main_color, edge_color, edge_color);
+        draw->AddRectFilledMultiColor(ImVec2(center.x - position, center.y - half),
+            ImVec2(center.x - offset, center.y + half),
+            edge_color, main_color, main_color, edge_color);
+        draw->AddRectFilledMultiColor(ImVec2(center.x + offset, center.y - half),
+            ImVec2(center.x + position, center.y + half),
+            main_color, edge_color, edge_color, main_color);
+        return;
+    }
+    // Rotated: the same four segments turned 45 degrees around the crosshair.
+    constexpr float diagonal = 0.70710678f;
+    auto segment = [&](float dir_x, float dir_y, float perp_x, float perp_y) {
+        const ImVec2 near_point(center.x + dir_x * offset, center.y + dir_y * offset);
+        const ImVec2 far_point(center.x + dir_x * position, center.y + dir_y * position);
+        const ImVec2 near_a(near_point.x + perp_x * half, near_point.y + perp_y * half);
+        const ImVec2 near_b(near_point.x - perp_x * half, near_point.y - perp_y * half);
+        const ImVec2 far_a(far_point.x + perp_x * half, far_point.y + perp_y * half);
+        const ImVec2 far_b(far_point.x - perp_x * half, far_point.y - perp_y * half);
+        draw->AddQuadFilled(far_a, near_a, near_b, far_b, main_color);
+        draw->AddQuadFilled(far_a, near_a, near_b, far_b, edge_color);
+    };
+    segment(diagonal, -diagonal, diagonal, diagonal);
+    segment(diagonal, diagonal, -diagonal, diagonal);
+    segment(-diagonal, diagonal, -diagonal, -diagonal);
+    segment(-diagonal, -diagonal, diagonal, -diagonal);
+}
+
 void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
                 const ImVec2& display) {
     render_windows(draw, frame, display);
@@ -114,61 +184,10 @@ void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
         }
     }
 
-    if (!world.m_draw_radar || !frame.in_game)
-        return;
-    const ImVec2 origin(display.x - 154.f, 86.f);
-    constexpr float size = 130.f;
-    const ImVec2 center(origin.x + size * 0.5f, origin.y + size * 0.5f);
-    draw->AddRectFilled(origin, ImVec2(origin.x + size, origin.y + size), color(0.035f, 0.045f, 0.06f, 0.72f), 3.f);
-    draw->AddRect(origin, ImVec2(origin.x + size, origin.y + size), color(0.65f, 0.7f, 0.8f, 0.45f), 3.f);
-    draw->AddLine(ImVec2(center.x - size * 0.42f, center.y), ImVec2(center.x + size * 0.42f, center.y), color(0.55f, 0.6f, 0.68f, 0.18f));
-    draw->AddLine(ImVec2(center.x, center.y - size * 0.42f), ImVec2(center.x, center.y + size * 0.42f), color(0.55f, 0.6f, 0.68f, 0.18f));
-    constexpr float radians = 0.017453292519943295f;
-    const float yaw = frame.view_angles.y * radians;
-    const float cosine = std::cos(yaw), sine = std::sin(yaw);
-    const auto& radar = player_visuals::world_settings().radar_options;
-    const int radar_mode = std::clamp(player_visuals::world_settings().radar_mode, 0, 2);
-    for (const auto& player : frame.players) {
-        if ((player.side == 0 && !radar[0]) || (player.side != 0 && player.side != 1))
-            continue;
-        const float dx = player.origin.x - frame.local_origin.x;
-        const float dy = player.origin.y - frame.local_origin.y;
-        const float right = dx * cosine - dy * sine;
-        const float forward = dx * sine + dy * cosine;
-        const ImVec2 dot(std::clamp(center.x + right * 0.11f, origin.x + 5.f, origin.x + size - 5.f),
-            std::clamp(center.y - forward * 0.11f, origin.y + 5.f, origin.y + size - 5.f));
-        const ImU32 dot_color = player.side == 0 ? color(1.f, 0.32f, 0.27f, player.alpha)
-            : color(0.30f, 0.68f, 1.f, player.alpha);
-        // World > HUD > Radar > mode: 0 dots, 1 enlarged with outline, 2 dots + names.
-        const float radius = (player.dormant ? 2.f : 3.f) * (radar_mode == 1 ? 1.7f : 1.f);
-        draw->AddCircleFilled(dot, radius, dot_color, 12);
-        if (radar_mode == 1)
-            draw->AddCircle(dot, radius + 1.5f, dot_color, 12, 1.f);
-        if (radar_mode == 2)
-            draw_text(draw, ImVec2(dot.x, dot.y - 9.f), player.name, dot_color, 0.68f);
-        if (radar[3]) {
-            const ImVec2 direction(dot.x + std::cos(yaw) * 5.f, dot.y + std::sin(yaw) * 5.f);
-            draw->AddLine(dot, direction, dot_color, 1.f);
-        }
-    }
-    for (const auto& object : frame.world) {
-        if ((object.kind == visuals_source::world_hostage && !radar[1]) ||
-            (object.kind == visuals_source::world_planted_c4 && !radar[2]) ||
-            (object.kind != visuals_source::world_hostage && object.kind != visuals_source::world_planted_c4))
-            continue;
-        const float dx = object.origin.x - frame.local_origin.x;
-        const float dy = object.origin.y - frame.local_origin.y;
-        const float right = dx * cosine - dy * sine;
-        const float forward = dx * sine + dy * cosine;
-        const ImVec2 dot(std::clamp(center.x + right * 0.11f, origin.x + 5.f, origin.x + size - 5.f),
-            std::clamp(center.y - forward * 0.11f, origin.y + 5.f, origin.y + size - 5.f));
-        draw->AddCircleFilled(dot, 3.f, object.kind == visuals_source::world_planted_c4
-            ? color(1.f, 0.30f, 0.25f, 0.95f) : color(0.45f, 1.f, 0.60f, 0.95f), 12);
-    }
-    draw->AddTriangleFilled(ImVec2(center.x, center.y - 5.f), ImVec2(center.x - 4.f, center.y + 4.f),
-        ImVec2(center.x + 4.f, center.y + 4.f), color(0.96f, 0.96f, 1.f, 0.95f));
-    draw_text(draw, ImVec2(origin.x + size * 0.5f, origin.y - 9.f), "RADAR",
-        color(0.9f, 0.92f, 0.96f, 0.85f), 0.75f);
+    // World > HUD > Radar no longer draws its own map: the reveal options set
+    // the engine's spotted flags (visuals_source::update_radar_reveal), so the
+    // normal game radar shows the enemies.
+    render_scope_overlay(draw, display);
 }
 
 } // namespace world_visuals

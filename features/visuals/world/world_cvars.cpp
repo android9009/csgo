@@ -83,9 +83,6 @@ bool smoke_pattern_resolved = false;
 using override_view_t = void(__thiscall*)(void*, view_setup*);
 override_view_t original_override_view = nullptr;
 bool override_installed = false;
-bool camera_owned = false;
-bool previous_camera_state = false;
-vector3 previous_camera_offset{};
 
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
@@ -289,6 +286,59 @@ void set_override(const char* name, bool enabled, float value) {
     }
 }
 
+// set_convar_float goes through ConVar::SetValue, which clamps to the convar's
+// registered min/max - that is why viewmodel_fov could never leave 54..68. The
+// engine stores the value XOR-encoded with the convar pointer, so writing that
+// cell directly bypasses the clamp the same way the NL Lua's cvar:float does.
+bool set_convar_float_raw(void* object, float value) {
+    if (!object || !std::isfinite(value))
+        return false;
+    void* parent = nullptr;
+    std::memcpy(&parent, static_cast<const std::uint8_t*>(object) + convar_parent_offset,
+        sizeof(parent));
+    if (!readable_range(parent, convar_float_offset + sizeof(std::uint32_t)))
+        return false;
+    const auto self = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(object));
+    std::uint32_t encoded = 0;
+    std::memcpy(&encoded, static_cast<const std::uint8_t*>(parent) + convar_float_offset,
+        sizeof(encoded));
+    std::uint32_t decoded = encoded ^ self;
+    float current = 0.f;
+    std::memcpy(&current, &decoded, sizeof(current));
+    if (!std::isfinite(current))
+        return false;
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    encoded = bits ^ self;
+    std::memcpy(static_cast<std::uint8_t*>(parent) + convar_float_offset, &encoded,
+        sizeof(encoded));
+    return true;
+}
+
+void set_override_raw(const char* name, bool enabled, float value) {
+    convar_state* item = get_convar(name);
+    if (!item || !item->object)
+        return;
+    if (enabled) {
+        if (!item->original_valid) {
+            item->original = read_convar_float(item->object, item->original_valid);
+        }
+        if (item->original_valid &&
+            (!item->overridden || std::fabs(item->last_applied - value) > 0.0001f)) {
+            // If the encoded cell could not be decoded the build differs; fall back
+            // to the clamped SetValue so the override at least keeps working.
+            if (!set_convar_float_raw(item->object, value))
+                set_convar_float(item->object, value);
+            item->last_applied = value;
+            item->overridden = true;
+        }
+    } else if (item->overridden) {
+        if (!set_convar_float_raw(item->object, item->original))
+            set_convar_float(item->object, item->original);
+        item->overridden = false;
+    }
+}
+
 bool engine_in_game() {
     using bool_fn = bool(__thiscall*)(void*);
     const auto function = reinterpret_cast<bool_fn>(vfunc(engine_client, 26));
@@ -306,6 +356,11 @@ void update_camera() {
         return;
 
     const auto& cfg = g_cfg->world_esp;
+    auto* bytes = static_cast<std::uint8_t*>(input_object);
+    auto* camera_flag = reinterpret_cast<bool*>(bytes + input_camera_in_third_person);
+    auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
+    if (!readable_range(camera_flag, 1) || !readable_range(camera_offset, sizeof(vector3)))
+        return;
     const int local_index = local_player_index();
     using entity_at_t = void*(__thiscall*)(void*, int);
     const auto entity_at = reinterpret_cast<entity_at_t>(vfunc(entity_list, 3));
@@ -315,27 +370,11 @@ void update_camera() {
     const bool alive = has_view_state ? view_state.alive : visuals_source::local_player_alive();
     const bool active = cfg.m_enable_thirdperson && engine_in_game() && has_local_player &&
         (alive || cfg.m_thirdperson_while_dead);
-    auto* bytes = static_cast<std::uint8_t*>(input_object);
-    auto* camera_flag = reinterpret_cast<bool*>(bytes + input_camera_in_third_person);
-    auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
 
-    // The camera lives inside CInput at fixed offsets; if they do not point at a
-    // sane bool/vector (different client build), writing would corrupt CInput and
-    // crash later in unrelated code, so bail out instead.
-    const bool camera_layout_valid = readable_range(bytes + input_camera_in_third_person, 1) &&
-        readable_range(camera_offset, sizeof(vector3)) &&
-        (*camera_flag == 0 || *camera_flag == 1) &&
-        std::isfinite(camera_offset->x) && std::isfinite(camera_offset->y) &&
-        std::isfinite(camera_offset->z);
-    if (!camera_layout_valid)
-        return;
-
+    // main's c_thirdperson::run_alive: the camera offset is the current view
+    // angles with the distance in z, written every frame. Owning both cells this
+    // way means no previous-state bookkeeping that can wedge the camera.
     if (active) {
-        if (!camera_owned) {
-            previous_camera_state = *camera_flag;
-            previous_camera_offset = *camera_offset;
-            camera_owned = true;
-        }
         using get_angles_t = void(__thiscall*)(void*, vector3&);
         const auto get_angles = reinterpret_cast<get_angles_t>(vfunc(engine_client, 18));
         vector3 angles{};
@@ -345,17 +384,12 @@ void update_camera() {
         // placed with, so looking down no longer lifts the camera above the head.
         if (player_visuals::world_settings().thirdperson_disable_overhead)
             angles.x = std::clamp(angles.x, -89.f, 20.f);
-        const float camera_distance = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
-        angles.z = camera_distance;
-        // Close to wall needs an engine trace; the previous hand-rolled
-        // IEngineTrace call is what crashed, so the distance stays untouched
-        // until it is routed through the misc runtime's proven path.
+        angles.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
         *camera_offset = angles;
         *camera_flag = true;
-    } else if (camera_owned) {
-        *camera_flag = previous_camera_state;
-        *camera_offset = previous_camera_offset;
-        camera_owned = false;
+    } else if (*camera_flag) {
+        *camera_flag = false;
+        *camera_offset = { 0.f, 0.f, 0.f };
     }
 }
 
@@ -376,9 +410,12 @@ void update_world_cvars() {
     set_override("r_aspectratio", page.aspect_ratio_override, aspect_ratio);
     g_cfg->world.m_draw_radar = std::any_of(page.radar_options.begin(), page.radar_options.end(),
         [](bool value) { return value; });
+    visuals_source::update_radar_reveal();
     g_cfg->world.m_custom_crosshair = page.force_sniper_crosshair || page.force_crosshair_scoped ||
         page.force_crosshair_c4 || page.penetration_crosshair;
-    g_cfg->world.m_remove_scope_overlay = page.scope_overlay_mode == 2;
+    // Scope overlay: 0 Default (game HudZoom), 1 Lines and 2 Custom both replace
+    // the engine overlay, so HudZoom is suppressed for every non-default mode.
+    g_cfg->world.m_remove_scope_overlay = page.scope_overlay_mode != 0;
     g_cfg->world.m_remove_scoreboard = page.scoreboard_opacity <= 0.f;
     g_cfg->world_esp.m_skip_second_zoom = page.instant_scope;
     g_cfg->visuals.m_effects.m_hitmarker = page.hitmarker_2d || page.hitmarker_3d || page.damage_marker;
@@ -414,20 +451,16 @@ void update_world_cvars() {
         (brightness * 2.f), 0.f, 5.f);
     set_override("mat_force_tonemap_scale", tone_changed, tone_scale);
 
+    // FOV goes through the raw cell: the convar's registered range is 54..68 and
+    // SetValue clamped every value we pushed into it. Position/angles are applied
+    // in the CalcViewModelView hook (see visuals_source), never through cvars.
     const int vm_fov = std::clamp(world.m_viewmodel_fov, 0, 30);
     const bool override_vm_fov = page.viewmodel_fov_override ||
         (page.scope_force_viewmodel_fov && scoped) || vm_fov != 0;
     const float vm_fov_value = page.viewmodel_fov_override || (page.scope_force_viewmodel_fov && scoped)
-        ? static_cast<float>(std::clamp(page.viewmodel_fov_value, 54, 120))
+        ? static_cast<float>(std::clamp(page.viewmodel_fov_value, 40, 150))
         : convars[0].original + static_cast<float>(vm_fov);
-    set_override("viewmodel_fov", override_vm_fov, vm_fov_value);
-    const bool override_position = page.viewmodel_position_override;
-    set_override("viewmodel_offset_x", override_position || std::fabs(world.m_viewmodel_offset_x) > 0.001f,
-        (override_position ? convars[1].original : convars[1].original + std::clamp(world.m_viewmodel_offset_x, -2.5f, 2.5f)));
-    set_override("viewmodel_offset_y", override_position || std::fabs(world.m_viewmodel_offset_y) > 0.001f,
-        (override_position ? convars[2].original : convars[2].original + std::clamp(world.m_viewmodel_offset_y, -2.f, 2.f)));
-    set_override("viewmodel_offset_z", override_position || std::fabs(world.m_viewmodel_offset_z) > 0.001f,
-        (override_position ? convars[3].original : convars[3].original + std::clamp(world.m_viewmodel_offset_z, -2.f, 2.f)));
+    set_override_raw("viewmodel_fov", override_vm_fov, vm_fov_value);
 
     const bool override_modifiers = page.viewmodel_modifiers_override;
     set_override("cl_wpn_sway_scale", override_modifiers || world.m_remove_viewmodel_move,
@@ -457,28 +490,10 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     if (!setup)
         return;
 
-    // World > Viewmodel > Angles: roll (plus pitch/yaw) applied to the viewmodel
-    // entity right after the game built its own camera, the same path the NL Lua
-    // uses (credits tank / rave1337 for a correct roll).
-    const auto& page = player_visuals::world_settings();
-    if (page.viewmodel_position_override) {
-        // World > Viewmodel > Position: applied to the entity after the game builds
-        // the viewmodel, so the engine's -2..2 cvar clamp no longer limits it.
-        const visuals_source::vector3 camera_angles{ setup->angles.x, setup->angles.y,
-            setup->angles.z };
-        visuals_source::offset_viewmodel_origin(camera_angles,
-            std::clamp(g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f),
-            std::clamp(g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f),
-            std::clamp(g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f));
-    }
-    if (page.viewmodel_angles_override) {
-        visuals_source::vector3 angles{
-            setup->angles.x + std::clamp(page.viewmodel_pitch, -89.f, 89.f),
-            setup->angles.y + std::clamp(page.viewmodel_yaw, -180.f, 180.f),
-            std::clamp(page.viewmodel_roll, -180.f, 180.f)
-        };
-        visuals_source::set_viewmodel_angles(angles);
-    }
+    // World > Viewmodel > Position / Angles / Visual recoil are applied in the
+    // CalcViewModelView hook (visuals_source::install_viewmodel_hook), which is
+    // the only place the game reads them from - writing the entity here was what
+    // the game overwrote and what crashed.
 
     const auto& cfg = g_cfg->world_esp;
     if (cfg.m_enable_override_fov)
@@ -487,18 +502,20 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     visuals_source::local_view_state view_state{};
     if (visuals_source::get_local_view_state(view_state)) {
         const auto& page = player_visuals::world_settings();
-        const int recoil_mode = page.visual_recoil_mode;
-        const bool remove_recoil = recoil_mode == 2 || (recoil_mode == 0 && g_cfg->world.m_visual_recoil);
-        if (view_state.alive && remove_recoil) {
+        // World > Visual Recoil is a plain on/off: subtract the punch the engine
+        // itself adds to the camera.
+        if (view_state.alive && g_cfg->world.m_visual_recoil) {
             setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
-            setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
-        } else if (view_state.alive && recoil_mode == 3) {
-            setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
-        } else if (view_state.alive && recoil_mode == 4) {
             setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
         }
         if (view_state.scoped && page.scope_fov_override) {
-            const int scope_fov = setup->fov < 20.f ? page.scope_fov_x2 : page.scope_fov_x1;
+            // The second scope is not a lower FOV window: m_iFOV drops to <= 20
+            // only on the second zoom stage (AWP 40/10, SSG 40/15), so read the
+            // netvar instead of guessing from the setup->fov the game handed us.
+            const bool second_scope = view_state.player_fov > 0
+                ? view_state.player_fov <= 20
+                : view_state.zoom_level >= 2;
+            const int scope_fov = second_scope ? page.scope_fov_x2 : page.scope_fov_x1;
             // The menu exposes both scopes as a 0-100% scale, so the applied value follows it. 0 is
             // kept just above zero: a projection matrix built from a 0-degree FOV degenerates.
             setup->fov = static_cast<float>(std::clamp(scope_fov, 1, 100));
@@ -552,6 +569,7 @@ bool initialize(void* mode, void* input, void* cvars, void* engine, void* entiti
     panel_interface = panels;
     client_module = static_cast<HMODULE>(client);
     resolve_smoke_count();
+    visuals_source::install_viewmodel_hook();
     if (!override_installed && client_mode && vfunc(client_mode, override_view_vfunc)) {
         override_installed = write_vfunc(client_mode, override_view_vfunc,
             reinterpret_cast<void*>(&hooked_override_view),

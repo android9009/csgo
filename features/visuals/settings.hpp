@@ -285,6 +285,13 @@ struct world_esp_settings {
     int radar_mode = 0;
     std::array<bool, 4> radar_options{};
     int scope_overlay_mode = 0;
+    // Custom scope (mode 2): same five knobs as the NL custom-scope script.
+    int scope_style = 0;             // 0 Default, 1 Rotated
+    float scope_offset = 10.f;       // gap from the crosshair, 1080p pixels
+    float scope_position = 105.f;    // far end of each segment, 1080p pixels
+    float scope_thickness = 1.f;
+    c_color scope_color_main{ 1.f, 1.f, 1.f, 1.f };
+    c_color scope_color_edge{ 1.f, 1.f, 1.f, 0.f };
     c_color inaccuracy_color{ 0.92f, 0.92f, 0.92f, 1.f };
     bool preserve_death_notices = false;
     bool hide_teammate_assists = false;

@@ -6,6 +6,7 @@
 #include "MinHook.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -207,6 +208,10 @@ struct netvars_t {
     int move_parent = -1;
     int weapon_id = -1;
     int zoom_level = -1;
+    int accuracy_penalty = -1;
+    int player_fov = -1;
+    int spotted = -1;
+    int spotted_by_mask = -1;
     int clip = -1;
     int reserve_ammo = -1;
     int next_primary_attack = -1;
@@ -552,6 +557,19 @@ void resolve_netvars() {
     nv.zoom_level = table_offset(classes, { "DT_WeaponCSBase" }, "m_zoomLevel");
     if (nv.zoom_level < 0)
         nv.zoom_level = table_offset(classes, { "DT_WeaponCSBase" }, "m_iZoomLevel");
+    // World > HUD > Inaccuracy overlay: the accuracy penalty is a plain netvar,
+    // so the ring no longer calls GetInaccuracy/GetSpread virtuals (a vtable
+    // index mismatch there is what crashed the overlay).
+    nv.accuracy_penalty = table_offset(classes, { "DT_WeaponCSBase", "DT_LocalWeaponData" },
+        "m_fAccuracyPenalty");
+    if (nv.accuracy_penalty < 0)
+        nv.accuracy_penalty = table_offset(classes, { "DT_WeaponCSBase" }, "m_fAccuracyPenalty");
+    // World > Scope options: the engine's current zoom FOV tells the first and
+    // second scope apart (second zoom is <= 20 degrees on every sniper).
+    nv.player_fov = table_offset(classes, { "DT_BasePlayer" }, "m_iFOV");
+    // World > HUD > Radar: "reveal" is the in-game radar flag, not a custom map.
+    nv.spotted = table_offset(classes, { "DT_BaseEntity" }, "m_bSpotted");
+    nv.spotted_by_mask = table_offset(classes, { "DT_BaseEntity" }, "m_bSpottedByMask");
     nv.clip = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iClip1");
     nv.reserve_ammo = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iPrimaryReserveAmmoCount");
     nv.next_primary_attack = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_flNextPrimaryAttack");
@@ -1201,6 +1219,7 @@ bool install_frame_stage_hook();
 bool initialize() {
     if (core_ready.load(std::memory_order_acquire)) {
         install_frame_stage_hook();
+        install_viewmodel_hook();
         return true;
     }
     const ULONGLONG now = GetTickCount64();
@@ -1210,6 +1229,7 @@ bool initialize() {
     std::scoped_lock lock(initialize_mutex);
     if (core_ready.load(std::memory_order_relaxed)) {
         install_frame_stage_hook();
+        install_viewmodel_hook();
         return true;
     }
     if (!acquire())
@@ -1217,8 +1237,10 @@ bool initialize() {
     const bool acquired = client && engine && entity_list && nv.team >= 0 && nv.health >= 0 &&
         nv.life_state >= 0 && nv.origin >= 0;
     core_ready.store(acquired, std::memory_order_release);
-    if (acquired)
+    if (acquired) {
         install_frame_stage_hook();
+        install_viewmodel_hook();
+    }
     return acquired;
 }
 
@@ -1349,79 +1371,160 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
             definition == 38 || definition == 40;
         output.pin_pulled = output.holding_grenade && value<bool>(weapon, nv.pin_pulled, false);
         output.zoom_level = std::clamp(value<int>(weapon, nv.zoom_level, 1), 0, 2);
+    output.player_fov = value<int>(local, nv.player_fov, 0);
     }
     if (weapon && include_accuracy) {
-        using weapon_float_t = float(__thiscall*)(void*);
-        const auto get_inaccuracy = virtual_function<weapon_float_t>(weapon, 469);
-        const auto get_spread = virtual_function<weapon_float_t>(weapon, 439);
-        if (get_inaccuracy && function_in_module(client_module,
-            reinterpret_cast<const void*>(get_inaccuracy))) {
-            const float measured = get_inaccuracy(weapon);
-            if (std::isfinite(measured))
-                output.inaccuracy = std::clamp(measured, 0.f, 1.f);
-        }
-        if (get_spread && function_in_module(client_module,
-            reinterpret_cast<const void*>(get_spread))) {
-            const float measured = get_spread(weapon);
-            if (std::isfinite(measured))
-                output.spread = std::clamp(measured, 0.f, 1.f);
-        }
+        // Netvar read only: GetInaccuracy/GetSpread live at a fixed vtable slot,
+        // and calling a wrong slot on the wrong class is exactly what crashed.
+        const float penalty = value<float>(weapon, nv.accuracy_penalty, 0.f);
+        if (std::isfinite(penalty))
+            output.inaccuracy = std::clamp(penalty, 0.f, 1.f);
+        output.spread = 0.f;
     }
     return true;
 }
 
-// World > Viewmodel > Position. The engine cvars (viewmodel_offset_x/y/z) are
-// clamped by the game itself, so the offsets are applied straight to the
-// viewmodel entity origin along the camera basis - no cvar limits.
-namespace {
-// The viewmodel handle is a netvar, so a wrong offset or a stale handle yields an
-// unreadable pointer; validate it before any write so a crash cannot happen here.
-bool viewmodel_of_local(void*& viewmodel) {
-    viewmodel = nullptr;
-    if (!is_in_game() || nv.viewmodel < 0)
+// World > HUD > Radar. The game radar only lists entities flagged as spotted,
+// so "reveal" sets those flags instead of painting a second radar on screen.
+void reveal_entity_on_radar(void* entity, bool spotted, int local_index) {
+    if (!entity || nv.spotted < 0)
+        return;
+    std::memcpy(static_cast<unsigned char*>(entity) + nv.spotted, &spotted, sizeof(spotted));
+    if (nv.spotted_by_mask < 0 || local_index < 0 || local_index > 63)
+        return;
+    unsigned int mask = value<unsigned int>(entity, nv.spotted_by_mask, 0u);
+    const unsigned int bit = 1u << local_index;
+    mask = spotted ? (mask | bit) : (mask & ~bit);
+    std::memcpy(static_cast<unsigned char*>(entity) + nv.spotted_by_mask, &mask, sizeof(mask));
+}
+
+// ---------------------------------------------------------------------------
+//  World > Viewmodel (position / angles / visual recoil)
+// ---------------------------------------------------------------------------
+// main applies the viewmodel offsets inside CBaseViewModel::CalcViewModelView,
+// on the eye position it is handed - not on the entity origin and not through
+// viewmodel_offset_* (the game clamps those to +-2 and rewrites the entity
+// origin every frame). Same hook here, so all three overrides actually land.
+using calc_viewmodel_view_t = void(__fastcall*)(void*, void*, void*, vector3&, vector3&);
+calc_viewmodel_view_t original_calc_viewmodel_view = nullptr;
+bool viewmodel_hook_installed = false;
+
+void angle_vectors(const vector3& angles, vector3& forward, vector3& right, vector3& up) {
+    constexpr float pi = 3.14159265358979323846f;
+    const float pitch = angles.x * (pi / 180.f);
+    const float yaw = angles.y * (pi / 180.f);
+    const float sp = std::sin(pitch), cp = std::cos(pitch);
+    const float sy = std::sin(yaw), cy = std::cos(yaw);
+    forward = { cp * cy, cp * sy, -sp };
+    right = { -sy, cy, 0.f };
+    up = { right.y * forward.z - right.z * forward.y,
+        right.z * forward.x - right.x * forward.z,
+        right.x * forward.y - right.y * forward.x };
+}
+
+void __fastcall hooked_calc_viewmodel_view(void* self, void*, void* owner, vector3& eye_pos,
+                                           vector3& eye_angles) {
+    if (owner && is_local_entity(owner)) {
+        const auto& page = player_visuals::world_settings();
+        local_view_state state{};
+        const bool state_valid = get_local_view_state(state);
+        vector3 forward{}, right{}, up{};
+        angle_vectors(eye_angles, forward, right, up);
+        const float offset_x = std::clamp(g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f);
+        const float offset_y = std::clamp(g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f);
+        const float offset_z = std::clamp(g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f);
+        if (page.viewmodel_position_override &&
+            (std::fabs(offset_x) > 0.001f || std::fabs(offset_y) > 0.001f ||
+                std::fabs(offset_z) > 0.001f)) {
+            eye_pos.x += right.x * offset_x + forward.x * offset_y + up.x * offset_z;
+            eye_pos.y += right.y * offset_x + forward.y * offset_y + up.y * offset_z;
+            eye_pos.z += right.z * offset_x + forward.z * offset_y + up.z * offset_z;
+        }
+        if (page.viewmodel_angles_override) {
+            eye_angles.x += std::clamp(page.viewmodel_pitch, -89.f, 89.f);
+            eye_angles.y += std::clamp(page.viewmodel_yaw, -180.f, 180.f);
+            eye_angles.z = std::clamp(page.viewmodel_roll, -180.f, 180.f);
+        }
+        if (g_cfg->world.m_visual_recoil && state_valid && state.alive) {
+            eye_angles.x -= state.aim_punch.x * 0.9f + state.view_punch.x;
+            eye_angles.y -= state.aim_punch.y * 0.9f + state.view_punch.y;
+        }
+    }
+    if (original_calc_viewmodel_view)
+        original_calc_viewmodel_view(self, nullptr, owner, eye_pos, eye_angles);
+}
+
+bool install_viewmodel_hook() {
+    if (viewmodel_hook_installed)
+        return true;
+    if (!client_module)
         return false;
+    // Two prologues across the client builds main supports.
+    static constexpr int viewmodel_pattern_a[] = {
+        0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x64, 0x56, 0x57
+    };
+    static constexpr int viewmodel_pattern_b[] = {
+        0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x58, 0x56, 0x57
+    };
+    const std::uint8_t* target = find_pattern(client_module, viewmodel_pattern_a);
+    if (!target)
+        target = find_pattern(client_module, viewmodel_pattern_b);
+    if (!target)
+        return false;
+    if (MH_Initialize() != MH_OK && MH_Initialize() != MH_ERROR_ALREADY_INITIALIZED)
+        return false;
+    void* address = const_cast<std::uint8_t*>(target);
+    if (MH_CreateHook(address, reinterpret_cast<void*>(&hooked_calc_viewmodel_view),
+        reinterpret_cast<void**>(&original_calc_viewmodel_view)) != MH_OK)
+        return false;
+    if (MH_EnableHook(address) != MH_OK)
+        return false;
+    viewmodel_hook_installed = true;
+    return true;
+}
+
+// World > HUD > Radar: flagging entities is what feeds the in-game radar, so
+// this replaces the old hand-drawn radar map. Previous flags are cleared when
+// the option goes away, otherwise the game would keep them spotted.
+void update_radar_reveal() {
+    static std::array<bool, 65> flagged{};
+    const auto& options = player_visuals::world_settings().radar_options;
+    const bool want_enemies = options[0];
+    const bool want_hostages = options[1];
+    const bool want_bomb = options[2];
+    if (!is_in_game() || (!want_enemies && !want_hostages && !want_bomb && !flagged[0]))
+        return;
     void* local = entity_at(local_index());
     if (!local)
-        return false;
-    const unsigned int handle = value<unsigned int>(local, nv.viewmodel, 0xFFFFFFFFu);
-    if (handle == 0xFFFFFFFFu || (handle & 0xFFF) > 2048)
-        return false;
-    void* candidate = entity_from_handle(handle);
-    if (!candidate || !readable_range(candidate, 0x1000))
-        return false;
-    const client_class_t* cls = entity_class(candidate);
-    if (!cls || !readable_range(cls, sizeof(client_class_t)) ||
-        !readable_range(cls->name, 1) || !std::strstr(cls->name, "ViewModel")) {
-        return false;
+        return;
+    const int local_team = value<int>(local, nv.team, 0);
+    const int local_index_value = local_index();
+    // The whole walking loop is [1, 64]; hostages and the C4 share the range.
+    for (int index = 1; index <= 64; ++index) {
+        void* entity = entity_at(index);
+        if (!entity)
+            continue;
+        const client_class_t* client_class = entity_class(entity);
+        if (!client_class || !readable_range(client_class->name, 1))
+            continue;
+        const char* class_name = client_class->name;
+        bool wanted = false;
+        if (std::strstr(class_name, "CSPlayer") != nullptr) {
+            const int team = value<int>(entity, nv.team, 0);
+            wanted = want_enemies && team != 0 && team != local_team &&
+                value<unsigned char>(entity, nv.life_state, 1) == 0;
+        } else if (std::strstr(class_name, "Hostage") != nullptr) {
+            wanted = want_hostages;
+        } else if (std::strstr(class_name, "PlantedC4") != nullptr) {
+            wanted = want_bomb;
+        } else {
+            continue;
+        }
+        if (wanted == flagged[index])
+            continue;
+        reveal_entity_on_radar(entity, wanted, local_index_value);
+        flagged[index] = wanted;
     }
-    viewmodel = candidate;
-    return true;
-}
-} // namespace
-
-bool offset_viewmodel_origin(const vector3& angles, float right, float up, float forward) {
-    if (nv.origin < 0)
-        return false;
-    void* viewmodel = nullptr;
-    if (!viewmodel_of_local(viewmodel))
-        return false;
-    if (!readable_range(static_cast<unsigned char*>(viewmodel) + nv.origin, sizeof(vector3)))
-        return false;
-    vector3 origin = value<vector3>(viewmodel, nv.origin);
-    constexpr float to_radians = 0.017453292f;
-    const float pitch = angles.x * to_radians;
-    const float yaw = angles.y * to_radians;
-    const float cp = std::cos(pitch), sp = std::sin(pitch);
-    const vector3 forward_axis{ cp * std::cos(yaw), cp * std::sin(yaw), -sp };
-    const vector3 right_axis{ -std::sin(yaw), std::cos(yaw), 0.f };
-    const vector3 up_axis{ right_axis.y * forward_axis.z - right_axis.z * forward_axis.y,
-        right_axis.z * forward_axis.x - right_axis.x * forward_axis.z,
-        right_axis.x * forward_axis.y - right_axis.y * forward_axis.x };
-    origin.x += right_axis.x * right + up_axis.x * up + forward_axis.x * forward;
-    origin.y += right_axis.y * right + up_axis.y * up + forward_axis.y * forward;
-    origin.z += right_axis.z * right + up_axis.z * up + forward_axis.z * forward;
-    std::memcpy(reinterpret_cast<unsigned char*>(viewmodel) + nv.origin, &origin, sizeof(origin));
-    return true;
 }
 
 std::vector<int> local_spectators() {
@@ -1446,18 +1549,6 @@ std::vector<int> local_spectators() {
             result.push_back(i);
     }
     return result;
-}
-
-bool set_viewmodel_angles(const vector3& angles) {
-    if (nv.angles < 0)
-        return false;
-    void* viewmodel = nullptr;
-    if (!viewmodel_of_local(viewmodel))
-        return false;
-    if (!readable_range(static_cast<unsigned char*>(viewmodel) + nv.angles, sizeof(angles)))
-        return false;
-    std::memcpy(reinterpret_cast<unsigned char*>(viewmodel) + nv.angles, &angles, sizeof(angles));
-    return true;
 }
 
 void set_flash_removed(bool enabled) {
