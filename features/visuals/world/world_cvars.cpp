@@ -526,8 +526,8 @@ struct trace_vec {
 struct trace_plane {
     trace_vec normal;
     float dist;
-    int type;
-    int sign_bits;
+    unsigned char type;
+    unsigned char sign_bits;
 };
 
 struct trace_surface {
@@ -714,7 +714,7 @@ void run_thirdperson() {
     angle_vectors(offset, forward);
     offset.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
 
-    const vector3 eye = state.eye_origin;
+    const vector3 eye{ state.eye_origin.x, state.eye_origin.y, state.eye_origin.z };
     const vector3 mins{ -16.f, -16.f, -16.f };
     const vector3 maxs{ 16.f, 16.f, 16.f };
     if (page.thirdperson_close_to_wall) {
