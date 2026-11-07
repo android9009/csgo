@@ -319,6 +319,17 @@ void update_camera() {
     auto* camera_flag = reinterpret_cast<bool*>(bytes + input_camera_in_third_person);
     auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
 
+    // The camera lives inside CInput at fixed offsets; if they do not point at a
+    // sane bool/vector (different client build), writing would corrupt CInput and
+    // crash later in unrelated code, so bail out instead.
+    const bool camera_layout_valid = readable_range(bytes + input_camera_in_third_person, 1) &&
+        readable_range(camera_offset, sizeof(vector3)) &&
+        (*camera_flag == 0 || *camera_flag == 1) &&
+        std::isfinite(camera_offset->x) && std::isfinite(camera_offset->y) &&
+        std::isfinite(camera_offset->z);
+    if (!camera_layout_valid)
+        return;
+
     if (active) {
         if (!camera_owned) {
             previous_camera_state = *camera_flag;

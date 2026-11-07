@@ -1373,14 +1373,39 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
 // World > Viewmodel > Position. The engine cvars (viewmodel_offset_x/y/z) are
 // clamped by the game itself, so the offsets are applied straight to the
 // viewmodel entity origin along the camera basis - no cvar limits.
-bool offset_viewmodel_origin(const vector3& angles, float right, float up, float forward) {
-    if (!is_in_game() || nv.viewmodel < 0 || nv.origin < 0)
+namespace {
+// The viewmodel handle is a netvar, so a wrong offset or a stale handle yields an
+// unreadable pointer; validate it before any write so a crash cannot happen here.
+bool viewmodel_of_local(void*& viewmodel) {
+    viewmodel = nullptr;
+    if (!is_in_game() || nv.viewmodel < 0)
         return false;
     void* local = entity_at(local_index());
     if (!local)
         return false;
-    void* viewmodel = entity_from_handle(value<unsigned int>(local, nv.viewmodel, 0xFFFFFFFFu));
-    if (!viewmodel)
+    const unsigned int handle = value<unsigned int>(local, nv.viewmodel, 0xFFFFFFFFu);
+    if (handle == 0xFFFFFFFFu || (handle & 0xFFF) > 2048)
+        return false;
+    void* candidate = entity_from_handle(handle);
+    if (!candidate || !readable_range(candidate, 0x1000))
+        return false;
+    const client_class_t* cls = entity_class(candidate);
+    if (!cls || !readable_range(cls, sizeof(client_class_t)) ||
+        !readable_range(cls->name, 1) || !std::strstr(cls->name, "ViewModel")) {
+        return false;
+    }
+    viewmodel = candidate;
+    return true;
+}
+} // namespace
+
+bool offset_viewmodel_origin(const vector3& angles, float right, float up, float forward) {
+    if (nv.origin < 0)
+        return false;
+    void* viewmodel = nullptr;
+    if (!viewmodel_of_local(viewmodel))
+        return false;
+    if (!readable_range(static_cast<unsigned char*>(viewmodel) + nv.origin, sizeof(vector3)))
         return false;
     vector3 origin = value<vector3>(viewmodel, nv.origin);
     constexpr float to_radians = 0.017453292f;
@@ -1424,13 +1449,12 @@ std::vector<int> local_spectators() {
 }
 
 bool set_viewmodel_angles(const vector3& angles) {
-    if (!is_in_game() || nv.viewmodel < 0 || nv.angles < 0)
+    if (nv.angles < 0)
         return false;
-    void* local = entity_at(local_index());
-    if (!local)
+    void* viewmodel = nullptr;
+    if (!viewmodel_of_local(viewmodel))
         return false;
-    void* viewmodel = entity_from_handle(value<unsigned int>(local, nv.viewmodel, 0xFFFFFFFFu));
-    if (!viewmodel)
+    if (!readable_range(static_cast<unsigned char*>(viewmodel) + nv.angles, sizeof(angles)))
         return false;
     std::memcpy(reinterpret_cast<unsigned char*>(viewmodel) + nv.angles, &angles, sizeof(angles));
     return true;
