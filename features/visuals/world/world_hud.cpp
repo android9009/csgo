@@ -1,3 +1,4 @@
+#include "event_log.hpp"
 #include "world_render.hpp"
 
 #include "../dependencies/source.hpp"
@@ -7,6 +8,7 @@
 #include "../../../sdk/config_system/config_system.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -18,8 +20,50 @@ namespace world_visuals {
 // -----------------------------------------------------------------------------
 //  World HUD (crosshairs, inaccuracy ring, radar)
 // -----------------------------------------------------------------------------
+// notify.txt-style stack: newest entry on top, right-aligned plate that fades
+// out over the configured lifetime, accent bar coloured by category.
+void render_event_logs(ImDrawList* draw, const ImVec2& display) {
+    const auto& page = player_visuals::world_settings();
+    if (!page.window_event_logs)
+        return;
+    const player_visuals::event_log_filter filter{
+        page.event_log_filter[0], page.event_log_filter[1], page.event_log_filter[2] };
+    const auto entries = player_visuals::event_log().snapshot(page.event_log_lifetime, 8, filter);
+    if (entries.empty())
+        return;
+    const auto now = std::chrono::steady_clock::now();
+    ImFont* font = ImGui::GetFont();
+    constexpr float text_size = 13.f;
+    constexpr float pad = 7.f;
+    const float lifetime = std::max(0.5f, page.event_log_lifetime);
+    float y = 84.f;
+    for (auto it = entries.rbegin(); it != entries.rend(); ++it) {
+        const float age = std::chrono::duration<float>(now - it->timestamp).count();
+        float alpha = 1.f;
+        if (age > lifetime)
+            alpha = std::max(0.f, 1.f - (age - lifetime) / 1.2f);
+        if (alpha <= 0.01f)
+            continue;
+        c_color ink = page.event_log_hit_color;
+        if (it->category == player_visuals::event_category::miss)
+            ink = page.event_log_miss_color;
+        else if (it->category == player_visuals::event_category::evaded)
+            ink = page.event_log_evaded_color;
+        const ImVec2 measured = font->CalcTextSizeA(text_size, FLT_MAX, 0.f, it->text.c_str());
+        const ImVec2 max_point(display.x - 14.f, y + 20.f);
+        const ImVec2 min_point(max_point.x - measured.x - pad * 2.f - 3.f, y);
+        draw->AddRectFilled(min_point, max_point, color(0.f, 0.f, 0.f, 0.55f * alpha), 3.f);
+        draw->AddRectFilled(min_point, ImVec2(min_point.x + 2.f, max_point.y),
+            color(ink.r, ink.g, ink.b, alpha), 1.f);
+        draw->AddText(font, text_size, ImVec2(min_point.x + pad + 2.f, y + 3.f),
+            color(ink, alpha), it->text.c_str());
+        y += 23.f;
+    }
+}
+
 void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
                 const ImVec2& display) {
+    render_event_logs(draw, display);
     const auto& world = g_cfg->world;
     const auto& page = player_visuals::world_settings();
     // World > Crosshairs: every toggle is a condition on the held weapon (NL

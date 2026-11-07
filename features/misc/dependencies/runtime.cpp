@@ -2,6 +2,7 @@
 #include "gameplay.hpp"
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
+#include "../../visuals/world/event_log.hpp"
 #include "../../visuals/world/world.hpp"
 #include "../../visuals/sound_esp.hpp"
 #include "../../visuals/esp/esp.hpp"
@@ -1016,6 +1017,14 @@ public:
             return;
         }
         if (std::strcmp(name, "weapon_fire") == 0) {
+            if (get_int && get_string &&
+                player_for_user_id(get_int(event, "userid", 0)) == local_index()) {
+                // World > Windows > Event logs: every local shot opens a pending
+                // entry that player_hurt resolves into hit / kill, or the pending
+                // deadline turns into a miss (same model as the leaked event_log).
+                player_visuals::event_log().begin_trigger_shot(
+                    std::string(get_string(event, "weapon", "shot")), false);
+            }
             if (!state.quick_switch || !get_int || !get_string ||
                 player_for_user_id(get_int(event, "userid", 0)) != local_index()) {
                 return;
@@ -1044,6 +1053,13 @@ public:
                 impact.z += 48.f;
                 player_esp::record_hit_marker(get_int(event, "dmg_health", 0),
                     impact.x, impact.y, impact.z);
+                const int damage = get_int(event, "dmg_health", 0);
+                if (damage > 0)
+                    player_visuals::event_log().resolve_latest_trigger_shot(damage,
+                        get_int(event, "health", 0) <= 0);
+                else
+                    player_visuals::event_log().push("shot evaded",
+                        player_visuals::event_category::evaded);
             }
             if (state.hit_sound)
                 client_command("play buttons/arena_switch_press_02.wav");

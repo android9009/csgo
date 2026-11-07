@@ -96,6 +96,7 @@
     <ClCompile Include="features\skins\skins.cpp" />
     <ClCompile Include="features\visuals\chams\chams.cpp" />
     <ClCompile Include="features\visuals\esp\esp.cpp" />
+    <ClCompile Include="features\visuals\world\event_log.cpp" />
     <ClCompile Include="features\visuals\world\world_cvars.cpp" />
     <ClCompile Include="features\visuals\world\world_esp.cpp" />
     <ClCompile Include="features\visuals\world\world_hud.cpp" />
@@ -140,6 +141,7 @@
     <ClInclude Include="features\visuals\sound_esp.hpp" />
     <ClInclude Include="features\visuals\settings.hpp" />
     <ClInclude Include="features\visuals\world\world.hpp" />
+    <ClInclude Include="features\visuals\world\event_log.hpp" />
     <ClInclude Include="features\visuals\world\world_render.hpp" />
     <ClInclude Include="features\visuals\esp\esp_draw.hpp" />
     <ClInclude Include="features\visuals\dependencies\source.hpp" />

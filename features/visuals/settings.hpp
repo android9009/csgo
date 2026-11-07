@@ -304,6 +304,12 @@ struct world_esp_settings {
     bool window_hotkeys = true;
     bool window_spectators = true;
     bool window_event_logs = true;
+    // World > Windows > Event logs (ported event_log). Multibox order: Miss / Hit / Evaded.
+    bool event_log_filter[3] = { true, true, true };
+    float event_log_lifetime = 6.f;
+    c_color event_log_hit_color{ 0.62f, 0.79f, 0.17f, 1.f };
+    c_color event_log_miss_color{ 1.f, 0.31f, 0.31f, 1.f };
+    c_color event_log_evaded_color{ 1.f, 0.78f, 0.25f, 1.f };
     std::array<bool, 4> watermark_items{ true, true, true, true };
     c_color windows_color{ 0.35f, 0.95f, 0.60f, 1.f };
     float windows_line_opacity = 1.f;
