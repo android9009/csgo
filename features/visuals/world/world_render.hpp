@@ -21,6 +21,9 @@ void render_trajectory(ImDrawList* draw, const visuals_source::world_data& entit
 
 // Predicted arc of the grenade currently in hand (NL style). Gated by
 // World > Grenades > Trajectory and, optionally, by the pulled pin.
+void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
+                    const ImVec2& display);
+
 void render_held_trajectory(ImDrawList* draw, const visuals_source::frame_data& frame,
                             const ImVec2& display);
 
