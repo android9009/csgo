@@ -214,13 +214,19 @@ void render_spectators(ImDrawList* draw, const visuals_source::frame_data& frame
     draw_text(draw, ImVec2(display.x - 14.f, y - line), "SPECTATORS",
         color(page.windows_color), 0.8f, -1);
     for (const int index : indices) {
-        std::string label = "player " + std::to_string(index);
-        for (const auto& player : frame.players) {
-            if (player.index == index) {
-                label = player.name;
-                break;
+        // player_info_t straight from the engine: the ESP snapshot only carries players whose
+        // ESP is enabled, and an observer of a dead player is usually not one of them.
+        std::string label = visuals_source::player_name_at(index);
+        if (label.empty()) {
+            for (const auto& player : frame.players) {
+                if (player.index == index) {
+                    label = player.name;
+                    break;
+                }
             }
         }
+        if (label.empty())
+            label = "player " + std::to_string(index);
         draw_text(draw, ImVec2(display.x - 14.f, y), label,
             color(1.f, 0.42f, 0.36f, 1.f), 0.85f, -1);
         y += line;

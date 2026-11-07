@@ -213,6 +213,10 @@ std::vector<int> local_spectators();
 // Tick timing, for the grenade prediction: Fatality steps its physics once per tick.
 float tick_interval();
 float current_time();
+
+// Player name straight from the engine's player_info_t, so panels that draw a list of
+// entity indices (spectators) don't depend on the ESP snapshot being populated.
+std::string player_name_at(int index);
 void set_flash_removed(bool enabled);
 bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();

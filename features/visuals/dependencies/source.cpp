@@ -1678,6 +1678,10 @@ std::vector<int> local_spectators() {
     return result;
 }
 
+std::string player_name_at(int index) {
+    return player_name(index);
+}
+
 float tick_interval() {
     const float interval = global_vars ? global_vars->interval_per_tick : 0.f;
     return interval > 0.0001f && interval < 0.1f ? interval : (1.f / 64.f);
