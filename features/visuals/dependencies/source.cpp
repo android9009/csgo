@@ -315,34 +315,6 @@ struct capture_memory_cache_scope {
     }
 };
 
-// Writing into a read-only page (client.dll's .rdata, a string literal, a const
-// table) is an instant access violation. Every write that goes through a resolved
-// pointer checks this first now.
-bool writable_range(const void* address, std::size_t size) {
-    if (!address || !size)
-        return false;
-    auto current = reinterpret_cast<std::uintptr_t>(address);
-    const auto end = current + size;
-    if (end < current)
-        return false;
-    constexpr DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE |
-        PAGE_EXECUTE_WRITECOPY;
-    while (current < end) {
-        MEMORY_BASIC_INFORMATION info{};
-        if (!VirtualQuery(reinterpret_cast<const void*>(current), &info, sizeof(info)))
-            return false;
-        if (info.State != MEM_COMMIT || (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0 ||
-            (info.Protect & writable) == 0)
-            return false;
-        const auto region_end = reinterpret_cast<std::uintptr_t>(info.BaseAddress) +
-            static_cast<std::uintptr_t>(info.RegionSize);
-        if (region_end <= current)
-            return false;
-        current = region_end;
-    }
-    return true;
-}
-
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
@@ -1409,6 +1381,34 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
         if (std::isfinite(penalty))
             output.inaccuracy = std::clamp(penalty, 0.f, 1.f);
         output.spread = 0.f;
+    }
+    return true;
+}
+
+// Writing into a read-only page (client.dll's .rdata, a string literal, a const
+// table) is an instant access violation. Every write that goes through a resolved
+// pointer checks this first now.
+bool writable_range(const void* address, std::size_t size) {
+    if (!address || !size)
+        return false;
+    auto current = reinterpret_cast<std::uintptr_t>(address);
+    const auto end = current + size;
+    if (end < current)
+        return false;
+    constexpr DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE |
+        PAGE_EXECUTE_WRITECOPY;
+    while (current < end) {
+        MEMORY_BASIC_INFORMATION info{};
+        if (!VirtualQuery(reinterpret_cast<const void*>(current), &info, sizeof(info)))
+            return false;
+        if (info.State != MEM_COMMIT || (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0 ||
+            (info.Protect & writable) == 0)
+            return false;
+        const auto region_end = reinterpret_cast<std::uintptr_t>(info.BaseAddress) +
+            static_cast<std::uintptr_t>(info.RegionSize);
+        if (region_end <= current)
+            return false;
+        current = region_end;
     }
     return true;
 }
