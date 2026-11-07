@@ -252,6 +252,9 @@ ULONGLONG last_capture_time = 0;
 
 std::mutex staged_frame_mutex;
 std::shared_ptr<frame_data> staged_frame;
+// Writer-owned spare buffer. Reusing it keeps the players/world vectors (and
+// their capacity) alive between frames instead of reallocating every Present.
+std::shared_ptr<frame_data> spare_frame;
 std::atomic<bool> frame_stage_hook_ready = false;
 const std::uint8_t* view_matrix_pattern = nullptr;
 
@@ -588,6 +591,14 @@ using setup_bones_t = bool(__thiscall*)(void*, matrix3x4_t*, int, int, float);
 using dormant_t = bool(__thiscall*)(void*);
 using get_weapon_data_t = weapon_info_t* (__thiscall*)(void*, unsigned int);
 
+int highest_entity_index() {
+    using highest_t = int(__thiscall*)(void*);
+    static thread_local virtual_cache<highest_t> cache;
+    const auto function = cached_virtual(entity_list, 6, client_module, cache);
+    const int highest = function ? function(entity_list) : 0;
+    return std::clamp(highest, 0, 2047);
+}
+
 void* entity_at(int index) {
     if (index < 0)
         return nullptr;
@@ -704,6 +715,7 @@ void clear_player_cache() {
     airflow_animation_speed(true);
     std::lock_guard<std::mutex> lock(staged_frame_mutex);
     staged_frame.reset();
+    spare_frame.reset();
 }
 
 client_class_t* entity_class(void* entity) {
@@ -754,6 +766,24 @@ bool renderable_entity(void* renderable, renderable_entity_data& output) {
         output.ragdoll = std::strstr(client_class->name, "CSRagdoll") != nullptr;
     }
     return true;
+}
+
+template <std::size_t Size>
+void copy_text(char (&destination)[Size], const std::string& source) {
+    const std::size_t length = std::min(source.size(), Size - 1);
+    std::memcpy(destination, source.data(), length);
+    destination[length] = '\0';
+}
+
+template <std::size_t Size>
+void copy_text(char (&destination)[Size], const char* source) {
+    const char* text = source ? source : "";
+    std::size_t length = 0;
+    while (length + 1 < Size && text[length]) {
+        destination[length] = text[length];
+        ++length;
+    }
+    destination[length] = '\0';
 }
 
 int item_definition(void* weapon) {
@@ -890,7 +920,7 @@ void capture_weapon(void* weapon, const player_visuals::side_settings& settings,
     // dormant records must retain it for a later settings change.
     output.weapon_id = item_definition(weapon);
     if (output.weapon_id > 0)
-        output.weapon_name = weapon_name(output.weapon_id);
+        copy_text(output.weapon_name, weapon_name(output.weapon_id));
     if (!weapon_capture_needed(settings))
         return;
     const bool ammo = settings.main[player_visuals::main_ammo_bar];
@@ -1013,7 +1043,6 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
     if (!readable_range(bone_array, static_cast<std::size_t>(studio->bone_count) * sizeof(mstudiobone_t)))
         return;
     if (collect_skeleton) {
-        output.skeleton.reserve(static_cast<std::size_t>(studio->bone_count));
         for (int i = 0; i < studio->bone_count; ++i) {
             const auto& bone = bone_array[i];
             if (!(bone.flags & 0x00000100) || bone.parent < 0 || bone.parent >= studio->bone_count)
@@ -1032,8 +1061,6 @@ void collect_model_geometry(void* entity, int hitbox_set_index, player_data& out
         set->hitbox_count > 64 || set->hitbox_index <= 0) {
         return;
     }
-    output.hitboxes.reserve(static_cast<std::size_t>(set->hitbox_count) * 12);
-    output.hitbox_markers.reserve(static_cast<std::size_t>(set->hitbox_count));
     static constexpr int edges[12][2] = {
         { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 },
         { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
@@ -1444,7 +1471,10 @@ void capture_world(frame_data& output, const vector3& local_origin) {
         !world_settings.grenade_trajectory && !world_settings.grenade_proximity_warnings && !radar_reveal)
         return;
     output.world.reserve(64);
-    for (int index = 65; index < 2048; ++index) {
+    // Iterate to the engine's highest live entity instead of always probing
+    // 2048 slots; a normal map keeps ~200-400.
+    const int last_index = highest_entity_index();
+    for (int index = 65; index <= last_index; ++index) {
         void* entity = entity_at(index);
         if (!entity || dormant(entity))
             continue;
@@ -1574,17 +1604,15 @@ void capture_local_player(frame_data& output, void* local, int local_team) {
     data.team = local_team;
     data.health = value<int>(local, nv.health, 0);
     data.origin = output.local_origin;
+    data.distance = 0.f;
     data.mins = value<vector3>(local, nv.mins, { -16.f, -16.f, 0.f });
     data.maxs = value<vector3>(local, nv.maxs, { 16.f, 16.f, 72.f });
     if (nv.pose_parameters >= 0) {
         data.poses_valid = true;
-        for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
-            data.poses[pose] = value<float>(local,
-                nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
-        }
+        data.stand_pose = value<float>(local, nv.pose_parameters + 4, 0.f);
+        data.body_pitch = value<float>(local, nv.pose_parameters + 4 * 12, 0.f);
     }
-    data.distance = 0.f;
-    data.name = player_name(output.local_index);
+    copy_text(data.name, player_name(output.local_index));
     data.armor_valid = nv.armor >= 0;
     data.money_valid = nv.money >= 0;
     data.immunity_valid = nv.immunity >= 0;
@@ -1613,9 +1641,23 @@ void capture_local_player(frame_data& output, void* local, int local_team) {
     output.players.push_back(std::move(data));
 }
 
+void reset_frame(frame_data& output) {
+    // Clearing keeps the vector capacity owned by the recycled frame buffer.
+    // Assigning an empty struct here would free it every Present.
+    output.in_game = false;
+    output.has_view_matrix = false;
+    output.local_alive = false;
+    output.local_index = 0;
+    output.local_origin = {};
+    output.view_angles = {};
+    std::memset(output.view_matrix, 0, sizeof(output.view_matrix));
+    output.players.clear();
+    output.world.clear();
+}
+
 void capture_now(frame_data& output, float alpha_blend) {
     capture_memory_cache_scope memory_cache;
-    output = {};
+    reset_frame(output);
     if (!is_in_game()) {
         clear_player_cache();
         return;
@@ -1683,7 +1725,11 @@ void capture_now(frame_data& output, float alpha_blend) {
     };
 
     output.players.reserve(32);
-    for (int index = 1; index <= 64; ++index) {
+    // Nothing consumes player records when both ESP sides are off and the
+    // radar overlay does not need them; skip 64 entity probes per frame.
+    const bool collect_players = player_visuals::settings(0).esp_enabled ||
+        player_visuals::settings(1).esp_enabled || g_cfg->world.m_draw_radar;
+    for (int index = 1; collect_players && index <= 64; ++index) {
         if (index == output.local_index)
             continue;
         void* player = entity_at(index);
@@ -1727,22 +1773,20 @@ void capture_now(frame_data& output, float alpha_blend) {
         data.maxs = value<vector3>(player, nv.maxs, { 16.f, 16.f, 72.f });
         if (nv.pose_parameters >= 0) {
             data.poses_valid = true;
-            for (std::size_t pose = 0; pose < data.poses.size(); ++pose) {
-                data.poses[pose] = value<float>(player,
-                    nv.pose_parameters + static_cast<int>(pose * sizeof(float)), 0.f);
-            }
+            data.stand_pose = value<float>(player, nv.pose_parameters + 4, 0.f);
+            data.body_pitch = value<float>(player, nv.pose_parameters + 4 * 12, 0.f);
         }
         data.distance = vector_length({ data.origin.x - local_origin.x,
             data.origin.y - local_origin.y, data.origin.z - local_origin.z }) * 0.0254f;
         const bool refresh_name = !cached.valid || now < cached.last_name_query ||
             now - cached.last_name_query >= 2000;
         if (refresh_name && side_settings.main[player_visuals::main_name]) {
-            data.name = player_name(index);
+            copy_text(data.name, player_name(index));
             cached.last_name_query = now;
         } else if (cached.valid) {
             // Preserve a previously captured name while the element is off;
             // enabling it during a dormant fade must not erase the label.
-            data.name = cached.data.name;
+            std::memcpy(data.name, cached.data.name, sizeof(data.name));
         }
         data.armor_valid = nv.armor >= 0;
         data.money_valid = nv.money >= 0;
@@ -1756,7 +1800,9 @@ void capture_now(frame_data& output, float alpha_blend) {
         data.immunity = value<bool>(player, nv.immunity, false);
         data.blind = value<float>(player, nv.flash_duration, 0.f) > 0.01f;
         data.slowed = value<float>(player, nv.velocity_modifier, 1.f) < 0.99f;
-        data.hostage = entity_from_handle(value<unsigned int>(player, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
+        // A handle lookup per player per frame is only worth it for the flag.
+        data.hostage = side_settings.flags[player_visuals::flag_hostage] &&
+            entity_from_handle(value<unsigned int>(player, nv.carried_hostage, 0xFFFFFFFFu)) != nullptr;
         void* weapon = entity_from_handle(value<unsigned int>(player, nv.active_weapon, 0xFFFFFFFFu));
         capture_weapon(weapon, side_settings, data);
         if (side_settings.esp_enabled &&
@@ -1784,7 +1830,8 @@ void capture_now(frame_data& output, float alpha_blend) {
             output.players.push_back(std::move(data));
     }
 
-    capture_local_player(output, local, local_team);
+    if (player_visuals::self_esp_settings().esp_enabled)
+        capture_local_player(output, local, local_team);
     capture_world(output, local_origin);
 }
 
@@ -1796,12 +1843,24 @@ void __fastcall hooked_frame_stage(void* self, void*, int stage) {
     if (stage != 6 || !frame_stage_hook_ready.load(std::memory_order_acquire))
         return;
 
-    auto next = std::make_shared<frame_data>();
+    // Reuse the buffer the renderer has already released. The owner keeps the
+    // previous snapshot published until the new one is ready, so capture_shared()
+    // never observes an empty stage.
+    std::shared_ptr<frame_data> next;
+    {
+        std::lock_guard<std::mutex> lock(staged_frame_mutex);
+        if (spare_frame && spare_frame.use_count() == 1)
+            next = std::move(spare_frame);
+        spare_frame.reset();
+    }
+    if (!next)
+        next = std::make_shared<frame_data>();
     const float blend = std::clamp(current_airflow_animation_speed() * 5.f, 0.f, 1.f);
     // FRAME_RENDER_START already advanced the timer; only read its value here.
     capture_now(*next, blend);
     {
         std::lock_guard<std::mutex> lock(staged_frame_mutex);
+        spare_frame = std::move(staged_frame);
         staged_frame = std::move(next);
     }
 }

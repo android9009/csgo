@@ -623,8 +623,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
             objects[object_count++] = std::move(object);
     };
 
-    if (settings.main[player_visuals::main_name] && !data.name.empty()) {
-        std::string_view name = data.name;
+    if (settings.main[player_visuals::main_name] && data.name[0] != '\0') {
+        std::string_view name(data.name);
         if (name.size() > 24)
             name = name.substr(0, 24);
         add_string(main_up, player_visuals::main_name, name,
@@ -645,7 +645,8 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
     if (settings.weapon[player_visuals::weapon_text]) {
         add_string(main_down, player_visuals::weapon_item_id(player_visuals::weapon_text),
-            data.weapon_name, settings.weapon_colors[player_visuals::weapon_text].primary);
+            std::string_view(data.weapon_name),
+            settings.weapon_colors[player_visuals::weapon_text].primary);
     }
     if (settings.weapon[player_visuals::weapon_icon]) {
         add_icon(player_visuals::weapon_item_id(player_visuals::weapon_icon),
@@ -749,8 +750,8 @@ bool screen_box(const visuals_source::frame_data& frame, const player_data& play
             player.origin.y + (player.mins.y + player.maxs.y) * 0.5f,
             player.origin.z + (player.mins.z + player.maxs.z) * 0.5f
         };
-        const float stand_pose = player.poses[1];
-        const float body_pitch = player.poses[12];
+        const float stand_pose = player.stand_pose;
+        const float body_pitch = player.body_pitch;
         const vector3 top{
             center.x, center.y,
             player.origin.z + stand_pose * 18.f + 58.f - body_pitch * 6.f
@@ -1099,8 +1100,9 @@ void render_world_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
         color(0.9f, 0.92f, 0.96f, 0.85f), 0.75f);
 }
 
+template <typename Lines>
 void project_lines(const visuals_source::frame_data& frame,
-                   const std::vector<line3>& lines, const ImVec2& display,
+                   const Lines& lines, const ImVec2& display,
                    std::vector<line2>& projected) {
     projected.clear();
     projected.reserve(lines.size());
@@ -1327,7 +1329,7 @@ player_data preview_data(int side) {
     data.armor = 0;
     data.money = 4850;
     data.weapon_id = 7;
-    data.weapon_name = "AK-47";
+    std::strncpy(data.weapon_name, "AK-47", sizeof(data.weapon_name) - 1);
     data.clip = 18;
     data.max_clip = 30;
     data.reserve_ammo = 90;
@@ -1348,7 +1350,8 @@ player_data preview_data(int side) {
     data.defusing = true;
     data.pin_pulled = true;
     data.taser = true;
-    data.name = side == 0 ? "Enemy Preview" : "Teammate Preview";
+    std::strncpy(data.name, side == 0 ? "Enemy Preview" : "Teammate Preview",
+        sizeof(data.name) - 1);
     return data;
 }
 

@@ -1218,6 +1218,12 @@ bool model_name_matches(const char* loaded, const char* requested) {
 bool player_model_name(const char* name, std::size_t maximum) {
     if (!name || !maximum)
         return false;
+    // DME is called for every prop, decal model and viewmodel in the frame, so
+    // reject the common case with a memchr-backed search before the per-byte
+    // normalization below. The exact check still runs on every candidate.
+    if (!std::strstr(name, "player") && !std::strstr(name, "Player") &&
+        !std::strstr(name, "PLAYER"))
+        return false;
     char normalized[MAX_PATH + 1] = {};
     maximum = std::min<std::size_t>(maximum, MAX_PATH);
     std::size_t length = 0;

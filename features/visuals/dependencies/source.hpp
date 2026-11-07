@@ -24,6 +24,36 @@ struct hitbox_marker {
     int group = 0;
 };
 
+// Fixed-capacity sequence for the per-frame snapshot. The render path runs at
+// Present rate, so player geometry must not allocate: Fatality and the other
+// references keep their player records in fixed arrays for the same reason.
+// Overflow is dropped silently instead of growing the heap.
+template <typename T, std::size_t Capacity>
+struct fixed_list {
+    std::array<T, Capacity> items{};
+    int count = 0;
+
+    void clear() { count = 0; }
+    void push_back(const T& value) {
+        if (count < static_cast<int>(Capacity))
+            items[static_cast<std::size_t>(count++)] = value;
+    }
+    bool empty() const { return count == 0; }
+    std::size_t size() const { return static_cast<std::size_t>(count); }
+    const T* begin() const { return items.data(); }
+    const T* end() const { return items.data() + count; }
+    const T& operator[](std::size_t index) const { return items[index]; }
+};
+
+// A CS:GO player skeleton stays well below 128 bones and the standard hitbox
+// sets below 192 edges (16 sets of 12); the marker list covers one per hitbox.
+inline constexpr std::size_t skeleton_capacity = 128;
+inline constexpr std::size_t hitbox_capacity = 192;
+inline constexpr std::size_t hitbox_marker_capacity = 16;
+using line_list = fixed_list<line3, skeleton_capacity>;
+using hitbox_line_list = fixed_list<line3, hitbox_capacity>;
+using hitbox_marker_list = fixed_list<hitbox_marker, hitbox_marker_capacity>;
+
 struct renderable_entity_data {
     void* entity = nullptr;
     int class_id = -1;
@@ -64,18 +94,23 @@ struct player_data {
     bool defusing = false;
     bool pin_pulled = false;
     bool taser = false;
-    std::string name;
-    std::string weapon_name;
+    // Fixed text buffers keep the record trivially copyable: it is copied into
+    // the dormant cache and published to the renderer every frame.
+    char name[64] = {};
+    char weapon_name[32] = {};
     vector3 origin;
     vector3 mins;
     vector3 maxs;
-    // Airflow's two-point player box uses pose 1 (stand) and pose 12 (pitch).
-    std::array<float, 24> poses{};
+    // Airflow's two-point player box only reads pose 1 (stand) and pose 12
+    // (pitch). Capturing those two instead of the whole pose array removes 22
+    // netvar reads per player per frame.
+    float stand_pose = 0.f;
+    float body_pitch = 0.f;
     bool poses_valid = false;
-    std::vector<line3> skeleton;
+    line_list skeleton;
     // Twelve edges per hitbox, already transformed by the current bone matrix.
-    std::vector<line3> hitboxes;
-    std::vector<hitbox_marker> hitbox_markers;
+    hitbox_line_list hitboxes;
+    hitbox_marker_list hitbox_markers;
 };
 
 enum world_kind : int {

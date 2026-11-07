@@ -234,10 +234,36 @@ void cache_convars() {
 }
 
 convar_state* get_convar(const char* name) {
-    for (auto& item : convars)
-        if (std::strcmp(item.name, name) == 0)
-            return &item;
-    return std::strcmp(tonemap_scale.name, name) == 0 ? &tonemap_scale : nullptr;
+    if (!name)
+        return nullptr;
+    // OverrideView resolves the same ~35 literals every frame. Call sites pass
+    // string literals, so a pointer-keyed memo replaces the linear strcmp scan;
+    // entries are only cached once the convar actually resolved.
+    struct memo_entry {
+        const char* name;
+        convar_state* item;
+    };
+    static memo_entry memo[64]{};
+    static int memo_count = 0;
+    for (int i = 0; i < memo_count; ++i) {
+        if (memo[i].name == name)
+            return memo[i].item;
+    }
+    convar_state* resolved = nullptr;
+    for (auto& item : convars) {
+        if (std::strcmp(item.name, name) == 0) {
+            resolved = &item;
+            break;
+        }
+    }
+    if (!resolved && std::strcmp(tonemap_scale.name, name) == 0)
+        resolved = &tonemap_scale;
+    if (resolved && memo_count < static_cast<int>(std::size(memo))) {
+        memo[memo_count].name = name;
+        memo[memo_count].item = resolved;
+        ++memo_count;
+    }
+    return resolved;
 }
 
 void set_override(const char* name, bool enabled, float value) {
