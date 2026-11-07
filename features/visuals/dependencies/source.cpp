@@ -1212,16 +1212,17 @@ bool acquire() {
 }
 } // namespace
 
+// Declared at global scope instead of pulling world_render.hpp in: that header
+// sets IMGUI_DEFINE_MATH_OPERATORS after imgui.h is already included by this
+// translation unit's config headers, and imgui_internal.h rejects that order.
+namespace world_visuals {
+void run_thirdperson();
+}
+
 namespace visuals_source {
 void capture_now(frame_data& output, float alpha_blend);
 void __fastcall hooked_frame_stage(void* self, void*, int stage);
 
-// Declared here instead of pulling world_render.hpp in: that header sets
-// IMGUI_DEFINE_MATH_OPERATORS after imgui.h is already included by the config
-// headers of this translation unit, and imgui_internal.h rejects that order.
-namespace world_visuals {
-void run_thirdperson();
-}
 bool install_frame_stage_hook();
 
 bool initialize() {
@@ -2138,7 +2139,7 @@ void __fastcall hooked_frame_stage(void* self, void*, int stage) {
     if (stage == 3)
         update_radar_reveal();
     if (stage == 6)
-        world_visuals::run_thirdperson();
+        ::world_visuals::run_thirdperson();
     if (stage != 6 || !frame_stage_hook_ready.load(std::memory_order_acquire))
         return;
 
