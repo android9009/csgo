@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include "MinHook.h"
+#include "../../../runtime/debug_console.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1424,6 +1425,7 @@ void angle_vectors(const vector3& angles, vector3& forward, vector3& right, vect
 
 void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, vector3& eye_pos,
                                            vector3& eye_angles) {
+    AIRFLOW_DEBUG_STAGE("visuals.viewmodel_view");
     if (owner && is_local_entity(owner)) {
         const auto& page = player_visuals::world_settings();
         local_view_state state{};
@@ -1454,6 +1456,33 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, v
         original_calc_viewmodel_view(self, edx, owner, eye_pos, eye_angles);
 }
 
+// A loose prologue (55 8B EC 83 EC 64 56 57) shows up more than once in an 80 MB
+// client.dll; hooking the first hit can patch an unrelated function. Only accept a
+// signature that resolves to exactly one place.
+template <std::size_t N>
+const std::uint8_t* find_unique_pattern(HMODULE module, const int (&pattern)[N]) {
+    const std::uint8_t* text = nullptr;
+    std::size_t size = 0;
+    if (!module_text(module, text, size) || N > size)
+        return nullptr;
+    const std::uint8_t* match = nullptr;
+    for (std::size_t offset = 0; offset + N <= size; ++offset) {
+        bool matches = true;
+        for (std::size_t i = 0; i < N; ++i) {
+            if (pattern[i] >= 0 && text[offset + i] != static_cast<std::uint8_t>(pattern[i])) {
+                matches = false;
+                break;
+            }
+        }
+        if (!matches)
+            continue;
+        if (match)
+            return nullptr;
+        match = text + offset;
+    }
+    return match;
+}
+
 bool install_viewmodel_hook() {
     if (viewmodel_hook_installed)
         return true;
@@ -1466,11 +1495,15 @@ bool install_viewmodel_hook() {
     static constexpr int viewmodel_pattern_b[] = {
         0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x58, 0x56, 0x57
     };
-    const std::uint8_t* target = find_pattern(client_module, viewmodel_pattern_a);
+    const std::uint8_t* target = find_unique_pattern(client_module, viewmodel_pattern_a);
     if (!target)
-        target = find_pattern(client_module, viewmodel_pattern_b);
-    if (!target)
+        target = find_unique_pattern(client_module, viewmodel_pattern_b);
+    if (!target) {
+        // Not found, or ambiguous: leave the game untouched instead of patching a
+        // random function and crashing somewhere else later.
+        AIRFLOW_DEBUG_LOG("viewmodel hook: CalcViewModelView signature not unique");
         return false;
+    }
     if (MH_Initialize() != MH_OK && MH_Initialize() != MH_ERROR_ALREADY_INITIALIZED)
         return false;
     void* address = const_cast<std::uint8_t*>(target);
@@ -2037,6 +2070,7 @@ void capture_now(frame_data& output, float alpha_blend) {
 }
 
 void __fastcall hooked_frame_stage(void* self, void*, int stage) {
+    AIRFLOW_DEBUG_STAGE("visuals.frame_stage");
     if (stage == 5) // FRAME_RENDER_START: main updates animation timing here.
         airflow_animation_speed();
     if (original_frame_stage)

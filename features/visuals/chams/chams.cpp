@@ -342,6 +342,7 @@ using find_material_t = void* (__thiscall*)(void*, const char*, const char*, boo
     const char*);
 
 void* make_material(const char* name, const char* shader, const char* definition) {
+    AIRFLOW_DEBUG_STAGE("chams.make_material");
     const auto allocate = virtual_function<key_values_alloc_t>(key_values_system, 2);
     const auto init = reinterpret_cast<key_values_init_t>(key_values_init);
     const auto load = reinterpret_cast<key_values_load_t>(key_values_load);
@@ -1316,6 +1317,7 @@ const pass_pair& game_snapshot_for_frame(int side) {
 void __fastcall hooked_studio_draw(void* self, void*, void* results,
     const draw_model_info_t& info, matrix3x4_t* bones, float* flex_weights,
     float* delayed_flex_weights, const vector3& model_origin, int flags) {
+    AIRFLOW_DEBUG_STAGE("chams.studio_draw");
     if (!hooks_ready.load(std::memory_order_acquire) ||
         !preview_active.load(std::memory_order_acquire) ||
         engine_model_draw_depth > 0 || (flags & k_shadow_depth_texture) != 0 ||
@@ -1367,6 +1369,7 @@ void __fastcall hooked_studio_draw(void* self, void*, void* results,
 void __fastcall hooked_model_execute(void* self, void*, void* context,
     const draw_model_state_t& state, const model_render_info_t& info,
     matrix3x4_t* bones) {
+    AIRFLOW_DEBUG_STAGE("chams.model_execute");
     struct engine_draw_scope {
         engine_draw_scope() { ++engine_model_draw_depth; }
         ~engine_draw_scope() { --engine_model_draw_depth; }
@@ -1728,6 +1731,7 @@ bool acquire_interfaces() {
 }
 
 bool create_materials() {
+    AIRFLOW_DEBUG_STAGE("chams.create_materials");
     using namespace visuals_chams;
     // Airflow creates each material independently. A missing optional texture or
     // the built-in legacy material must not prevent the DME hook from being

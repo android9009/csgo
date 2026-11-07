@@ -324,9 +324,11 @@ void render_frame(IDirect3DDevice9* present_device) {
     }
 #endif
     AIRFLOW_DEBUG_STAGE("c_menu.draw returned");
-    AIRFLOW_DEBUG_STAGE("ImGui render");
+    AIRFLOW_DEBUG_STAGE("ImGui::Render");
     ImGui::Render();
+    AIRFLOW_DEBUG_STAGE("DX9 RenderDrawData");
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+    AIRFLOW_DEBUG_STAGE("DX9 RenderDrawData returned");
 }
 
 HRESULT WINAPI hooked_present(IDirect3DDevice9* present_device, const RECT* source,

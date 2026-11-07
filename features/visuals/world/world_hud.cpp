@@ -2,6 +2,7 @@
 #include "world_render.hpp"
 
 #include "../dependencies/source.hpp"
+#include "../../../runtime/debug_console.hpp"
 #include "../esp/esp_draw.hpp"
 #include "../settings.hpp"
 #include "../../../menu/weapon_icons.hpp"
@@ -146,6 +147,7 @@ void render_scope_overlay(ImDrawList* draw, const ImVec2& display) {
 
 void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
                 const ImVec2& display) {
+    AIRFLOW_DEBUG_STAGE("world_hud.render");
     render_windows(draw, frame, display);
     render_hotkeys(draw, display);
     render_spectators(draw, frame, display);

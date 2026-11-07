@@ -4,6 +4,7 @@
 #include "../settings.hpp"
 #include "../dependencies/source.hpp"
 
+#include "../../../runtime/debug_console.hpp"
 #include <Windows.h>
 
 #include <algorithm>
@@ -483,6 +484,7 @@ void update_world_cvars() {
 }
 
 void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
+    AIRFLOW_DEBUG_STAGE("world.override_view");
     update_camera();
     update_world_cvars();
     if (original_override_view)
@@ -533,6 +535,7 @@ bool panel_hook_installed = false;
 
 void __fastcall hooked_paint_traverse(void* self, void*, unsigned int panel,
                                       bool force_repaint, bool allow_force) {
+    AIRFLOW_DEBUG_STAGE("world.paint_traverse");
     const auto get_name = reinterpret_cast<panel_name_t>(vfunc(self, panel_get_name_vfunc));
     const char* name = get_name ? get_name(self, panel) : nullptr;
     if (name) {

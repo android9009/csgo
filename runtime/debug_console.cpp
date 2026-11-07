@@ -124,6 +124,49 @@ void write_minidump(EXCEPTION_POINTERS* exception) {
         logf("minidump: MiniDumpWriteDump failed, error=%lu", error);
 }
 
+void log_stack_frame(const void* address) {
+    if (!address)
+        return;
+    char path[MAX_PATH] = "unknown";
+    const char* name = "unknown";
+    DWORD_PTR offset = 0;
+    MEMORY_BASIC_INFORMATION memory{};
+    if (VirtualQuery(address, &memory, sizeof(memory)) && memory.AllocationBase) {
+        HMODULE module = static_cast<HMODULE>(memory.AllocationBase);
+        if (GetModuleFileNameA(module, path, MAX_PATH)) {
+            const char* slash = std::strrchr(path, '\\');
+            name = slash ? slash + 1 : path;
+        }
+        offset = reinterpret_cast<DWORD_PTR>(address) -
+            reinterpret_cast<DWORD_PTR>(memory.AllocationBase);
+    }
+    logf("stack frame: %p %s+0x%08lX", address, name, static_cast<unsigned long>(offset));
+}
+
+// EBP-chain walk. Release builds still keep the frame pointers for the game and
+// for the parts of the shell that are not built with /Oy, which is enough to
+// name the caller instead of guessing from a stale stage label.
+void log_stack(const CONTEXT* context) {
+    if (!context)
+        return;
+    log_stack_frame(reinterpret_cast<const void*>(context->Eip));
+    DWORD_PTR frame = static_cast<DWORD_PTR>(context->Ebp);
+    for (int depth = 0; depth < 14 && frame; ++depth) {
+        MEMORY_BASIC_INFORMATION info{};
+        const auto* frame_memory = reinterpret_cast<const DWORD_PTR*>(frame);
+        if (!VirtualQuery(frame_memory, &info, sizeof(info)) || info.State != MEM_COMMIT ||
+            (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0)
+            break;
+        const DWORD_PTR next_frame = frame_memory[0];
+        const DWORD_PTR return_address = frame_memory[1];
+        if (return_address)
+            log_stack_frame(reinterpret_cast<const void*>(return_address));
+        if (next_frame <= frame)
+            break;
+        frame = next_frame;
+    }
+}
+
 void report_exception(EXCEPTION_POINTERS* exception, const char* origin, bool dump) {
     if (reporting || !exception || !exception->ExceptionRecord)
         return;
@@ -164,6 +207,7 @@ void report_exception(EXCEPTION_POINTERS* exception, const char* origin, bool du
         logf("registers: EIP=0x%08lX ESP=0x%08lX EBP=0x%08lX EAX=0x%08lX EBX=0x%08lX ECX=0x%08lX EDX=0x%08lX ESI=0x%08lX EDI=0x%08lX",
             context->Eip, context->Esp, context->Ebp, context->Eax, context->Ebx,
             context->Ecx, context->Edx, context->Esi, context->Edi);
+        log_stack(context);
     }
 #endif
 
