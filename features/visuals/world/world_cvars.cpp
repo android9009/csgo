@@ -330,6 +330,10 @@ void update_camera() {
         vector3 angles{};
         if (get_angles)
             get_angles(engine_client, angles);
+        // World > Thirdperson > Disable overhead: clamp the pitch the camera is
+        // placed with, so looking down no longer lifts the camera above the head.
+        if (player_visuals::world_settings().thirdperson_disable_overhead)
+            angles.x = std::clamp(angles.x, -89.f, 20.f);
         angles.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
         *camera_offset = angles;
         *camera_flag = true;
