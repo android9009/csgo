@@ -129,6 +129,21 @@ bool belongs_to_main_menu(ImGuiWindow* window) {
     return false;
 }
 
+// Only the window the cursor is actually over may react to a right-click. A gear card (or any
+// popup) lying over a row used to let the row underneath claim the click as well: the bind editor
+// opened for that row - the one the card belonged to - and, being a popup of its own level, closed
+// the card on the way. Child windows (popup sections, group boxes) still count as their parent.
+bool owns_mouse(ImGuiWindow* window) {
+    ImGuiWindow* hovered = GImGui->HoveredWindow;
+    for (ImGuiWindow* candidate = hovered; candidate; candidate = candidate->ParentWindow) {
+        if (candidate == window)
+            return true;
+        if ((candidate->Flags & ImGuiWindowFlags_ChildWindow) == 0)
+            break;
+    }
+    return false;
+}
+
 const char* mode_name(bind_mode mode) {
     switch (mode) {
         case bind_mode::always: return "Always";
@@ -710,21 +725,12 @@ bool draw_entry_card(bind_target& target, bind_entry& entry, bool is_draft,
 
 void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& control) {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
-    ImDrawList* draw = window->DrawList;
-    ImFont* font = ImGui::GetFont();
     const float s = gui.m_scale;
-    IM_UNUSED(font);
-
+    IM_UNUSED(control);
     ImGui::PushID(target.key.c_str());
-    const bool row_hovered = ImGui::IsMouseHoveringRect(rect.Min, rect.Max, true);
-    const bool has_binds = !target.entries.empty();
-
-    // Draw a subtle accent-colored dot on the right side of the control to indicate binds exist
-    if (has_binds) {
-        const float dot_r = 3.f * s;
-        const ImVec2 dot_center(control.Max.x + 6.f * s, control.GetCenter().y);
-        draw->AddCircleFilled(dot_center, dot_r, gui.accent_color.to_im_color(0.85f));
-    }
+    // No dot / badge next to the control: a bound row must look exactly like an unbound one, the
+    // bind list in the overlay is where binds are shown.
+    const bool row_hovered = ImGui::IsMouseHoveringRect(rect.Min, rect.Max, true) && owns_mouse(window);
 
     // Right-click on the row opens the bind menu (no gear icon)
     const bool open_menu = row_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
@@ -810,7 +816,7 @@ void draw_bind_menu(bind_target& target, const ImRect& rect, const ImRect& contr
             }
             bind_menu_separator();
             if (bind_menu_row("##reset", ICON_FA_TRASH_ALT, "Reset", false, false, c_red).clicked &&
-                has_binds) {
+                !target.entries.empty()) {
                 for (const bind_entry& entry : target.entries) {
                     if (g_capture_entry == entry.id)
                         g_capture_entry = 0;

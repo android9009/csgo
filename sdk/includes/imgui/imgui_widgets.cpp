@@ -3766,6 +3766,18 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
         g.ActiveIdUsingNavDirMask |= ( 1 << ImGuiDir_Left ) | ( 1 << ImGuiDir_Right );
     }
 
+    // Typing a value: the value box turns into a field on a plain click, and Ctrl+Click or a
+    // double-click on the row does the same for the popup sliders that have no box of their own.
+    static std::unordered_map<ImGuiID, bool> number_edit_states;
+    const ImGuiID number_id = ImHashStr("##SliderNumber", 0, id);
+    bool& number_editing = number_edit_states[number_id];
+    bool number_input_requested = g.IO.KeyCtrl && IsMouseClicked(0, id);
+    if (hovered && g.IO.MouseClickedCount[0] == 2)
+        number_input_requested = true;
+    if (number_input_requested)
+        number_editing = true;
+
+
     // The box itself is sized to the number once it is formatted (see below); the reserve above
     // keeps the track the same length whatever the value reads.
     float number_h = 20.f * gui.m_scale;
@@ -3906,6 +3918,21 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
             tip_draw->PopClipRect();
         }
 
+        if (number_editing)
+        {
+            if (TempInputScalar( frame_bb, number_id, NULL, data_type, p_data, format, p_min, p_max ))
+            {
+                value_changed = true;
+                MarkItemEdited( id );
+                if ( data_type == ImGuiDataType_S32 )
+                    menu_binds::sync_int( bind_target, *static_cast<int*>( p_data ) );
+                else if ( data_type == ImGuiDataType_Float )
+                    menu_binds::sync_float( bind_target, *static_cast<float*>( p_data ) );
+            }
+            if (!TempInputIsActive( number_id ))
+                number_editing = false;
+        }
+
         if (!gui.m_defer_widget_tooltip)
             gui.info_tooltip(label, "Drag or use the mouse wheel to adjust the value.");
         return value_changed;
@@ -3917,11 +3944,36 @@ bool ImGui::SliderScalar( const char* label, ImGuiDataType data_type, void* p_da
     draw->AddRectFilled( number_bb.Min, number_bb.Max, gui.field_bg.to_im_color( ), 6.f * gui.m_scale );
     draw->AddRect( number_bb.Min, number_bb.Max, gui.border.to_im_color( ), 6.f * gui.m_scale, 0, 1.f * gui.m_scale );
 
-    // Centred on the number's own ink, so "180" and "48" sit on the same line as every label.
-    const ImVec2 number_size = CalcTextSize( value_buf, value_buf_end );
-    draw->AddText( ImVec2( IM_ROUND( number_bb.GetCenter( ).x - number_size.x * 0.5f ),
-                           IM_ROUND( number_bb.GetCenter( ).y - WidgetTextCenterY( g.Font, g.FontSize, value_buf, value_buf_end ) ) ),
-                   gui.text.to_im_color( ), value_buf, value_buf_end );
+    if ( ItemAdd( number_bb, number_id ) && !number_editing )
+    {
+        const ImGuiLastItemData saved_item = g.LastItemData;
+        const bool box_hovered = ItemHoverable( number_bb, number_id );
+        if ( box_hovered && IsMouseClicked( 0, number_id ) )
+            number_editing = true;
+        g.LastItemData = saved_item;
+    }
+    if ( number_editing )
+    {
+        if ( TempInputScalar( number_bb, number_id, NULL, data_type, p_data, format, p_min, p_max ) )
+        {
+            value_changed = true;
+            MarkItemEdited( id );
+            if ( data_type == ImGuiDataType_S32 )
+                menu_binds::sync_int( bind_target, *static_cast<int*>( p_data ) );
+            else if ( data_type == ImGuiDataType_Float )
+                menu_binds::sync_float( bind_target, *static_cast<float*>( p_data ) );
+        }
+        if ( !TempInputIsActive( number_id ) )
+            number_editing = false;
+    }
+    else
+    {
+        // Centred on the number's own ink, so "180" and "48" sit on the same line as every label.
+        const ImVec2 number_size = CalcTextSize( value_buf, value_buf_end );
+        draw->AddText( ImVec2( IM_ROUND( number_bb.GetCenter( ).x - number_size.x * 0.5f ),
+                               IM_ROUND( number_bb.GetCenter( ).y - WidgetTextCenterY( g.Font, g.FontSize, value_buf, value_buf_end ) ) ),
+                       gui.text.to_im_color( ), value_buf, value_buf_end );
+    }
 
     if (!gui.m_defer_widget_tooltip)
         gui.info_tooltip(label, "Drag or use the mouse wheel to adjust the value.");
@@ -4818,14 +4870,15 @@ static bool InputTextFilterCharacter(unsigned int* p_char, ImGuiInputTextFlags f
             if (c >= 0xFF01 && c <= 0xFF5E)
                 c = c - 0xFF01 + 0x21;
 
-        // Allow 0-9 . - + * /
+        // Allow 0-9 . - + (the arithmetic operators stock ImGui accepted were never useful here:
+        // a value field should only take a number).
         if (flags & ImGuiInputTextFlags_CharsDecimal)
-            if (!(c >= '0' && c <= '9') && (c != c_decimal_point) && (c != '-') && (c != '+') && (c != '*') && (c != '/'))
+            if (!(c >= '0' && c <= '9') && (c != c_decimal_point) && (c != '-') && (c != '+'))
                 return false;
 
-        // Allow 0-9 . - + * / e E
+        // Allow 0-9 . - + e E
         if (flags & ImGuiInputTextFlags_CharsScientific)
-            if (!(c >= '0' && c <= '9') && (c != c_decimal_point) && (c != '-') && (c != '+') && (c != '*') && (c != '/') && (c != 'e') && (c != 'E'))
+            if (!(c >= '0' && c <= '9') && (c != c_decimal_point) && (c != '-') && (c != '+') && (c != 'e') && (c != 'E'))
                 return false;
 
         // Allow 0-9 a-F A-F

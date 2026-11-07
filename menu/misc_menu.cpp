@@ -18,14 +18,8 @@ void draw_feature_toggle(const char* label, bool& value, bool with_options = fal
 
 void c_menu::draw_misc() {
     auto& state = misc_features::settings();
-    static color_value log_color{
-        ImVec4(0.66f, 0.60f, 1.f, 1.f),
-        ImVec4(0.66f, 0.60f, 1.f, 1.f),
-        false
-    };
     static const char* strafe_modes[] = { "Legit", "Directional" };
     static const char* filter_chat_modes[] = { "Select" };
-    static const char* log_event_modes[] = { "Damage Dealt" };
 
     auto& misc = g_cfg->misc;
     gui.begin_grid(2);
@@ -67,7 +61,9 @@ void c_menu::draw_misc() {
     gui.end_group_box();
 
     gui.grid_col(1);
-    gui.grid_box("FEATURES", 0, true);
+    // Wrap the content instead of stretching the box to the bottom of the tab: a half-empty box
+    // running the whole height read as "the right column is longer than the left one".
+    gui.grid_box("FEATURES", k_auto_height);
     draw_feature_toggle("Quick Switch", state.quick_switch);
     draw_feature_toggle("Super Toss", state.super_toss);
     draw_feature_toggle("Hit Sound", state.hit_sound, true);
@@ -86,10 +82,6 @@ void c_menu::draw_misc() {
     draw_feature_toggle("Filter Console Output", state.filter_console_output);
     gui.row_multibox("Filter Chat Messages", filter_chat_modes, &state.filter_chat_messages,
                      IM_ARRAYSIZE(filter_chat_modes));
-    gui.row_multibox("Log Events", log_event_modes, &state.log_damage_dealt, &log_color,
-                     IM_ARRAYSIZE(log_event_modes));
-    for (int i = 0; i < 4; ++i)
-        state.log_color[i] = (&log_color.a.x)[i];
     gui.end_group_box();
 
     gui.end_grid();

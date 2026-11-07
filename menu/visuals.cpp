@@ -1071,16 +1071,20 @@ void draw_visuals_world() {
         }
         gui.row_checkbox("Hotkeys", &g_cfg->misc.m_keybinds_list);
         gui.row_checkbox("Spectators", &g_cfg->misc.m_spectator_list);
-        gui.row_checkbox("Event Logs", &world.window_event_logs);
-        if (world.window_event_logs) {
+        gui.row_begin();
+        if (gui.row_options_begin("##event_log_options", 280.f, c_gui::row_control::toggle)) {
+            gui.popup_section_begin("##event_log_settings");
             gui.row_multibox("Events", event_log_items, world.event_log_filter,
                 IM_ARRAYSIZE(event_log_items));
             gui.row_begin();
-            ImGui::SliderFloat("Lifetime##event_log", &world.event_log_lifetime, 0.5f, 20.f, "%.1fs");
-            gui.row_color("Hit##event_log", &event_log_hit_color);
-            gui.row_color("Miss##event_log", &event_log_miss_color);
-            gui.row_color("Evaded##event_log", &event_log_evaded_color);
+            ImGui::SliderFloat("Lifetime", &world.event_log_lifetime, 0.5f, 20.f, "%.1fs");
+            gui.row_color("Hit", &event_log_hit_color);
+            gui.row_color("Miss", &event_log_miss_color);
+            gui.row_color("Evaded", &event_log_evaded_color);
+            gui.popup_section_end();
+            gui.row_options_end();
         }
+        gui.row_checkbox("Event Logs", &world.window_event_logs);
         gui.popup_section_end();
         gui.row_color("Color", &windows_color);
         gui.row_begin(); ImGui::SliderFloat("Line Opacity", &world.windows_line_opacity, 0.f, 1.f, "%.2f");
