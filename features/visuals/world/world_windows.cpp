@@ -111,11 +111,26 @@ void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
     char hitchance_text[32];
     std::snprintf(hitchance_text, sizeof(hitchance_text), "HC %d",
         std::clamp(g_cfg->legit_bot.m_triggerbot_hitchance, 0, 100));
-    const badge badges[4] = {
+    // World > Windows > Min Damage: the value comes from the "Min Damage" bind
+    // itself, so the badge is only meaningful while that bind is held/enabled.
+    int min_damage = -1;
+    for (const auto& bind : menu_binds::overlay_entries()) {
+        if (bind.label == "Min Damage" && bind.active && bind.int_value >= 0) {
+            min_damage = bind.int_value;
+            break;
+        }
+    }
+    char min_damage_text[32];
+    if (min_damage >= 0)
+        std::snprintf(min_damage_text, sizeof(min_damage_text), "DMG %d", min_damage);
+    else
+        std::snprintf(min_damage_text, sizeof(min_damage_text), "DMG -");
+    const badge badges[5] = {
         { page.windows_double_tap, "DT", g_cfg->rage_bot.m_double_tap },
         { page.windows_jump_bug, "JB", g_cfg->misc.m_jump_bug },
         { page.windows_slowdown, "SW", g_cfg->misc.m_slow_walk },
         { page.windows_hit_chance_override, hitchance_text, true },
+        { page.windows_min_damage_override, min_damage_text, min_damage >= 0 },
     };
     float badge_x = origin.x;
     const float badge_y = origin.y + height + 6.f;

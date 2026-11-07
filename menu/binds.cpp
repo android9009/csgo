@@ -1847,7 +1847,8 @@ std::vector<overlay_bind> overlay_entries() {
                 continue;
             if (!entry.active && !entry.toggled)
                 continue;
-            result.push_back({ target.label, std::to_string(entry.key), entry.active });
+            result.push_back({ target.label, std::to_string(entry.key), entry.active,
+                entry.int_value });
         }
     }
     return result;

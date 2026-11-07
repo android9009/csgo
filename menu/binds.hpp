@@ -27,6 +27,7 @@ struct overlay_bind {
     std::string label;
     std::string key;
     bool active = false;
+    int int_value = 0;
 };
 std::vector<overlay_bind> overlay_entries();
 

@@ -920,14 +920,6 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Weapons", nullptr, 280.f)) {
-        gui.popup_section_begin("##weapons");
-        open_item_visuals(world.weapon, "##weapons_visuals", false);
-        gui.row_checkbox("Enabled", &world.weapon.enabled, &weapon_color);
-        gui.row_checkbox("Colorize Effects", &world.weapon.colorize_effects, &weapon_color);
-        gui.popup_section_end();
-        gui.popup_end();
-    }
     if (gui.row_popup("Hostages", nullptr, 280.f)) {
         gui.popup_section_begin("##hostages");
         open_item_visuals(world.hostage, "##hostages_visuals", true);
@@ -961,12 +953,12 @@ void draw_visuals_world() {
         gui.row_checkbox("Thrown Grenades", &world.trajectory_thrown_grenades);
         gui.row_checkbox("Pin Pulled Only", &world.trajectory_pin_pulled_only);
         gui.row_checkbox("Precise Trajectory", &world.trajectory_precise);
-        // The proximity warning belongs to the trajectory it is drawn from, not to a separate row
-        // at the bottom of the box.
-        gui.row_checkbox("Proximity Warnings", &world.grenade_proximity_warnings);
         gui.row_options_end();
     }
     gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory);
+    // Proximity warning is its own row again: it fires for any nearby grenade and
+    // does not depend on the trajectory being enabled.
+    gui.row_checkbox("Proximity Warnings", &world.grenade_proximity_warnings);
     gui.end_group_box();
 
     gui.grid_col(1);
