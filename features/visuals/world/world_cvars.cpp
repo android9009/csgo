@@ -15,6 +15,10 @@
 #include <cstdio>
 #include <cstring>
 
+namespace world_visuals {
+void run_thirdperson();
+}
+
 namespace {
 struct vector3 {
     float x, y, z;
@@ -87,10 +91,6 @@ void* panel_interface = nullptr;
 HMODULE client_module = nullptr;
 int** smoke_count_global = nullptr;
 bool smoke_pattern_resolved = false;
-namespace world_visuals {
-void run_thirdperson();
-}
-
 using override_view_t = void(__thiscall*)(void*, view_setup*);
 override_view_t original_override_view = nullptr;
 bool override_installed = false;
