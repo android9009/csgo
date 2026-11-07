@@ -758,21 +758,22 @@ bool wallbang_possible() {
     vector3 forward{};
     angle_vectors(engine_view_angles(), forward);
     constexpr float range = 8192.f;
-    const vector3 far{ eye.x + forward.x * range, eye.y + forward.y * range, eye.z + forward.z * range };
+    // windef.h still defines "far" as an empty macro, hence "destination".
+    const vector3 destination{ eye.x + forward.x * range, eye.y + forward.y * range, eye.z + forward.z * range };
     const vector3 point{ 0.f, 0.f, 0.f };
     game_trace_t hit{};
-    if (!trace_line(eye, far, point, point, hit))
+    if (!trace_line(eye, destination, point, point, hit))
         return false;
     if (hit.fraction >= 1.f)
         return true; // nothing in the way
     if ((hit.surface.flags & surf_nopentrate) != 0)
         return false;
     // Distance between the entry and the exit of the wall: the thickness.
-    const vector3 entry{ eye.x + (far.x - eye.x) * hit.fraction,
-        eye.y + (far.y - eye.y) * hit.fraction, eye.z + (far.z - eye.z) * hit.fraction };
+    const vector3 entry{ eye.x + (destination.x - eye.x) * hit.fraction,
+        eye.y + (destination.y - eye.y) * hit.fraction, eye.z + (destination.z - eye.z) * hit.fraction };
     const vector3 skip{ entry.x + forward.x, entry.y + forward.y, entry.z + forward.z };
     game_trace_t exit{};
-    if (!trace_line(skip, far, point, point, exit))
+    if (!trace_line(skip, destination, point, point, exit))
         return false;
     const float thickness = exit.fraction * (1.f - hit.fraction) * range - 1.f;
     return thickness >= 0.f && thickness <= 45.f;
