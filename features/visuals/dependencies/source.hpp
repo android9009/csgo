@@ -153,6 +153,9 @@ struct local_view_state {
     // first/second scope stage on the sniper rifles.
     int player_fov = 0;
     vector3 origin{};
+    // Feet + m_vecViewOffset: what OverrideView gets handed as the camera origin
+    // in first person, so the thirdperson probe can tell the two apart.
+    vector3 eye_origin{};
     // World > Crosshairs / Grenades read the same active-weapon state. Knife,
     // C4, sniper and pin state are plain weapon flags, so they cost one
     // definition index instead of a second entity walk per frame.

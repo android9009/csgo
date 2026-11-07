@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 namespace {
@@ -30,7 +31,12 @@ struct view_setup {
 
 // IInput layout as Fatality's sdk/interfaces/IInput.h has it: the pad is 0xA9
 // bytes, so m_fCameraInThirdPerson sits at 0xA9 and m_vecCameraOffset at 0xAC.
+// That is the 2018 client, though. The field moved in later builds, so the
+// offset is verified at runtime (see probe_thirdperson_flag) instead of trusted.
 constexpr std::size_t input_camera_in_third_person = 0xA9;
+constexpr std::size_t input_camera_scan_begin = 0x90;
+constexpr std::size_t input_camera_scan_end = 0xC8;
+constexpr std::size_t input_camera_read_size = 0x110;
 constexpr std::size_t convar_parent_offset = 0x1C;
 constexpr std::size_t convar_float_offset = 0x2C;
 constexpr std::size_t convar_find_var_vfunc = 16;
@@ -462,6 +468,8 @@ void update_world_cvars() {
 
 void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     AIRFLOW_DEBUG_STAGE("world.override_view.camera");
+    if (setup)
+        probe_thirdperson_flag(setup->origin);
     AIRFLOW_DEBUG_STAGE("world.override_view.cvars");
     update_world_cvars();
     AIRFLOW_DEBUG_STAGE("world.override_view.original");
@@ -477,6 +485,27 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     // the game overwrote and what crashed.
 
     const auto& cfg = g_cfg->world_esp;
+    // Last resort for builds where m_fCameraInThirdPerson could not be found:
+    // move the camera origin ourselves so the feature still works. This runs only
+    // after a conclusive probe failure, so it can never fight the engine camera.
+    if (thirdperson_flag_failed && cfg.m_enable_thirdperson &&
+        visuals_source::writable_range(&setup->origin, sizeof(vector3))) {
+        visuals_source::local_view_state state{};
+        using get_angles_t = void(__thiscall*)(void*, vector3&);
+        const auto get_angles = reinterpret_cast<get_angles_t>(vfunc(engine_client, 18));
+        vector3 angles{};
+        if (get_angles)
+            get_angles(engine_client, angles);
+        if (visuals_source::get_local_view_state(state) && state.alive) {
+            const float pitch = std::clamp(angles.x, -89.f, 89.f) * 3.14159265358979f / 180.f;
+            const float yaw = angles.y * 3.14159265358979f / 180.f;
+            const float cp = std::cos(pitch);
+            const float distance = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
+            setup->origin.x = state.eye_origin.x - cp * std::cos(yaw) * distance;
+            setup->origin.y = state.eye_origin.y - cp * std::sin(yaw) * distance;
+            setup->origin.z = state.eye_origin.z + std::sin(pitch) * distance;
+        }
+    }
     if (cfg.m_enable_override_fov && visuals_source::writable_range(&setup->fov, sizeof(float)))
         setup->fov = static_cast<float>(std::clamp(cfg.m_override_fov, 60, 130));
 
@@ -512,6 +541,115 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
 using panel_name_t = const char*(__thiscall*)(void*, unsigned int);
 using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
 
+// --- thirdperson flag discovery -------------------------------------------
+// CInput puts m_fCameraInterceptingMouse / m_fCameraInThirdPerson /
+// m_fCameraMovingWithMouse next to each other and the camera angle vector right
+// after them, so the triple of bools followed by a plausible angle vector is a
+// reliable shape. Every candidate is then confirmed for real: set the byte, and
+// on the next frame check whether the camera the game hands to OverrideView has
+// actually moved away from the eye. A wrong candidate is reverted immediately.
+std::size_t thirdperson_flag_offset = input_camera_in_third_person;
+bool thirdperson_flag_resolved = false;
+bool thirdperson_flag_failed = false;
+bool thirdperson_probe_started = false;
+bool thirdperson_probe_waiting = false;
+std::size_t thirdperson_probe_index = 0;
+std::array<std::size_t, 32> thirdperson_candidates{};
+int thirdperson_candidate_count = 0;
+bool thirdperson_layout_logged = false;
+
+void log_input_layout() {
+    if (thirdperson_layout_logged || !input_object ||
+        !readable_range(input_object, input_camera_read_size))
+        return;
+    thirdperson_layout_logged = true;
+    const auto* bytes = static_cast<const std::uint8_t*>(input_object);
+    char line[3 * 32 + 1] = {};
+    int written = 0;
+    for (std::size_t offset = input_camera_scan_begin; offset < input_camera_scan_begin + 32; ++offset) {
+        written += std::snprintf(line + written, sizeof(line) - static_cast<std::size_t>(written),
+            "%02X", bytes[offset]);
+    }
+    AIRFLOW_DEBUG_LOGF("thirdperson: input[0x%X..]=%s", static_cast<unsigned int>(input_camera_scan_begin), line);
+}
+
+void scan_thirdperson_candidates() {
+    thirdperson_candidate_count = 0;
+    if (!input_object || !readable_range(input_object, input_camera_read_size))
+        return;
+    const auto* bytes = static_cast<const std::uint8_t*>(input_object);
+    for (std::size_t offset = input_camera_scan_begin; offset <= input_camera_scan_end; ++offset) {
+        if (bytes[offset] > 1 || bytes[offset + 1] > 1 || bytes[offset + 2] > 1)
+            continue;
+        vector3 angles{};
+        std::memcpy(&angles, bytes + offset + 3, sizeof(angles));
+        const bool plausible = std::isfinite(angles.x) && std::isfinite(angles.y) &&
+            std::isfinite(angles.z) && angles.x >= -90.f && angles.x <= 90.f &&
+            angles.y >= -180.f && angles.y <= 180.f && angles.z >= 0.f && angles.z <= 300.f;
+        if (!plausible)
+            continue;
+        // Second bool of the triple is m_fCameraInThirdPerson.
+        thirdperson_candidates[static_cast<std::size_t>(thirdperson_candidate_count)] = offset + 1;
+        if (++thirdperson_candidate_count >= static_cast<int>(thirdperson_candidates.size()))
+            break;
+    }
+    AIRFLOW_DEBUG_LOGF("thirdperson: %d camera flag candidates", thirdperson_candidate_count);
+}
+
+void write_input_byte(std::size_t offset, std::uint8_t value) {
+    if (!input_object)
+        return;
+    auto* address = static_cast<std::uint8_t*>(input_object) + offset;
+    if (!visuals_source::writable_range(address, 1))
+        return;
+    *address = value;
+}
+
+// Runs before the original OverrideView, i.e. the setup still holds the camera
+// the game computed on its own.
+void probe_thirdperson_flag(const vector3& game_origin) {
+    if (thirdperson_flag_resolved || !input_object || !g_cfg->world_esp.m_enable_thirdperson)
+        return;
+    log_input_layout();
+    if (!thirdperson_probe_started) {
+        scan_thirdperson_candidates();
+        thirdperson_probe_started = true;
+        if (thirdperson_candidate_count == 0) {
+            thirdperson_flag_resolved = true;
+            thirdperson_flag_failed = true;
+            return;
+        }
+        write_input_byte(thirdperson_candidates[0], 1);
+        thirdperson_probe_waiting = true;
+        return;
+    }
+    if (!thirdperson_probe_waiting)
+        return;
+
+    visuals_source::local_view_state state{};
+    const bool have_state = visuals_source::get_local_view_state(state);
+    const float dx = game_origin.x - state.eye_origin.x;
+    const float dy = game_origin.y - state.eye_origin.y;
+    const float dz = game_origin.z - state.eye_origin.z;
+    const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    if (have_state && state.alive && distance > 12.f) {
+        thirdperson_flag_offset = thirdperson_candidates[thirdperson_probe_index];
+        thirdperson_flag_resolved = true;
+        AIRFLOW_DEBUG_LOGF("thirdperson: flag at input+0x%X confirmed",
+            static_cast<unsigned int>(thirdperson_flag_offset));
+        return;
+    }
+    write_input_byte(thirdperson_candidates[thirdperson_probe_index], 0);
+    ++thirdperson_probe_index;
+    if (thirdperson_probe_index >= static_cast<std::size_t>(thirdperson_candidate_count)) {
+        thirdperson_flag_resolved = true;
+        thirdperson_flag_failed = true;
+        AIRFLOW_DEBUG_LOGF("thirdperson: no flag found, moving the camera directly");
+        return;
+    }
+    write_input_byte(thirdperson_candidates[thirdperson_probe_index], 1);
+}
+
 } // namespace
 
 namespace world_visuals {
@@ -521,10 +659,13 @@ namespace world_visuals {
 // m_vecCameraOffset instead - that is the spectator/replay camera and never
 // moved the first-person view, which is why the feature did nothing.
 void run_thirdperson() {
-    if (!input_object || !readable_range(input_object, input_camera_in_third_person + 1))
+    // While the flag byte is still being identified, only the probe may touch it.
+    if (thirdperson_probe_started && !thirdperson_flag_resolved)
+        return;
+    if (!input_object || !readable_range(input_object, thirdperson_flag_offset + 1))
         return;
     auto* camera_flag = reinterpret_cast<bool*>(static_cast<std::uint8_t*>(input_object) +
-        input_camera_in_third_person);
+        thirdperson_flag_offset);
     if (!visuals_source::writable_range(camera_flag, 1))
         return;
 

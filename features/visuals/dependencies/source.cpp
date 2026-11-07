@@ -593,12 +593,59 @@ void resolve_netvars() {
     nv.fire_z = table_offset(classes, { "DT_Inferno" }, "m_fireZDelta");
 }
 
+// value<T>() runs thousands of times per frame, so it cannot VirtualQuery every
+// single read. The page result is cached instead. This guard exists because a
+// stale entity/weapon pointer (a handle whose entity was already freed, or an
+// entity that left the map) reached memcpy and crashed with a read at a garbage
+// address - the crash dump from the frame stage showed exactly that: memcpy of
+// two bytes from 0x3F58229A.
+std::uintptr_t readable_region_end(std::uintptr_t page) {
+    struct entry {
+        std::uintptr_t page;
+        std::uintptr_t end;
+    };
+    static thread_local entry cache[128]{};
+    auto& slot = cache[(page >> 12) & 127];
+    if (slot.page == page)
+        return slot.end;
+    MEMORY_BASIC_INFORMATION info{};
+    std::uintptr_t end = 0;
+    if (VirtualQuery(reinterpret_cast<const void*>(page), &info, sizeof(info)) &&
+        info.State == MEM_COMMIT && (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) == 0) {
+        end = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
+        if (end <= page)
+            end = 0;
+    }
+    slot.page = page;
+    slot.end = end;
+    return end;
+}
+
+bool readable_range_cached(const void* address, std::size_t size) {
+    if (!address || !size)
+        return false;
+    auto current = reinterpret_cast<std::uintptr_t>(address);
+    const auto end = current + size;
+    if (end < current)
+        return false;
+    while (current < end) {
+        const auto region_end = readable_region_end(current & ~static_cast<std::uintptr_t>(0xFFF));
+        if (region_end == 0 || region_end <= current)
+            return false;
+        current = region_end;
+    }
+    return true;
+}
+
 template <typename T>
 T value(const void* entity, int offset, T fallback = T{}) {
     if (!entity || offset < 0)
         return fallback;
+    const auto* address = reinterpret_cast<const unsigned char*>(entity) + offset;
+    if (!readable_range_cached(address, sizeof(T)))
+        return fallback;
     T result{};
-    std::memcpy(&result, reinterpret_cast<const unsigned char*>(entity) + offset, sizeof(T));
+    std::memcpy(&result, address, sizeof(T));
     return result;
 }
 
@@ -1361,6 +1408,9 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
         value<int>(local, nv.health, 0) > 0;
     output.scoped = value<bool>(local, nv.scoped, false);
     output.origin = value<vector3>(local, nv.origin);
+    const vector3 view_offset = value<vector3>(local, nv.view_offset, { 0.f, 0.f, 64.f });
+    output.eye_origin = { output.origin.x + view_offset.x, output.origin.y + view_offset.y,
+        output.origin.z + view_offset.z };
     output.aim_punch = value<vector3>(local, nv.aim_punch);
     output.view_punch = value<vector3>(local, nv.view_punch);
     // Self > Models reads the active weapon on every call: the Grenade
@@ -1430,14 +1480,9 @@ void reveal_entity_on_radar(void* entity, bool spotted, int local_index) {
     if (!writable_range(spotted_slot, sizeof(spotted)))
         return;
     std::memcpy(spotted_slot, &spotted, sizeof(spotted));
-    if (nv.spotted_by_mask < 0 || local_index < 0 || local_index > 63)
-        return;
-    if (!writable_range(static_cast<unsigned char*>(entity) + nv.spotted_by_mask, sizeof(unsigned int)))
-        return;
-    unsigned int mask = value<unsigned int>(entity, nv.spotted_by_mask, 0u);
-    const unsigned int bit = 1u << local_index;
-    mask = spotted ? (mask | bit) : (mask & ~bit);
-    std::memcpy(static_cast<unsigned char*>(entity) + nv.spotted_by_mask, &mask, sizeof(mask));
+    // Fatality only ever touches m_bSpotted; the spotted-by mask is a separate
+    // networked field and writing it was an extra way to corrupt entity memory.
+    (void)local_index;
 }
 
 // ---------------------------------------------------------------------------
