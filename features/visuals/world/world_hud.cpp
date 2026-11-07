@@ -69,6 +69,7 @@ void render_event_logs(ImDrawList* draw, const ImVec2& display) {
 void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
                 const ImVec2& display) {
     render_windows(draw, frame, display);
+    render_hotkeys(draw, display);
     render_event_logs(draw, display);
     const auto& world = g_cfg->world;
     const auto& page = player_visuals::world_settings();

@@ -1838,4 +1838,18 @@ void draw_overlay(bool menu_open) {
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
 }
+
+std::vector<overlay_bind> overlay_entries() {
+    std::vector<overlay_bind> result;
+    for (auto& [id, target] : g_targets) {
+        for (auto& entry : target.entries) {
+            if (!entry.show_in_overlay)
+                continue;
+            if (!entry.active && !entry.toggled)
+                continue;
+            result.push_back({ target.label, std::to_string(entry.key), entry.active });
+        }
+    }
+    return result;
+}
 }

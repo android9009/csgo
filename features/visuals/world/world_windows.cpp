@@ -3,6 +3,7 @@
 #include "../dependencies/source.hpp"
 #include "../esp/esp_draw.hpp"
 #include "../settings.hpp"
+#include "../../../menu/binds.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -107,6 +108,44 @@ void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
         const ImVec2 center(origin.x - 14.f, origin.y + height * 0.5f);
         draw->AddCircleFilled(center, 11.f, color(page.windows_color, 0.35f), 24);
         draw->AddCircle(center, 11.f, color(page.windows_color, 0.8f), 24, 1.f);
+    }
+}
+
+
+// World > Windows > Hotkeys. Style / right-aligned / dynamic header are the real
+// settings; the list itself comes from menu_binds::overlay_entries() (same
+// entries the bind cards mark with the eye icon).
+void render_hotkeys(ImDrawList* draw, const ImVec2& display) {
+    const auto& page = player_visuals::world_settings();
+    if (!page.window_hotkeys)
+        return;
+    const auto binds = menu_binds::overlay_entries();
+    if (binds.empty())
+        return;
+    const bool minimal = page.hotkeys_style == 1;
+    const bool detailed = page.hotkeys_style == 2;
+    const float scale = minimal ? 0.78f : (detailed ? 1.0f : 0.88f);
+    const float line = 16.f * scale;
+    float y = page.window_watermark ? (14.f + 30.f) : 16.f;
+    if (page.hotkeys_dynamic_header) {
+        const std::string header = "hotkeys (" + std::to_string(binds.size()) + ")";
+        const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(12.f, FLT_MAX, 0.f, header.c_str());
+        const float x = page.hotkeys_right_aligned ? (display.x - 14.f - size.x) : 14.f;
+        draw_text(draw, ImVec2(x, y), header, color(page.windows_color), 0.85f, page.hotkeys_right_aligned ? 1 : 1);
+        y += line;
+    }
+    for (const auto& bind : binds) {
+        std::string text;
+        if (minimal)
+            text = bind.label;
+        else if (detailed)
+            text = bind.label + " [" + bind.key + "]";
+        else
+            text = bind.label + "  " + bind.key;
+        const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(12.f * scale, FLT_MAX, 0.f, text.c_str());
+        const float x = page.hotkeys_right_aligned ? (display.x - 14.f - size.x) : 14.f;
+        draw_text(draw, ImVec2(x, y), text, color(page.windows_color), scale, 1);
+        y += line;
     }
 }
 

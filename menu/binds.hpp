@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 // This header is what pulls imgui in for binds.cpp, and it has to ask for the ImVec2/ImVec4
 // operators before it does: gui.hpp defines the macro too, but it is included second there, by
 // which point the imgui include guards have already shut the operators out of the translation
@@ -17,6 +20,15 @@ struct ImGuiWindow;
 namespace menu_binds {
 using target_id = std::uint64_t;
 using combo_item_getter = bool (*)(void* data, int index, const char** out_text);
+
+// World > Windows > Hotkeys reads the live bind list through this accessor;
+// the target/entry tables themselves stay private to binds.cpp.
+struct overlay_bind {
+    std::string label;
+    std::string key;
+    bool active = false;
+};
+std::vector<overlay_bind> overlay_entries();
 
 void register_bool(const char* key, const char* label, bool* value);
 void register_int(const char* key, const char* label, int* value, int minimum, int maximum);
