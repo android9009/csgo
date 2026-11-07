@@ -436,6 +436,19 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     if (!setup)
         return;
 
+    // World > Viewmodel > Angles: roll (plus pitch/yaw) applied to the viewmodel
+    // entity right after the game built its own camera, the same path the NL Lua
+    // uses (credits tank / rave1337 for a correct roll).
+    const auto& page = player_visuals::world_settings();
+    if (page.viewmodel_angles_override) {
+        visuals_source::vector3 angles{
+            setup->angles.x + std::clamp(page.viewmodel_pitch, -89.f, 89.f),
+            setup->angles.y + std::clamp(page.viewmodel_yaw, -180.f, 180.f),
+            std::clamp(page.viewmodel_roll, -180.f, 180.f)
+        };
+        visuals_source::set_viewmodel_angles(angles);
+    }
+
     const auto& cfg = g_cfg->world_esp;
     if (cfg.m_enable_override_fov)
         setup->fov = static_cast<float>(std::clamp(cfg.m_override_fov, 60, 130));

@@ -189,6 +189,10 @@ int entity_team_side(void* entity); // -1 invalid, 0 enemy, 1 teammate
 bool is_local_entity(void* entity);
 bool local_player_alive();
 bool get_local_view_state(local_view_state& output, bool include_accuracy = false);
+
+// World > Viewmodel > Angles. Writes the local viewmodel entity angles; the game
+// recomputes them every frame, so this is called from OverrideView each frame.
+bool set_viewmodel_angles(const vector3& angles);
 void set_flash_removed(bool enabled);
 bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();

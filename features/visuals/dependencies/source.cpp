@@ -213,6 +213,8 @@ struct netvars_t {
     int postpone_fire_ready = -1;
     int reloading = -1;
     int pin_pulled = -1;
+    int viewmodel = -1;
+    int angles = -1;
     int owner = -1;
     int smoke_effect = -1;
     int smoke_tick = -1;
@@ -555,6 +557,10 @@ void resolve_netvars() {
     nv.postpone_fire_ready = table_offset(classes, { "DT_WeaponCSBase" }, "m_flPostponeFireReadyTime");
     nv.reloading = table_offset(classes, { "DT_WeaponCSBase", "DT_BaseCombatWeapon" }, "m_bInReload");
     nv.pin_pulled = table_offset(classes, { "DT_BaseCSGrenade" }, "m_bPinPulled");
+    // World > Viewmodel > Angles: m_hViewModel[0] handle + the entity angles the
+    // game applies to the viewmodel (the same pair the NL Lua writes).
+    nv.viewmodel = table_offset(classes, { "DT_BasePlayer" }, "m_hViewModel");
+    nv.angles = table_offset(classes, { "DT_BaseEntity" }, "m_angRotation");
     nv.owner = table_offset(classes, { "DT_BaseEntity" }, "m_hOwnerEntity");
     nv.smoke_effect = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_bDidSmokeEffect");
     nv.smoke_tick = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_nSmokeEffectTickBegin");
@@ -1358,6 +1364,19 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
                 output.spread = std::clamp(measured, 0.f, 1.f);
         }
     }
+    return true;
+}
+
+bool set_viewmodel_angles(const vector3& angles) {
+    if (!is_in_game() || nv.viewmodel < 0 || nv.angles < 0)
+        return false;
+    void* local = entity_at(local_index());
+    if (!local)
+        return false;
+    void* viewmodel = entity_from_handle(value<unsigned int>(local, nv.viewmodel, 0xFFFFFFFFu));
+    if (!viewmodel)
+        return false;
+    std::memcpy(reinterpret_cast<unsigned char*>(viewmodel) + nv.angles, &angles, sizeof(angles));
     return true;
 }
 

@@ -88,6 +88,8 @@ void render_world_range(ImDrawList* draw, const world_data& entity,
 void render_esp(ImDrawList* draw, const visuals_source::frame_data& frame,
                 const ImVec2& display) {
     const auto& settings = player_visuals::world_settings();
+    if (settings.grenade_trajectory)
+        render_held_trajectory(draw, frame, display);
     float nearest_grenade = 301.f;
     for (const auto& entity : frame.world) {
         if (entity.kind == visuals_source::world_projectile) {
