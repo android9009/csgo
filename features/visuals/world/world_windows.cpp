@@ -3,6 +3,7 @@
 #include "../dependencies/source.hpp"
 #include "../esp/esp_draw.hpp"
 #include "../settings.hpp"
+#include "../../../sdk/config_system/config_system.hpp"
 #include "../../../menu/binds.hpp"
 
 #include <algorithm>
@@ -104,6 +105,34 @@ void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
             color(ink), piece.c_str());
         x += measured.x + gap;
     }
+    // World > Windows > indicator badges. Each toggle shows the live state of the
+    // matching gameplay feature next to the watermark instead of a static label.
+    struct badge { bool wanted; const char* text; bool active; };
+    char hitchance_text[32];
+    std::snprintf(hitchance_text, sizeof(hitchance_text), "HC %d",
+        std::clamp(g_cfg->misc.m_triggerbot_hitchance, 0, 100));
+    const badge badges[4] = {
+        { page.windows_double_tap, "DT", g_cfg->misc.m_double_tap },
+        { page.windows_jump_bug, "JB", g_cfg->misc.m_jump_bug },
+        { page.windows_slowdown, "SW", g_cfg->misc.m_slow_walk },
+        { page.windows_hit_chance_override, hitchance_text, true },
+    };
+    float badge_x = origin.x;
+    const float badge_y = origin.y + height + 6.f;
+    for (const auto& entry : badges) {
+        if (!entry.wanted)
+            continue;
+        const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(11.f, FLT_MAX, 0.f, entry.text);
+        const ImVec2 min_point(badge_x, badge_y);
+        const ImVec2 max_point(badge_x + size.x + 10.f, badge_y + 16.f);
+        draw->AddRectFilled(min_point, max_point,
+            color(page.windows_color, entry.active ? 0.45f : 0.18f), 3.f);
+        draw_text(draw, ImVec2(min_point.x + 5.f, badge_y + 8.f), entry.text,
+            color(entry.active ? c_color{ 0.62f, 0.79f, 0.17f, 1.f }
+                               : c_color{ 0.7f, 0.72f, 0.78f, 1.f }), 0.78f, 1);
+        badge_x = max_point.x + 5.f;
+    }
+
     if (page.watermark_display_avatar) {
         // Steam avatar texture is fetched asynchronously by runtime/steam_avatar;
         // until it lands the slot stays a framed placeholder instead of popping in.
