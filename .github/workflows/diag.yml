@@ -1,0 +1,18 @@
+name: diag
+on:
+  push:
+    branches: [arena/9dfe9791-csgo]
+jobs:
+  diag:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build
+        shell: cmd
+        run: |
+          msbuild airflow.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal /flp:LogFile=build.log;LogFileAppend;Verbosity=normal
+          findstr /C:"error" build.log > errs.txt
+          type errs.txt
+          powershell -NoProfile -Command "Get-Content errs.txt | Where-Object { $_ -match 'error' } | Select-Object -First 20 | ForEach-Object { Write-Host ('::error::' + $_) }"
+          exit /b 0
