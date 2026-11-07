@@ -780,12 +780,12 @@ void draw_visuals_world() {
 
     const auto open_item_visuals = [&](player_visuals::world_item_settings& item, const char* id, bool hostage_options) {
         gui.row_begin();
-        if (gui.row_options_begin(id, 216.f, c_gui::row_control::toggle)) {
+        if (gui.row_options_begin(id, 260.f, c_gui::row_control::toggle)) {
             gui.popup_section_begin("##item_visuals");
             gui.row_checkbox("Bounding Box", &item.box);
             if (hostage_options) {
                 gui.row_begin();
-                if (gui.row_options_begin("##hostage_progress_options", 216.f, c_gui::row_control::toggle)) {
+                if (gui.row_options_begin("##hostage_progress_options", 260.f, c_gui::row_control::toggle)) {
                     gui.popup_section_begin("##hostage_progress_style");
                     gui.row_color("Background", &hostage_progress_bg_color);
                     gui.popup_section_end();
@@ -805,7 +805,7 @@ void draw_visuals_world() {
     gui.grid_col(0);
     gui.column_title("VIEW");
     gui.grid_box("##world_view", k_auto_height);
-    if (gui.row_popup("View Options")) {
+    if (gui.row_popup("View Options", nullptr, 280.f)) {
         gui.popup_section_begin("##view_fov");
         gui.row_checkbox("Override FOV", &g_cfg->world_esp.m_enable_override_fov);
         gui.row_begin(); ImGui::SliderInt("Value", &g_cfg->world_esp.m_override_fov, 60, 130, "%d°");
@@ -818,7 +818,7 @@ void draw_visuals_world() {
         gui.row_checkbox("Disable Landing Bob", &g_cfg->world.m_remove_landing_bob);
         gui.popup_end();
     }
-    if (gui.row_popup("Scope Options")) {
+    if (gui.row_popup("Scope Options", nullptr, 280.f)) {
         gui.popup_section_begin("##scope_fov");
         gui.row_checkbox("Override FOV", &world.scope_fov_override);
         gui.row_begin(); ImGui::SliderInt("Scale (x1)", &world.scope_fov_x1, 20, 90, "%d°");
@@ -831,7 +831,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Viewmodel Options", "Configure viewmodel FOV, position, angles, and movement modifiers.", 260.f)) {
+    if (gui.row_popup("Viewmodel Options", "Configure viewmodel FOV, position, angles, and movement modifiers.", 300.f)) {
         gui.popup_section_begin("##viewmodel_fov");
         gui.row_checkbox("Override FOV", &world.viewmodel_fov_override);
         gui.row_begin(); ImGui::SliderInt("Value", &world.viewmodel_fov_value, 54, 120, "%d");
@@ -859,14 +859,18 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Perspective Options")) {
+    if (gui.row_popup("Perspective Options", nullptr, 280.f)) {
         gui.popup_section_begin("##perspective");
         gui.row_checkbox("Force Third Person", &g_cfg->world_esp.m_enable_thirdperson);
-        gui.row_begin(); ImGui::TextUnformatted("Disablers"); ImGui::SameLine();
-        gui.row_checkbox("Close to Wall", &world.thirdperson_close_to_wall);
         gui.row_begin(); ImGui::SliderInt("Distance", &g_cfg->world_esp.m_distance, 50, 300, "%d");
         gui.popup_section_end();
+        // The two disablers are plain rows of the same card. They used to hang off a stray
+        // "Disablers" caption glued to the same line, which pushed the checkbox label under it,
+        // and one of them was drawn outside the outlined block it belongs to.
+        gui.popup_section_begin("##perspective_disablers", false, 0.f);
+        gui.row_checkbox("Close to Wall", &world.thirdperson_close_to_wall);
         gui.row_checkbox("Disable Overhead", &world.thirdperson_disable_overhead);
+        gui.popup_section_end();
         gui.popup_end();
     }
     gui.row_begin(); ImGui::Combo("Unlock Spectating", &world.unlock_spectating_mode, unlock_modes, IM_ARRAYSIZE(unlock_modes));
@@ -874,7 +878,7 @@ void draw_visuals_world() {
     gui.end_group_box();
 
     gui.grid_box("WORLD ESP", k_auto_height);
-    if (gui.row_popup("Bomb")) {
+    if (gui.row_popup("Bomb", nullptr, 280.f)) {
         gui.popup_section_begin("##bomb");
         open_item_visuals(world.bomb, "##bomb_visuals", false);
         gui.row_checkbox("Enabled", &world.bomb.enabled, &bomb_color);
@@ -886,7 +890,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Weapons")) {
+    if (gui.row_popup("Weapons", nullptr, 280.f)) {
         gui.popup_section_begin("##weapons");
         open_item_visuals(world.weapon, "##weapons_visuals", false);
         gui.row_checkbox("Enabled", &world.weapon.enabled, &weapon_color);
@@ -894,7 +898,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Hostages")) {
+    if (gui.row_popup("Hostages", nullptr, 280.f)) {
         gui.popup_section_begin("##hostages");
         open_item_visuals(world.hostage, "##hostages_visuals", true);
         gui.row_checkbox("Enabled", &world.hostage.enabled, &hostage_color);
@@ -902,7 +906,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Grenades")) {
+    if (gui.row_popup("Grenades", nullptr, 280.f)) {
         gui.popup_section_begin("##grenades");
         gui.row_checkbox("Enabled", &world.grenade.enabled, &grenade_color);
         gui.row_checkbox("Smoke Radius", &world.grenade.smoke_radius, &smoke_radius_color);
@@ -916,7 +920,7 @@ void draw_visuals_world() {
         gui.popup_end();
     }
     gui.row_begin();
-    if (gui.row_options_begin("##trajectory_options", 250.f, c_gui::row_control::toggle)) {
+    if (gui.row_options_begin("##trajectory_options", 300.f, c_gui::row_control::toggle)) {
         gui.popup_section_begin("##trajectory_settings");
         gui.row_color("Color", &trajectory_color);
         gui.row_begin(); ImGui::SliderFloat("Exponent", &world.trajectory_exponent, 0.f, 2.f, "%.2f");
@@ -927,10 +931,12 @@ void draw_visuals_world() {
         gui.row_checkbox("Thrown Grenades", &world.trajectory_thrown_grenades);
         gui.row_checkbox("Pin Pulled Only", &world.trajectory_pin_pulled_only);
         gui.row_checkbox("Precise Trajectory", &world.trajectory_precise);
+        // The proximity warning belongs to the trajectory it is drawn from, not to a separate row
+        // at the bottom of the box.
+        gui.row_checkbox("Proximity Warnings", &world.grenade_proximity_warnings);
         gui.row_options_end();
     }
     gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory);
-    gui.row_checkbox("Grenade Proximity Warnings", &world.grenade_proximity_warnings);
     gui.end_group_box();
 
     gui.grid_col(1);
@@ -939,14 +945,14 @@ void draw_visuals_world() {
     gui.row_multibox("Radar", radar_items, world.radar_options.data(), IM_ARRAYSIZE(radar_items));
     gui.row_begin(); ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
     gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay, &inaccuracy_color);
-    if (gui.row_popup("Death Notices")) {
+    if (gui.row_popup("Death Notices", nullptr, 280.f)) {
         gui.popup_section_begin("##death_notices");
         gui.row_begin(); ImGui::Combo("Preserve Notices", &world.preserve_death_notices_mode, notice_modes, IM_ARRAYSIZE(notice_modes));
         gui.row_checkbox("Hide Teammate Assists", &world.hide_teammate_assists);
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Scoreboard")) {
+    if (gui.row_popup("Scoreboard", nullptr, 280.f)) {
         gui.popup_section_begin("##scoreboard_options");
         gui.row_begin(); ImGui::SliderFloat("Opacity", &world.scoreboard_opacity, 0.f, 1.f, "%.2f");
         gui.row_begin(); ImGui::SliderFloat("Width", &world.scoreboard_width, 0.f, 1.f, "%.2f");
@@ -959,7 +965,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Crosshairs")) {
+    if (gui.row_popup("Crosshairs", nullptr, 280.f)) {
         gui.popup_section_begin("##crosshairs");
         gui.row_checkbox("Force Sniper Crosshair", &world.force_sniper_crosshair);
         gui.row_checkbox("Force While Scoped", &world.force_crosshair_scoped);
@@ -973,10 +979,10 @@ void draw_visuals_world() {
     gui.end_group_box();
 
     gui.grid_box("MISCELLANEOUS", k_auto_height);
-    if (gui.row_popup("Windows", "Configure the overlay windows and their styling.", 250.f)) {
+    if (gui.row_popup("Windows", "Configure the overlay windows and their styling.", 300.f)) {
         gui.popup_section_begin("##window_toggles");
         gui.row_begin();
-        if (gui.row_options_begin("##watermark_options", 232.f, c_gui::row_control::toggle)) {
+        if (gui.row_options_begin("##watermark_options", 280.f, c_gui::row_control::toggle)) {
             gui.popup_section_begin("##watermark_items");
             gui.row_multibox("Items", window_item_names, world.watermark_items.data(), IM_ARRAYSIZE(window_item_names));
             gui.row_begin(); ImGui::Combo("Position", &world.watermark_position, window_positions, IM_ARRAYSIZE(window_positions));
@@ -988,7 +994,7 @@ void draw_visuals_world() {
         }
         gui.row_checkbox("Watermark", &g_cfg->misc.m_watermark);
         gui.row_begin();
-        if (gui.row_options_begin("##hotkeys_options", 232.f, c_gui::row_control::toggle)) {
+        if (gui.row_options_begin("##hotkeys_options", 280.f, c_gui::row_control::toggle)) {
             gui.popup_section_begin("##hotkeys_settings");
             gui.row_begin(); ImGui::Combo("Style", &world.hotkeys_style, hotkey_style_modes, IM_ARRAYSIZE(hotkey_style_modes));
             gui.row_checkbox("Right-Aligned", &world.hotkeys_right_aligned);
@@ -1011,7 +1017,7 @@ void draw_visuals_world() {
         gui.row_checkbox("Jump Bug", &world.windows_jump_bug);
         gui.popup_end();
     }
-    if (gui.row_popup("Removals", "Toggle individual client-side render and HUD removals.", 240.f)) {
+    if (gui.row_popup("Removals", "Toggle individual client-side render and HUD removals.", 300.f)) {
         gui.popup_section_begin("##removal_hud");
         static const char* hud_removal_labels[] = { "Team Intro", "HUD Panorama Dots", "HUD Bottom Gradient", "HUD Damage Indicator", "HUD Server Advertisements" };
         for (int i = 0; i < 5; ++i) gui.row_checkbox(hud_removal_labels[i], &world.removals[i]);
@@ -1025,7 +1031,7 @@ void draw_visuals_world() {
         gui.row_begin(); ImGui::SliderFloat("Friction", &world.ragdoll_friction, 0.f, 1.f, "%.2f");
         gui.popup_end();
     }
-    if (gui.row_popup("Hit Marker")) {
+    if (gui.row_popup("Hit Marker", nullptr, 280.f)) {
         gui.popup_section_begin("##hitmarker_2d");
         gui.row_checkbox("2D Marker", &world.hitmarker_2d, &hit2d_color);
         gui.row_begin(); ImGui::SliderFloat("Duration", &world.hitmarker_2d_duration, 0.05f, 2.f, "%.2fs");
@@ -1040,7 +1046,7 @@ void draw_visuals_world() {
         gui.popup_section_end();
         gui.popup_end();
     }
-    if (gui.row_popup("Bullet Tracers")) {
+    if (gui.row_popup("Bullet Tracers", nullptr, 280.f)) {
         gui.popup_section_begin("##tracer_enemy");
         gui.row_checkbox("Enemies", &world.tracer_enemies, &tracer_enemy_color);
         gui.row_begin(); ImGui::SliderFloat("Duration", &world.tracer_enemy_duration, 0.05f, 2.f, "%.2fs");
@@ -1056,7 +1062,7 @@ void draw_visuals_world() {
         gui.row_checkbox("Use Shared Settings", &world.tracer_use_shared_settings);
         gui.popup_end();
     }
-    if (gui.row_popup("Bullet Impacts")) {
+    if (gui.row_popup("Bullet Impacts", nullptr, 280.f)) {
         gui.popup_section_begin("##bullet_impacts");
         gui.row_checkbox("Bullet Impacts", &world.bullet_impacts, &impact_color);
         gui.row_checkbox("Impact Sparks", &world.impact_sparks, &spark_color);

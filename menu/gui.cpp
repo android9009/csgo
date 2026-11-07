@@ -979,12 +979,26 @@ bool c_gui::begin_popup_card_at(const char* popup_name, bool& wants_open, float 
         const ImVec2 known(width * m_scale, height > 0.f ? height * m_scale :
             ((it != m_popup_animations.end()) ? it->second.size.y : 0.f));
         const float margin = 10.f * m_scale;
-        ImVec2 top_left = anchor - known * pivot;
+        const float gap = 6.f * m_scale;
+        // Pick the side before placing the card. Clamping alone used to push a card that did not
+        // fit on the right back over the row that opened it, which read as one menu nested inside
+        // another (and hid the card's outline behind the surface underneath). Flip instead.
+        ImVec2 eff_pivot = pivot;
+        const float room_right = display.x - margin - (anchor.x + gap);
+        const float room_left = (anchor.x - gap) - margin;
+        if (eff_pivot.x < 0.5f)
+            eff_pivot.x = (known.x > room_right && room_left > room_right) ? 1.f : 0.f;
+        else
+            eff_pivot.x = (known.x > room_left && room_right > room_left) ? 0.f : 1.f;
+        // Callers already leave their own gap on the side they ask for (the gear anchor is the
+        // gear's right edge + 6px); only the flipped side needs one added here.
+        const ImVec2 origin(anchor.x + (eff_pivot.x > 0.5f ? -gap : 0.f), anchor.y);
+        ImVec2 top_left = origin - known * eff_pivot;
         top_left.x = ImClamp(top_left.x, margin, ImMax(margin, display.x - known.x - margin));
         top_left.y = ImClamp(top_left.y, margin, ImMax(margin, display.y - known.y - margin));
         const float slide = (1.f - ImSaturate(anim)) * 8.f * m_scale;
-        ImGui::SetNextWindowPos(top_left + known * pivot + m_popup_animations[id].drag + ImVec2(0.f, slide),
-                                ImGuiCond_Always, pivot);
+        ImGui::SetNextWindowPos(top_left + known * eff_pivot + m_popup_animations[id].drag + ImVec2(0.f, slide),
+                                ImGuiCond_Always, eff_pivot);
     }
 
     return begin_popup_card_body(popup_name, id, anim, width, padding, height);
@@ -1090,14 +1104,20 @@ void c_gui::popup_position( const char* name, ImVec2 click_pos, ImVec2 default_s
     ImGui::SetNextWindowPos( current, ImGuiCond_Always );
 }
 
-bool c_gui::popup_begin( const char* name, bool clicked, float width, bool titled, bool beside ) {
+bool c_gui::popup_begin( const char* name, bool clicked, float width, bool titled, bool beside, ImVec2 anchor ) {
     const std::string popup_name = std::string( name ) + "Popup"; // sub_menu() looks for this exact id
-    const ImVec2 click_pos = popup_click_pos( popup_name.c_str( ), clicked );
+    const bool has_anchor = anchor.x > -FLT_MAX;
+    const ImVec2 click_pos = popup_click_pos( popup_name.c_str( ), clicked, anchor );
 
     bool wants_open = false;
     const float anim = popup_animation( popup_name.c_str( ), clicked, wants_open );
 
-    if ( !begin_popup_card( popup_name.c_str( ), wants_open, anim, click_pos, width, beside ) )
+    // An explicit anchor takes the gear card's path: flush against the row, flipped to the other
+    // side when the card does not fit, and never clamped back over the row that opened it.
+    const bool opened = has_anchor
+        ? begin_popup_card_at( popup_name.c_str( ), wants_open, anim, click_pos, ImVec2( 0.f, 0.5f ), width )
+        : begin_popup_card( popup_name.c_str( ), wants_open, anim, click_pos, width, beside );
+    if ( !opened )
         return false;
 
     if ( titled ) {
@@ -1115,8 +1135,16 @@ void c_gui::popup_end( ) {
 }
 
 bool c_gui::row_popup( const char* label, const char* description, float width ) {
-    const bool clicked = row_sub_menu( label, description );
-    return popup_begin( label, clicked, width, true, true );
+    row_begin();
+    const bool clicked = sub_menu( label );
+    // Capture the row's own rect before the tooltip touches LastItemData: the card has to open
+    // against the chevron that triggered it (6px gap, same as a gear card) instead of 45px to the
+    // right of the click point, which detached sub-menus from their rows.
+    const ImRect row = GImGui->LastItemData.Rect;
+    info_tooltip( label, description );
+
+    const ImVec2 anchor( row.Max.x + 6.f * m_scale, row.GetCenter( ).y );
+    return popup_begin( label, clicked, width, true, true, anchor );
 }
 
 
@@ -2233,32 +2261,44 @@ void c_gui::config_popup( const char* popup_name, bool clicked, std::vector<conf
 }
 
 void c_gui::popup_section_begin( const char* id, bool draw_border, float pad ) {
-    m_popup_section_pos = ImGui::GetCursorScreenPos();
-    m_popup_section_border = draw_border;
-    m_popup_section_pad = draw_border ? pad * m_scale : 0.f;
+    popup_section_scope scope;
+    scope.pos = ImGui::GetCursorScreenPos();
+    // Full width of the section, captured before the inner margins are reserved, so the outline
+    // can span the whole card and the controls keep the same inset on both sides.
+    scope.width = ImGui::GetContentRegionAvail( ).x;
+    scope.border = draw_border;
+    scope.pad = draw_border ? pad * m_scale : 0.f;
+    m_popup_sections.push_back( scope );
+
     const float horizontal_pad = 14.f * m_scale;
 
-    float w = ImGui::GetContentRegionAvail().x;
+    float w = ImGui::GetContentRegionAvail( ).x;
     ImGui::PushItemWidth( ImMax(1.f, w - horizontal_pad * 2.f) );
-    ImGui::SetCursorScreenPos( m_popup_section_pos + ImVec2( horizontal_pad, m_popup_section_pad ) );
+    ImGui::SetCursorScreenPos( scope.pos + ImVec2( horizontal_pad, scope.pad ) );
     ImGui::PushID( id );
     ImGui::BeginGroup();
 }
 
 void c_gui::popup_section_end() {
+    // Defensive: a mismatched end() must not eat an outer section's state (or crash on an empty
+    // stack) - the popup it belongs to is simply laid out without its own outline.
+    if ( m_popup_sections.empty( ) )
+        return;
+    const popup_section_scope scope = m_popup_sections.back( );
+    m_popup_sections.pop_back( );
+
     ImGui::EndGroup();
     ImVec2 content_size = ImGui::GetItemRectSize();
     ImGui::PopID();
     ImGui::PopItemWidth();
 
-    float w = ImGui::GetContentRegionAvail().x;
-    float total_h = content_size.y + m_popup_section_pad * 2.f;
+    float total_h = content_size.y + scope.pad * 2.f;
 
-    if ( m_popup_section_border )
-        ImGui::GetWindowDrawList()->AddRect( m_popup_section_pos, m_popup_section_pos + ImVec2( w, total_h ), gui.popup_border.to_im_color(), 12.f * m_scale, 0, 1.f * m_scale );
+    if ( scope.border )
+        ImGui::GetWindowDrawList()->AddRect( scope.pos, scope.pos + ImVec2( scope.width, total_h ), gui.popup_border.to_im_color(), 12.f * m_scale, 0, 1.f * m_scale );
 
     // advance past this section, plus a gap, ready for the next section or widget
-    ImGui::SetCursorScreenPos( m_popup_section_pos + ImVec2( 0, total_h + 8.f * m_scale ) );
+    ImGui::SetCursorScreenPos( scope.pos + ImVec2( 0, total_h + 8.f * m_scale ) );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -2482,6 +2522,7 @@ namespace {
         { "Grenades",          "Гранаты",             "El Bombaları" },
         { "Grenade Trajectory", "Траектория гранат",  "Bomba Yörüngesi" },
         { "Grenade Proximity Warnings", "Предупреждения о гранатах", "Bomba Yakınlık Uyarısı" },
+        { "Proximity Warnings", "Предупреждения вблизи", "Yakınlık Uyarısı" },
         { "Windows",           "Окна",                "Pencereler" },
         { "Removals",          "Удаления",            "Kaldırmalar" },
         { "Ambience",          "Атмосфера",           "Atmosfer" },

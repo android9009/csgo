@@ -290,6 +290,9 @@ void c_menu::draw_initialization_overlay() {
 }
 
 void c_menu::draw() {
+    // A popup section is opened and closed inside one frame; start every frame with an empty
+    // stack so a mismatched pair from a hidden page cannot shift the sections drawn here.
+    gui.reset_popup_sections();
     menu_binds::update();
     render();
     menu_binds::draw_overlay(m_opened);

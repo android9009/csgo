@@ -350,7 +350,11 @@ public:
     //   if ( gui.popup_begin( "Pitch", clicked ) ) { ...content...  gui.popup_end(); }
     //
     // `beside` opens the card next to the click (outside the menu) instead of over it.
-    bool popup_begin( const char* name, bool clicked, float width = 216.f, bool titled = true, bool beside = true );
+    // `anchor` (screen space, e.g. the right edge of the row that opened the card) pins the card
+    // to that point with the same 6px gap and edge-flipping the gear cards use, instead of to the
+    // cursor - so a sub-menu card always sits flush against its own row.
+    bool popup_begin( const char* name, bool clicked, float width = 216.f, bool titled = true, bool beside = true,
+                      ImVec2 anchor = ImVec2( -FLT_MAX, -FLT_MAX ) );
     void popup_end();
 
     // A gear button in the slot left of the row's control, opening a card beside the row - for the
@@ -409,6 +413,9 @@ public:
     // (e.g. a lone slider sitting below a bordered group, matching this menu's reference design).
     void popup_section_begin( const char* id, bool draw_border = true, float pad = 14.f );
     void popup_section_end();
+    // Section scopes never outlive the frame that opened them; called once at the top of a frame so
+    // an unmatched begin() cannot shift every following section by one.
+    void reset_popup_sections() { m_popup_sections.clear(); }
 
     // --- Auto-layout grid ---
     // Splits the current content region into `columns` equal-width columns (ItemSpacing.x gap
@@ -475,10 +482,17 @@ private:
     void    set_row_state_value(const char* name, int value);
     void    reset_row_state();
 
-    // popup_section_begin()/end() state for the currently open section
-    ImVec2 m_popup_section_pos{};
-    float  m_popup_section_pad = 0.f;
-    bool   m_popup_section_border = true;
+    // popup_section_begin()/end() state. A stack, not a single slot: a gear card opened from a row
+    // inside a section starts its own section in a nested popup window, and that used to overwrite
+    // the outer section's origin - the outer outline then landed on top of the inner card (or
+    // disappeared) and the rows that followed it overlapped.
+    struct popup_section_scope {
+        ImVec2 pos{};
+        float  width = 0.f;
+        float  pad = 0.f;
+        bool   border = true;
+    };
+    std::vector<popup_section_scope> m_popup_sections;
 
     // config_popup() state
     int   m_config_sort = 0;        // 0 newest, 1 recently modified, 2 alphabetical
