@@ -125,6 +125,7 @@ void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
     const float yaw = frame.view_angles.y * radians;
     const float cosine = std::cos(yaw), sine = std::sin(yaw);
     const auto& radar = player_visuals::world_settings().radar_options;
+    const int radar_mode = std::clamp(player_visuals::world_settings().radar_mode, 0, 2);
     for (const auto& player : frame.players) {
         if ((player.side == 0 && !radar[0]) || (player.side != 0 && player.side != 1))
             continue;
@@ -136,7 +137,13 @@ void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
             std::clamp(center.y - forward * 0.11f, origin.y + 5.f, origin.y + size - 5.f));
         const ImU32 dot_color = player.side == 0 ? color(1.f, 0.32f, 0.27f, player.alpha)
             : color(0.30f, 0.68f, 1.f, player.alpha);
-        draw->AddCircleFilled(dot, player.dormant ? 2.f : 3.f, dot_color, 12);
+        // World > HUD > Radar > mode: 0 dots, 1 enlarged with outline, 2 dots + names.
+        const float radius = (player.dormant ? 2.f : 3.f) * (radar_mode == 1 ? 1.7f : 1.f);
+        draw->AddCircleFilled(dot, radius, dot_color, 12);
+        if (radar_mode == 1)
+            draw->AddCircle(dot, radius + 1.5f, dot_color, 12, 1.f);
+        if (radar_mode == 2)
+            draw_text(draw, ImVec2(dot.x, dot.y - 9.f), player.name, dot_color, 0.68f);
         if (radar[3]) {
             const ImVec2 direction(dot.x + std::cos(yaw) * 5.f, dot.y + std::sin(yaw) * 5.f);
             draw->AddLine(dot, direction, dot_color, 1.f);
