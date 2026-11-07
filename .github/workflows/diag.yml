@@ -1,0 +1,18 @@
+name: diag
+on:
+  push:
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: build
+        run: msbuild airflow.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal "/flp:LogFile=build.log;Verbosity=normal"
+      - name: errors
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path build.log) {
+            Get-Content build.log | Select-String ": error " | Select-Object -First 6 | ForEach-Object { Write-Host ("::error::" + $_.Line.Trim()) }
+          }
