@@ -1144,17 +1144,29 @@ bool c_gui::popup_begin( const char* name, bool clicked, float width, bool title
     if ( !opened )
         return false;
 
+    // Sub-menu cards are laid out exactly like the gear cards: rows stack with one fixed gap, no
+    // separators are drawn between them, and sliders keep the full menu form instead of the
+    // compact popup strip. All three are undone in popup_end().
+    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 10.f * m_scale ) );
+    set_row_state_value( k_row_no_separator_state, row_state_value( k_row_no_separator_state ) + 1 );
+    set_row_state_value( k_row_options_state, row_state_value( k_row_options_state ) + 1 );
+
     if ( titled ) {
         ImFontAtlas* fonts = ImGui::GetIO( ).Fonts;
         ImGui::PushFont( fonts->Fonts.Size > 4 ? fonts->Fonts[ 4 ] : ImGui::GetFont( ) );
         ImGui::TextColored( text.to_vec4( 1.f, false ), "%s", tr( name ) );
         ImGui::PopFont( );
-        ImGui::Dummy( ImVec2( 0.f, 6.f * m_scale ) );
+        // The card now carries a 10px row gap, so the title only needs a couple of extra pixels.
+        ImGui::Dummy( ImVec2( 0.f, 2.f * m_scale ) );
     }
     return true;
 }
 
 void c_gui::popup_end( ) {
+    set_row_state_value( k_row_no_separator_state,
+        ImMax( 0, row_state_value( k_row_no_separator_state ) - 1 ) );
+    set_row_state_value( k_row_options_state, ImMax( 0, row_state_value( k_row_options_state ) - 1 ) );
+    ImGui::PopStyleVar( ); // the ItemSpacing pushed in popup_begin()
     end_popup_card( );
 }
 
