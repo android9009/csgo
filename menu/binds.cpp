@@ -1849,9 +1849,9 @@ std::vector<overlay_bind> overlay_entries() {
     std::vector<overlay_bind> result;
     for (auto& [id, target] : g_targets) {
         for (auto& entry : target.entries) {
-            if (!entry.show_in_overlay)
-                continue;
-            if (!entry.active && !entry.toggled)
+            // Every assigned key is listed: the panel is a reference of what is bound, the
+            // `active` flag is only used to highlight the ones that are on right now.
+            if (!entry.show_in_overlay || entry.key <= 0)
                 continue;
             result.push_back({ target.label, std::to_string(entry.key), entry.active,
                 entry.int_value });

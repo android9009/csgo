@@ -48,4 +48,9 @@ void render_hotkeys(ImDrawList* draw, const ImVec2& display);
 void render_held_trajectory(ImDrawList* draw, const visuals_source::frame_data& frame,
                             const ImVec2& display);
 
+// World > Grenades > Proximity Warnings: Fatality's per-projectile marker on the
+// predicted detonation spot (damage colour, fuse arc, distance, edge triangle).
+void render_grenade_warning(ImDrawList* draw, const visuals_source::frame_data& frame,
+                            const ImVec2& display);
+
 } // namespace world_visuals

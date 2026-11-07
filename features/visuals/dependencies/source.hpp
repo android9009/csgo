@@ -209,6 +209,10 @@ bool install_viewmodel_hook();
 
 // World > Windows > Spectators: entity indices currently spectating the local player.
 std::vector<int> local_spectators();
+
+// Tick timing, for the grenade prediction: Fatality steps its physics once per tick.
+float tick_interval();
+float current_time();
 void set_flash_removed(bool enabled);
 bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();

@@ -90,14 +90,12 @@ void render_esp(ImDrawList* draw, const visuals_source::frame_data& frame,
     const auto& settings = player_visuals::world_settings();
     if (settings.grenade_trajectory)
         render_held_trajectory(draw, frame, display);
-    float nearest_grenade = 301.f;
     for (const auto& entity : frame.world) {
         if (entity.kind == visuals_source::world_projectile) {
-            if (settings.grenade_trajectory && settings.trajectory_thrown_grenades &&
-                (std::fabs(entity.velocity.x) + std::fabs(entity.velocity.y) + std::fabs(entity.velocity.z) > 1.f))
+            // Fatality draws a live grenade's remaining path from its own velocity, which the
+            // prediction does in world_trajectory.cpp now.
+            if (settings.grenade_trajectory || settings.grenade_proximity_warnings)
                 render_trajectory(draw, entity, frame, display);
-            if (settings.grenade_proximity_warnings && entity.distance < nearest_grenade)
-                nearest_grenade = entity.distance;
         }
         if (entity.kind == visuals_source::world_smoke) {
             if (settings.grenade.smoke_radius)
@@ -195,12 +193,7 @@ void render_esp(ImDrawList* draw, const visuals_source::frame_data& frame,
             }
         }
     }
-    if (settings.grenade_proximity_warnings && nearest_grenade < 300.f) {
-        char warning[48];
-        std::snprintf(warning, sizeof(warning), "GRENADE NEARBY  %d u", static_cast<int>(nearest_grenade));
-        draw_text(draw, ImVec2(display.x * 0.5f, 64.f), warning,
-            color(1.f, 0.42f, 0.30f, 0.95f), 1.f);
-    }
+    render_grenade_warning(draw, frame, display);
 }
 
 } // namespace world_visuals

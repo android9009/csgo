@@ -1059,7 +1059,10 @@ void draw_visuals_world() {
             gui.popup_section_end();
             gui.row_options_end();
         }
-        gui.row_checkbox("Watermark", &g_cfg->misc.m_watermark);
+        // These read/write the same struct world_windows.cpp renders from (and the config
+        // saves); the old misc.m_watermark flags were dead, which is why the watermark was
+        // always on and the other three windows never appeared.
+        gui.row_checkbox("Watermark", &world.window_watermark);
         gui.row_begin();
         if (gui.row_options_begin("##hotkeys_options", 280.f, c_gui::row_control::toggle)) {
             gui.popup_section_begin("##hotkeys_settings");
@@ -1069,8 +1072,8 @@ void draw_visuals_world() {
             gui.popup_section_end();
             gui.row_options_end();
         }
-        gui.row_checkbox("Hotkeys", &g_cfg->misc.m_keybinds_list);
-        gui.row_checkbox("Spectators", &g_cfg->misc.m_spectator_list);
+        gui.row_checkbox("Hotkeys", &world.window_hotkeys);
+        gui.row_checkbox("Spectators", &world.window_spectators);
         gui.row_begin();
         if (gui.row_options_begin("##event_log_options", 280.f, c_gui::row_control::toggle)) {
             gui.popup_section_begin("##event_log_settings");

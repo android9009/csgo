@@ -1,5 +1,6 @@
 #include "world.hpp"
 #include "world_crosshair.hpp"
+#include "world_trace.hpp"
 
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../settings.hpp"
@@ -746,6 +747,37 @@ void run_thirdperson() {
         offset.z *= trace_fraction(eye, target, mins, maxs);
     }
     *camera_offset = offset;
+}
+
+// Fatality's util_trace_hull: the camera trace above, but with the caller's hull and
+// contents mask so the grenade prediction can sweep a 2x2x2 box through the world.
+bool trace_swept(const visuals_source::vector3& from, const visuals_source::vector3& to,
+                 const visuals_source::vector3& mins, const visuals_source::vector3& maxs,
+                 unsigned int mask, swept_trace& out) {
+    void* trace_interface = engine_trace_interface();
+    if (!trace_interface)
+        return false;
+    using trace_ray_t = void(__thiscall*)(void*, const ray_t&, unsigned int, void*, game_trace_t*);
+    const auto trace_ray = reinterpret_cast<trace_ray_t>(vfunc(trace_interface, 5));
+    if (!trace_ray)
+        return false;
+    thirdperson_trace_filter filter;
+    game_trace_t result{};
+    const ray_t ray(vector3{ from.x, from.y, from.z }, vector3{ to.x, to.y, to.z },
+        vector3{ mins.x, mins.y, mins.z }, vector3{ maxs.x, maxs.y, maxs.z });
+    trace_ray(trace_interface, ray, mask, &filter, &result);
+    if (!std::isfinite(result.fraction))
+        return false;
+    out.fraction = std::clamp(result.fraction, 0.f, 1.f);
+    out.hit = result.fraction < 1.f;
+    out.start_solid = result.start_solid;
+    out.end = { result.end.x, result.end.y, result.end.z };
+    out.normal = { result.plane.normal.x, result.plane.normal.y, result.plane.normal.z };
+    return true;
+}
+
+float world_convar(const char* name, float fallback) {
+    return convar_value(name, fallback);
 }
 
 // Fatality's autowall crosshair decides its colour from penetration::can_wallbang();

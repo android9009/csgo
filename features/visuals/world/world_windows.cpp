@@ -190,7 +190,10 @@ void render_hotkeys(ImDrawList* draw, const ImVec2& display) {
             text = bind.label + "  " + bind.key;
         const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(12.f * scale, FLT_MAX, 0.f, text.c_str());
         const float x = page.hotkeys_right_aligned ? (display.x - 14.f - size.x) : 14.f;
-        draw_text(draw, ImVec2(x, y), text, color(page.windows_color), scale, 1);
+        // Bound keys are listed whether or not they are down; the ones that are on right now
+        // highlight in the accent green the rest of the windows use.
+        const c_color ink = bind.active ? c_color{ 0.62f, 0.79f, 0.17f, 1.f } : page.windows_color;
+        draw_text(draw, ImVec2(x, y), text, color(ink), scale, 1);
         y += line;
     }
 }

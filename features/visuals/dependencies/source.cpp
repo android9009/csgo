@@ -1678,6 +1678,15 @@ std::vector<int> local_spectators() {
     return result;
 }
 
+float tick_interval() {
+    const float interval = global_vars ? global_vars->interval_per_tick : 0.f;
+    return interval > 0.0001f && interval < 0.1f ? interval : (1.f / 64.f);
+}
+
+float current_time() {
+    return global_vars ? global_vars->current_time : 0.f;
+}
+
 void set_flash_removed(bool enabled) {
     static void* tracked_entity = nullptr;
     static float original_alpha = 255.f;

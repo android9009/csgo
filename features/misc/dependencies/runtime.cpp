@@ -1060,12 +1060,22 @@ public:
                 player_esp::record_hit_marker(get_int(event, "dmg_health", 0),
                     impact.x, impact.y, impact.z);
                 const int damage = get_int(event, "dmg_health", 0);
-                if (damage > 0)
-                    player_visuals::event_log().resolve_latest_trigger_shot(damage,
-                        get_int(event, "health", 0) <= 0);
-                else
+                if (damage > 0) {
+                    const bool killed = get_int(event, "health", 0) <= 0;
+                    player_visuals::event_log().resolve_latest_trigger_shot(damage, killed);
+                    // World > Windows > Event logs: every hit you land lands here, not just the
+                    // ones a trigger shot was waiting on, so the feed is not empty in normal play.
+                    char log_text[256];
+                    std::snprintf(log_text, sizeof(log_text), "hit %s in the %s for %d",
+                        player_name(victim).c_str(), hitgroup_name(get_int(event, "hitgroup", 0)),
+                        damage);
+                    player_visuals::event_log().push(log_text,
+                        killed ? player_visuals::event_category::kill
+                               : player_visuals::event_category::hit);
+                } else {
                     player_visuals::event_log().push("shot evaded",
                         player_visuals::event_category::evaded);
+                }
             }
             if (state.hit_sound)
                 client_command("play buttons/arena_switch_press_02.wav");
