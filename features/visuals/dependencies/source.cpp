@@ -1,6 +1,5 @@
 #include "source.hpp"
 #include "../settings.hpp"
-#include "../world/world_render.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
 
 #include <Windows.h>
@@ -1216,6 +1215,13 @@ bool acquire() {
 namespace visuals_source {
 void capture_now(frame_data& output, float alpha_blend);
 void __fastcall hooked_frame_stage(void* self, void*, int stage);
+
+// Declared here instead of pulling world_render.hpp in: that header sets
+// IMGUI_DEFINE_MATH_OPERATORS after imgui.h is already included by the config
+// headers of this translation unit, and imgui_internal.h rejects that order.
+namespace world_visuals {
+void run_thirdperson();
+}
 bool install_frame_stage_hook();
 
 bool initialize() {
