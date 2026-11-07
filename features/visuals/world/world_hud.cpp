@@ -74,7 +74,7 @@ void render_event_logs(ImDrawList* draw, const ImVec2& display) {
 void render_scope_overlay(ImDrawList* draw, const ImVec2& display) {
     const auto& page = player_visuals::world_settings();
     const int mode = std::clamp(page.scope_overlay_mode, 0, 2);
-    if (mode != 2)
+    if (mode == 0)
         return;
     visuals_source::local_view_state state{};
     if (!visuals_source::get_local_view_state(state) || !state.scoped || !state.alive)
@@ -82,6 +82,16 @@ void render_scope_overlay(ImDrawList* draw, const ImVec2& display) {
     const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
     const ImU32 main_color = color(page.scope_color_main);
     const ImU32 edge_color = color(page.scope_color_edge);
+    if (mode == 1) {
+        // Lines: the engine's scope body stays hidden and only its crosshair lines
+        // are drawn - one hairline up, down, left and right of the centre gap.
+        constexpr float gap = 4.f;
+        draw->AddLine(ImVec2(center.x + gap, center.y), ImVec2(display.x, center.y), main_color, 1.f);
+        draw->AddLine(ImVec2(0.f, center.y), ImVec2(center.x - gap, center.y), main_color, 1.f);
+        draw->AddLine(ImVec2(center.x, center.y + gap), ImVec2(center.x, display.y), main_color, 1.f);
+        draw->AddLine(ImVec2(center.x, 0.f), ImVec2(center.x, center.y - gap), main_color, 1.f);
+        return;
+    }
     // Custom scope: the Lua scales both sliders by screen height / 1080.
     const float scale = display.y / 1080.f;
     const float offset = std::clamp(page.scope_offset, 0.f, 500.f) * scale;
@@ -140,35 +150,71 @@ void render_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
     visuals_source::local_view_state view_state{};
     const bool view_state_valid = visuals_source::get_local_view_state(view_state);
     const bool scoped = view_state_valid && view_state.scoped;
-    const bool penetration_cross = page.penetration_crosshair;
-    const bool draw_crosshair = penetration_cross ||
+    const bool draw_crosshair =
         (page.force_crosshair_scoped && scoped) ||
         (page.force_sniper_crosshair && view_state_valid && view_state.holding_sniper && !scoped) ||
         (page.force_crosshair_c4 && view_state_valid && view_state.holding_c4);
     if (draw_crosshair) {
+        // These options force the crosshair the player has configured in game, so
+        // its size, gap, thickness and colour come from the cl_crosshair* convars
+        // instead of a shape of our own.
+        const auto style = world_visuals::player_crosshair();
+        const float unit = display.y / 1080.f;
+        const float thickness = std::max(0.5f, style.thickness) * unit;
+        const float size = std::max(1.f, style.size) * unit;
+        const float gap = std::max(0.f, size + style.gap * unit);
         const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
-        const ImU32 shadow = color(0.f, 0.f, 0.f, 0.9f);
-        const ImU32 cross = color(penetration_cross ? page.penetration_color : c_color{ 1.f, 1.f, 1.f, 0.95f });
-        draw->AddLine(ImVec2(center.x - 6.f, center.y), ImVec2(center.x - 2.f, center.y), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x + 2.f, center.y), ImVec2(center.x + 6.f, center.y), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x, center.y - 6.f), ImVec2(center.x, center.y - 2.f), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x, center.y + 2.f), ImVec2(center.x, center.y + 6.f), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x - 6.f, center.y), ImVec2(center.x - 2.f, center.y), cross, 1.f);
-        draw->AddLine(ImVec2(center.x + 2.f, center.y), ImVec2(center.x + 6.f, center.y), cross, 1.f);
-        draw->AddLine(ImVec2(center.x, center.y - 6.f), ImVec2(center.x, center.y - 2.f), cross, 1.f);
-        draw->AddLine(ImVec2(center.x, center.y + 2.f), ImVec2(center.x, center.y + 6.f), cross, 1.f);
+        const ImU32 cross = color(style.r, style.g, style.b, 1.f);
+        const ImU32 outline = color(0.f, 0.f, 0.f, 0.9f);
+        const ImVec2 arms[4][2] = {
+            { ImVec2(center.x - gap - size, center.y), ImVec2(center.x - gap, center.y) },
+            { ImVec2(center.x + gap, center.y), ImVec2(center.x + gap + size, center.y) },
+            { ImVec2(center.x, center.y - gap - size), ImVec2(center.x, center.y - gap) },
+            { ImVec2(center.x, center.y + gap), ImVec2(center.x, center.y + gap + size) },
+        };
+        for (const auto& arm : arms) {
+            draw->AddLine(arm[0], arm[1], outline, thickness + 2.f * unit);
+            draw->AddLine(arm[0], arm[1], cross, thickness);
+        }
+        if (style.dot) {
+            const float dot = std::max(1.f, thickness);
+            draw->AddRectFilled(ImVec2(center.x - dot, center.y - dot),
+                ImVec2(center.x + dot, center.y + dot), cross);
+        }
+    }
+    // Penetration crosshair, exactly like Fatality: a 3x3 square on the screen
+    // centre whose colour says whether the wall ahead can be shot through.
+    if (page.penetration_crosshair && frame.in_game && view_state_valid && view_state.alive) {
+        const auto& colors = player_visuals::world_settings();
+        const ImU32 dot = color(world_visuals::wallbang_possible() ? colors.penetration_color
+                                                                   : colors.penetration_color_blocked);
+        const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
+        draw->AddRectFilled(ImVec2(center.x - 1.f, center.y - 1.f), ImVec2(center.x + 2.f, center.y + 2.f), dot);
     }
 
     if (world.m_inaccuracy_overlay && frame.in_game) {
         visuals_source::local_view_state view_state{};
         if (visuals_source::get_local_view_state(view_state, true) && view_state.alive) {
-            const float spread = std::clamp(view_state.inaccuracy + view_state.spread, 0.f, 0.15f);
-            const float radius = std::clamp(spread * display.y * 2.6f, 2.f, 140.f);
+            // Fatality's spread circle: a filled disc, radius = cone * screen height
+            // * 0.7 (never below 0.4 % of the cone), with the inner colour in the
+            // middle fading to the outer colour at the rim.
+            float cone = std::clamp(view_state.inaccuracy + view_state.spread, 0.f, 0.15f);
+            if (cone < 0.004f)
+                cone = 0.004f;
+            const float radius = std::clamp(cone * display.y * 0.7f, 1.f, display.y * 0.6f);
             const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
-            auto spread_color = player_visuals::world_settings().inaccuracy_color;
-            spread_color.a *= 0.82f;
-            draw->AddCircle(center, radius, color(spread_color), 48, 1.25f);
-            draw->AddCircle(center, radius + 1.f, color(0.f, 0.f, 0.f, 0.55f), 48, 1.f);
+            const auto& colors = player_visuals::world_settings();
+            constexpr int steps = 20;
+            for (int step = steps; step >= 1; --step) {
+                const float t = static_cast<float>(step) / static_cast<float>(steps);
+                const float inner = 1.f - t;
+                auto mixed = colors.inaccuracy_color;
+                mixed.r = colors.inaccuracy_color.r * inner + colors.inaccuracy_color_secondary.r * t;
+                mixed.g = colors.inaccuracy_color.g * inner + colors.inaccuracy_color_secondary.g * t;
+                mixed.b = colors.inaccuracy_color.b * inner + colors.inaccuracy_color_secondary.b * t;
+                mixed.a = colors.inaccuracy_color.a * inner + colors.inaccuracy_color_secondary.a * t;
+                draw->AddCircleFilled(center, radius * t, color(mixed), 48);
+            }
         }
     }
 

@@ -1502,8 +1502,10 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, v
         const bool state_valid = get_local_view_state(state);
         vector3 forward{}, right{}, up{};
         angle_vectors(eye_angles, forward, right, up);
-        const float offset_x = std::clamp(g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f);
-        const float offset_y = std::clamp(g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f);
+        // The menu's X/Y are inverted on purpose: positive X moves the viewmodel to
+        // the left of the screen, positive Y pushes it away from the camera.
+        const float offset_x = -std::clamp(g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f);
+        const float offset_y = -std::clamp(g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f);
         const float offset_z = std::clamp(g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f);
         if (page.viewmodel_position_override &&
             (std::fabs(offset_x) > 0.001f || std::fabs(offset_y) > 0.001f ||
@@ -1514,8 +1516,9 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, v
             eye_pos.z += right.z * offset_x + forward.z * offset_y + up.z * offset_z;
         }
         if (page.viewmodel_angles_override && writable_range(&eye_angles, sizeof(vector3))) {
-            eye_angles.x += std::clamp(page.viewmodel_pitch, -89.f, 89.f);
-            eye_angles.y += std::clamp(page.viewmodel_yaw, -180.f, 180.f);
+            // Pitch and yaw are inverted like the position axes; roll stays direct.
+            eye_angles.x -= std::clamp(page.viewmodel_pitch, -89.f, 89.f);
+            eye_angles.y -= std::clamp(page.viewmodel_yaw, -180.f, 180.f);
             eye_angles.z = std::clamp(page.viewmodel_roll, -180.f, 180.f);
         }
         // World > Visual Recoil: Enabled keeps the engine's kick (see the

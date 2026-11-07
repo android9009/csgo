@@ -259,8 +259,10 @@ struct world_esp_settings {
     bool aspect_ratio_override = false;
     int aspect_scaling = 0;
     bool scope_fov_override = false;
-    int scope_fov_x1 = 40;
-    int scope_fov_x2 = 10;
+    // Percent of the weapon's own scope zoom: 100 % = the game's FOV (40 for x1,
+    // 15 for x2), 0 % = no zoom at all.
+    int scope_fov_x1 = 100;
+    int scope_fov_x2 = 100;
     bool instant_scope = false;
     bool scope_force_viewmodel_fov = false;
     bool viewmodel_fov_override = false;
@@ -292,7 +294,9 @@ struct world_esp_settings {
     float scope_thickness = 1.f;
     c_color scope_color_main{ 1.f, 1.f, 1.f, 1.f };
     c_color scope_color_edge{ 1.f, 1.f, 1.f, 0.f };
+    // Fatality's spread circle is a filled two-tone disc: inner colour + outer colour.
     c_color inaccuracy_color{ 0.92f, 0.92f, 0.92f, 1.f };
+    c_color inaccuracy_color_secondary{ 0.92f, 0.92f, 0.92f, 0.f };
     bool preserve_death_notices = false;
     bool hide_teammate_assists = false;
     float scoreboard_opacity = 0.9f;
@@ -306,7 +310,9 @@ struct world_esp_settings {
     bool hide_crosshair_knife = false;
     bool hide_crosshair_grenade = false;
     bool penetration_crosshair = false;
-    c_color penetration_color{ 0.75f, 0.45f, 0.95f, 1.f };
+    // Penetration dot: one colour for "can shoot through", one for "blocked".
+    c_color penetration_color{ 0.51f, 0.71f, 0.f, 1.f };
+    c_color penetration_color_blocked{ 0.82f, 0.f, 0.f, 1.f };
     bool window_watermark = true;
     bool window_hotkeys = true;
     bool window_spectators = true;

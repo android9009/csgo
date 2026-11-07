@@ -14,8 +14,26 @@ namespace world_visuals {
 // HUD panel filter (removals). Called from the single PaintTraverse hook.
 bool should_skip_panel(const char* name);
 
-// Fatality-style thirdperson camera, driven from FrameStageNotify(FRAME_RENDER_END).
+// main's thirdperson camera, driven from the OverrideView hook.
 void run_thirdperson();
+
+// Penetration dot: true when a bullet fired straight ahead can pass the wall.
+bool wallbang_possible();
+
+// The crosshair the player uses in game (cl_crosshair* convars), drawn by the
+// force options instead of a custom shape.
+struct crosshair_style {
+    bool valid = false;
+    float gap = 0.f;
+    float size = 4.f;
+    float thickness = 0.5f;
+    bool dot = false;
+    float r = 0.f;
+    float g = 1.f;
+    float b = 0.f;
+};
+
+crosshair_style player_crosshair();
 
 // Bomb / weapons / hostages / grenades + smoke and molotov range circles.
 void render_esp(ImDrawList* draw, const visuals_source::frame_data& frame, const ImVec2& display);

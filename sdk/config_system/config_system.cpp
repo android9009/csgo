@@ -401,6 +401,7 @@ void c_config_system::setup_values( )
 	push_item(&world.scope_color_main, "world_esp", "scope_color_main", world.scope_color_main);
 	push_item(&world.scope_color_edge, "world_esp", "scope_color_edge", world.scope_color_edge);
 	push_item(&world.inaccuracy_color, "world_esp", "inaccuracy_color", world.inaccuracy_color);
+	push_item(&world.inaccuracy_color_secondary, "world_esp", "inaccuracy_color_secondary", world.inaccuracy_color_secondary);
 	push_item(&world.preserve_death_notices, "world_esp", "preserve_death_notices", world.preserve_death_notices);
 	push_item(&world.hide_teammate_assists, "world_esp", "hide_teammate_assists", world.hide_teammate_assists);
 	push_item(&world.scoreboard_opacity, "world_esp", "scoreboard_opacity", world.scoreboard_opacity);
@@ -416,6 +417,7 @@ void c_config_system::setup_values( )
 	push_item(&world.hide_crosshair_grenade, "world_esp", "hide_crosshair_grenade", world.hide_crosshair_grenade);
 	push_item(&world.penetration_crosshair, "world_esp", "penetration_crosshair", world.penetration_crosshair);
 	push_item(&world.penetration_color, "world_esp", "penetration_color", world.penetration_color);
+	push_item(&world.penetration_color_blocked, "world_esp", "penetration_color_blocked", world.penetration_color_blocked);
 	push_item(&world.window_watermark, "world_esp", "window_watermark", world.window_watermark);
 	push_item(&world.window_hotkeys, "world_esp", "window_hotkeys", world.window_hotkeys);
 	push_item(&world.window_spectators, "world_esp", "window_spectators", world.window_spectators);

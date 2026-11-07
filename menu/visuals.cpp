@@ -731,6 +731,7 @@ void draw_visuals_players() {
 void draw_visuals_world() {
     auto& world = player_visuals::world_settings();
     static color_value inaccuracy_color = make_ui_color(0.92f, 0.92f, 0.92f);
+    static color_value inaccuracy_secondary_color = make_ui_color(0.92f, 0.92f, 0.92f);
     static color_value scope_main_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value scope_edge_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value bomb_color = make_ui_color(0.45f, 0.95f, 0.52f);
@@ -752,7 +753,8 @@ void draw_visuals_world() {
     static color_value event_log_hit_color = make_ui_color(0.62f, 0.79f, 0.17f);
     static color_value event_log_miss_color = make_ui_color(1.f, 0.31f, 0.31f);
     static color_value event_log_evaded_color = make_ui_color(1.f, 0.78f, 0.25f);
-    static color_value penetration_color = make_ui_color(0.75f, 0.45f, 0.95f);
+    static color_value penetration_color = make_ui_color(0.51f, 0.71f, 0.f);
+    static color_value penetration_blocked_color = make_ui_color(0.82f, 0.f, 0.f);
     static color_value hit2d_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value hit3d_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value damage_color = make_ui_color(1.f, 1.f, 1.f);
@@ -762,6 +764,7 @@ void draw_visuals_world() {
     static color_value impact_color = make_ui_color(0.90f, 0.60f, 0.90f);
     static color_value spark_color = make_ui_color(1.f, 1.f, 1.f);
     inaccuracy_color.a = to_vec4(world.inaccuracy_color);
+    inaccuracy_secondary_color.a = to_vec4(world.inaccuracy_color_secondary);
     scope_main_color.a = to_vec4(world.scope_color_main);
     scope_edge_color.a = to_vec4(world.scope_color_edge);
     bomb_color.a = to_vec4(world.bomb.color);
@@ -784,6 +787,7 @@ void draw_visuals_world() {
     event_log_miss_color.a = to_vec4(world.event_log_miss_color);
     event_log_evaded_color.a = to_vec4(world.event_log_evaded_color);
     penetration_color.a = to_vec4(world.penetration_color);
+    penetration_blocked_color.a = to_vec4(world.penetration_color_blocked);
     hit2d_color.a = to_vec4(world.hitmarker_2d_color);
     hit3d_color.a = to_vec4(world.hitmarker_3d_color);
     damage_color.a = to_vec4(world.damage_marker_color);
@@ -852,10 +856,10 @@ void draw_visuals_world() {
     if (gui.row_popup("Scope Options", nullptr, 280.f)) {
         gui.popup_section_begin("##scope_fov");
         gui.row_checkbox("Override Scope", &world.scope_fov_override);
-        // Both sliders are the actual projected FOV, so the second scope has its own
-        // value instead of being derived from whatever setup->fov the game passed in.
-        gui.row_begin(); ImGui::SliderInt("FOV (x1)", &world.scope_fov_x1, 1, 90, "%d");
-        gui.row_begin(); ImGui::SliderInt("FOV (x2)", &world.scope_fov_x2, 1, 90, "%d");
+        // How much the scope zooms, not a raw FOV: 0 % leaves the view alone and
+        // 100 % is the weapon's own scope FOV (40 for x1, 15 for x2).
+        gui.row_begin(); ImGui::SliderInt("Scope (x1)", &world.scope_fov_x1, 0, 100, "%d%%");
+        gui.row_begin(); ImGui::SliderInt("Scope (x2)", &world.scope_fov_x2, 0, 100, "%d%%");
         gui.popup_section_end();
         gui.popup_section_begin("##scope_misc");
         gui.row_checkbox("Instant Scope", &world.instant_scope);
@@ -991,6 +995,14 @@ void draw_visuals_world() {
         gui.row_options_end();
     }
     ImGui::Combo("Scope Overlay", &world.scope_overlay_mode, scope_modes, IM_ARRAYSIZE(scope_modes));
+    gui.row_begin();
+    if (gui.row_options_begin("##inaccuracy_options", 280.f, c_gui::row_control::toggle)) {
+        gui.popup_section_begin("##inaccuracy_colors");
+        gui.row_color("Inner", &inaccuracy_color);
+        gui.row_color("Outer", &inaccuracy_secondary_color);
+        gui.popup_section_end();
+        gui.row_options_end();
+    }
     gui.row_checkbox("Inaccuracy Overlay", &g_cfg->world.m_inaccuracy_overlay, &inaccuracy_color);
     if (gui.row_popup("Death Notices", nullptr, 280.f)) {
         gui.popup_section_begin("##death_notices");
@@ -1019,6 +1031,14 @@ void draw_visuals_world() {
         gui.row_checkbox("Force While Holding C4", &world.force_crosshair_c4);
         gui.row_checkbox("Hide While Holding Knife", &world.hide_crosshair_knife);
         gui.row_checkbox("Hide While Holding Grenade", &world.hide_crosshair_grenade);
+        gui.row_begin();
+        if (gui.row_options_begin("##penetration_options", 280.f, c_gui::row_control::toggle)) {
+            gui.popup_section_begin("##penetration_colors");
+            gui.row_color("Can Penetrate", &penetration_color);
+            gui.row_color("Blocked", &penetration_blocked_color);
+            gui.popup_section_end();
+            gui.row_options_end();
+        }
         gui.row_checkbox("Penetration", &world.penetration_crosshair, &penetration_color);
         gui.popup_section_end();
         gui.popup_end();
@@ -1145,13 +1165,14 @@ void draw_visuals_world() {
     g_cfg->world.m_unlock_spectating = world.unlock_spectating_mode > 0;
     g_cfg->world.m_remove_scope_overlay = world.scope_overlay_mode != 0;
     g_cfg->world.m_custom_crosshair = world.force_sniper_crosshair || world.force_crosshair_scoped ||
-        world.force_crosshair_c4 || world.penetration_crosshair;
+        world.force_crosshair_c4;
     g_cfg->visuals.m_effects.m_hitmarker = world.hitmarker_2d || world.hitmarker_3d || world.damage_marker;
     g_cfg->visuals.m_effects.m_bullet_tracers = world.tracer_enemies || world.tracer_teammates || world.tracer_local_player;
     g_cfg->visuals.m_effects.m_tracer_color = to_config_color(tracer_enemy_color.a);
     g_cfg->visuals.m_effects.m_bullet_impacts = world.bullet_impacts || world.impact_sparks;
     world.trajectory_color = to_config_color(trajectory_color.a);
     world.inaccuracy_color = to_config_color(inaccuracy_color.a);
+    world.inaccuracy_color_secondary = to_config_color(inaccuracy_secondary_color.a);
     world.scope_color_main = to_config_color(scope_main_color.a);
     world.scope_color_edge = to_config_color(scope_edge_color.a);
     world.bomb.color = to_config_color(bomb_color.a);
@@ -1173,6 +1194,7 @@ void draw_visuals_world() {
     world.event_log_miss_color = to_config_color(event_log_miss_color.a);
     world.event_log_evaded_color = to_config_color(event_log_evaded_color.a);
     world.penetration_color = to_config_color(penetration_color.a);
+    world.penetration_color_blocked = to_config_color(penetration_blocked_color.a);
     world.hitmarker_2d_color = to_config_color(hit2d_color.a);
     world.hitmarker_3d_color = to_config_color(hit3d_color.a);
     world.damage_marker_color = to_config_color(damage_color.a);

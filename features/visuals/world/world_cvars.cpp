@@ -387,7 +387,7 @@ void update_world_cvars() {
         aspect_ratio = 1.f / aspect_ratio;
     set_override("r_aspectratio", page.aspect_ratio_override, aspect_ratio);
     g_cfg->world.m_custom_crosshair = page.force_sniper_crosshair || page.force_crosshair_scoped ||
-        page.force_crosshair_c4 || page.penetration_crosshair;
+        page.force_crosshair_c4;
     // Scope overlay: 0 Default (game HudZoom), 1 Lines and 2 Custom both replace
     // the engine overlay, so HudZoom is suppressed for every non-default mode.
     g_cfg->world.m_remove_scope_overlay = page.scope_overlay_mode != 0;
@@ -501,10 +501,12 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
             const bool second_scope = view_state.player_fov > 0
                 ? view_state.player_fov <= 20
                 : view_state.zoom_level >= 2;
-            const int scope_fov = second_scope ? page.scope_fov_x2 : page.scope_fov_x1;
-            // The menu exposes both scopes as a 0-100% scale, so the applied value follows it. 0 is
-            // kept just above zero: a projection matrix built from a 0-degree FOV degenerates.
-            setup->fov = static_cast<float>(std::clamp(scope_fov, 1, 100));
+            // The sliders are "how much of the scope" in percent, so 0 % leaves the
+            // 90-degree view alone and 100 % gives the weapon's own scope FOV.
+            const int amount = std::clamp(second_scope ? page.scope_fov_x2 : page.scope_fov_x1, 0, 100);
+            const float base_fov = second_scope ? 15.f : 40.f;
+            const float factor = static_cast<float>(amount) / 100.f;
+            setup->fov = 90.f + (base_fov - 90.f) * factor;
         } else if (view_state.scoped && cfg.m_zoom_fov > 0)
             setup->fov = static_cast<float>(std::clamp(cfg.m_zoom_fov, 20, 90));
         else if (view_state.scoped && cfg.m_skip_second_zoom && setup->fov < 20.f)
@@ -632,22 +634,42 @@ void* engine_trace_interface() {
     return cached;
 }
 
-float trace_fraction(const vector3& from, const vector3& to, const vector3& mins,
-                     const vector3& maxs) {
+bool trace_line(const vector3& from, const vector3& to, const vector3& mins,
+                const vector3& maxs, game_trace_t& result) {
     void* trace_interface = engine_trace_interface();
     if (!trace_interface)
-        return 1.f;
+        return false;
     using trace_ray_t = void(__thiscall*)(void*, const ray_t&, unsigned int, void*, game_trace_t*);
     const auto trace_ray = reinterpret_cast<trace_ray_t>(vfunc(trace_interface, 5));
     if (!trace_ray)
-        return 1.f;
+        return false;
     thirdperson_trace_filter filter;
-    game_trace_t result{};
+    result = {};
     const ray_t ray(from, to, mins, maxs);
     trace_ray(trace_interface, ray, mask_npcworldstatic, &filter, &result);
-    if (!std::isfinite(result.fraction))
+    return std::isfinite(result.fraction);
+}
+
+float trace_fraction(const vector3& from, const vector3& to, const vector3& mins,
+                     const vector3& maxs) {
+    game_trace_t result{};
+    if (!trace_line(from, to, mins, maxs, result))
         return 1.f;
     return std::clamp(result.fraction, 0.f, 1.f);
+}
+
+// SURF_NOPENTRATE: surfaces a bullet can never pass.
+constexpr unsigned short surf_nopentrate = 0x2000;
+
+// Game crosshair settings, so the force options can show the crosshair the player
+// actually uses instead of a shape of our own.
+float convar_value(const char* name, float fallback) {
+    void* object = find_convar(name);
+    if (!object)
+        return fallback;
+    bool valid = false;
+    const float value = read_convar_float(object, valid);
+    return valid ? value : fallback;
 }
 
 void angle_vectors(const vector3& angles, vector3& forward) {
@@ -723,6 +745,59 @@ void run_thirdperson() {
         offset.z *= trace_fraction(eye, target, mins, maxs);
     }
     *camera_offset = offset;
+}
+
+// Fatality's autowall crosshair decides its colour from penetration::can_wallbang();
+// a full penetration simulation needs the weapon data table, so this is the cheap
+// version of the same question: trace to the wall, then measure how thick it is.
+bool wallbang_possible() {
+    visuals_source::local_view_state state{};
+    if (!visuals_source::get_local_view_state(state) || !state.alive)
+        return false;
+    const vector3 eye{ state.eye_origin.x, state.eye_origin.y, state.eye_origin.z };
+    vector3 forward{};
+    angle_vectors(engine_view_angles(), forward);
+    constexpr float range = 8192.f;
+    const vector3 far{ eye.x + forward.x * range, eye.y + forward.y * range, eye.z + forward.z * range };
+    const vector3 point{ 0.f, 0.f, 0.f };
+    game_trace_t hit{};
+    if (!trace_line(eye, far, point, point, hit))
+        return false;
+    if (hit.fraction >= 1.f)
+        return true; // nothing in the way
+    if ((hit.surface.flags & surf_nopentrate) != 0)
+        return false;
+    // Distance between the entry and the exit of the wall: the thickness.
+    const vector3 entry{ eye.x + (far.x - eye.x) * hit.fraction,
+        eye.y + (far.y - eye.y) * hit.fraction, eye.z + (far.z - eye.z) * hit.fraction };
+    const vector3 skip{ entry.x + forward.x, entry.y + forward.y, entry.z + forward.z };
+    game_trace_t exit{};
+    if (!trace_line(skip, far, point, point, exit))
+        return false;
+    const float thickness = exit.fraction * (1.f - hit.fraction) * range - 1.f;
+    return thickness >= 0.f && thickness <= 45.f;
+}
+
+crosshair_style player_crosshair() {
+    crosshair_style style{};
+    style.size = std::clamp(convar_value("cl_crosshairsize", 5.f), 0.f, 20.f);
+    style.thickness = std::clamp(convar_value("cl_crosshairthickness", 0.5f), 0.f, 10.f);
+    style.gap = std::clamp(convar_value("cl_crosshairgap", 1.f), -20.f, 20.f);
+    style.dot = convar_value("cl_crosshairdot", 0.f) >= 0.5f;
+    style.valid = true;
+    switch (static_cast<int>(convar_value("cl_crosshaircolor", 0.f))) {
+    case 0: style.r = 0.f; style.g = 1.f; style.b = 0.f; break;
+    case 1: style.r = 1.f; style.g = 1.f; style.b = 0.f; break;
+    case 2: style.r = 0.f; style.g = 0.f; style.b = 1.f; break;
+    case 3: style.r = 0.f; style.g = 1.f; style.b = 1.f; break;
+    case 4: style.r = 1.f; style.g = 0.f; style.b = 1.f; break;
+    default:
+        style.r = std::clamp(convar_value("cl_crosshaircolor_r", 50.f), 0.f, 255.f) / 255.f;
+        style.g = std::clamp(convar_value("cl_crosshaircolor_g", 250.f), 0.f, 255.f) / 255.f;
+        style.b = std::clamp(convar_value("cl_crosshaircolor_b", 50.f), 0.f, 255.f) / 255.f;
+        break;
+    }
+    return style;
 }
 
 // Panel filtering lives here so both renderers agree; the PaintTraverse hook
