@@ -1144,6 +1144,12 @@ bool c_gui::popup_begin( const char* name, bool clicked, float width, bool title
     if ( !opened )
         return false;
 
+    // A sub-menu card is an extension of a main-menu row, exactly like a gear card: its
+    // checkbox / slider / combo rows are valid bind targets too. Without this only the rows
+    // sitting directly on a tab (or in a gear card) could open the bind editor - right-clicking
+    // "Force Third Person" inside Perspective Options did nothing.
+    ImGui::GetCurrentWindow( )->StateStorage.SetBool( ImHashStr( "##BindOptionsWindow" ), true );
+
     // Sub-menu cards are laid out exactly like the gear cards: rows stack with one fixed gap, no
     // separators are drawn between them, and sliders keep the full menu form instead of the
     // compact popup strip. All three are undone in popup_end().
