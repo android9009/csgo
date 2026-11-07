@@ -599,9 +599,13 @@ void draw_self_side(player_side_ui_state& side) {
         gui.popup_section_begin("##self_transparency");
         gui.row_multibox("Conditions", transparency_items, side.transparency_conditions,
                          IM_ARRAYSIZE(transparency_items));
-        gui.row_begin(); ImGui::SliderFloat("Main", &side.transparency_main, 0.f, 1.f, "%.2f");
-        gui.row_begin(); ImGui::SliderFloat("Second Scope", &side.transparency_second_scope, 0.f, 1.f,
-            side.transparency_second_scope <= 0.f ? "Off" : "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Transparency", &side.transparency_main, 0.f, 1.f, "%.2f");
+        // The x2 fade only applies while scoped, so it has nothing to control until the In Scope
+        // condition is on - until then the row is not drawn at all.
+        if (side.transparency_conditions[0]) {
+            gui.row_begin(); ImGui::SliderFloat("Second Scope", &side.transparency_second_scope, 0.f, 1.f,
+                side.transparency_second_scope <= 0.f ? "Off" : "%.2f");
+        }
         gui.popup_section_end();
         gui.popup_end();
     }
