@@ -44,7 +44,12 @@ struct player_side_ui_state {
     bool glow = false;
     int local_model = 0;
     int local_weapon = 0;
-    int local_transparency = 100;
+    // Self > Transparency. The multibox picks when the local model fades at all; the two sliders
+    // are the fade amount for the standing view and for the second (x2) zoom, where 0 means the
+    // second scope keeps the normal look - the slider's own "Off" position.
+    bool transparency_conditions[2] = {};
+    float transparency_main = 0.f;
+    float transparency_second_scope = 0.f;
     int local_chams_model = 0;
     int local_fake_chams_model = 0;
     int viewmodel_chams_model = 0;
@@ -595,8 +600,15 @@ void draw_self_side(player_side_ui_state& side) {
         gui.row_begin(); ImGui::Combo("Mode", &side.local_weapon, local_weapons, IM_ARRAYSIZE(local_weapons));
         gui.popup_end();
     }
-    if (gui.row_popup("Transparency")) {
-        gui.row_begin(); ImGui::SliderInt("Opacity", &side.local_transparency, 0, 100, "%d%%");
+    if (gui.row_popup("Transparency", nullptr, 280.f)) {
+        static const char* transparency_items[] = { "In Scope", "Grenade" };
+        gui.popup_section_begin("##self_transparency");
+        gui.row_multibox("Conditions", transparency_items, side.transparency_conditions,
+                         IM_ARRAYSIZE(transparency_items));
+        gui.row_begin(); ImGui::SliderFloat("Main", &side.transparency_main, 0.f, 1.f, "%.2f");
+        gui.row_begin(); ImGui::SliderFloat("Second Scope", &side.transparency_second_scope, 0.f, 1.f,
+            side.transparency_second_scope <= 0.f ? "Off" : "%.2f");
+        gui.popup_section_end();
         gui.popup_end();
     }
     gui.end_group_box();
