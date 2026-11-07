@@ -11,6 +11,9 @@
 
 namespace world_visuals {
 
+// HUD panel filter (removals). Called from the single PaintTraverse hook.
+bool should_skip_panel(const char* name);
+
 // Bomb / weapons / hostages / grenades + smoke and molotov range circles.
 void render_esp(ImDrawList* draw, const visuals_source::frame_data& frame, const ImVec2& display);
 

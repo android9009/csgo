@@ -551,38 +551,39 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
 
 using panel_name_t = const char*(__thiscall*)(void*, unsigned int);
 using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
-paint_traverse_t original_paint_traverse = nullptr;
-bool panel_hook_installed = false;
 
-void __fastcall hooked_paint_traverse(void* self, void*, unsigned int panel,
-                                      bool force_repaint, bool allow_force) {
-    AIRFLOW_DEBUG_STAGE("world.paint_traverse");
-    const auto get_name = reinterpret_cast<panel_name_t>(vfunc(self, panel_get_name_vfunc));
-    const char* name = get_name ? get_name(self, panel) : nullptr;
-    if (name) {
-        const auto& world = g_cfg->world;
-        const auto& removals = player_visuals::world_settings().removals;
-        if ((removals[0] && std::strcmp(name, "TeamIntro") == 0) ||
-            (removals[1] && std::strstr(name, "Panorama") != nullptr) ||
-            (removals[2] && std::strstr(name, "BottomGradient") != nullptr) ||
-            (removals[3] && std::strstr(name, "DamageIndicator") != nullptr) ||
-            (removals[4] && (std::strstr(name, "ServerAdvertisement") != nullptr ||
-                std::strstr(name, "ServerAd") != nullptr)))
-            return;
-        if (world.m_remove_scope_overlay && std::strcmp(name, "HudZoom") == 0)
-            return;
-        if (world.m_remove_death_notices && std::strcmp(name, "HudDeathNotice") == 0)
-            return;
-        if (world.m_remove_scoreboard &&
-            (std::strstr(name, "Scoreboard") || std::strstr(name, "scoreboard")))
-            return;
-    }
-    if (original_paint_traverse)
-        original_paint_traverse(self, panel, force_repaint, allow_force);
-}
 } // namespace
 
 namespace world_visuals {
+// Panel filtering lives here so both renderers agree; the PaintTraverse hook
+// itself is installed once in the D3D9 runtime (the old code installed a second
+// hook from this file, which made the chain order dependent).
+bool should_skip_panel(const char* name) {
+    if (!name)
+        return false;
+    const auto& world = g_cfg->world;
+    const auto& removals = player_visuals::world_settings().removals;
+    // Exact names only. The old `strstr(name, "Panorama")` test matched whole
+    // Panorama HUD panels, which also took the in-game team select down with it.
+    const bool panorama_dots = std::strstr(name, "Panorama") != nullptr &&
+        std::strstr(name, "Dots") != nullptr;
+    if ((removals[0] && std::strcmp(name, "TeamIntro") == 0) ||
+        (removals[1] && panorama_dots) ||
+        (removals[2] && std::strstr(name, "BottomGradient") != nullptr) ||
+        (removals[3] && std::strstr(name, "DamageIndicator") != nullptr) ||
+        (removals[4] && (std::strstr(name, "ServerAdvertisement") != nullptr ||
+            std::strstr(name, "ServerAd") != nullptr)))
+        return true;
+    if (world.m_remove_scope_overlay && std::strcmp(name, "HudZoom") == 0)
+        return true;
+    if (world.m_remove_death_notices && std::strcmp(name, "HudDeathNotice") == 0)
+        return true;
+    if (world.m_remove_scoreboard &&
+        (std::strstr(name, "Scoreboard") != nullptr || std::strstr(name, "scoreboard") != nullptr))
+        return true;
+    return false;
+}
+
 bool initialize(void* mode, void* input, void* cvars, void* engine, void* entities,
                 void* panels, void* client) {
     client_mode = mode;
@@ -598,11 +599,6 @@ bool initialize(void* mode, void* input, void* cvars, void* engine, void* entiti
         override_installed = write_vfunc(client_mode, override_view_vfunc,
             reinterpret_cast<void*>(&hooked_override_view),
             reinterpret_cast<void**>(&original_override_view));
-    }
-    if (!panel_hook_installed && panel_interface && vfunc(panel_interface, panel_paint_traverse_vfunc)) {
-        panel_hook_installed = write_vfunc(panel_interface, panel_paint_traverse_vfunc,
-            reinterpret_cast<void*>(&hooked_paint_traverse),
-            reinterpret_cast<void**>(&original_paint_traverse));
     }
     if (!convars[0].object && cvar_interface)
         cache_convars();

@@ -19,6 +19,7 @@
 #include "imgui_impl_win32.h"
 #include "../features/visuals/esp/esp.hpp"
 #include "../features/misc/misc.hpp"
+#include "../features/visuals/world/world_render.hpp"
 #include "../menu/blur.hpp"
 #include "../menu/binds.hpp"
 #include "../menu/menu.hpp"
@@ -64,14 +65,18 @@ void* query_interface(HMODULE module, const char* name) {
 }
 
 void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool repaint, bool force) {
+    const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
+    const char* name = get_name ? get_name(ecx, panel) : nullptr;
+    // World > Removals: one filter for both renderers, exact panel names only.
+    if (name && world_visuals::should_skip_panel(name))
+        return;
+
     original_paint_traverse(ecx, panel, repaint, force);
 
     // This is the cursor path used by main: enabling mouse input on the
     // FocusOverlayPanel releases the game's centred/locked cursor. Do not
     // replace it with per-frame ISurface::UnlockCursor calls.
     if (!focus_overlay_panel) {
-        const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
-        const char* name = get_name ? get_name(ecx, panel) : nullptr;
         if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
             return;
         focus_overlay_panel = panel;
@@ -80,8 +85,19 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
         return;
 
     const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
-    if (set_mouse_input)
-        set_mouse_input(ecx, panel, g_menu->is_opened());
+    if (!set_mouse_input)
+        return;
+    // Own the cursor only while the menu is open; on close restore it exactly
+    // once. Forcing "false" every frame kept mouse input disabled for the game
+    // itself, so the team select screen (and buy menu) could not be clicked.
+    static bool restored_closed = false;
+    if (g_menu->is_opened()) {
+        set_mouse_input(ecx, panel, true);
+        restored_closed = false;
+    } else if (!restored_closed) {
+        set_mouse_input(ecx, panel, false);
+        restored_closed = true;
+    }
 }
 
 bool ensure_panel_hook() {
