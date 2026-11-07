@@ -414,6 +414,13 @@ void c_config_system::setup_values( )
 	push_item(&world.window_hotkeys, "world_esp", "window_hotkeys", world.window_hotkeys);
 	push_item(&world.window_spectators, "world_esp", "window_spectators", world.window_spectators);
 	push_item(&world.window_event_logs, "world_esp", "window_event_logs", world.window_event_logs);
+	for (int i = 0; i < 3; ++i)
+		push_item(&world.event_log_filter[i], "world_esp",
+			std::string("event_log_filter_") + std::to_string(i), world.event_log_filter[i]);
+	push_item(&world.event_log_lifetime, "world_esp", "event_log_lifetime", world.event_log_lifetime);
+	push_item(&world.event_log_hit_color, "world_esp", "event_log_hit_color", world.event_log_hit_color);
+	push_item(&world.event_log_miss_color, "world_esp", "event_log_miss_color", world.event_log_miss_color);
+	push_item(&world.event_log_evaded_color, "world_esp", "event_log_evaded_color", world.event_log_evaded_color);
 	for (int i = 0; i < static_cast<int>(world.watermark_items.size()); ++i)
 		push_item(&world.watermark_items[i], "world_esp", "watermark_item_" + std::to_string(i), world.watermark_items[i]);
 	push_item(&world.windows_color, "world_esp", "windows_color", world.windows_color);

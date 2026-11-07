@@ -747,6 +747,9 @@ void draw_visuals_world() {
     static color_value effects_color = make_ui_color(1.f, 0.30f, 0.67f);
     static color_value trajectory_color = make_ui_color(1.f, 0.25f, 0.42f);
     static color_value windows_color = make_ui_color(0.35f, 0.95f, 0.60f);
+    static color_value event_log_hit_color = make_ui_color(0.62f, 0.79f, 0.17f);
+    static color_value event_log_miss_color = make_ui_color(1.f, 0.31f, 0.31f);
+    static color_value event_log_evaded_color = make_ui_color(1.f, 0.78f, 0.25f);
     static color_value penetration_color = make_ui_color(0.75f, 0.45f, 0.95f);
     static color_value hit2d_color = make_ui_color(1.f, 1.f, 1.f);
     static color_value hit3d_color = make_ui_color(1.f, 1.f, 1.f);
@@ -773,6 +776,9 @@ void draw_visuals_world() {
     explosion_color.a = to_vec4(world.explosion_color);
     effects_color.a = to_vec4(world.effects_color);
     windows_color.a = to_vec4(world.windows_color);
+    event_log_hit_color.a = to_vec4(world.event_log_hit_color);
+    event_log_miss_color.a = to_vec4(world.event_log_miss_color);
+    event_log_evaded_color.a = to_vec4(world.event_log_evaded_color);
     penetration_color.a = to_vec4(world.penetration_color);
     hit2d_color.a = to_vec4(world.hitmarker_2d_color);
     hit3d_color.a = to_vec4(world.hitmarker_3d_color);
@@ -786,6 +792,7 @@ void draw_visuals_world() {
     static const char* unlock_modes[] = { "Select", "Roaming", "All Observer Modes" };
     static const char* recoil_modes[] = { "Select", "Default", "Disabled", "Pitch Only", "Pitch + Yaw" };
     static const char* radar_items[] = { "Reveal Enemies", "Reveal Hostages", "Reveal Bomb", "Override Player Angles" };
+    static const char* event_log_items[] = { "Miss", "Hit", "Evaded" };
     static const char* scope_modes[] = { "Default", "Lines", "None" };
     static const char* aspect_modes[] = { "Horizontal", "Vertical" };
     static const char* window_item_names[] = { "Time", "Username", "Ping", "FPS" };
@@ -1028,6 +1035,15 @@ void draw_visuals_world() {
         gui.row_checkbox("Hotkeys", &g_cfg->misc.m_keybinds_list);
         gui.row_checkbox("Spectators", &g_cfg->misc.m_spectator_list);
         gui.row_checkbox("Event Logs", &world.window_event_logs);
+        if (world.window_event_logs) {
+            gui.row_multibox("Events", event_log_items, world.event_log_filter,
+                IM_ARRAYSIZE(event_log_items));
+            gui.row_begin();
+            ImGui::SliderFloat("Lifetime##event_log", &world.event_log_lifetime, 0.5f, 20.f, "%.1fs");
+            gui.row_color("Hit##event_log", &event_log_hit_color);
+            gui.row_color("Miss##event_log", &event_log_miss_color);
+            gui.row_color("Evaded##event_log", &event_log_evaded_color);
+        }
         gui.popup_section_end();
         gui.row_color("Color", &windows_color);
         gui.row_begin(); ImGui::SliderFloat("Line Opacity", &world.windows_line_opacity, 0.f, 1.f, "%.2f");
@@ -1136,6 +1152,9 @@ void draw_visuals_world() {
     world.explosion_color = to_config_color(explosion_color.a);
     world.effects_color = to_config_color(effects_color.a);
     world.windows_color = to_config_color(windows_color.a);
+    world.event_log_hit_color = to_config_color(event_log_hit_color.a);
+    world.event_log_miss_color = to_config_color(event_log_miss_color.a);
+    world.event_log_evaded_color = to_config_color(event_log_evaded_color.a);
     world.penetration_color = to_config_color(penetration_color.a);
     world.hitmarker_2d_color = to_config_color(hit2d_color.a);
     world.hitmarker_3d_color = to_config_color(hit3d_color.a);
