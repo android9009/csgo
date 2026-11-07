@@ -9,7 +9,9 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <mutex>
 #include <string>
+#include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -146,6 +148,91 @@ void render_hotkeys(ImDrawList* draw, const ImVec2& display) {
         const float x = page.hotkeys_right_aligned ? (display.x - 14.f - size.x) : 14.f;
         draw_text(draw, ImVec2(x, y), text, color(page.windows_color), scale, 1);
         y += line;
+    }
+}
+
+
+// World > Windows > Spectators. Names come from the captured player list; the
+// indices come from the entity walk (m_hObserverTarget pointing at us).
+void render_spectators(ImDrawList* draw, const visuals_source::frame_data& frame,
+                       const ImVec2& display) {
+    const auto& page = player_visuals::world_settings();
+    if (!page.window_spectators || !frame.in_game)
+        return;
+    const auto indices = visuals_source::local_spectators();
+    if (indices.empty())
+        return;
+    const float line = 16.f;
+    float y = display.y * 0.5f - line * static_cast<float>(indices.size()) * 0.5f;
+    draw_text(draw, ImVec2(display.x - 14.f, y - line), "SPECTATORS",
+        color(page.windows_color), 0.8f, -1);
+    for (const int index : indices) {
+        std::string label = "player " + std::to_string(index);
+        for (const auto& player : frame.players) {
+            if (player.index == index) {
+                label = player.name;
+                break;
+            }
+        }
+        draw_text(draw, ImVec2(display.x - 14.f, y), label,
+            color(1.f, 0.42f, 0.36f, 1.f), 0.85f, -1);
+        y += line;
+    }
+}
+
+
+namespace {
+struct death_notice_entry {
+    std::string text;
+    bool assistant = false;
+    bool by_local = false;
+    std::chrono::steady_clock::time_point created{};
+};
+std::mutex death_notices_mutex;
+std::vector<death_notice_entry> death_notices;
+} // namespace
+
+void push_death_notice(std::string text, const bool assistant, const bool by_local) {
+    if (text.empty())
+        return;
+    std::scoped_lock lock(death_notices_mutex);
+    death_notices.push_back({ std::move(text), assistant, by_local,
+        std::chrono::steady_clock::now() });
+    while (death_notices.size() > 24)
+        death_notices.erase(death_notices.begin());
+}
+
+// World > Death notices: Off / All / Kills Only switch, teammate assists filter,
+// and "preserve" keeps the list alive for the whole map instead of fading.
+void render_death_notices(ImDrawList* draw, const ImVec2& display) {
+    const auto& page = player_visuals::world_settings();
+    const int mode = std::clamp(page.preserve_death_notices_mode, 0, 2);
+    if (mode == 0 || !page.preserve_death_notices)
+        return;
+    std::vector<death_notice_entry> entries;
+    {
+        std::scoped_lock lock(death_notices_mutex);
+        entries = death_notices;
+    }
+    if (entries.empty())
+        return;
+    const auto now = std::chrono::steady_clock::now();
+    float y = display.y - 40.f;
+    for (auto it = entries.rbegin(); it != entries.rend(); ++it) {
+        if (mode == 2 && !it->by_local)
+            continue;
+        if (it->assistant && page.hide_teammate_assists)
+            continue;
+        const float age = std::chrono::duration<float>(now - it->created).count();
+        float alpha = 1.f;
+        if (!page.preserve_death_notices && age > 7.f)
+            alpha = std::max(0.f, 1.f - (age - 7.f) / 1.5f);
+        if (alpha <= 0.01f)
+            continue;
+        const c_color ink = it->by_local ? c_color{ 0.62f, 0.79f, 0.17f, alpha }
+                                         : c_color{ 0.92f, 0.94f, 1.f, alpha };
+        draw_text(draw, ImVec2(14.f, y), it->text, color(ink), 0.85f, 1);
+        y -= 16.f;
     }
 }
 

@@ -334,7 +334,24 @@ void update_camera() {
         // placed with, so looking down no longer lifts the camera above the head.
         if (player_visuals::world_settings().thirdperson_disable_overhead)
             angles.x = std::clamp(angles.x, -89.f, 20.f);
-        angles.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
+        const float camera_distance = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
+        angles.z = camera_distance;
+        // World > Thirdperson > Close to wall: pull the camera in when the boom
+        // would end up inside geometry (hull trace from the eyes backwards).
+        if (player_visuals::world_settings().thirdperson_close_to_wall && has_view_state) {
+            constexpr float to_radians = 0.017453292f;
+            const float pitch = angles.x * to_radians;
+            const float yaw = angles.y * to_radians;
+            const visuals_source::vector3 eye{ view_state.origin.x, view_state.origin.y,
+                view_state.origin.z + 64.f };
+            const visuals_source::vector3 forward{ std::cos(pitch) * std::cos(yaw),
+                std::cos(pitch) * std::sin(yaw), -std::sin(pitch) };
+            const visuals_source::vector3 target{ eye.x - forward.x * camera_distance,
+                eye.y - forward.y * camera_distance, eye.z - forward.z * camera_distance };
+            float fraction = 1.f;
+            if (visuals_source::trace_world_line(eye, target, fraction) && fraction < 1.f)
+                angles.z = std::max(16.f, camera_distance * fraction - 6.f);
+        }
         *camera_offset = angles;
         *camera_flag = true;
     } else if (camera_owned) {

@@ -3,6 +3,12 @@
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../../visuals/world/event_log.hpp"
+
+// Forward declared on purpose: world_render.hpp pulls the ImGui drawing helpers,
+// which must not be included from the event runtime.
+namespace world_visuals {
+void push_death_notice(std::string text, bool assistant, bool by_local);
+}
 #include "../../visuals/world/world.hpp"
 #include "../../visuals/sound_esp.hpp"
 #include "../../visuals/esp/esp.hpp"
@@ -1072,6 +1078,22 @@ public:
             }
             return;
         }
+        if (std::strcmp(name, "player_death") == 0) {
+            if (!get_int || !get_string)
+                return;
+            // World > HUD > Death notices: our own feed so preserve mode and the
+            // teammate-assist filter can actually act on the entries.
+            const int attacker = player_for_user_id(get_int(event, "attacker", 0));
+            const int victim = player_for_user_id(get_int(event, "userid", 0));
+            const bool by_local = attacker == local_index();
+            const bool assistant = get_int(event, "assister", 0) != 0;
+            const bool headshot = get_int(event, "headshot", 0) != 0;
+            std::string text = player_name(attacker) + " killed " + player_name(victim);
+            if (headshot)
+                text += " (headshot)";
+            world_visuals::push_death_notice(std::move(text), assistant, by_local);
+            return;
+        }
         if (std::strcmp(name, "player_say") == 0) {
             if (!state.reveal_enemy_chat || !get_int || !get_string ||
                 get_int(event, "teamonly", 0) == 0) {
@@ -1104,7 +1126,8 @@ bool register_events() {
     if (!add || !function_in_module(engine_module, reinterpret_cast<const void*>(add)))
         return false;
     static constexpr const char* names[] = {
-        "round_start", "game_newmap", "weapon_fire", "bullet_impact", "player_hurt", "player_say"
+        "round_start", "game_newmap", "weapon_fire", "bullet_impact", "player_hurt", "player_death",
+        "player_say"
     };
     for (const char* name : names) {
         if (!add(game_event_manager, &event_listener, name, false)) {

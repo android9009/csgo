@@ -215,6 +215,7 @@ struct netvars_t {
     int pin_pulled = -1;
     int viewmodel = -1;
     int angles = -1;
+    int observer_target = -1;
     int owner = -1;
     int smoke_effect = -1;
     int smoke_tick = -1;
@@ -561,6 +562,7 @@ void resolve_netvars() {
     // game applies to the viewmodel (the same pair the NL Lua writes).
     nv.viewmodel = table_offset(classes, { "DT_BasePlayer" }, "m_hViewModel");
     nv.angles = table_offset(classes, { "DT_BaseEntity" }, "m_angRotation");
+    nv.observer_target = table_offset(classes, { "DT_BasePlayer" }, "m_hObserverTarget");
     nv.owner = table_offset(classes, { "DT_BaseEntity" }, "m_hOwnerEntity");
     nv.smoke_effect = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_bDidSmokeEffect");
     nv.smoke_tick = table_offset(classes, { "DT_SmokeGrenadeProjectile" }, "m_nSmokeEffectTickBegin");
@@ -1327,6 +1329,7 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
     output.alive = value<unsigned char>(local, nv.life_state, 1) == 0 &&
         value<int>(local, nv.health, 0) > 0;
     output.scoped = value<bool>(local, nv.scoped, false);
+    output.origin = value<vector3>(local, nv.origin);
     output.aim_punch = value<vector3>(local, nv.aim_punch);
     output.view_punch = value<vector3>(local, nv.view_punch);
     // Self > Models reads the active weapon on every call: the Grenade
@@ -1365,6 +1368,119 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
         }
     }
     return true;
+}
+
+namespace {
+struct world_trace_plane {
+    float normal[3];
+    float distance;
+    unsigned char type;
+    unsigned char sign_bits;
+    unsigned char padding[2];
+};
+struct world_trace_surface {
+    const char* name;
+    short surface_props;
+    unsigned short flags;
+};
+struct world_trace_result {
+    float start[3];
+    float end[3];
+    world_trace_plane plane;
+    float fraction;
+    int contents;
+    unsigned short disp_flags;
+    bool all_solid;
+    bool start_solid;
+    float fraction_left_solid;
+    world_trace_surface surface;
+    unsigned int hitgroup;
+    short physics_bone;
+    unsigned short world_surface_index;
+    void* entity;
+    int hitbox;
+};
+struct world_trace_ray {
+    float start[4];
+    float delta[4];
+    float start_offset[4];
+    float extents[4];
+    const void* world_axis_transform;
+    bool is_ray;
+    bool is_swept;
+};
+// Blocks on world/props only; players are ignored so the camera never jumps on a teammate.
+class world_trace_filter {
+public:
+    virtual bool should_hit_entity(void* entity, int) { return true; }
+    virtual int get_trace_type() const { return 0; }
+};
+
+void* engine_trace_interface() {
+    static void* cached = nullptr;
+    if (cached)
+        return cached;
+    HMODULE engine = GetModuleHandleA("engine.dll");
+    if (!engine)
+        return nullptr;
+    using create_interface_t = void*(*)(const char*, int*);
+    const auto create = reinterpret_cast<create_interface_t>(
+        GetProcAddress(engine, "CreateInterface"));
+    if (!create)
+        return nullptr;
+    cached = create("EngineTraceClient004", nullptr);
+    return cached;
+}
+} // namespace
+
+bool trace_world_line(const vector3& from, const vector3& to, float& fraction) {
+    void* iface = engine_trace_interface();
+    if (!iface)
+        return false;
+    void** table = *reinterpret_cast<void***>(iface);
+    if (!readable_range(table, 6 * sizeof(void*)))
+        return false;
+    using trace_ray_t = void(__thiscall*)(void*, const world_trace_ray&, unsigned int, void*,
+        world_trace_result*);
+    const auto trace = reinterpret_cast<trace_ray_t>(table[5]);
+    if (!trace)
+        return false;
+    world_trace_ray ray{};
+    ray.start[0] = from.x; ray.start[1] = from.y; ray.start[2] = from.z;
+    ray.delta[0] = to.x - from.x; ray.delta[1] = to.y - from.y; ray.delta[2] = to.z - from.z;
+    ray.is_swept = true;
+    ray.is_ray = true;
+    world_trace_filter filter;
+    world_trace_result result{};
+    result.fraction = 1.f;
+    constexpr unsigned int mask_solid = 0x200400B;
+    trace(iface, ray, mask_solid, &filter, &result);
+    fraction = std::clamp(result.fraction, 0.f, 1.f);
+    return true;
+}
+
+std::vector<int> local_spectators() {
+    std::vector<int> result;
+    if (!is_in_game() || nv.observer_target < 0)
+        return result;
+    const int local = local_index();
+    void* local_entity = entity_at(local);
+    if (!local_entity)
+        return result;
+    for (int i = 0; i < 64; ++i) {
+        if (i == local)
+            continue;
+        void* entity = entity_at(i);
+        if (!entity)
+            continue;
+        if (value<unsigned char>(entity, nv.life_state, 0) == 0)
+            continue;   // alive players are not spectating
+        void* target = entity_from_handle(value<unsigned int>(entity, nv.observer_target,
+            0xFFFFFFFFu));
+        if (target && target == local_entity)
+            result.push_back(i);
+    }
+    return result;
 }
 
 bool set_viewmodel_angles(const vector3& angles) {

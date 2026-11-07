@@ -7,6 +7,8 @@
 
 #include "../dependencies/source.hpp"
 
+#include <string>
+
 namespace world_visuals {
 
 // Bomb / weapons / hostages / grenades + smoke and molotov range circles.
@@ -25,6 +27,13 @@ void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
                     const ImVec2& display);
 
 void render_scoreboard(ImDrawList* draw, const visuals_source::frame_data& frame,
+                       const ImVec2& display);
+
+// World > HUD > Death notices. Fed from the player_death event.
+void push_death_notice(std::string text, bool assistant, bool by_local);
+void render_death_notices(ImDrawList* draw, const ImVec2& display);
+
+void render_spectators(ImDrawList* draw, const visuals_source::frame_data& frame,
                        const ImVec2& display);
 
 void render_hotkeys(ImDrawList* draw, const ImVec2& display);

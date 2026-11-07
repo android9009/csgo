@@ -149,6 +149,7 @@ struct local_view_state {
     // zoom level only feeds the separate x2 slider.
     bool holding_grenade = false;
     int zoom_level = 1;
+    vector3 origin{};
     // World > Crosshairs / Grenades read the same active-weapon state. Knife,
     // C4, sniper and pin state are plain weapon flags, so they cost one
     // definition index instead of a second entity walk per frame.
@@ -193,6 +194,12 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy = fals
 // World > Viewmodel > Angles. Writes the local viewmodel entity angles; the game
 // recomputes them every frame, so this is called from OverrideView each frame.
 bool set_viewmodel_angles(const vector3& angles);
+
+// World > Thirdperson > Close to wall: trace against world geometry.
+bool trace_world_line(const vector3& from, const vector3& to, float& fraction);
+
+// World > Windows > Spectators: entity indices currently spectating the local player.
+std::vector<int> local_spectators();
 void set_flash_removed(bool enabled);
 bool entity_parented_to_local(void* entity, bool local_alive);
 int local_user_id();
