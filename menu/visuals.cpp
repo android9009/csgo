@@ -820,9 +820,12 @@ void draw_visuals_world() {
     }
     if (gui.row_popup("Scope Options", nullptr, 280.f)) {
         gui.popup_section_begin("##scope_fov");
-        gui.row_checkbox("Override FOV", &world.scope_fov_override);
-        gui.row_begin(); ImGui::SliderInt("Scale (x1)", &world.scope_fov_x1, 20, 90, "%d°");
-        gui.row_begin(); ImGui::SliderInt("Scale (x2)", &world.scope_fov_x2, 5, 60, "%d°");
+        gui.row_checkbox("Override Scope", &world.scope_fov_override);
+        // Both scopes use the same 0-100% scale: 100% keeps the widest zoomed view the engine
+        // projects, lower values tighten it. The old 20-90 / 5-60 windows were arbitrary and made
+        // the two sliders feel like different units.
+        gui.row_begin(); ImGui::SliderInt("Scale (x1)", &world.scope_fov_x1, 0, 100, "%d%%");
+        gui.row_begin(); ImGui::SliderInt("Scale (x2)", &world.scope_fov_x2, 0, 100, "%d%%");
         gui.popup_section_end();
         gui.popup_section_begin("##scope_misc");
         gui.row_checkbox("Instant Scope", &world.instant_scope);

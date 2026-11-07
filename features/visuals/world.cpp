@@ -416,7 +416,9 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
         }
         if (view_state.scoped && page.scope_fov_override) {
             const int scope_fov = setup->fov < 20.f ? page.scope_fov_x2 : page.scope_fov_x1;
-            setup->fov = static_cast<float>(std::clamp(scope_fov, 20, 90));
+            // The menu exposes both scopes as a 0-100% scale, so the applied value follows it. 0 is
+            // kept just above zero: a projection matrix built from a 0-degree FOV degenerates.
+            setup->fov = static_cast<float>(std::clamp(scope_fov, 1, 100));
         } else if (view_state.scoped && cfg.m_zoom_fov > 0)
             setup->fov = static_cast<float>(std::clamp(cfg.m_zoom_fov, 20, 90));
         else if (view_state.scoped && cfg.m_skip_second_zoom && setup->fov < 20.f)

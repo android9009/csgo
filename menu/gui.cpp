@@ -2494,6 +2494,7 @@ namespace {
         { "PERSPECTIVE OPTIONS", "ПАРАМЕТРЫ ПЕРСПЕКТИВЫ", "PERSPEKTİF AYARLARI" },
         { "VIEWMODEL OPTIONS", "ПАРАМЕТРЫ ВЬЮМОДЕЛИ", "VIEWMODEL AYARLARI" },
         { "Override FOV",      "Переопределить FOV", "FOV'yi geçersiz kıl" },
+        { "Override Scope",    "Переопределить прицел", "Nişangahı geçersiz kıl" },
         { "View FOV",          "FOV обзора",           "Görüş FOV" },
         { "Thirdperson",       "Вид от третьего лица", "Üçüncü şahıs" },
         { "Thirdperson Distance", "Дистанция камеры", "Üçüncü şahıs mesafesi" },
