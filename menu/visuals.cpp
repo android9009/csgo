@@ -794,7 +794,6 @@ void draw_visuals_world() {
     spark_color.a = to_vec4(world.impact_sparks_color);
 
     static const char* unlock_modes[] = { "Select", "Roaming", "All Observer Modes" };
-    static const char* radar_items[] = { "Reveal Enemies", "Reveal Hostages", "Reveal Bomb" };
     static const char* event_log_items[] = { "Miss", "Hit", "Evaded" };
     static const char* scope_modes[] = { "Default", "Lines", "Custom" };
     static const char* scope_styles[] = { "Default", "Rotated" };
@@ -972,7 +971,9 @@ void draw_visuals_world() {
     gui.grid_col(1);
     gui.column_title("HUD");
     gui.grid_box("##world_hud", k_auto_height);
-    gui.row_multibox("Radar", radar_items, world.radar_options.data(), IM_ARRAYSIZE(radar_items));
+    // One switch, like main's force_radar: the engine's own radar is fed through
+    // IsHLTV, so there is nothing per entity to tick here.
+    gui.row_checkbox("Reveal Radar", &g_cfg->world.m_draw_radar);
     gui.row_begin();
     // Custom scope settings hang off the row itself: a gear appears in the gap left
     // of the combo (same control every other row uses) only while the custom mode is
@@ -1141,7 +1142,6 @@ void draw_visuals_world() {
     world.name = world.bomb.text || world.weapon.text || world.hostage.text || world.grenade.text;
     world.icon = world.bomb.icon || world.weapon.icon || world.hostage.icon || world.grenade.icon;
     world.ammo_bar = world.weapon.progress_bar;
-    g_cfg->world.m_draw_radar = std::any_of(world.radar_options.begin(), world.radar_options.end(), [](bool value) { return value; });
     g_cfg->world.m_unlock_spectating = world.unlock_spectating_mode > 0;
     g_cfg->world.m_remove_scope_overlay = world.scope_overlay_mode != 0;
     g_cfg->world.m_custom_crosshair = world.force_sniper_crosshair || world.force_crosshair_scoped ||

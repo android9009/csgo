@@ -204,10 +204,8 @@ bool writable_range(const void* address, std::size_t size);
 bool install_viewmodel_hook();
 
 // World > HUD > Radar: keeps the in-game "spotted" flags in sync with the menu.
-void update_radar_reveal();
 
 // World > HUD > Radar: flag an entity as spotted so the in-game radar shows it.
-void reveal_entity_on_radar(void* entity, bool spotted, int local_index);
 
 // World > Windows > Spectators: entity indices currently spectating the local player.
 std::vector<int> local_spectators();

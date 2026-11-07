@@ -1198,7 +1198,17 @@ bool acquire() {
         0xB9, -1, -1, -1, -1, 0xF3, 0x0F, 0x11, 0x04, 0x24, 0xFF, 0x50, 0x10
     };
     const auto* input_address = find_pattern(client_module, input_pattern);
-    world_input = absolute_pointer<void>(input_address ? input_address + 1 : nullptr);
+    // The signature points at the `mov ecx, <CInput*>` operand, i.e. the operand
+    // already holds the address of the CInput object itself (main reads it with a
+    // single dereference). absolute_pointer() dereferenced a second time and
+    // returned CInput's vtable instead, so every write aimed at the camera flag
+    // landed in client.dll's read-only pages - that is why thirdperson never moved.
+    world_input = nullptr;
+    if (input_address && readable_range(input_address + 1, sizeof(std::uintptr_t))) {
+        std::memcpy(&world_input, input_address + 1, sizeof(world_input));
+        if (!readable_range(world_input, 0x100))
+            world_input = nullptr;
+    }
     if (!client || !engine || !entity_list)
         return false;
 

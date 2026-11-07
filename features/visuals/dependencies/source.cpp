@@ -3,6 +3,7 @@
 #include "../../../sdk/config_system/config_system.hpp"
 
 #include <Windows.h>
+#include <intrin.h>
 #include "MinHook.h"
 #include "../../../runtime/debug_console.hpp"
 
@@ -1259,16 +1260,10 @@ bool acquire() {
 }
 } // namespace
 
-// Declared at global scope instead of pulling world_render.hpp in: that header
-// sets IMGUI_DEFINE_MATH_OPERATORS after imgui.h is already included by this
-// translation unit's config headers, and imgui_internal.h rejects that order.
-namespace world_visuals {
-void run_thirdperson();
-}
-
 namespace visuals_source {
 void capture_now(frame_data& output, float alpha_blend);
 void __fastcall hooked_frame_stage(void* self, void*, int stage);
+bool install_radar_hook();
 
 bool install_frame_stage_hook();
 
@@ -1276,6 +1271,7 @@ bool initialize() {
     if (core_ready.load(std::memory_order_acquire)) {
         install_frame_stage_hook();
         install_viewmodel_hook();
+        install_radar_hook();
         return true;
     }
     const ULONGLONG now = GetTickCount64();
@@ -1286,6 +1282,7 @@ bool initialize() {
     if (core_ready.load(std::memory_order_relaxed)) {
         install_frame_stage_hook();
         install_viewmodel_hook();
+        install_radar_hook();
         return true;
     }
     if (!acquire())
@@ -1296,6 +1293,7 @@ bool initialize() {
     if (acquired) {
         install_frame_stage_hook();
         install_viewmodel_hook();
+        install_radar_hook();
     }
     return acquired;
 }
@@ -1471,20 +1469,6 @@ bool writable_range(const void* address, std::size_t size) {
     return true;
 }
 
-// World > HUD > Radar. The game radar only lists entities flagged as spotted,
-// so "reveal" sets those flags instead of painting a second radar on screen.
-void reveal_entity_on_radar(void* entity, bool spotted, int local_index) {
-    if (!entity || nv.spotted < 0)
-        return;
-    auto* spotted_slot = static_cast<unsigned char*>(entity) + nv.spotted;
-    if (!writable_range(spotted_slot, sizeof(spotted)))
-        return;
-    std::memcpy(spotted_slot, &spotted, sizeof(spotted));
-    // Fatality only ever touches m_bSpotted; the spotted-by mask is a separate
-    // networked field and writing it was an extra way to corrupt entity memory.
-    (void)local_index;
-}
-
 // ---------------------------------------------------------------------------
 //  World > Viewmodel (position / angles / visual recoil)
 // ---------------------------------------------------------------------------
@@ -1572,6 +1556,68 @@ const std::uint8_t* find_unique_pattern(HMODULE module, const int (&pattern)[N])
     return match;
 }
 
+// World > HUD > Reveal Radar, exactly like main: the game asks IVEngineClient::
+// IsHLTV() inside its radar update, and an HLTV client is shown every player.
+// A detour on IsHLTV returns true only when the call comes from that one site, so
+// nothing else in the client ever sees a faked answer.
+using is_hltv_t = bool(__thiscall*)(void*);
+is_hltv_t original_is_hltv = nullptr;
+bool radar_hook_installed = false;
+std::uintptr_t radar_return_address = 0;
+
+bool __fastcall hooked_is_hltv(void* self, void*) {
+    if (g_cfg->world.m_draw_radar && radar_return_address != 0 &&
+        reinterpret_cast<std::uintptr_t>(_ReturnAddress()) == radar_return_address)
+        return true;
+    return original_is_hltv ? original_is_hltv(self) : false;
+}
+
+bool install_radar_hook() {
+    if (radar_hook_installed)
+        return true;
+    static std::atomic<ULONGLONG> next_attempt = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now < next_attempt.load(std::memory_order_relaxed))
+        return false;
+    next_attempt.store(now + 2000, std::memory_order_relaxed);
+    if (!engine || !client_module)
+        return false;
+    // Both signatures main ships (Live, then Legacy): the instruction right after
+    // the radar's own IsHLTV call, which is what _ReturnAddress() reports.
+    static constexpr int live_pattern[] = {
+        0x84, 0xC0, 0x0F, 0x85, -1, -1, -1, -1, 0x8B, 0xCB, 0xE8, -1, -1, -1, -1,
+        0x84, 0xC0, 0x0F, 0x85, -1, -1, -1, -1, 0x83, 0xBF
+    };
+    static constexpr int legacy_pattern[] = {
+        0x84, 0xC0, 0x75, -1, 0x8B, 0xCB, 0xE8, -1, -1, -1, -1, 0x84, 0xC0, 0x75, -1, 0x83, 0xBF
+    };
+    if (radar_return_address == 0) {
+        const std::uint8_t* match = find_unique_pattern(client_module, live_pattern);
+        if (!match)
+            match = find_unique_pattern(client_module, legacy_pattern);
+        if (!match)
+            return false;
+        radar_return_address = reinterpret_cast<std::uintptr_t>(match);
+    }
+    const auto target = virtual_function<is_hltv_t>(engine, 93);
+    if (!target || !function_in_module(engine_module, reinterpret_cast<const void*>(target)))
+        return false;
+    const MH_STATUS init_status = MH_Initialize();
+    if (init_status != MH_OK && init_status != MH_ERROR_ALREADY_INITIALIZED)
+        return false;
+    void* address = reinterpret_cast<void*>(target);
+    if (MH_CreateHook(address, reinterpret_cast<void*>(&hooked_is_hltv),
+        reinterpret_cast<void**>(&original_is_hltv)) != MH_OK)
+        return false;
+    if (MH_EnableHook(address) != MH_OK) {
+        MH_RemoveHook(address);
+        original_is_hltv = nullptr;
+        return false;
+    }
+    radar_hook_installed = true;
+    return true;
+}
+
 bool install_viewmodel_hook() {
     if (viewmodel_hook_installed)
         return true;
@@ -1603,63 +1649,6 @@ bool install_viewmodel_hook() {
         return false;
     viewmodel_hook_installed = true;
     return true;
-}
-
-// World > HUD > Radar. Fatality reveals enemies in PostDataUpdate by setting
-// CBasePlayer::m_bSpotted, and it writes that flag on every single network
-// update. It has to: m_bSpotted is a networked property, so the server's copy
-// lands on the next update and a write-once shortcut loses the reveal again -
-// the old "flagged" cache here only ever wrote the flag once, which is why the
-// radar kept showing nothing.
-void update_radar_reveal() {
-    if (!is_in_game())
-        return;
-    static std::array<bool, 65> flagged{};
-    const auto& options = player_visuals::world_settings().radar_options;
-    const bool want_enemies = options[0];
-    const bool want_hostages = options[1];
-    const bool want_bomb = options[2];
-    const bool any_flagged = std::any_of(flagged.begin(), flagged.end(),
-        [](bool value) { return value; });
-    if (!want_enemies && !want_hostages && !want_bomb && !any_flagged)
-        return;
-    void* local = entity_at(local_index());
-    if (!local)
-        return;
-    const int local_team = value<int>(local, nv.team, 0);
-    const int local_index_value = local_index();
-    // The whole walking loop is [1, 64]; hostages and the C4 share the range.
-    for (int index = 1; index <= 64; ++index) {
-        void* entity = entity_at(index);
-        if (!entity) {
-            flagged[index] = false;
-            continue;
-        }
-        const client_class_t* client_class = entity_class(entity);
-        if (!client_class || !readable_range(client_class->name, 1))
-            continue;
-        const char* class_name = client_class->name;
-        bool wanted = false;
-        if (std::strstr(class_name, "CSPlayer") != nullptr) {
-            const int team = value<int>(entity, nv.team, 0);
-            wanted = want_enemies && team != 0 && team != local_team &&
-                value<unsigned char>(entity, nv.life_state, 1) == 0;
-        } else if (std::strstr(class_name, "Hostage") != nullptr) {
-            wanted = want_hostages;
-        } else if (std::strstr(class_name, "PlantedC4") != nullptr) {
-            wanted = want_bomb;
-        } else {
-            continue;
-        }
-        if (wanted) {
-            reveal_entity_on_radar(entity, true, local_index_value);
-            flagged[index] = true;
-        } else if (flagged[index]) {
-            // Only clear what we set ourselves.
-            reveal_entity_on_radar(entity, false, local_index_value);
-            flagged[index] = false;
-        }
-    }
 }
 
 std::vector<int> local_spectators() {
@@ -2066,7 +2055,7 @@ void capture_now(frame_data& output, float alpha_blend) {
     // Nothing consumes player records when both ESP sides are off and the
     // radar overlay does not need them; skip 64 entity probes per frame.
     const bool collect_players = player_visuals::settings(0).esp_enabled ||
-        player_visuals::settings(1).esp_enabled || g_cfg->world.m_draw_radar;
+        player_visuals::settings(1).esp_enabled;
     for (int index = 1; collect_players && index <= 64; ++index) {
         if (index == output.local_index)
             continue;
@@ -2099,7 +2088,7 @@ void capture_now(frame_data& output, float alpha_blend) {
             continue;
         data.side = data.team == local_team ? 1 : 0;
         const auto& side_settings = player_visuals::settings(data.side);
-        if (!side_settings.esp_enabled && !g_cfg->world.m_draw_radar) {
+        if (!side_settings.esp_enabled) {
             // Chams has its own DME path; player data is collected only for
             // enabled ESP sides or the independent World radar overlay.
             player_cache[index].valid = false;
@@ -2164,7 +2153,7 @@ void capture_now(frame_data& output, float alpha_blend) {
         cached.last_seen = now;
         cached.game_time = global_vars ? global_vars->current_time : 0.f;
         cached.valid = true;
-        if (side_settings.esp_enabled || g_cfg->world.m_draw_radar)
+        if (side_settings.esp_enabled)
             output.players.push_back(std::move(data));
     }
 
@@ -2179,12 +2168,6 @@ void __fastcall hooked_frame_stage(void* self, void*, int stage) {
         airflow_animation_speed();
     if (original_frame_stage)
         original_frame_stage(self, stage);
-    // Fatality: the radar flag is written in PostDataUpdate (FRAME_NET_UPDATE_POSTDATAUPDATE_END
-    // here) and thirdperson runs at FRAME_RENDER_END.
-    if (stage == 3)
-        update_radar_reveal();
-    if (stage == 6)
-        ::world_visuals::run_thirdperson();
     if (stage != 6 || !frame_stage_hook_ready.load(std::memory_order_acquire))
         return;
 
