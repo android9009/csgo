@@ -1,8 +1,8 @@
 #include "world.hpp"
 
-#include "../../sdk/config_system/config_system.hpp"
-#include "settings.hpp"
-#include "dependencies/source.hpp"
+#include "../../../sdk/config_system/config_system.hpp"
+#include "../settings.hpp"
+#include "../dependencies/source.hpp"
 
 #include <Windows.h>
 

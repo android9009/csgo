@@ -1,5 +1,8 @@
 #include "esp.hpp"
+#include "esp_draw.hpp"
 #include "imgui_internal.h"
+
+#include "../world/world_render.hpp"
 
 #include "../chams/chams.hpp"
 #include "../settings.hpp"
@@ -46,11 +49,6 @@ std::mutex transient_events_mutex;
 std::vector<transient_hit_event> transient_hit_events;
 std::vector<transient_impact_event> transient_impact_events;
 
-struct rect_f {
-    ImVec2 min{};
-    ImVec2 max{};
-};
-
 struct line2 {
     ImVec2 from;
     ImVec2 to;
@@ -76,30 +74,6 @@ std::vector<drag_rect> preview_drag_rects;
 active_drag_t active_drag;
 rect_f current_preview_box;
 std::atomic<int> active_drag_item = -1;
-
-// All elements of one Airflow ESP object share its animated alpha, including
-// shadows, bars, flags and hitboxes. The scope keeps preview rendering at 1.0.
-thread_local float esp_render_alpha = 1.f;
-struct alpha_scope {
-    float previous;
-    explicit alpha_scope(float alpha) : previous(esp_render_alpha) {
-        esp_render_alpha = std::clamp(alpha, 0.f, 1.f);
-    }
-    ~alpha_scope() { esp_render_alpha = previous; }
-};
-
-ImU32 color(float r, float g, float b, float a = 1.f) {
-    return ImGui::GetColorU32(ImVec4(std::clamp(r, 0.f, 1.f), std::clamp(g, 0.f, 1.f),
-        std::clamp(b, 0.f, 1.f), std::clamp(a * esp_render_alpha, 0.f, 1.f)));
-}
-
-ImU32 color(const c_color& value, float alpha = 1.f) {
-    return color(value.r, value.g, value.b, value.a * alpha);
-}
-
-ImU32 color(const player_visuals::esp_color& value, float alpha = 1.f) {
-    return color(value.primary, alpha);
-}
 
 ImVec2 offset_for(const side_settings& settings, int item, float scale) {
     if (item < 0 || item >= player_visuals::item_count)
@@ -249,40 +223,6 @@ void drag_handle(ImDrawList* draw, int side, int item, const rect_f& handle,
     ImGui::PopID();
     window->DC.CursorPos = saved_cursor;
     window->DC.CursorMaxPos = saved_cursor_max;
-}
-
-rect_f draw_text(ImDrawList* draw, ImVec2 center, std::string_view text, ImU32 ink,
-                 float scale, int alignment = 0) { // 0 center, 1 left, -1 right
-    if (text.empty())
-        return {};
-    ImFont* font = ImGui::GetFont();
-    const float font_size = std::max(8.f, 12.f * scale);
-    const char* begin = text.data();
-    const char* end = begin + text.size();
-    const ImVec2 size = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, begin, end);
-    ImVec2 top_left = center - ImVec2(size.x * 0.5f, size.y * 0.5f);
-    if (alignment > 0)
-        top_left.x = center.x;
-    else if (alignment < 0)
-        top_left.x = center.x - size.x;
-    const ImU32 shadow = color(0.f, 0.f, 0.f, 0.85f);
-    draw->AddText(font, font_size, top_left + ImVec2(1.f, 1.f), shadow, begin, end);
-    draw->AddText(font, font_size, top_left, ink, begin, end);
-    return { top_left, top_left + size };
-}
-
-rect_f draw_bar(ImDrawList* draw, const rect_f& rect, float fraction, ImU32 fill, bool vertical) {
-    const ImU32 border = color(0.f, 0.f, 0.f, 0.85f);
-    draw->AddRectFilled(rect.min - ImVec2(1.f, 1.f), rect.max + ImVec2(1.f, 1.f), border);
-    fraction = std::clamp(fraction, 0.f, 1.f);
-    if (vertical) {
-        const float y = rect.max.y - (rect.max.y - rect.min.y) * fraction;
-        draw->AddRectFilled(ImVec2(rect.min.x, y), rect.max, fill);
-    } else {
-        const float x = rect.min.x + (rect.max.x - rect.min.x) * fraction;
-        draw->AddRectFilled(rect.min, ImVec2(x, rect.max.y), fill);
-    }
-    return { rect.min - ImVec2(2.f, 2.f), rect.max + ImVec2(2.f, 2.f) };
 }
 
 // Airflow's esp_object_render.cpp, adapted to the existing ImGui renderer.
@@ -714,22 +654,6 @@ void render_player(ImDrawList* draw, const side_settings& settings, const player
     }
 }
 
-bool world_to_screen(const float matrix[4][4], const vector3& point, const ImVec2& display,
-                     ImVec2& output) {
-    const float x = matrix[0][0] * point.x + matrix[0][1] * point.y +
-        matrix[0][2] * point.z + matrix[0][3];
-    const float y = matrix[1][0] * point.x + matrix[1][1] * point.y +
-        matrix[1][2] * point.z + matrix[1][3];
-    const float w = matrix[3][0] * point.x + matrix[3][1] * point.y +
-        matrix[3][2] * point.z + matrix[3][3];
-    if (!std::isfinite(w) || w < 0.001f)
-        return false;
-    const float inverse = 1.f / w;
-    output.x = display.x * 0.5f + x * inverse * display.x * 0.5f;
-    output.y = display.y * 0.5f - y * inverse * display.y * 0.5f;
-    return std::isfinite(output.x) && std::isfinite(output.y);
-}
-
 bool screen_box(const visuals_source::frame_data& frame, const player_data& player,
                 const ImVec2& display, rect_f& box) {
     const auto finite = [](const vector3& value) {
@@ -806,309 +730,6 @@ void render_offscreen_arrow(ImDrawList* draw, const side_settings& settings,
     alpha_scope alpha_state(player.alpha);
     draw->AddTriangleFilled(tip, left, right, color(settings.offscreen_color));
     draw->AddTriangle(tip, left, right, color(settings.offscreen_outline), 1.5f);
-}
-
-bool world_box(const visuals_source::frame_data& frame, const world_data& entity,
-               const ImVec2& display, rect_f& box) {
-    bool initialized = false;
-    for (int corner = 0; corner < 8; ++corner) {
-        const vector3 point{
-            entity.origin.x + ((corner & 1) ? entity.maxs.x : entity.mins.x),
-            entity.origin.y + ((corner & 2) ? entity.maxs.y : entity.mins.y),
-            entity.origin.z + ((corner & 4) ? entity.maxs.z : entity.mins.z)
-        };
-        ImVec2 screen;
-        if (!world_to_screen(frame.view_matrix, point, display, screen))
-            continue;
-        if (!initialized) {
-            box.min = box.max = screen;
-            initialized = true;
-        } else {
-            box.min.x = std::min(box.min.x, screen.x);
-            box.min.y = std::min(box.min.y, screen.y);
-            box.max.x = std::max(box.max.x, screen.x);
-            box.max.y = std::max(box.max.y, screen.y);
-        }
-    }
-    return initialized && box.max.x - box.min.x > 1.f && box.max.y - box.min.y > 1.f &&
-        box.max.x >= 0.f && box.min.x <= display.x && box.max.y >= 0.f && box.min.y <= display.y;
-}
-
-void render_world_range(ImDrawList* draw, const world_data& entity,
-                        const visuals_source::frame_data& frame, const ImVec2& display,
-                        const c_color& range_color, float duration) {
-    if (entity.range <= 0.f)
-        return;
-    alpha_scope alpha_state(entity.alpha);
-    constexpr float pi = 3.14159265358979323846f;
-    ImVec2 points[61];
-    int point_count = 0;
-    for (int i = 0; i <= 60; ++i) {
-        const float angle = static_cast<float>(i) * (2.f * pi / 60.f);
-        const vector3 point{ entity.origin.x + std::sin(angle) * entity.range,
-            entity.origin.y + std::cos(angle) * entity.range, entity.origin.z };
-        if (world_to_screen(frame.view_matrix, point, display, points[point_count]))
-            ++point_count;
-    }
-    if (point_count > 2)
-        draw->AddPolyline(points, point_count, color(range_color, 0.85f), false, 2.f);
-
-    ImVec2 origin;
-    if (!world_to_screen(frame.view_matrix, entity.origin, display, origin))
-        return;
-    if (entity.time_remaining >= 0.f && duration > 0.f) {
-        constexpr float timer_width = 60.f;
-        const float fraction = std::clamp(entity.time_remaining / duration, 0.f, 1.f);
-        const float ease = std::sin(static_cast<float>(ImGui::GetTime()) * 2.f * pi) * 5.f;
-        const rect_f outline{ ImVec2(origin.x - timer_width * 0.5f - 1.f, origin.y - 3.f - ease),
-            ImVec2(origin.x + timer_width * 0.5f + 1.f, origin.y + 1.f - ease) };
-        draw->AddRectFilled(outline.min, outline.max, color(0.f, 0.f, 0.f, 0.6f));
-        draw->AddRectFilled(ImVec2(origin.x - timer_width * 0.5f, origin.y - 2.f - ease),
-            ImVec2(origin.x - timer_width * 0.5f + timer_width * fraction, origin.y - 0.f - ease),
-            color(range_color));
-        char timer[24];
-        std::snprintf(timer, sizeof(timer), "%.1f", std::max(0.f, entity.time_remaining));
-        draw_text(draw, ImVec2(origin.x, origin.y - 18.f - ease), timer,
-            color(1.f, 1.f, 1.f, 0.9f), 0.85f);
-    }
-}
-
-void render_grenade_trajectory(ImDrawList* draw, const world_data& entity,
-                               const visuals_source::frame_data& frame, const ImVec2& display) {
-    const auto& settings = player_visuals::world_settings();
-    constexpr float step = 0.06f;
-    const float gravity = 800.f * std::clamp(settings.trajectory_exponent, 0.f, 2.f);
-    const int point_count = settings.trajectory_precise ? 60 : 30;
-    ImVec2 previous{};
-    bool previous_valid = world_to_screen(frame.view_matrix, entity.origin, display, previous);
-    for (int index = 1; index <= point_count; ++index) {
-        const float time = step * static_cast<float>(index);
-        const vector3 point{ entity.origin.x + entity.velocity.x * time,
-            entity.origin.y + entity.velocity.y * time,
-            entity.origin.z + entity.velocity.z * time - 0.5f * gravity * time * time };
-        ImVec2 screen;
-        const bool valid = world_to_screen(frame.view_matrix, point, display, screen);
-        if (previous_valid && valid) {
-            const float pulse = settings.trajectory_shimmer > 1
-                ? 0.75f + 0.25f * std::sin(static_cast<float>(ImGui::GetTime()) * 5.f + index * 0.15f)
-                : 1.f;
-            auto trajectory_color = settings.trajectory_color;
-            trajectory_color.a *= pulse * 0.9f;
-            draw->AddLine(previous, screen, color(trajectory_color),
-                std::clamp(settings.trajectory_thickness, 0.5f, 5.f));
-            if (index % 3 == 0)
-                draw->AddCircleFilled(screen, std::clamp(settings.trajectory_points_thickness * 0.5f,
-                    0.5f, 4.f), color(trajectory_color), 8);
-        }
-        previous = screen;
-        previous_valid = valid;
-    }
-}
-
-void render_world(ImDrawList* draw, const visuals_source::frame_data& frame,
-                  const ImVec2& display) {
-    const auto& settings = player_visuals::world_settings();
-    float nearest_grenade = 301.f;
-    for (const auto& entity : frame.world) {
-        if (entity.kind == visuals_source::world_projectile) {
-            if (settings.grenade_trajectory && settings.trajectory_thrown_grenades &&
-                (std::fabs(entity.velocity.x) + std::fabs(entity.velocity.y) + std::fabs(entity.velocity.z) > 1.f))
-                render_grenade_trajectory(draw, entity, frame, display);
-            if (settings.grenade_proximity_warnings && entity.distance < nearest_grenade)
-                nearest_grenade = entity.distance;
-        }
-        if (entity.kind == visuals_source::world_smoke) {
-            if (settings.grenade.smoke_radius)
-                render_world_range(draw, entity, frame, display, settings.grenade.secondary_color, 18.f);
-            if (settings.grenade.colorize_smoke)
-                render_world_range(draw, entity, frame, display, settings.smoke_color, 18.f);
-            continue;
-        }
-        if (entity.kind == visuals_source::world_inferno) {
-            if (settings.grenade.inferno_radius)
-                render_world_range(draw, entity, frame, display, settings.grenade.progress_background, 7.03125f);
-            if (settings.grenade.colorize_molotov)
-                render_world_range(draw, entity, frame, display, settings.molotov_color, 7.03125f);
-            continue;
-        }
-        const player_visuals::world_item_settings* item = nullptr;
-        if (entity.kind == visuals_source::world_planted_c4) item = &settings.bomb;
-        else if (entity.kind == visuals_source::world_weapon) item = &settings.weapon;
-        else if (entity.kind == visuals_source::world_hostage) item = &settings.hostage;
-        else if (entity.kind == visuals_source::world_projectile) item = &settings.grenade;
-        if (!item || !item->enabled)
-            continue;
-
-        rect_f box;
-        if (!world_box(frame, entity, display, box))
-            continue;
-        alpha_scope alpha_state(entity.alpha);
-        c_color item_color = item->color;
-        if (entity.kind == visuals_source::world_projectile && settings.grenade.projectile_inferno)
-            item_color = settings.grenade.glow_color;
-        if (entity.kind == visuals_source::world_projectile && settings.grenade.colorize_explosion)
-            item_color = settings.explosion_color;
-        if (item->glow || item->colorize_effects || settings.grenade.projectile_inferno)
-            draw->AddRect(box.min - ImVec2(3.f, 3.f), box.max + ImVec2(3.f, 3.f),
-                color(item->colorize_effects ? settings.effects_color : item_color), 2.f, 0, 3.f);
-        if (item->box) {
-            draw->AddRect(box.min - ImVec2(1.f, 1.f), box.max + ImVec2(1.f, 1.f),
-                color(0.f, 0.f, 0.f, 0.8f));
-            draw->AddRect(box.min + ImVec2(1.f, 1.f), box.max - ImVec2(1.f, 1.f),
-                color(0.f, 0.f, 0.f, 0.8f));
-            draw->AddRect(box.min, box.max, color(item_color));
-        }
-
-        float bottom = box.max.y + 4.f;
-        if (item->progress_bar && entity.clip >= 0 && entity.max_clip > 0) {
-            const rect_f bar{ ImVec2(box.min.x, bottom), ImVec2(box.max.x, bottom + 2.f) };
-            const float fraction = std::clamp(static_cast<float>(entity.clip) / entity.max_clip,
-                0.f, 1.f);
-            draw_bar(draw, bar, fraction, color(item_color), false);
-            if (entity.clip < entity.max_clip) {
-                char ammo[16];
-                std::snprintf(ammo, sizeof(ammo), "%d", entity.clip);
-                draw_text(draw, ImVec2(bar.min.x + (bar.max.x - bar.min.x) * fraction,
-                    bar.min.y - 5.f), ammo, color(1.f, 1.f, 1.f, 0.9f), 0.8f);
-            }
-            bottom += 8.f;
-        }
-        if (item->text && !entity.name.empty()) {
-            draw_text(draw, ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 4.f),
-                entity.name, color(item_color), 0.9f);
-            bottom += 13.f;
-        }
-        if (item->distance) {
-            char distance_text[32];
-            std::snprintf(distance_text, sizeof(distance_text), "%dm", static_cast<int>(entity.distance * 0.0254f));
-            draw_text(draw, ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 4.f),
-                distance_text, color(item_color), 0.8f);
-            bottom += 11.f;
-        }
-        if (item->time_remaining && entity.time_remaining >= 0.f) {
-            char remaining[24];
-            std::snprintf(remaining, sizeof(remaining), "%.1fs", std::max(0.f, entity.time_remaining));
-            draw_text(draw, ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 4.f),
-                remaining, color(item_color), 0.8f);
-            bottom += 11.f;
-        }
-        if ((entity.kind == visuals_source::world_planted_c4 &&
-                (item->bomb_indicator || item->defuse_indicator || item->defuser)) ||
-            (entity.kind == visuals_source::world_hostage && item->rescue_indicator)) {
-            const char* indicator = entity.kind == visuals_source::world_hostage ? "RESCUE" :
-                (item->defuse_indicator ? "DEFUSE" : (item->defuser ? "DEFUSER" : "BOMB"));
-            draw_text(draw, ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 4.f),
-                indicator, color(item->secondary_color), 0.8f);
-            bottom += 11.f;
-        }
-        if (item->icon) {
-            const int atlas = visuals_source::atlas_weapon_id(entity.weapon_id);
-            if (atlas >= 0) {
-                const ImVec2 size(48.f, 18.f);
-                weapon_icons::draw(draw, atlas,
-                    ImVec2((box.min.x + box.max.x) * 0.5f, bottom + 7.f), size,
-                    color(item_color));
-            }
-        }
-    }
-    if (settings.grenade_proximity_warnings && nearest_grenade < 300.f) {
-        char warning[48];
-        std::snprintf(warning, sizeof(warning), "GRENADE NEARBY  %d u", static_cast<int>(nearest_grenade));
-        draw_text(draw, ImVec2(display.x * 0.5f, 64.f), warning,
-            color(1.f, 0.42f, 0.30f, 0.95f), 1.f);
-    }
-}
-
-void render_world_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
-                      const ImVec2& display) {
-    const auto& world = g_cfg->world;
-    const auto& page = player_visuals::world_settings();
-    // World > Crosshairs: every toggle is a condition on the held weapon (NL
-    // draws the overlay only while that condition holds), not a permanent
-    // overlay - the old code painted one crosshair for the union of all four.
-    visuals_source::local_view_state view_state{};
-    const bool view_state_valid = visuals_source::get_local_view_state(view_state);
-    const bool scoped = view_state_valid && view_state.scoped;
-    const bool penetration_cross = page.penetration_crosshair;
-    const bool draw_crosshair = penetration_cross ||
-        (page.force_crosshair_scoped && scoped) ||
-        (page.force_sniper_crosshair && view_state_valid && view_state.holding_sniper && !scoped) ||
-        (page.force_crosshair_c4 && view_state_valid && view_state.holding_c4);
-    if (draw_crosshair) {
-        const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
-        const ImU32 shadow = color(0.f, 0.f, 0.f, 0.9f);
-        const ImU32 cross = color(penetration_cross ? page.penetration_color : c_color{ 1.f, 1.f, 1.f, 0.95f });
-        draw->AddLine(ImVec2(center.x - 6.f, center.y), ImVec2(center.x - 2.f, center.y), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x + 2.f, center.y), ImVec2(center.x + 6.f, center.y), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x, center.y - 6.f), ImVec2(center.x, center.y - 2.f), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x, center.y + 2.f), ImVec2(center.x, center.y + 6.f), shadow, 3.f);
-        draw->AddLine(ImVec2(center.x - 6.f, center.y), ImVec2(center.x - 2.f, center.y), cross, 1.f);
-        draw->AddLine(ImVec2(center.x + 2.f, center.y), ImVec2(center.x + 6.f, center.y), cross, 1.f);
-        draw->AddLine(ImVec2(center.x, center.y - 6.f), ImVec2(center.x, center.y - 2.f), cross, 1.f);
-        draw->AddLine(ImVec2(center.x, center.y + 2.f), ImVec2(center.x, center.y + 6.f), cross, 1.f);
-    }
-
-    if (world.m_inaccuracy_overlay && frame.in_game) {
-        visuals_source::local_view_state view_state{};
-        if (visuals_source::get_local_view_state(view_state, true) && view_state.alive) {
-            const float spread = std::clamp(view_state.inaccuracy + view_state.spread, 0.f, 0.15f);
-            const float radius = std::clamp(spread * display.y * 2.6f, 2.f, 140.f);
-            const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
-            auto spread_color = player_visuals::world_settings().inaccuracy_color;
-            spread_color.a *= 0.82f;
-            draw->AddCircle(center, radius, color(spread_color), 48, 1.25f);
-            draw->AddCircle(center, radius + 1.f, color(0.f, 0.f, 0.f, 0.55f), 48, 1.f);
-        }
-    }
-
-    if (!world.m_draw_radar || !frame.in_game)
-        return;
-    const ImVec2 origin(display.x - 154.f, 86.f);
-    constexpr float size = 130.f;
-    const ImVec2 center(origin.x + size * 0.5f, origin.y + size * 0.5f);
-    draw->AddRectFilled(origin, ImVec2(origin.x + size, origin.y + size), color(0.035f, 0.045f, 0.06f, 0.72f), 3.f);
-    draw->AddRect(origin, ImVec2(origin.x + size, origin.y + size), color(0.65f, 0.7f, 0.8f, 0.45f), 3.f);
-    draw->AddLine(ImVec2(center.x - size * 0.42f, center.y), ImVec2(center.x + size * 0.42f, center.y), color(0.55f, 0.6f, 0.68f, 0.18f));
-    draw->AddLine(ImVec2(center.x, center.y - size * 0.42f), ImVec2(center.x, center.y + size * 0.42f), color(0.55f, 0.6f, 0.68f, 0.18f));
-    constexpr float radians = 0.017453292519943295f;
-    const float yaw = frame.view_angles.y * radians;
-    const float cosine = std::cos(yaw), sine = std::sin(yaw);
-    const auto& radar = player_visuals::world_settings().radar_options;
-    for (const auto& player : frame.players) {
-        if ((player.side == 0 && !radar[0]) || (player.side != 0 && player.side != 1))
-            continue;
-        const float dx = player.origin.x - frame.local_origin.x;
-        const float dy = player.origin.y - frame.local_origin.y;
-        const float right = dx * cosine - dy * sine;
-        const float forward = dx * sine + dy * cosine;
-        const ImVec2 dot(std::clamp(center.x + right * 0.11f, origin.x + 5.f, origin.x + size - 5.f),
-            std::clamp(center.y - forward * 0.11f, origin.y + 5.f, origin.y + size - 5.f));
-        const ImU32 dot_color = player.side == 0 ? color(1.f, 0.32f, 0.27f, player.alpha)
-            : color(0.30f, 0.68f, 1.f, player.alpha);
-        draw->AddCircleFilled(dot, player.dormant ? 2.f : 3.f, dot_color, 12);
-        if (radar[3]) {
-            const ImVec2 direction(dot.x + std::cos(yaw) * 5.f, dot.y + std::sin(yaw) * 5.f);
-            draw->AddLine(dot, direction, dot_color, 1.f);
-        }
-    }
-    for (const auto& object : frame.world) {
-        if ((object.kind == visuals_source::world_hostage && !radar[1]) ||
-            (object.kind == visuals_source::world_planted_c4 && !radar[2]) ||
-            (object.kind != visuals_source::world_hostage && object.kind != visuals_source::world_planted_c4))
-            continue;
-        const float dx = object.origin.x - frame.local_origin.x;
-        const float dy = object.origin.y - frame.local_origin.y;
-        const float right = dx * cosine - dy * sine;
-        const float forward = dx * sine + dy * cosine;
-        const ImVec2 dot(std::clamp(center.x + right * 0.11f, origin.x + 5.f, origin.x + size - 5.f),
-            std::clamp(center.y - forward * 0.11f, origin.y + 5.f, origin.y + size - 5.f));
-        draw->AddCircleFilled(dot, 3.f, object.kind == visuals_source::world_planted_c4
-            ? color(1.f, 0.30f, 0.25f, 0.95f) : color(0.45f, 1.f, 0.60f, 0.95f), 12);
-    }
-    draw->AddTriangleFilled(ImVec2(center.x, center.y - 5.f), ImVec2(center.x - 4.f, center.y + 4.f),
-        ImVec2(center.x + 4.f, center.y + 4.f), color(0.96f, 0.96f, 1.f, 0.95f));
-    draw_text(draw, ImVec2(origin.x + size * 0.5f, origin.y - 9.f), "RADAR",
-        color(0.9f, 0.92f, 0.96f, 0.85f), 0.75f);
 }
 
 template <typename Lines>
@@ -1521,8 +1142,8 @@ void render() {
     if (display.x < 1.f || display.y < 1.f)
         return;
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
-    render_world(draw, frame, display);
-    render_world_hud(draw, frame, display);
+    world_visuals::render_esp(draw, frame, display);
+    world_visuals::render_hud(draw, frame, display);
     render_transient_world_effects(draw, frame, display);
     sound_esp::render(frame);
     // Projection buffers are reused between players and Present calls. The

@@ -34,6 +34,12 @@
     <Filter Include="Header Files\features\visuals\chams">
       <UniqueIdentifier>{0dc7b05b-bb6e-4222-b9b7-dd19a6cc2294}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\features\visuals\world">
+      <UniqueIdentifier>{9f1c2a4e-3b6d-4f21-9c8a-1a2b3c4d5e70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\features\visuals\world">
+      <UniqueIdentifier>{9f1c2a4e-3b6d-4f21-9c8a-1a2b3c4d5e71}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\features\visuals\esp">
       <UniqueIdentifier>{480b4506-914e-4eeb-9e9b-e4d3ff5a707f}</UniqueIdentifier>
     </Filter>
@@ -195,8 +201,17 @@
     <ClCompile Include="features\visuals\esp\esp.cpp">
       <Filter>Source Files\features\visuals\esp</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\world.cpp">
-      <Filter>Source Files\features\visuals</Filter>
+    <ClCompile Include="features\visuals\world\world_cvars.cpp">
+      <Filter>Source Files\features\visuals\world</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\world\world_esp.cpp">
+      <Filter>Source Files\features\visuals\world</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\world\world_hud.cpp">
+      <Filter>Source Files\features\visuals\world</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\world\world_trajectory.cpp">
+      <Filter>Source Files\features\visuals\world</Filter>
     </ClCompile>
     <ClCompile Include="features\visuals\sound_esp.cpp">
       <Filter>Source Files\features\visuals</Filter>
@@ -311,8 +326,14 @@
     <ClInclude Include="features\visuals\settings.hpp">
       <Filter>Header Files\features\visuals</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\world.hpp">
-      <Filter>Header Files\features\visuals</Filter>
+    <ClInclude Include="features\visuals\world\world.hpp">
+      <Filter>Header Files\features\visuals\world</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\world\world_render.hpp">
+      <Filter>Header Files\features\visuals\world</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\esp\esp_draw.hpp">
+      <Filter>Header Files\features\visuals\esp</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\dependencies\source.hpp">
       <Filter>Header Files\features\visuals\dependencies</Filter>

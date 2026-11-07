@@ -2,7 +2,7 @@
 #include "gameplay.hpp"
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
-#include "../../visuals/world.hpp"
+#include "../../visuals/world/world.hpp"
 #include "../../visuals/sound_esp.hpp"
 #include "../../visuals/esp/esp.hpp"
 
