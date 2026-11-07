@@ -42,8 +42,6 @@ struct player_side_ui_state {
     int ragdolls_model = 0;
     bool disable_model_rendering = false;
     bool glow = false;
-    int local_model = 0;
-    int local_weapon = 0;
     // Self > Transparency. The multibox picks when the local model fades at all; the two sliders
     // are the fade amount for the standing view and for the second (x2) zoom, where 0 means the
     // second scope keeps the normal look - the slider's own "Off" position.
@@ -587,30 +585,21 @@ const char* const* self_chams_mode_names() {
 }
 
 void draw_self_side(player_side_ui_state& side) {
-    static const char* local_models[] = { "Default", "Counter-Terrorist", "Terrorist" };
-    static const char* local_weapons[] = { "Default", "Current Weapon" };
-
     gui.grid_box("LOCAL PLAYER MODEL", k_auto_height);
     gui.row_checkbox("ESP Enabled", &player_visuals::self_esp_settings().esp_enabled);
-    if (gui.row_popup("Model")) {
-        gui.row_begin(); ImGui::Combo("Mode", &side.local_model, local_models, IM_ARRAYSIZE(local_models));
-        gui.popup_end();
-    }
-    if (gui.row_popup("Weapon")) {
-        gui.row_begin(); ImGui::Combo("Mode", &side.local_weapon, local_weapons, IM_ARRAYSIZE(local_weapons));
-        gui.popup_end();
-    }
-    if (gui.row_popup("Transparency", nullptr, 280.f)) {
-        static const char* transparency_items[] = { "In Scope", "Grenade" };
-        gui.popup_section_begin("##self_transparency");
-        gui.row_multibox("Conditions", transparency_items, side.transparency_conditions,
-                         IM_ARRAYSIZE(transparency_items));
-        gui.row_begin(); ImGui::SliderFloat("Main", &side.transparency_main, 0.f, 1.f, "%.2f");
-        gui.row_begin(); ImGui::SliderFloat("Second Scope", &side.transparency_second_scope, 0.f, 1.f,
-            side.transparency_second_scope <= 0.f ? "Off" : "%.2f");
-        gui.popup_section_end();
-        gui.popup_end();
-    }
+    gui.row_checkbox("Disable Model Rendering", &side.disable_model_rendering);
+    gui.end_group_box();
+
+    // Transparency gets its own panel instead of hanging off the model switches as a run of
+    // sub-menu arrows: the model panel stays plain toggles, and the controls below are laid out
+    // directly (conditions multibox + fade sliders), like a chams panel does.
+    gui.grid_box("TRANSPARENCY", k_auto_height);
+    static const char* transparency_items[] = { "In Scope", "Grenade" };
+    gui.row_multibox("Conditions", transparency_items, side.transparency_conditions,
+                     IM_ARRAYSIZE(transparency_items));
+    gui.row_begin(); ImGui::SliderFloat("Main", &side.transparency_main, 0.f, 1.f, "%.2f");
+    gui.row_begin(); ImGui::SliderFloat("Second Scope", &side.transparency_second_scope, 0.f, 1.f,
+        side.transparency_second_scope <= 0.f ? "Off" : "%.2f");
     gui.end_group_box();
 
     gui.grid_box("LOCAL CHAMS", k_auto_height);
