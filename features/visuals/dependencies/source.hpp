@@ -195,8 +195,8 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy = fals
 // recomputes them every frame, so this is called from OverrideView each frame.
 bool set_viewmodel_angles(const vector3& angles);
 
-// World > Thirdperson > Close to wall: trace against world geometry.
-bool trace_world_line(const vector3& from, const vector3& to, float& fraction);
+// World > Viewmodel > Position: raw origin offset, bypassing the clamped cvars.
+bool offset_viewmodel_origin(const vector3& angles, float right, float up, float forward);
 
 // World > Windows > Spectators: entity indices currently spectating the local player.
 std::vector<int> local_spectators();

@@ -336,22 +336,9 @@ void update_camera() {
             angles.x = std::clamp(angles.x, -89.f, 20.f);
         const float camera_distance = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
         angles.z = camera_distance;
-        // World > Thirdperson > Close to wall: pull the camera in when the boom
-        // would end up inside geometry (hull trace from the eyes backwards).
-        if (player_visuals::world_settings().thirdperson_close_to_wall && has_view_state) {
-            constexpr float to_radians = 0.017453292f;
-            const float pitch = angles.x * to_radians;
-            const float yaw = angles.y * to_radians;
-            const visuals_source::vector3 eye{ view_state.origin.x, view_state.origin.y,
-                view_state.origin.z + 64.f };
-            const visuals_source::vector3 forward{ std::cos(pitch) * std::cos(yaw),
-                std::cos(pitch) * std::sin(yaw), -std::sin(pitch) };
-            const visuals_source::vector3 target{ eye.x - forward.x * camera_distance,
-                eye.y - forward.y * camera_distance, eye.z - forward.z * camera_distance };
-            float fraction = 1.f;
-            if (visuals_source::trace_world_line(eye, target, fraction) && fraction < 1.f)
-                angles.z = std::max(16.f, camera_distance * fraction - 6.f);
-        }
+        // Close to wall needs an engine trace; the previous hand-rolled
+        // IEngineTrace call is what crashed, so the distance stays untouched
+        // until it is routed through the misc runtime's proven path.
         *camera_offset = angles;
         *camera_flag = true;
     } else if (camera_owned) {
@@ -425,11 +412,11 @@ void update_world_cvars() {
     set_override("viewmodel_fov", override_vm_fov, vm_fov_value);
     const bool override_position = page.viewmodel_position_override;
     set_override("viewmodel_offset_x", override_position || std::fabs(world.m_viewmodel_offset_x) > 0.001f,
-        convars[1].original + std::clamp(world.m_viewmodel_offset_x, -2.5f, 2.5f));
+        (override_position ? convars[1].original : convars[1].original + std::clamp(world.m_viewmodel_offset_x, -2.5f, 2.5f)));
     set_override("viewmodel_offset_y", override_position || std::fabs(world.m_viewmodel_offset_y) > 0.001f,
-        convars[2].original + std::clamp(world.m_viewmodel_offset_y, -2.f, 2.f));
+        (override_position ? convars[2].original : convars[2].original + std::clamp(world.m_viewmodel_offset_y, -2.f, 2.f)));
     set_override("viewmodel_offset_z", override_position || std::fabs(world.m_viewmodel_offset_z) > 0.001f,
-        convars[3].original + std::clamp(world.m_viewmodel_offset_z, -2.f, 2.f));
+        (override_position ? convars[3].original : convars[3].original + std::clamp(world.m_viewmodel_offset_z, -2.f, 2.f)));
 
     const bool override_modifiers = page.viewmodel_modifiers_override;
     set_override("cl_wpn_sway_scale", override_modifiers || world.m_remove_viewmodel_move,
@@ -463,6 +450,16 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     // entity right after the game built its own camera, the same path the NL Lua
     // uses (credits tank / rave1337 for a correct roll).
     const auto& page = player_visuals::world_settings();
+    if (page.viewmodel_position_override) {
+        // World > Viewmodel > Position: applied to the entity after the game builds
+        // the viewmodel, so the engine's -2..2 cvar clamp no longer limits it.
+        const visuals_source::vector3 camera_angles{ setup->angles.x, setup->angles.y,
+            setup->angles.z };
+        visuals_source::offset_viewmodel_origin(camera_angles,
+            std::clamp(g_cfg->world.m_viewmodel_offset_x, -20.f, 20.f),
+            std::clamp(g_cfg->world.m_viewmodel_offset_y, -20.f, 20.f),
+            std::clamp(g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f));
+    }
     if (page.viewmodel_angles_override) {
         visuals_source::vector3 angles{
             setup->angles.x + std::clamp(page.viewmodel_pitch, -89.f, 89.f),
