@@ -149,6 +149,14 @@ struct local_view_state {
     // zoom level only feeds the separate x2 slider.
     bool holding_grenade = false;
     int zoom_level = 1;
+    // World > Crosshairs / Grenades read the same active-weapon state. Knife,
+    // C4, sniper and pin state are plain weapon flags, so they cost one
+    // definition index instead of a second entity walk per frame.
+    int weapon_id = 0;
+    bool holding_knife = false;
+    bool holding_c4 = false;
+    bool holding_sniper = false;
+    bool pin_pulled = false;
     vector3 aim_punch;
     vector3 view_punch;
     float inaccuracy = 0.f;

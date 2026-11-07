@@ -1022,11 +1022,22 @@ void render_world(ImDrawList* draw, const visuals_source::frame_data& frame,
 void render_world_hud(ImDrawList* draw, const visuals_source::frame_data& frame,
                       const ImVec2& display) {
     const auto& world = g_cfg->world;
-    if (world.m_custom_crosshair) {
+    const auto& page = player_visuals::world_settings();
+    // World > Crosshairs: every toggle is a condition on the held weapon (NL
+    // draws the overlay only while that condition holds), not a permanent
+    // overlay - the old code painted one crosshair for the union of all four.
+    visuals_source::local_view_state view_state{};
+    const bool view_state_valid = visuals_source::get_local_view_state(view_state);
+    const bool scoped = view_state_valid && view_state.scoped;
+    const bool penetration_cross = page.penetration_crosshair;
+    const bool draw_crosshair = penetration_cross ||
+        (page.force_crosshair_scoped && scoped) ||
+        (page.force_sniper_crosshair && view_state_valid && view_state.holding_sniper && !scoped) ||
+        (page.force_crosshair_c4 && view_state_valid && view_state.holding_c4);
+    if (draw_crosshair) {
         const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
         const ImU32 shadow = color(0.f, 0.f, 0.f, 0.9f);
-        const ImU32 cross = color(player_visuals::world_settings().penetration_crosshair
-            ? player_visuals::world_settings().penetration_color : c_color{ 1.f, 1.f, 1.f, 0.95f });
+        const ImU32 cross = color(penetration_cross ? page.penetration_color : c_color{ 1.f, 1.f, 1.f, 0.95f });
         draw->AddLine(ImVec2(center.x - 6.f, center.y), ImVec2(center.x - 2.f, center.y), shadow, 3.f);
         draw->AddLine(ImVec2(center.x + 2.f, center.y), ImVec2(center.x + 6.f, center.y), shadow, 3.f);
         draw->AddLine(ImVec2(center.x, center.y - 6.f), ImVec2(center.x, center.y - 2.f), shadow, 3.f);

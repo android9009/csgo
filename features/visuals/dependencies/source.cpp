@@ -1328,8 +1328,17 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
     void* weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
     if (weapon) {
         const int definition = item_definition(weapon);
+        output.weapon_id = definition;
         // Same 43..48 blast of grenade item definitions the misc runtime uses.
         output.holding_grenade = definition >= 43 && definition <= 48;
+        // World > Crosshairs gates its force/hide conditions on the weapon class;
+        // 42/59 are the two knife definitions, 49 is the C4 and the four sniper
+        // definitions match the engine's WEAPONCLASS_SNIPERRIFLE set.
+        output.holding_knife = definition == 42 || definition == 59;
+        output.holding_c4 = definition == 49;
+        output.holding_sniper = definition == 9 || definition == 11 ||
+            definition == 38 || definition == 40;
+        output.pin_pulled = output.holding_grenade && value<bool>(weapon, nv.pin_pulled, false);
         output.zoom_level = std::clamp(value<int>(weapon, nv.zoom_level, 1), 0, 2);
     }
     if (weapon && include_accuracy) {

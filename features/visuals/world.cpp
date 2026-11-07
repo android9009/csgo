@@ -46,7 +46,7 @@ struct convar_state {
     float last_applied = 0.f;
 };
 
-std::array<convar_state, 18> convars{{
+std::array<convar_state, 21> convars{{
     { "viewmodel_fov" },
     { "viewmodel_offset_x" },
     { "viewmodel_offset_y" },
@@ -64,7 +64,10 @@ std::array<convar_state, 18> convars{{
     { "r_shadows" },
     { "r_aspectratio" },
     { "r_drawviewmodel" },
-    { "spec_allow_roaming" }
+    { "spec_allow_roaming" },
+    { "cl_crosshairalpha" },
+    { "cl_disable_ragdolls" },
+    { "cl_ragdoll_physics_enable" }
 }};
 convar_state tonemap_scale{ "mat_force_tonemap_scale" };
 
@@ -368,6 +371,16 @@ void update_world_cvars() {
     const bool view_state_valid = visuals_source::get_local_view_state(view_state);
     const bool scoped = view_state_valid && view_state.scoped;
     set_override("r_drawviewmodel", world.m_show_viewmodel_in_scope && scoped, 1.f);
+    // World > Crosshairs: the engine crosshair is drawn from the weapon state,
+    // so "hide on knife/grenade" is an alpha override rather than a paint skip.
+    const bool hide_crosshair = view_state_valid &&
+        ((view_state.holding_knife && page.hide_crosshair_knife) ||
+         (view_state.holding_grenade && page.hide_crosshair_grenade));
+    set_override("cl_crosshairalpha", hide_crosshair, 0.f);
+    // World > Ragdolls: 0 Default, 1 Remove, 2 Client Side.
+    const int ragdoll_mode = std::clamp(page.ragdoll_mode, 0, 2);
+    set_override("cl_disable_ragdolls", ragdoll_mode == 1, 1.f);
+    set_override("cl_ragdoll_physics_enable", ragdoll_mode == 2, 1.f);
     g_cfg->world.m_remove_flash = world.m_remove_flash || page.removals[5];
     g_cfg->world.m_remove_smoke = world.m_remove_smoke || page.removals[6];
     g_cfg->world.m_remove_post_processing = world.m_remove_post_processing || page.removals[9];
