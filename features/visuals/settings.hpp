@@ -194,6 +194,15 @@ struct self_chams_settings {
     c_color glow_color{ 0.80f, 0.75f, 1.f, 1.f };
     c_color glow_secondary = glow_color;
     std::string custom_sprite = "models/weapons/customization/paints/custom/money";
+
+    // Self > Models. Ported from Fatality, which drives the local model through
+    // RenderView::SetBlend(1 - transparency) while is_scoped() and skips the
+    // DrawModelExecute call when the model must not render at all.
+    bool disable_model_rendering = false;
+    bool transparency_conditions[2] = {}; // 0 = In Scope, 1 = Grenade
+    float transparency = 0.f;             // 0 = opaque, 1 = invisible
+    // Separate x2-zoom amount. 0 keeps the second scope at the normal look.
+    float transparency_second_scope = 0.f;
 };
 
 inline self_chams_settings& self_settings() {

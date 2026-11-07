@@ -109,6 +109,11 @@ struct local_view_state {
     bool available = false;
     bool alive = false;
     bool scoped = false;
+    // Self > Models > Transparency conditions. Fatality reads the same two
+    // states straight off the local player (is_scoped / active grenade); the
+    // zoom level only feeds the separate x2 slider.
+    bool holding_grenade = false;
+    int zoom_level = 1;
     vector3 aim_punch;
     vector3 view_punch;
     float inaccuracy = 0.f;

@@ -292,6 +292,15 @@ void c_config_system::setup_values( )
 	push_item(&self.weapon_secondary, "self_visuals", "weapon_secondary", self.weapon_secondary);
 	push_item(&self.attachments_color, "self_visuals", "attachments_color", self.attachments_color);
 	push_item(&self.attachments_secondary, "self_visuals", "attachments_secondary", self.attachments_secondary);
+	push_item(&self.disable_model_rendering, "self_visuals", "disable_model_rendering",
+		self.disable_model_rendering);
+	push_item(&self.transparency_conditions[0], "self_visuals", "transparency_in_scope",
+		self.transparency_conditions[0]);
+	push_item(&self.transparency_conditions[1], "self_visuals", "transparency_grenade",
+		self.transparency_conditions[1]);
+	push_item(&self.transparency, "self_visuals", "transparency", self.transparency);
+	push_item(&self.transparency_second_scope, "self_visuals", "transparency_second_scope",
+		self.transparency_second_scope);
 	push_item(&self.glow_enabled, "self_visuals", "glow_enabled", self.glow_enabled);
 	push_item(&self.glow_color, "self_visuals", "glow_color", self.glow_color);
 	push_item(&self.glow_secondary, "self_visuals", "glow_secondary", self.glow_secondary);

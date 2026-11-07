@@ -206,6 +206,7 @@ struct netvars_t {
     int force_bone = -1;
     int move_parent = -1;
     int weapon_id = -1;
+    int zoom_level = -1;
     int clip = -1;
     int reserve_ammo = -1;
     int next_primary_attack = -1;
@@ -542,6 +543,9 @@ void resolve_netvars() {
     if (nv.move_parent < 0)
         nv.move_parent = table_offset(classes, { "DT_BaseEntity" }, "moveparent");
     nv.weapon_id = table_offset(classes, { "DT_BaseAttributableItem" }, "m_iItemDefinitionIndex");
+    nv.zoom_level = table_offset(classes, { "DT_WeaponCSBase" }, "m_zoomLevel");
+    if (nv.zoom_level < 0)
+        nv.zoom_level = table_offset(classes, { "DT_WeaponCSBase" }, "m_iZoomLevel");
     nv.clip = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iClip1");
     nv.reserve_ammo = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_iPrimaryReserveAmmoCount");
     nv.next_primary_attack = table_offset(classes, { "DT_BaseCombatWeapon" }, "m_flNextPrimaryAttack");
@@ -1292,10 +1296,16 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
     output.scoped = value<bool>(local, nv.scoped, false);
     output.aim_punch = value<vector3>(local, nv.aim_punch);
     output.view_punch = value<vector3>(local, nv.view_punch);
-    const unsigned int weapon_handle = include_accuracy
-        ? value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu) : 0xFFFFFFFFu;
-    void* weapon = include_accuracy ? entity_from_handle(weapon_handle) : nullptr;
+    // Self > Models reads the active weapon on every call: the Grenade
+    // condition is a weapon state, not an accuracy request.
+    void* weapon = entity_from_handle(value<unsigned int>(local, nv.active_weapon, 0xFFFFFFFFu));
     if (weapon) {
+        const int definition = item_definition(weapon);
+        // Same 43..48 blast of grenade item definitions the misc runtime uses.
+        output.holding_grenade = definition >= 43 && definition <= 48;
+        output.zoom_level = std::clamp(value<int>(weapon, nv.zoom_level, 1), 0, 2);
+    }
+    if (weapon && include_accuracy) {
         using weapon_float_t = float(__thiscall*)(void*);
         const auto get_inaccuracy = virtual_function<weapon_float_t>(weapon, 469);
         const auto get_spread = virtual_function<weapon_float_t>(weapon, 439);

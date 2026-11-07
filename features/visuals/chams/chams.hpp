@@ -79,7 +79,18 @@ struct special_passes {
     pass_settings ragdolls;
 };
 
+// Self > Models, captured with the passes so the hook never reads the settings
+// object directly. Fatality keeps these two knobs in the same scope as chams.
+struct self_model_settings {
+    bool disable_rendering = false;
+    bool transparency_in_scope = false;
+    bool transparency_grenade = false;
+    float transparency = 0.f;
+    float transparency_second_scope = 0.f;
+};
+
 struct self_passes {
+    self_model_settings model;
     pass_settings local_player;
     pass_settings viewmodel;
     pass_settings weapon;

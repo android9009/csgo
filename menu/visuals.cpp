@@ -327,6 +327,11 @@ void load_shared_self_view(player_side_ui_state& view) {
     view.weapon_color.b = to_vec4(config.weapon_secondary);
     view.on_shot_color.a = to_vec4(config.attachments_color);
     view.on_shot_color.b = to_vec4(config.attachments_secondary);
+    view.disable_model_rendering = config.disable_model_rendering;
+    view.transparency_conditions[0] = config.transparency_conditions[0];
+    view.transparency_conditions[1] = config.transparency_conditions[1];
+    view.transparency_main = std::clamp(config.transparency, 0.f, 1.f);
+    view.transparency_second_scope = std::clamp(config.transparency_second_scope, 0.f, 1.f);
     view.glow = config.glow_enabled;
     view.glow_color.a = to_vec4(config.glow_color);
     view.glow_color.b = to_vec4(config.glow_secondary);
@@ -384,6 +389,11 @@ void store_shared_self_view(player_side_ui_state& view) {
     config.weapon_secondary = to_config_color(view.weapon_color.b);
     config.attachments_color = to_config_color(view.on_shot_color.a);
     config.attachments_secondary = to_config_color(view.on_shot_color.b);
+    config.disable_model_rendering = view.disable_model_rendering;
+    config.transparency_conditions[0] = view.transparency_conditions[0];
+    config.transparency_conditions[1] = view.transparency_conditions[1];
+    config.transparency = std::clamp(view.transparency_main, 0.f, 1.f);
+    config.transparency_second_scope = std::clamp(view.transparency_second_scope, 0.f, 1.f);
     config.glow_enabled = view.glow;
     config.glow_color = to_config_color(view.glow_color.a);
     config.glow_secondary = to_config_color(view.glow_color.b);

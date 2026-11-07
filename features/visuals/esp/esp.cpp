@@ -1192,6 +1192,13 @@ self_chams_snapshot make_self_chams_snapshot() {
     const auto& self = player_visuals::self_settings();
     self_chams_snapshot result;
     auto& passes = result.passes;
+    // Self > Models. The DME hook owns the blend itself; it only needs the two
+    // conditions and their amounts (Fatality: transparency_in_scope / nades).
+    passes.model.disable_rendering = self.disable_model_rendering;
+    passes.model.transparency_in_scope = self.transparency_conditions[0];
+    passes.model.transparency_grenade = self.transparency_conditions[1];
+    passes.model.transparency = std::clamp(self.transparency, 0.f, 1.f);
+    passes.model.transparency_second_scope = std::clamp(self.transparency_second_scope, 0.f, 1.f);
     passes.local_player = chams_pass(
         self.local_enabled ? self.local_material : visuals_chams::disabled,
         self.local_color, self.local_secondary);
@@ -1262,6 +1269,14 @@ bool same_side_chams(const side_chams_snapshot& lhs, const side_chams_snapshot& 
 bool same_self_chams(const self_chams_snapshot& lhs, const self_chams_snapshot& rhs) {
     const auto& a = lhs.passes;
     const auto& b = rhs.passes;
+    const auto& model_a = a.model;
+    const auto& model_b = b.model;
+    if (model_a.disable_rendering != model_b.disable_rendering ||
+        model_a.transparency_in_scope != model_b.transparency_in_scope ||
+        model_a.transparency_grenade != model_b.transparency_grenade ||
+        model_a.transparency != model_b.transparency ||
+        model_a.transparency_second_scope != model_b.transparency_second_scope)
+        return false;
     return same_pass(a.local_player, b.local_player) &&
         same_pass(a.viewmodel, b.viewmodel) &&
         same_pass(a.weapon, b.weapon) &&

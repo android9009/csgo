@@ -107,6 +107,9 @@ enum self_pass_bit : unsigned {
     self_weapon_bit = 1u << 2,
     self_attachments_bit = 1u << 3,
     self_glow_bit = 1u << 4,
+    // Self > Models only (Disable Model Rendering / Transparency) with no chams
+    // selection of its own. Keeps the local model in the classified path.
+    self_model_bit = 1u << 5,
 };
 std::atomic<unsigned> self_chams_mask = 0;
 std::atomic<unsigned> self_settings_generation = 1;
@@ -150,6 +153,10 @@ struct self_frame_snapshot {
     int frame = -1;
     unsigned generation = 0;
     bool alive = false;
+    // Resolved once per frame, like Fatality's per-DME is_scoped() check but
+    // without touching the conditions for every model the engine submits.
+    bool model_disabled = false;
+    float model_alpha = 1.f;
     visuals_chams::self_passes settings;
     char sprite_path[128] = {};
 };
@@ -1067,21 +1074,36 @@ bool selection_enabled(const visuals_chams::pass_settings& single,
     return overlay ? multiple.count > 0 : single.material != visuals_chams::disabled;
 }
 
+// Fatality composes the local-model fade into the chams alpha instead of the
+// RenderView blend:
+//     transparency += (100 - transparency) * (transparency_in_scope / 100)
+// which is the same as multiplying the pass alpha by the model alpha.
+visuals_chams::pass_settings with_model_alpha(const visuals_chams::pass_settings& pass,
+                                              float alpha_scale) {
+    if (alpha_scale >= 1.f)
+        return pass;
+    visuals_chams::pass_settings scaled = pass;
+    scaled.color[3] = std::clamp(scaled.color[3] * alpha_scale, 0.f, 1.f);
+    scaled.secondary[3] = std::clamp(scaled.secondary[3] * alpha_scale, 0.f, 1.f);
+    return scaled;
+}
+
 bool draw_pass_selection(const draw_call& call, const visuals_chams::pass_settings& single,
                          const visuals_chams::pass_list& multiple, bool overlay, bool hidden,
-                         const char* sprite_path) {
+                         const char* sprite_path, float alpha_scale = 1.f) {
     if (overlay) {
         const int count = std::min(multiple.count, static_cast<int>(visuals_chams::mode_count));
         for (int i = 0; i < count; ++i) {
             // draw_single_material() leaves neutral modulation after every
             // pass; the enclosing modulation_scope restores the engine values.
-            draw_pass(call, multiple.values[i], hidden, sprite_path, i > 0);
+            draw_pass(call, with_model_alpha(multiple.values[i], alpha_scale), hidden,
+                sprite_path, i > 0);
         }
         return count > 0;
     }
     if (single.material == visuals_chams::disabled)
         return false;
-    draw_pass(call, single, hidden, sprite_path);
+    draw_pass(call, with_model_alpha(single, alpha_scale), hidden, sprite_path);
     return true;
 }
 
@@ -1217,6 +1239,33 @@ int chams_frame_number() {
     return frame;
 }
 
+// Fatality's local-model fade, ported onto the Airflow snapshot:
+//     if (scoped && transparency_in_scope > 0.1f)
+//         blend = 1.f - transparency_in_scope * 0.01f;
+// The reference exposes one "Transparency" amount plus "+ with nades"; Airflow
+// turns those into conditions and adds the separate x2-zoom amount. The
+// condition that asks for the strongest fade wins, so the result is never
+// more transparent than the largest requested amount.
+float local_model_alpha(const visuals_chams::self_model_settings& model) {
+    const float main = std::clamp(model.transparency, 0.f, 1.f);
+    const float second = std::clamp(model.transparency_second_scope, 0.f, 1.f);
+    const bool in_scope = model.transparency_in_scope && main > 0.f;
+    const bool grenade = model.transparency_grenade && main > 0.f;
+    if (!in_scope && !grenade)
+        return 1.f;
+
+    visuals_source::local_view_state state{};
+    if (!visuals_source::get_local_view_state(state) || !state.available || !state.alive)
+        return 1.f;
+
+    float fade = 0.f;
+    if (in_scope && state.scoped)
+        fade = state.zoom_level >= 2 && second > 0.f ? second : main;
+    if (grenade && state.holding_grenade)
+        fade = std::max(fade, main);
+    return std::clamp(1.f - fade, 0.f, 1.f);
+}
+
 const self_frame_snapshot& self_snapshot_for_frame() {
     const int frame = chams_frame_number();
     const unsigned generation = self_settings_generation.load(std::memory_order_acquire);
@@ -1233,6 +1282,8 @@ const self_frame_snapshot& self_snapshot_for_frame() {
             sizeof(self_frame.sprite_path) - 1);
         self_frame.sprite_path[sizeof(self_frame.sprite_path) - 1] = '\0';
     }
+    self_frame.model_disabled = self_frame.settings.model.disable_rendering;
+    self_frame.model_alpha = local_model_alpha(self_frame.settings.model);
     self_frame.frame = frame;
     self_frame.generation = generation;
     return self_frame;
@@ -1380,7 +1431,8 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
         has_entity = visuals_source::resolve_renderable_entity(renderable, entity);
 
     if (self_mask != 0 && has_entity) {
-        const bool local_player = (self_mask & (self_local_player_bit | self_glow_bit)) != 0 &&
+        const bool local_player = (self_mask &
+            (self_local_player_bit | self_glow_bit | self_model_bit)) != 0 &&
             player_model && visuals_source::is_local_entity(entity.entity);
         const bool viewmodel = self_viewmodel && entity.viewmodel;
         // Attachments can use custom model paths, so retain the complete
@@ -1409,7 +1461,8 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
                     in_game_chams = false;
                 };
                 const auto draw_self_selection = [&](const visuals_chams::pass_settings& single,
-                                                     const visuals_chams::pass_list& multiple) {
+                                                     const visuals_chams::pass_list& multiple,
+                                                     float alpha_scale) {
                     in_game_chams = true;
                     bool drawn = false;
                     {
@@ -1422,7 +1475,7 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
                         call.render_info = &info;
                         reset_modulation(true);
                         drawn = draw_pass_selection(call, single, multiple,
-                            self_snapshot.overlay.enabled, false, sprite_path);
+                            self_snapshot.overlay.enabled, false, sprite_path, alpha_scale);
                         force_material(nullptr, true);
                         reset_modulation(true);
                     }
@@ -1431,26 +1484,49 @@ void __fastcall hooked_model_execute(void* self, void*, void* context,
                 };
 
                 if (local_player) {
+                    // Fatality drops the local player's DrawModelExecute instead of
+                    // drawing it invisible: the thirdperson model is engine-owned, so
+                    // skipping the call is what actually hides it.
+                    if (frame_snapshot.model_disabled)
+                        return;
+                    const float model_alpha = frame_snapshot.model_alpha;
                     bool drawn = draw_self_selection(self_snapshot.local_player,
-                        self_snapshot.overlay.local_player);
+                        self_snapshot.overlay.local_player, model_alpha);
                     if (self_snapshot.glow.material != visuals_chams::disabled) {
                         // The standalone Self Glow is additive to the chosen materials.
                         // Do not turn Glow off/on into an implicit flat material.
-                        draw_self(self_snapshot.glow);
+                        draw_self(with_model_alpha(self_snapshot.glow, model_alpha));
                         drawn = true;
                     }
                     if (drawn)
                         return;
+                    if (model_alpha < 1.f) {
+                        // Fatality: RenderView::SetBlend(1 - transparency) right before
+                        // the engine draws the thirdperson local model.
+                        modulation_scope modulation(true);
+                        constexpr float white[3] = { 1.f, 1.f, 1.f };
+                        set_draw_color(white, true);
+                        set_draw_alpha(model_alpha, true);
+                        draw_call call;
+                        call.bones = bones;
+                        call.game = true;
+                        call.context = context;
+                        call.state = &state;
+                        call.render_info = &info;
+                        draw_original(call);
+                        return;
+                    }
                 }
                 if (viewmodel) {
                     const bool arms = model_name && std::strstr(model_name, "arms");
                     const auto& pass = arms ? self_snapshot.viewmodel : self_snapshot.weapon;
                     const auto& passes = arms ? self_snapshot.overlay.viewmodel : self_snapshot.overlay.weapon;
-                    if (draw_self_selection(pass, passes))
+                    if (draw_self_selection(pass, passes, 1.f))
                         return;
                 }
                 if (attachment && visuals_source::entity_parented_to_local(entity.entity, true) &&
-                    draw_self_selection(self_snapshot.attachments, self_snapshot.overlay.attachments)) {
+                    draw_self_selection(self_snapshot.attachments, self_snapshot.overlay.attachments,
+                        1.f)) {
                     return;
                 }
             }
@@ -1799,6 +1875,9 @@ void set_self_passes(const self_passes& passes, const char* sprite_path) {
                        &self_game_settings.overlay.attachments}) {
         sanitize_pass_list(*list);
     }
+    auto& model = self_game_settings.model;
+    model.transparency = std::clamp(model.transparency, 0.f, 1.f);
+    model.transparency_second_scope = std::clamp(model.transparency_second_scope, 0.f, 1.f);
     const auto& overlay = self_game_settings.overlay;
     unsigned mask = 0;
     if (selection_enabled(self_game_settings.local_player, overlay.local_player, overlay.enabled))
@@ -1811,6 +1890,12 @@ void set_self_passes(const self_passes& passes, const char* sprite_path) {
         mask |= self_attachments_bit;
     if (self_game_settings.glow.material != disabled)
         mask |= self_glow_bit;
+    // Self > Models has to classify the local player model even when no chams
+    // pass is selected: the disable/blend decision lives in the same hook.
+    if (model.disable_rendering ||
+        ((model.transparency_in_scope || model.transparency_grenade) &&
+         (model.transparency > 0.f || model.transparency_second_scope > 0.f)))
+        mask |= self_model_bit;
     if (sprite_path && sprite_path[0]) {
         std::strncpy(self_sprite_path, sprite_path, sizeof(self_sprite_path) - 1);
         self_sprite_path[sizeof(self_sprite_path) - 1] = '\0';
