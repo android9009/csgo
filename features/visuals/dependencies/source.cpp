@@ -1422,7 +1422,7 @@ void angle_vectors(const vector3& angles, vector3& forward, vector3& right, vect
         right.x * forward.y - right.y * forward.x };
 }
 
-void __fastcall hooked_calc_viewmodel_view(void* self, void*, void* owner, vector3& eye_pos,
+void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, vector3& eye_pos,
                                            vector3& eye_angles) {
     if (owner && is_local_entity(owner)) {
         const auto& page = player_visuals::world_settings();
@@ -1451,7 +1451,7 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void*, void* owner, vecto
         }
     }
     if (original_calc_viewmodel_view)
-        original_calc_viewmodel_view(self, nullptr, owner, eye_pos, eye_angles);
+        original_calc_viewmodel_view(self, edx, owner, eye_pos, eye_angles);
 }
 
 bool install_viewmodel_hook() {
@@ -1492,7 +1492,9 @@ void update_radar_reveal() {
     const bool want_enemies = options[0];
     const bool want_hostages = options[1];
     const bool want_bomb = options[2];
-    if (!is_in_game() || (!want_enemies && !want_hostages && !want_bomb && !flagged[0]))
+    const bool any_flagged = std::any_of(flagged.begin(), flagged.end(),
+        [](bool value) { return value; });
+    if (!is_in_game() || (!want_enemies && !want_hostages && !want_bomb && !any_flagged))
         return;
     void* local = entity_at(local_index());
     if (!local)
