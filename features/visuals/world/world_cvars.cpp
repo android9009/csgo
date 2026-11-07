@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "world_crosshair.hpp"
 
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../settings.hpp"
