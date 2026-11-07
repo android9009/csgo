@@ -157,7 +157,8 @@ void clear_smoke_counter() {
         return;
     int* counter = nullptr;
     std::memcpy(&counter, smoke_count_global, sizeof(counter));
-    if (counter && readable_range(counter, sizeof(int))) {
+    if (counter && readable_range(counter, sizeof(int)) &&
+        visuals_source::writable_range(counter, sizeof(int))) {
         const int zero = 0;
         std::memcpy(counter, &zero, sizeof(zero));
     }
@@ -299,6 +300,14 @@ bool set_convar_float_raw(void* object, float value) {
         sizeof(parent));
     if (!readable_range(parent, convar_float_offset + sizeof(std::uint32_t)))
         return false;
+    // client.dll keeps plenty of read-only tables next to its .data; a wrong
+    // parent pointer used to turn this into a write into .rdata (the crash we
+    // kept hitting), so the cell has to be writable before it is touched.
+    if (!visuals_source::writable_range(
+            static_cast<const std::uint8_t*>(parent) + convar_float_offset,
+            sizeof(std::uint32_t))) {
+        return false;
+    }
     const auto self = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(object));
     std::uint32_t encoded = 0;
     std::memcpy(&encoded, static_cast<const std::uint8_t*>(parent) + convar_float_offset,
@@ -362,6 +371,9 @@ void update_camera() {
     auto* camera_offset = reinterpret_cast<vector3*>(bytes + input_camera_offset);
     if (!readable_range(camera_flag, 1) || !readable_range(camera_offset, sizeof(vector3)))
         return;
+    if (!visuals_source::writable_range(camera_flag, 1) ||
+        !visuals_source::writable_range(camera_offset, sizeof(vector3)))
+        return;
     const int local_index = local_player_index();
     using entity_at_t = void*(__thiscall*)(void*, int);
     const auto entity_at = reinterpret_cast<entity_at_t>(vfunc(entity_list, 3));
@@ -386,6 +398,7 @@ void update_camera() {
         if (player_visuals::world_settings().thirdperson_disable_overhead)
             angles.x = std::clamp(angles.x, -89.f, 20.f);
         angles.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
+        AIRFLOW_DEBUG_STAGE("world.override_view.camera_write");
         *camera_offset = angles;
         *camera_flag = true;
     } else if (*camera_flag) {
@@ -441,10 +454,12 @@ void update_world_cvars() {
     g_cfg->world.m_remove_flash = world.m_remove_flash || page.removals[5];
     g_cfg->world.m_remove_smoke = world.m_remove_smoke || page.removals[6];
     g_cfg->world.m_remove_post_processing = world.m_remove_post_processing || page.removals[9];
+    AIRFLOW_DEBUG_STAGE("world_cvars.flash");
     visuals_source::set_flash_removed(g_cfg->world.m_remove_flash);
     if (g_cfg->world.m_remove_smoke)
         clear_smoke_counter();
 
+    AIRFLOW_DEBUG_STAGE("world_cvars.post_processing");
     const int exposure = std::clamp(world.m_exposure, 0, 100);
     const float brightness = std::clamp(world.m_brightness, 0.f, 1.f);
     const bool tone_changed = exposure != 20 || std::fabs(brightness - 0.5f) > 0.001f;
@@ -452,6 +467,7 @@ void update_world_cvars() {
         (brightness * 2.f), 0.f, 5.f);
     set_override("mat_force_tonemap_scale", tone_changed, tone_scale);
 
+    AIRFLOW_DEBUG_STAGE("world_cvars.viewmodel_fov");
     // FOV goes through the raw cell: the convar's registered range is 54..68 and
     // SetValue clamped every value we pushed into it. Position/angles are applied
     // in the CalcViewModelView hook (see visuals_source), never through cvars.
@@ -463,6 +479,7 @@ void update_world_cvars() {
         : convars[0].original + static_cast<float>(vm_fov);
     set_override_raw("viewmodel_fov", override_vm_fov, vm_fov_value);
 
+    AIRFLOW_DEBUG_STAGE("world_cvars.modifiers");
     const bool override_modifiers = page.viewmodel_modifiers_override;
     set_override("cl_wpn_sway_scale", override_modifiers || world.m_remove_viewmodel_move,
         override_modifiers ? page.modifier_velocity_sway : 0.f);
@@ -484,11 +501,14 @@ void update_world_cvars() {
 }
 
 void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
-    AIRFLOW_DEBUG_STAGE("world.override_view");
+    AIRFLOW_DEBUG_STAGE("world.override_view.camera");
     update_camera();
+    AIRFLOW_DEBUG_STAGE("world.override_view.cvars");
     update_world_cvars();
+    AIRFLOW_DEBUG_STAGE("world.override_view.original");
     if (original_override_view)
         original_override_view(self, setup);
+    AIRFLOW_DEBUG_STAGE("world.override_view.setup");
     if (!setup)
         return;
 
@@ -498,7 +518,7 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     // the game overwrote and what crashed.
 
     const auto& cfg = g_cfg->world_esp;
-    if (cfg.m_enable_override_fov)
+    if (cfg.m_enable_override_fov && visuals_source::writable_range(&setup->fov, sizeof(float)))
         setup->fov = static_cast<float>(std::clamp(cfg.m_override_fov, 60, 130));
 
     visuals_source::local_view_state view_state{};
@@ -506,7 +526,8 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
         const auto& page = player_visuals::world_settings();
         // World > Visual Recoil is a plain on/off: subtract the punch the engine
         // itself adds to the camera.
-        if (view_state.alive && g_cfg->world.m_visual_recoil) {
+        if (view_state.alive && g_cfg->world.m_visual_recoil &&
+            visuals_source::writable_range(&setup->angles, sizeof(vector3))) {
             setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
             setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
         }

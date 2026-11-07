@@ -196,6 +196,8 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy = fals
 
 // World > Viewmodel: hooks CalcViewModelView so position/angles/visual recoil
 // land on the eye position the game hands the viewmodel (main's path).
+bool writable_range(const void* address, std::size_t size);
+
 bool install_viewmodel_hook();
 
 // World > HUD > Radar: keeps the in-game "spotted" flags in sync with the menu.

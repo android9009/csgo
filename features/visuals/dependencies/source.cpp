@@ -315,6 +315,34 @@ struct capture_memory_cache_scope {
     }
 };
 
+// Writing into a read-only page (client.dll's .rdata, a string literal, a const
+// table) is an instant access violation. Every write that goes through a resolved
+// pointer checks this first now.
+bool writable_range(const void* address, std::size_t size) {
+    if (!address || !size)
+        return false;
+    auto current = reinterpret_cast<std::uintptr_t>(address);
+    const auto end = current + size;
+    if (end < current)
+        return false;
+    constexpr DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE |
+        PAGE_EXECUTE_WRITECOPY;
+    while (current < end) {
+        MEMORY_BASIC_INFORMATION info{};
+        if (!VirtualQuery(reinterpret_cast<const void*>(current), &info, sizeof(info)))
+            return false;
+        if (info.State != MEM_COMMIT || (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0 ||
+            (info.Protect & writable) == 0)
+            return false;
+        const auto region_end = reinterpret_cast<std::uintptr_t>(info.BaseAddress) +
+            static_cast<std::uintptr_t>(info.RegionSize);
+        if (region_end <= current)
+            return false;
+        current = region_end;
+    }
+    return true;
+}
+
 bool readable_range(const void* address, std::size_t size) {
     if (!address || !size)
         return false;
@@ -1390,8 +1418,13 @@ bool get_local_view_state(local_view_state& output, bool include_accuracy) {
 void reveal_entity_on_radar(void* entity, bool spotted, int local_index) {
     if (!entity || nv.spotted < 0)
         return;
-    std::memcpy(static_cast<unsigned char*>(entity) + nv.spotted, &spotted, sizeof(spotted));
+    auto* spotted_slot = static_cast<unsigned char*>(entity) + nv.spotted;
+    if (!writable_range(spotted_slot, sizeof(spotted)))
+        return;
+    std::memcpy(spotted_slot, &spotted, sizeof(spotted));
     if (nv.spotted_by_mask < 0 || local_index < 0 || local_index > 63)
+        return;
+    if (!writable_range(static_cast<unsigned char*>(entity) + nv.spotted_by_mask, sizeof(unsigned int)))
         return;
     unsigned int mask = value<unsigned int>(entity, nv.spotted_by_mask, 0u);
     const unsigned int bit = 1u << local_index;
@@ -1437,12 +1470,13 @@ void __fastcall hooked_calc_viewmodel_view(void* self, void* edx, void* owner, v
         const float offset_z = std::clamp(g_cfg->world.m_viewmodel_offset_z, -20.f, 20.f);
         if (page.viewmodel_position_override &&
             (std::fabs(offset_x) > 0.001f || std::fabs(offset_y) > 0.001f ||
-                std::fabs(offset_z) > 0.001f)) {
+                std::fabs(offset_z) > 0.001f) &&
+            writable_range(&eye_pos, sizeof(vector3))) {
             eye_pos.x += right.x * offset_x + forward.x * offset_y + up.x * offset_z;
             eye_pos.y += right.y * offset_x + forward.y * offset_y + up.y * offset_z;
             eye_pos.z += right.z * offset_x + forward.z * offset_y + up.z * offset_z;
         }
-        if (page.viewmodel_angles_override) {
+        if (page.viewmodel_angles_override && writable_range(&eye_angles, sizeof(vector3))) {
             eye_angles.x += std::clamp(page.viewmodel_pitch, -89.f, 89.f);
             eye_angles.y += std::clamp(page.viewmodel_yaw, -180.f, 180.f);
             eye_angles.z = std::clamp(page.viewmodel_roll, -180.f, 180.f);
@@ -1591,7 +1625,10 @@ void set_flash_removed(bool enabled) {
     static float original_alpha = 255.f;
     static bool has_original = false;
     void* local = is_in_game() ? entity_at(local_index()) : nullptr;
-    if (tracked_entity && (tracked_entity != local || !enabled) && has_original && nv.flash_max_alpha >= 0) {
+    if (tracked_entity && (tracked_entity != local || !enabled) && has_original &&
+        nv.flash_max_alpha >= 0 &&
+        writable_range(reinterpret_cast<unsigned char*>(tracked_entity) + nv.flash_max_alpha,
+            sizeof(float))) {
         std::memcpy(reinterpret_cast<unsigned char*>(tracked_entity) + nv.flash_max_alpha,
             &original_alpha, sizeof(original_alpha));
         tracked_entity = nullptr;
@@ -1605,7 +1642,8 @@ void set_flash_removed(bool enabled) {
         has_original = true;
     }
     const float zero = 0.f;
-    std::memcpy(reinterpret_cast<unsigned char*>(local) + nv.flash_max_alpha, &zero, sizeof(zero));
+    if (writable_range(reinterpret_cast<unsigned char*>(local) + nv.flash_max_alpha, sizeof(zero)))
+        std::memcpy(reinterpret_cast<unsigned char*>(local) + nv.flash_max_alpha, &zero, sizeof(zero));
 }
 
 bool entity_parented_to_local(void* entity, bool local_alive) {
