@@ -250,8 +250,13 @@ void c_gui::group_box( const char* name, ImVec2 size_arg, bool scrollable ) {
     const char* header_text = tr( name );
     const float header_fs = scaled_font_size( header_font );
     const float header_text_y = IM_ROUND( header_h * 0.5f - TextLineCenterY( header_font, header_fs ) );
-    GetWindowDrawList( )->AddText( header_font, header_fs,
-        pos + ImVec2( 10.f * m_scale, header_text_y - 3.f * m_scale ), header_col, header_text );
+    // "##name" is an ID-only label (ImGui's own convention): such a box has no title of its own.
+    // The column above it already draws one with column_title() into this same header strip, so
+    // printing the raw id here used to double the caption ("VIEW" on top of "##world_view").
+    const bool titled = !( name[ 0 ] == '#' && name[ 1 ] == '#' );
+    if ( titled )
+        GetWindowDrawList( )->AddText( header_font, header_fs,
+            pos + ImVec2( 10.f * m_scale, header_text_y - 3.f * m_scale ), header_col, header_text );
 
     SetCursorPos( ImVec2( 0, header_h ) );
     PushStyleVar( ImGuiStyleVar_WindowPadding, { 12 * gui.m_scale, gui.box_pad_y * gui.m_scale } ); // Indent contents
@@ -685,10 +690,29 @@ void c_gui::info_tooltip(const char* title, const char* description) {
     const float left_x = item_rect.Min.x - gap;
     const float right_space = viewport_max.x - edge - right_x;
     const float left_space = left_x - viewport_min.x - edge;
-    const bool place_left = estimated_w > right_space && left_space > right_space;
+    bool place_left = estimated_w > right_space && left_space > right_space;
+    float anchor_x = place_left ? left_x : right_x;
+
+    // A row living inside a popup card is already surrounded by card chrome, so the side chosen
+    // from the row lands the tooltip on that card (or on the menu behind it) and its shadow cuts
+    // through the rows it is explaining. Put it beside the whole menu instead - the game frame
+    // outside the menu is free - and only fall back to the row when neither side has room.
+    if (is_popup_window(owner)) {
+        if (ImGuiWindow* menu_window = ImGui::FindWindowByName("DARKSIDE##neverlose")) {
+            const float menu_right = menu_window->Pos.x + menu_window->Size.x + gap;
+            const float menu_left = menu_window->Pos.x - gap;
+            if (menu_right + estimated_w <= viewport_max.x - edge) {
+                place_left = false;
+                anchor_x = menu_right;
+            } else if (menu_left - estimated_w >= viewport_min.x + edge) {
+                place_left = true;
+                anchor_x = menu_left;
+            }
+        }
+    }
     const float min_y = viewport_min.y + edge;
     const float max_y = ImMax(min_y, viewport_max.y - estimated_h - edge);
-    const ImVec2 tooltip_pos(place_left ? left_x : right_x, ImClamp(item_rect.Min.y, min_y, max_y));
+    const ImVec2 tooltip_pos(anchor_x, ImClamp(item_rect.Min.y, min_y, max_y));
     ImGui::SetNextWindowPos(tooltip_pos, ImGuiCond_Always, ImVec2(place_left ? 1.f : 0.f, 0.f));
     ImGui::SetNextWindowSize(ImVec2(0.f, 0.f));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, alpha);
@@ -1319,7 +1343,7 @@ bool c_gui::row_options_begin( const char* id, float width, row_control control 
         // The card forces ItemSpacing to 0 (the config list / colour picker lay themselves out).
         // A gear card is just stacked rows, so give them a vertical gap - otherwise several
         // controls pile up with no breathing room. Popped in row_options_end().
-        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 7.f * s ) );
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0.f, 10.f * s ) );
         // These counters belong to this card's window only; a nested or floating menu starts at 0.
         set_row_state_value(k_row_no_separator_state, row_state_value(k_row_no_separator_state) + 1);
         set_row_state_value(k_row_options_state, row_state_value(k_row_options_state) + 1);
@@ -2274,6 +2298,10 @@ void c_gui::popup_section_begin( const char* id, bool draw_border, float pad ) {
 
     float w = ImGui::GetContentRegionAvail( ).x;
     ImGui::PushItemWidth( ImMax(1.f, w - horizontal_pad * 2.f) );
+    // A card's own ItemSpacing is zero (its contents lay themselves out), which left the stacked
+    // rows of a section touching each other. Give them the same breathing room a group box uses.
+    ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing,
+                        ImVec2( ImGui::GetStyle( ).ItemSpacing.x, 10.f * m_scale ) );
     ImGui::SetCursorScreenPos( scope.pos + ImVec2( horizontal_pad, scope.pad ) );
     ImGui::PushID( id );
     ImGui::BeginGroup();
@@ -2291,6 +2319,7 @@ void c_gui::popup_section_end() {
     ImVec2 content_size = ImGui::GetItemRectSize();
     ImGui::PopID();
     ImGui::PopItemWidth();
+    ImGui::PopStyleVar(); // the ItemSpacing pushed in popup_section_begin()
 
     float total_h = content_size.y + scope.pad * 2.f;
 
@@ -2298,7 +2327,7 @@ void c_gui::popup_section_end() {
         ImGui::GetWindowDrawList()->AddRect( scope.pos, scope.pos + ImVec2( scope.width, total_h ), gui.popup_border.to_im_color(), 12.f * m_scale, 0, 1.f * m_scale );
 
     // advance past this section, plus a gap, ready for the next section or widget
-    ImGui::SetCursorScreenPos( scope.pos + ImVec2( 0, total_h + 8.f * m_scale ) );
+    ImGui::SetCursorScreenPos( scope.pos + ImVec2( 0, total_h + 10.f * m_scale ) );
 }
 
 // ---------------------------------------------------------------------------------------
