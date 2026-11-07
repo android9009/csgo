@@ -2472,7 +2472,7 @@ namespace {
         { "TEAMMATE",          "СОЮЗНИК",             "TAKIM ARKADAŞI" },
         { "TEAMMATE MODEL",    "МОДЕЛЬ СОЮЗНИКА",     "TAKIM ARKADAŞI MODELİ" },
         { "LOCAL PLAYER MODEL", "МОДЕЛЬ ЛОКАЛЬНОГО ИГРОКА", "YEREL OYUNCU MODELİ" },
-        { "TRANSPARENCY",      "ПРОЗРАЧНОСТЬ",        "ŞEFFAFLIK" },
+        { "MODELS",            "МОДЕЛИ",              "MODELLER" },
         { "Teammates",         "Союзники",            "Takım Arkadaşları" },
         { "Disable Model Rendering", "Отключить рендер модели", "Model Renderını Kapat" },
         { "Model",             "Модель",              "Model" },
