@@ -110,9 +110,9 @@ void render_windows(ImDrawList* draw, const visuals_source::frame_data& frame,
     struct badge { bool wanted; const char* text; bool active; };
     char hitchance_text[32];
     std::snprintf(hitchance_text, sizeof(hitchance_text), "HC %d",
-        std::clamp(g_cfg->misc.m_triggerbot_hitchance, 0, 100));
+        std::clamp(g_cfg->legit_bot.m_triggerbot_hitchance, 0, 100));
     const badge badges[4] = {
-        { page.windows_double_tap, "DT", g_cfg->misc.m_double_tap },
+        { page.windows_double_tap, "DT", g_cfg->rage_bot.m_double_tap },
         { page.windows_jump_bug, "JB", g_cfg->misc.m_jump_bug },
         { page.windows_slowdown, "SW", g_cfg->misc.m_slow_walk },
         { page.windows_hit_chance_override, hitchance_text, true },
