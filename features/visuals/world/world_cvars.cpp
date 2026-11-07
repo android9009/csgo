@@ -438,11 +438,13 @@ void update_world_cvars() {
         override_modifiers ? page.modifier_rotation_sway : 0.f);
     set_override("cl_bobamt_lat", override_modifiers || world.m_remove_viewmodel_move,
         override_modifiers ? page.modifier_bobbing : 0.f);
-    set_override("cl_bobamt_vert", override_modifiers || world.m_remove_viewmodel_move,
-        override_modifiers ? page.modifier_bobbing : 0.f);
-    set_override("cl_bob_lower_amt", override_modifiers || world.m_remove_viewmodel_move,
-        override_modifiers ? page.modifier_lower_weapon : 0.f);
+    // Disable Landing Bob: the landing dip is the vertical bob + lower amount, not
+    // the shift amts (those only cancel strafe/turn shift), so zero both here.
     const bool no_landing_bob = world.m_remove_landing_bob;
+    set_override("cl_bobamt_vert", override_modifiers || world.m_remove_viewmodel_move || no_landing_bob,
+        no_landing_bob ? 0.f : (override_modifiers ? page.modifier_bobbing : 0.f));
+    set_override("cl_bob_lower_amt", override_modifiers || world.m_remove_viewmodel_move || no_landing_bob,
+        no_landing_bob ? 0.f : (override_modifiers ? page.modifier_lower_weapon : 0.f));
     set_override("cl_viewmodel_shift_left_amt", override_modifiers || no_landing_bob,
         override_modifiers ? page.modifier_in_air_offset : 0.f);
     set_override("cl_viewmodel_shift_right_amt", override_modifiers || no_landing_bob,
