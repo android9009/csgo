@@ -5,6 +5,7 @@
 #include "runtime.hpp"
 #include "debug_console.hpp"
 #include "fonts.hpp"
+#include "game_input.hpp"
 #include "steam_avatar.hpp"
 
 #include <Windows.h>
@@ -47,7 +48,7 @@ bool menu_ready = false;
 HWND game_window = nullptr;
 void* game_panel = nullptr;
 ULONGLONG next_panel_probe = 0;
-unsigned int focus_overlay_panel = 0;
+game_input::mouse_input_state focus_overlay_input;
 bool menu_input_open = false;
 std::mutex frame_mutex;
 
@@ -85,6 +86,7 @@ void note_present_thread(HWND override_window) {
 
 using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
 using panel_set_mouse_input_t = void(__thiscall*)(void*, unsigned int, bool);
+using panel_is_mouse_input_enabled_t = bool(__thiscall*)(void*, unsigned int);
 using panel_get_name_t = const char*(__thiscall*)(void*, unsigned int);
 using create_interface_t = void* (__cdecl*)(const char*, int*);
 paint_traverse_t original_paint_traverse = nullptr;
@@ -118,27 +120,29 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
     // This is the cursor path used by main: enabling mouse input on the
     // FocusOverlayPanel releases the game's centred/locked cursor. Do not
     // replace it with per-frame ISurface::UnlockCursor calls.
-    if (!focus_overlay_panel) {
-        if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
-            return;
-        focus_overlay_panel = panel;
-    }
-    if (panel != focus_overlay_panel)
+    //
+    // Resolve the panel by name on every traversal instead of caching the first
+    // id forever. A map load can rebuild VGUI panels; the id observed in the
+    // main menu is not guaranteed to be the id used by the in-game team UI.
+    if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
         return;
 
     const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
-    if (!set_mouse_input)
+    const auto is_mouse_input_enabled = (*reinterpret_cast<panel_is_mouse_input_enabled_t**>(ecx))[34];
+    if (!set_mouse_input || !is_mouse_input_enabled)
         return;
-    // Own the cursor only while the menu is open; on close restore it exactly
-    // once. Forcing "false" every frame kept mouse input disabled for the game
-    // itself, so the team select screen (and buy menu) could not be clicked.
-    static bool restored_closed = false;
-    if (g_menu->is_opened()) {
-        set_mouse_input(ecx, panel, true);
-        restored_closed = false;
-    } else if (!restored_closed) {
-        set_mouse_input(ecx, panel, false);
-        restored_closed = true;
+
+    // Never write `false` just because the cheat menu is closed. The game may
+    // legitimately have mouse input enabled (main menu, team select, buy menu).
+    // Capture the game's current value when the menu opens, enable input only
+    // while the menu owns it, and restore that captured value on close.
+    const bool current_enabled = is_mouse_input_enabled(ecx, panel);
+    const game_input::mouse_input_state::action action =
+        focus_overlay_input.update(panel, current_enabled, g_menu->is_opened());
+    if (action.write) {
+        set_mouse_input(ecx, panel, action.enabled);
+        AIRFLOW_DEBUG_LOGF("FocusOverlayPanel(%u): mouse input %s", panel,
+            action.enabled ? "enabled for menu" : "restored for game");
     }
 }
 
