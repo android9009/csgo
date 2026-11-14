@@ -7,8 +7,8 @@
 #include "../dependencies/source.hpp"
 
 #include "../../../runtime/debug_console.hpp"
-#include <Windows.h>
-#include "MinHook.h"
+#include "../../../runtime/hooks.hpp"
+#include "../../../sdk/game/globals.hpp"
 
 #include <algorithm>
 #include <array>
@@ -23,37 +23,9 @@ void run_thirdperson();
 }
 
 namespace {
-struct vector3 {
-    float x, y, z;
-};
-
-// CViewSetup layout used by the 32-bit CS:GO client.
-struct view_setup {
-    std::uint8_t pad[176];
-    float fov;
-    float viewmodel_fov;
-    vector3 origin;
-    vector3 angles;
-};
-
-// IInput layout as Fatality's sdk/interfaces/IInput.h has it: the pad is 0xA9
-// bytes, so m_fCameraInThirdPerson sits at 0xA9 and m_vecCameraOffset at 0xAC.
-// Confirmed against main's c_input (Live layout) - the same offsets.
-// main's c_input (Live layout): PAD(0xC) + 3 bools + PAD(0x9A) puts
-// camera_in_third_person at 0xA9, PAD(0x2) puts camera_offset at 0xAC.
-constexpr std::size_t input_camera_in_third_person = 0xA9;
-constexpr std::size_t input_camera_offset = 0xAC;
-constexpr std::size_t convar_parent_offset = 0x1C;
-constexpr std::size_t convar_float_offset = 0x2C;
-constexpr std::size_t convar_find_var_vfunc = 16;
-constexpr std::size_t convar_set_float_vfunc = 15;
-constexpr std::size_t override_view_vfunc = 18;
-constexpr std::size_t panel_get_name_vfunc = 36;
-constexpr std::size_t panel_paint_traverse_vfunc = 41;
-
 struct convar_state {
     const char* name;
-    void* object = nullptr;
+    c_convar* object = nullptr;
     float original = 0.f;
     bool original_valid = false;
     bool overridden = false;
@@ -85,161 +57,33 @@ std::array<convar_state, 21> convars{{
 }};
 convar_state tonemap_scale{ "mat_force_tonemap_scale" };
 
-void* client_mode = nullptr;
-void* input_object = nullptr;
-void* cvar_interface = nullptr;
-void* engine_client = nullptr;
-void* entity_list = nullptr;
-void* panel_interface = nullptr;
-HMODULE client_module = nullptr;
-int** smoke_count_global = nullptr;
-bool smoke_pattern_resolved = false;
-using override_view_t = void(__thiscall*)(void*, view_setup*);
+using override_view_t = void(__thiscall*)(void*, c_view_setup*);
 override_view_t original_override_view = nullptr;
 bool override_installed = false;
 
-bool readable_range(const void* address, std::size_t size) {
-    if (!address || !size)
-        return false;
-    MEMORY_BASIC_INFORMATION info{};
-    if (!VirtualQuery(address, &info, sizeof(info)) || info.State != MEM_COMMIT ||
-        (info.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
-        return false;
-    }
-    const auto begin = reinterpret_cast<std::uintptr_t>(address);
-    const auto region_begin = reinterpret_cast<std::uintptr_t>(info.BaseAddress);
-    const auto region_end = region_begin + info.RegionSize;
-    return begin >= region_begin && begin <= region_end && size <= region_end - begin;
-}
-
-void resolve_smoke_count() {
-    if (!client_module || smoke_pattern_resolved)
-        return;
-    smoke_pattern_resolved = true;
-    const auto* base = reinterpret_cast<const std::uint8_t*>(client_module);
-    if (!readable_range(base, sizeof(IMAGE_DOS_HEADER)))
-        return;
-    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew <= 0 || dos->e_lfanew > 0x100000)
-        return;
-    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(base + dos->e_lfanew);
-    if (!readable_range(nt, sizeof(*nt)) || nt->Signature != IMAGE_NT_SIGNATURE)
-        return;
-    // The client smoke counter is the operand used by CSmokeScreenEffect::Render.
-    // Search only executable code and require a unique version-specific signature.
-    constexpr std::array<int, 15> pattern{
-        0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08, 0x8B, 0x15, -1, -1, -1, -1, 0x0F, 0x57, 0xC0
-    };
-    const std::uint8_t* match = nullptr;
-    const auto* section = IMAGE_FIRST_SECTION(nt);
-    for (unsigned int section_index = 0; section_index < nt->FileHeader.NumberOfSections;
-         ++section_index, ++section) {
-        if (std::memcmp(section->Name, ".text", 5) != 0)
-            continue;
-        const auto size = static_cast<std::size_t>(section->Misc.VirtualSize);
-        const auto* text = base + section->VirtualAddress;
-        if (size < pattern.size() || !readable_range(text, size))
-            continue;
-        for (std::size_t offset = 0; offset + pattern.size() <= size; ++offset) {
-            bool matches = true;
-            for (std::size_t index = 0; index < pattern.size(); ++index) {
-                if (pattern[index] >= 0 && text[offset + index] != static_cast<std::uint8_t>(pattern[index])) {
-                    matches = false;
-                    break;
-                }
-            }
-            if (!matches)
-                continue;
-            if (match)
-                return; // ambiguous build signature: leave smoke untouched
-            match = text + offset;
-        }
-    }
-    if (!match || !readable_range(match + 8, sizeof(std::uintptr_t)))
-        return;
-    std::uintptr_t address = 0;
-    std::memcpy(&address, match + 8, sizeof(address));
-    auto** global = reinterpret_cast<int**>(address);
-    if (!readable_range(global, sizeof(int*)))
-        return;
-    smoke_count_global = global;
-}
-
+// World > Removals > Smoke: main's remove_smoke - the smoke counter the client
+// checks in CSmokeScreenEffect::Render (offsets::remove_smoke).
 void clear_smoke_counter() {
-    if (!smoke_count_global || !readable_range(smoke_count_global, sizeof(int*)))
-        return;
-    int* counter = nullptr;
-    std::memcpy(&counter, smoke_count_global, sizeof(counter));
-    if (counter && readable_range(counter, sizeof(int)) &&
-        visuals_source::writable_range(counter, sizeof(int))) {
-        const int zero = 0;
-        std::memcpy(counter, &zero, sizeof(zero));
-    }
+    if (int** counter = offsets::remove_smoke.cast<int**>(); counter && *counter)
+        **counter = 0;
 }
 
-void* vfunc(void* object, std::size_t index) {
-    if (!readable_range(object, sizeof(void*)))
-        return nullptr;
-    void** table = *reinterpret_cast<void***>(object);
-    if (!readable_range(table, (index + 1) * sizeof(void*)))
-        return nullptr;
-    return table[index];
-}
-
-// Detour on the function behind a vtable slot (main's hooker::add_detour); the
-// vtable in the module's read-only data is not modified.
-bool write_vfunc(void* object, std::size_t index, void* replacement, void** original) {
-    void* target = vfunc(object, index);
-    if (!target || !replacement || !original)
-        return false;
-    const MH_STATUS init_status = MH_Initialize();
-    if (init_status != MH_OK && init_status != MH_ERROR_ALREADY_INITIALIZED)
-        return false;
-    if (MH_CreateHook(target, replacement, original) != MH_OK)
-        return false;
-    if (MH_EnableHook(target) != MH_OK) {
-        MH_RemoveHook(target);
-        *original = nullptr;
-        return false;
-    }
-    return true;
-}
-
-float read_convar_float(void* object, bool& valid) {
+float read_convar_float(c_convar* object, bool& valid) {
     valid = false;
-    if (!readable_range(object, convar_parent_offset + sizeof(void*)))
+    if (!object || !object->parent)
         return 0.f;
-    void* parent = nullptr;
-    std::memcpy(&parent, static_cast<const std::uint8_t*>(object) + convar_parent_offset,
-        sizeof(parent));
-    if (!readable_range(parent, convar_float_offset + sizeof(std::uint32_t)))
-        return 0.f;
-    std::uint32_t encoded = 0;
-    std::memcpy(&encoded, static_cast<const std::uint8_t*>(parent) + convar_float_offset,
-        sizeof(encoded));
-    const auto self = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(object));
-    const std::uint32_t decoded = encoded ^ self;
-    float result = 0.f;
-    std::memcpy(&result, &decoded, sizeof(result));
+    const float result = object->get_float();
     valid = std::isfinite(result);
     return valid ? result : 0.f;
 }
 
-void set_convar_float(void* object, float value) {
-    if (!object || !std::isfinite(value))
-        return;
-    const auto function = reinterpret_cast<void(__thiscall*)(void*, float)>(
-        vfunc(object, convar_set_float_vfunc));
-    if (function)
-        function(object, value);
+void set_convar_float(c_convar* object, float value) {
+    if (object && std::isfinite(value))
+        object->set_value(value);
 }
 
-void* find_convar(const char* name) {
-    if (!cvar_interface || !name)
-        return nullptr;
-    using find_var_t = void*(__thiscall*)(void*, const char*);
-    const auto find = reinterpret_cast<find_var_t>(vfunc(cvar_interface, convar_find_var_vfunc));
-    return find ? find(cvar_interface, name) : nullptr;
+c_convar* find_convar(const char* name) {
+    return name ? HACKS->cvar->find_convar(name) : nullptr;
 }
 
 void cache_convars() {
@@ -308,36 +152,15 @@ void set_override(const char* name, bool enabled, float value) {
 // registered min/max - that is why viewmodel_fov could never leave 54..68. The
 // engine stores the value XOR-encoded with the convar pointer, so writing that
 // cell directly bypasses the clamp the same way the NL Lua's cvar:float does.
-bool set_convar_float_raw(void* object, float value) {
-    if (!object || !std::isfinite(value))
+bool set_convar_float_raw(c_convar* object, float value) {
+    if (!object || !object->parent || !std::isfinite(value))
         return false;
-    void* parent = nullptr;
-    std::memcpy(&parent, static_cast<const std::uint8_t*>(object) + convar_parent_offset,
-        sizeof(parent));
-    if (!readable_range(parent, convar_float_offset + sizeof(std::uint32_t)))
-        return false;
-    // client.dll keeps plenty of read-only tables next to its .data; a wrong
-    // parent pointer used to turn this into a write into .rdata (the crash we
-    // kept hitting), so the cell has to be writable before it is touched.
-    if (!visuals_source::writable_range(
-            static_cast<const std::uint8_t*>(parent) + convar_float_offset,
-            sizeof(std::uint32_t))) {
-        return false;
-    }
-    const auto self = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(object));
-    std::uint32_t encoded = 0;
-    std::memcpy(&encoded, static_cast<const std::uint8_t*>(parent) + convar_float_offset,
-        sizeof(encoded));
-    std::uint32_t decoded = encoded ^ self;
-    float current = 0.f;
-    std::memcpy(&current, &decoded, sizeof(current));
-    if (!std::isfinite(current))
+    if (!std::isfinite(object->get_float()))
         return false;
     std::uint32_t bits = 0;
     std::memcpy(&bits, &value, sizeof(bits));
-    encoded = bits ^ self;
-    std::memcpy(static_cast<std::uint8_t*>(parent) + convar_float_offset, &encoded,
-        sizeof(encoded));
+    *reinterpret_cast<std::uint32_t*>(&object->parent->float_value) =
+        bits ^ static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(object));
     return true;
 }
 
@@ -363,18 +186,6 @@ void set_override_raw(const char* name, bool enabled, float value) {
             set_convar_float(item->object, item->original);
         item->overridden = false;
     }
-}
-
-bool engine_in_game() {
-    using bool_fn = bool(__thiscall*)(void*);
-    const auto function = reinterpret_cast<bool_fn>(vfunc(engine_client, 26));
-    return function && function(engine_client);
-}
-
-int local_player_index() {
-    using int_fn = int(__thiscall*)(void*);
-    const auto function = reinterpret_cast<int_fn>(vfunc(engine_client, 12));
-    return function ? function(engine_client) : 0;
 }
 
 void update_cvars() {
@@ -467,7 +278,7 @@ void update_cvars() {
         override_modifiers ? page.modifier_ladder_bob : 0.f);
 }
 
-void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
+void __fastcall hooked_override_view(void* self, void*, c_view_setup* setup) {
     AIRFLOW_DEBUG_STAGE("world.override_view.camera");
     // main calls THIRDPSERON->run_alive() here, before the original.
     world_visuals::run_thirdperson();
@@ -486,7 +297,7 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
     // the game overwrote and what crashed.
 
     const auto& cfg = g_cfg->world_esp;
-    if (cfg.m_enable_override_fov && visuals_source::writable_range(&setup->fov, sizeof(float)))
+    if (cfg.m_enable_override_fov)
         setup->fov = static_cast<float>(std::clamp(cfg.m_override_fov, 60, 130));
 
     visuals_source::local_view_state view_state{};
@@ -495,8 +306,7 @@ void __fastcall hooked_override_view(void* self, void*, view_setup* setup) {
         // World > Visual Recoil follows its label: Enabled keeps the kick the
         // engine adds, Disabled is the one that subtracts it (the combo used to
         // be wired the other way round).
-        if (view_state.alive && !g_cfg->world.m_visual_recoil &&
-            visuals_source::writable_range(&setup->angles, sizeof(vector3))) {
+        if (view_state.alive && !g_cfg->world.m_visual_recoil) {
             setup->angles.x -= view_state.aim_punch.x * 0.9f + view_state.view_punch.x;
             setup->angles.y -= view_state.aim_punch.y * 0.9f + view_state.view_punch.y;
         }
@@ -524,112 +334,13 @@ namespace world_visuals {
 void run_thirdperson();
 }
 
-// --- engine trace (EngineTraceClient004::TraceRay, vtable slot 5) ------------
+// --- engine trace (HACKS->engine_trace, main's ray_t / c_game_trace) ---------
 // main's thirdperson shoots a 32x32 box behind the camera and scales the distance
 // with the fraction, so the camera never ends up inside a wall.
-struct trace_vec {
-    float x, y, z;
-};
-
-struct trace_plane {
-    trace_vec normal;
-    float dist;
-    unsigned char type;
-    unsigned char sign_bits;
-};
-
-struct trace_surface {
-    const char* name;
-    short props;
-    unsigned short flags;
-};
-
-struct game_trace_t {
-    trace_vec start;
-    trace_vec end;
-    trace_plane plane;
-    float fraction;
-    int contents;
-    unsigned short disp_flags;
-    bool all_solid;
-    bool start_solid;
-    float fraction_left_solid;
-    trace_surface surface;
-    unsigned int hitgroup;
-    short physics_bone;
-    unsigned short world_surface_index;
-    void* entity;
-    int hitbox;
-};
-
-// The engine's VectorAligned is declared 16-byte aligned, so Ray_t may be read
-// with aligned SSE loads. A ray that happens to land on a 4-byte stack boundary
-// would then fault; alignas(16) makes the compiler align every ray_t local (the
-// misc runtime's vec3_aligned does the same).
-struct alignas(16) trace_vec_aligned {
-    float x, y, z, w;
-};
-
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4324) // tail padding from alignas(16) is intended
-#endif
-struct ray_t {
-    trace_vec_aligned start;
-    trace_vec_aligned delta;
-    trace_vec_aligned start_offset;
-    trace_vec_aligned extents;
-    const void* world_axis_transform;
-    bool is_ray;
-    bool is_swept;
-
-    ray_t(const vector3& from, const vector3& to, const vector3& mins, const vector3& maxs) {
-        const vector3 d{ to.x - from.x, to.y - from.y, to.z - from.z };
-        const vector3 extent{ (maxs.x - mins.x) * 0.5f, (maxs.y - mins.y) * 0.5f,
-            (maxs.z - mins.z) * 0.5f };
-        const vector3 offset{ (maxs.x + mins.x) * 0.5f, (maxs.y + mins.y) * 0.5f,
-            (maxs.z + mins.z) * 0.5f };
-        start = { from.x + offset.x, from.y + offset.y, from.z + offset.z, 0.f };
-        delta = { d.x, d.y, d.z, 0.f };
-        start_offset = { -offset.x, -offset.y, -offset.z, 0.f };
-        extents = { extent.x, extent.y, extent.z, 0.f };
-        world_axis_transform = nullptr;
-        is_ray = extent.x * extent.x + extent.y * extent.y + extent.z * extent.z < 0.000001f;
-        is_swept = d.x != 0.f || d.y != 0.f || d.z != 0.f;
-    }
-};
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-
-#if defined(_WIN32) && !defined(_WIN64)
-static_assert(alignof(ray_t) == 16, "ray_t must be 16-byte aligned");
-static_assert(offsetof(ray_t, is_ray) == 68, "ray_t layout changed");
-static_assert(offsetof(game_trace_t, fraction) == 44, "game_trace_t layout changed");
-static_assert(offsetof(game_trace_t, entity) == 76, "game_trace_t layout changed");
-#endif
-
-// Same filter main uses for the camera trace: nothing but the world and props.
-class thirdperson_trace_filter {
-public:
-    virtual bool should_hit_entity(void*, int) { return false; }
-    virtual int get_trace_type() const { return 0; }
-};
-
-// Airflow's c_trace_filter_simple(skip = thrower, collision_group): every entity
-// except the thrower is hit. The world brushes are always traced by the engine
-// itself; entity == nullptr in the result is what marks a world hit.
-class grenade_trace_filter {
-public:
-    explicit grenade_trace_filter(void* skip_entity) : skip(skip_entity) {}
-    virtual bool should_hit_entity(void* entity, int) { return entity != skip; }
-    virtual int get_trace_type() const { return 0; }
-
-private:
-    void* skip = nullptr;
-};
-
-void fill_swept_trace(const game_trace_t& result, ::world_visuals::swept_trace& out) {
+// The camera/grenade world trace uses main's c_trace_filter_world_and_props_only
+// (no entity is hit); the grenade entity trace uses c_trace_filter_skip_entity
+// (every entity except the thrower). entity == nullptr marks a world hit.
+void fill_swept_trace(const c_game_trace& result, ::world_visuals::swept_trace& out) {
     out.fraction = std::clamp(result.fraction, 0.f, 1.f);
     out.hit = result.fraction < 1.f;
     out.start_solid = result.start_solid;
@@ -640,74 +351,24 @@ void fill_swept_trace(const game_trace_t& result, ::world_visuals::swept_trace& 
     out.normal = { result.plane.normal.x, result.plane.normal.y, result.plane.normal.z };
 }
 
-constexpr unsigned int mask_npcworldstatic = 0x0200000B;
-
-bool executable_address(const void* address) {
-    MEMORY_BASIC_INFORMATION info{};
-    if (!VirtualQuery(address, &info, sizeof(info)) || info.State != MEM_COMMIT)
+bool trace_hull(const vec3_t& from, const vec3_t& to, const vec3_t& mins, const vec3_t& maxs,
+                unsigned int mask, i_trace_filter& filter, c_game_trace& result) {
+    if (!HACKS->engine_trace)
         return false;
-    constexpr DWORD executable = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE |
-        PAGE_EXECUTE_WRITECOPY;
-    return (info.Protect & executable) != 0;
-}
-
-void* engine_trace_interface() {
-    static void* cached = nullptr;
-    static bool resolved = false;
-    if (resolved)
-        return cached;
-    resolved = true;
-    const HMODULE engine_module = GetModuleHandleW(L"engine.dll");
-    if (!engine_module)
-        return nullptr;
-    using create_interface_t = void*(__cdecl*)(const char*, int*);
-    const auto create = reinterpret_cast<create_interface_t>(
-        GetProcAddress(engine_module, "CreateInterface"));
-    if (!create)
-        return nullptr;
-    for (const char* name : { "EngineTraceClient004", "EngineTraceClient003" }) {
-        if (void* found = create(name, nullptr)) {
-            if (vfunc(found, 5) && executable_address(vfunc(found, 5))) {
-                cached = found;
-                break;
-            }
-        }
-    }
-    return cached;
-}
-
-void* cached_trace_ray() {
-    // The vtable slot is stable for the module lifetime. Resolving it per trace
-    // (vfunc -> 2x VirtualQuery) dominated the cost of every physics step.
-    static void* cached = nullptr;
-    static bool resolved = false;
-    if (!resolved) {
-        resolved = true;
-        void* engine = engine_trace_interface();
-        cached = engine ? vfunc(engine, 5) : nullptr;
-    }
-    return cached;
-}
-
-bool trace_line(const vector3& from, const vector3& to, const vector3& mins,
-                const vector3& maxs, game_trace_t& result) {
-    void* trace_interface = engine_trace_interface();
-    if (!trace_interface)
-        return false;
-    using trace_ray_t = void(__thiscall*)(void*, const ray_t&, unsigned int, void*, game_trace_t*);
-    const auto trace_ray = reinterpret_cast<trace_ray_t>(cached_trace_ray());
-    if (!trace_ray)
-        return false;
-    thirdperson_trace_filter filter;
-    result = {};
+    result.clear();
     const ray_t ray(from, to, mins, maxs);
-    trace_ray(trace_interface, ray, mask_npcworldstatic, &filter, &result);
+    HACKS->engine_trace->trace_ray(ray, mask, &filter, &result);
     return std::isfinite(result.fraction);
 }
 
-float trace_fraction(const vector3& from, const vector3& to, const vector3& mins,
-                     const vector3& maxs) {
-    game_trace_t result{};
+bool trace_line(const vec3_t& from, const vec3_t& to, const vec3_t& mins, const vec3_t& maxs,
+                c_game_trace& result) {
+    c_trace_filter_world_and_props_only filter;
+    return trace_hull(from, to, mins, maxs, MASK_NPCWORLDSTATIC, filter, result);
+}
+
+float trace_fraction(const vec3_t& from, const vec3_t& to, const vec3_t& mins, const vec3_t& maxs) {
+    c_game_trace result;
     if (!trace_line(from, to, mins, maxs, result))
         return 1.f;
     return std::clamp(result.fraction, 0.f, 1.f);
@@ -719,7 +380,7 @@ constexpr unsigned short surf_nopentrate = 0x2000;
 // Game crosshair settings, so the force options can show the crosshair the player
 // actually uses instead of a shape of our own.
 float convar_value(const char* name, float fallback) {
-    void* object = find_convar(name);
+    c_convar* object = find_convar(name);
     if (!object)
         return fallback;
     bool valid = false;
@@ -727,25 +388,23 @@ float convar_value(const char* name, float fallback) {
     return valid ? value : fallback;
 }
 
-void angle_vectors(const vector3& angles, vector3& forward) {
+vec3_t view_forward(const vec3_t& angles) {
     constexpr float pi = 3.14159265358979323846f;
     const float pitch = angles.x * (pi / 180.f);
     const float yaw = angles.y * (pi / 180.f);
     const float cp = std::cos(pitch);
-    forward = { cp * std::cos(yaw), cp * std::sin(yaw), -std::sin(pitch) };
+    return { cp * std::cos(yaw), cp * std::sin(yaw), -std::sin(pitch) };
 }
 
-vector3 engine_view_angles() {
-    vector3 angles{};
-    using get_angles_t = void(__thiscall*)(void*, vector3&);
-    const auto get_angles = reinterpret_cast<get_angles_t>(vfunc(engine_client, 18));
-    if (get_angles)
-        get_angles(engine_client, angles);
+vec3_t engine_view_angles() {
+    vec3_t angles{};
+    HACKS->engine->get_view_angles(angles);
     return angles;
 }
 
-using panel_name_t = const char*(__thiscall*)(void*, unsigned int);
-using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
+vec3_t to_vec3(const visuals_source::vector3& v) {
+    return { v.x, v.y, v.z };
+}
 
 } // namespace
 
@@ -755,14 +414,8 @@ namespace world_visuals {
 // (wall-clamped) distance in z as camera_offset. main runs this from its
 // OverrideView hook before the original, which is where this is called from.
 void run_thirdperson() {
-    if (!input_object || !readable_range(input_object, input_camera_offset + sizeof(vector3)))
-        return;
-    auto* camera_flag = reinterpret_cast<bool*>(static_cast<std::uint8_t*>(input_object) +
-        input_camera_in_third_person);
-    auto* camera_offset = reinterpret_cast<vector3*>(static_cast<std::uint8_t*>(input_object) +
-        input_camera_offset);
-    if (!visuals_source::writable_range(camera_flag, 1) ||
-        !visuals_source::writable_range(camera_offset, sizeof(vector3)))
+    c_input* input = HACKS->input;
+    if (!input)
         return;
 
     const auto& cfg = g_cfg->world_esp;
@@ -770,36 +423,33 @@ void run_thirdperson() {
     visuals_source::local_view_state state{};
     const bool have_state = visuals_source::get_local_view_state(state);
     const bool alive = have_state && state.alive;
-    const bool active = cfg.m_enable_thirdperson && engine_in_game() && local_player_index() > 0 &&
-        alive;
+    const bool active = cfg.m_enable_thirdperson && HACKS->engine->is_in_game() &&
+        HACKS->engine->get_local_player() > 0 && alive;
 
     static bool enabled = false;
     if (active) {
-        *camera_flag = true;
+        input->camera_in_third_person = true;
         enabled = true;
-    } else if (*camera_flag && enabled) {
-        *camera_flag = false;
-        camera_offset->z = 0.f;
+    } else if (input->camera_in_third_person && enabled) {
+        input->camera_in_third_person = false;
+        input->camera_offset.z = 0.f;
         enabled = false;
         return;
     }
-    if (!*camera_flag)
+    if (!input->camera_in_third_person)
         return;
 
-    vector3 offset = engine_view_angles();
-    vector3 forward{};
-    angle_vectors(offset, forward);
+    vec3_t offset = engine_view_angles();
+    const vec3_t forward = view_forward(offset);
     offset.z = static_cast<float>(std::clamp(cfg.m_distance, 50, 300));
 
-    const vector3 eye{ state.eye_origin.x, state.eye_origin.y, state.eye_origin.z };
-    const vector3 mins{ -16.f, -16.f, -16.f };
-    const vector3 maxs{ 16.f, 16.f, 16.f };
+    const vec3_t eye = to_vec3(state.eye_origin);
     if (page.thirdperson_close_to_wall) {
-        const vector3 target{ eye.x - forward.x * offset.z, eye.y - forward.y * offset.z,
+        const vec3_t target{ eye.x - forward.x * offset.z, eye.y - forward.y * offset.z,
             eye.z - forward.z * offset.z };
-        offset.z *= trace_fraction(eye, target, mins, maxs);
+        offset.z *= trace_fraction(eye, target, { -16.f, -16.f, -16.f }, { 16.f, 16.f, 16.f });
     }
-    *camera_offset = offset;
+    input->camera_offset = offset;
 }
 
 // Fatality's util_trace_hull: the camera trace above, but with the caller's hull and
@@ -807,19 +457,9 @@ void run_thirdperson() {
 bool trace_swept(const visuals_source::vector3& from, const visuals_source::vector3& to,
                  const visuals_source::vector3& mins, const visuals_source::vector3& maxs,
                  unsigned int mask, swept_trace& out) {
-    void* trace_interface = engine_trace_interface();
-    if (!trace_interface)
-        return false;
-    using trace_ray_t = void(__thiscall*)(void*, const ray_t&, unsigned int, void*, game_trace_t*);
-    const auto trace_ray = reinterpret_cast<trace_ray_t>(cached_trace_ray());
-    if (!trace_ray)
-        return false;
-    thirdperson_trace_filter filter;
-    game_trace_t result{};
-    const ray_t ray(vector3{ from.x, from.y, from.z }, vector3{ to.x, to.y, to.z },
-        vector3{ mins.x, mins.y, mins.z }, vector3{ maxs.x, maxs.y, maxs.z });
-    trace_ray(trace_interface, ray, mask, &filter, &result);
-    if (!std::isfinite(result.fraction))
+    c_trace_filter_world_and_props_only filter;
+    c_game_trace result;
+    if (!trace_hull(to_vec3(from), to_vec3(to), to_vec3(mins), to_vec3(maxs), mask, filter, result))
         return false;
     fill_swept_trace(result, out);
     return true;
@@ -828,19 +468,9 @@ bool trace_swept(const visuals_source::vector3& from, const visuals_source::vect
 bool trace_swept_entities(const visuals_source::vector3& from, const visuals_source::vector3& to,
                           const visuals_source::vector3& mins, const visuals_source::vector3& maxs,
                           unsigned int mask, void* skip_entity, swept_trace& out) {
-    void* trace_interface = engine_trace_interface();
-    if (!trace_interface)
-        return false;
-    using trace_ray_t = void(__thiscall*)(void*, const ray_t&, unsigned int, void*, game_trace_t*);
-    const auto trace_ray = reinterpret_cast<trace_ray_t>(cached_trace_ray());
-    if (!trace_ray)
-        return false;
-    grenade_trace_filter filter(skip_entity);
-    game_trace_t result{};
-    const ray_t ray(vector3{ from.x, from.y, from.z }, vector3{ to.x, to.y, to.z },
-        vector3{ mins.x, mins.y, mins.z }, vector3{ maxs.x, maxs.y, maxs.z });
-    trace_ray(trace_interface, ray, mask, &filter, &result);
-    if (!std::isfinite(result.fraction))
+    c_trace_filter_skip_entity filter(static_cast<c_base_entity*>(skip_entity));
+    c_game_trace result;
+    if (!trace_hull(to_vec3(from), to_vec3(to), to_vec3(mins), to_vec3(maxs), mask, filter, result))
         return false;
     fill_swept_trace(result, out);
     return true;
@@ -857,14 +487,13 @@ bool wallbang_possible() {
     visuals_source::local_view_state state{};
     if (!visuals_source::get_local_view_state(state) || !state.alive)
         return false;
-    const vector3 eye{ state.eye_origin.x, state.eye_origin.y, state.eye_origin.z };
-    vector3 forward{};
-    angle_vectors(engine_view_angles(), forward);
+    const vec3_t eye = to_vec3(state.eye_origin);
+    const vec3_t forward = view_forward(engine_view_angles());
     constexpr float range = 8192.f;
     // windef.h still defines "far" as an empty macro, hence "destination".
-    const vector3 destination{ eye.x + forward.x * range, eye.y + forward.y * range, eye.z + forward.z * range };
-    const vector3 point{ 0.f, 0.f, 0.f };
-    game_trace_t hit{};
+    const vec3_t destination{ eye.x + forward.x * range, eye.y + forward.y * range, eye.z + forward.z * range };
+    const vec3_t point{ 0.f, 0.f, 0.f };
+    c_game_trace hit;
     if (!trace_line(eye, destination, point, point, hit))
         return false;
     if (hit.fraction >= 1.f)
@@ -872,10 +501,10 @@ bool wallbang_possible() {
     if ((hit.surface.flags & surf_nopentrate) != 0)
         return false;
     // Distance between the entry and the exit of the wall: the thickness.
-    const vector3 entry{ eye.x + (destination.x - eye.x) * hit.fraction,
+    const vec3_t entry{ eye.x + (destination.x - eye.x) * hit.fraction,
         eye.y + (destination.y - eye.y) * hit.fraction, eye.z + (destination.z - eye.z) * hit.fraction };
-    const vector3 skip{ entry.x + forward.x, entry.y + forward.y, entry.z + forward.z };
-    game_trace_t exit{};
+    const vec3_t skip{ entry.x + forward.x, entry.y + forward.y, entry.z + forward.z };
+    c_game_trace exit;
     if (!trace_line(skip, destination, point, point, exit))
         return false;
     const float thickness = exit.fraction * (1.f - hit.fraction) * range - 1.f;
@@ -933,23 +562,15 @@ bool should_skip_panel(const char* name) {
     return false;
 }
 
-bool initialize(void* mode, void* input, void* cvars, void* engine, void* entities,
-                void* panels, void* client) {
-    client_mode = mode;
-    input_object = input;
-    cvar_interface = cvars;
-    engine_client = engine;
-    entity_list = entities;
-    panel_interface = panels;
-    client_module = static_cast<HMODULE>(client);
-    resolve_smoke_count();
+bool initialize() {
     visuals_source::install_viewmodel_hook();
-    if (!override_installed && client_mode && vfunc(client_mode, override_view_vfunc)) {
-        override_installed = write_vfunc(client_mode, override_view_vfunc,
+    if (!override_installed) {
+        // ClientMode::OverrideView, main's OVERRIDE_VIEW_IDX.
+        override_installed = hooks::detour_virtual(HACKS->client_mode, 18,
             reinterpret_cast<void*>(&hooked_override_view),
             reinterpret_cast<void**>(&original_override_view));
     }
-    if (!convars[0].object && cvar_interface)
+    if (!convars[0].object)
         cache_convars();
     return override_installed;
 }

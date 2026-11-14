@@ -1468,7 +1468,7 @@ public:
 		std::memset(this, 0, sizeof(c_game_trace));
 
 		fraction = 1.f;
-		surface.name = XOR("**empty**").c_str();
+		surface.name = CXOR("**empty**");
 	}
 
 private:

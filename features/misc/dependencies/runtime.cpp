@@ -1190,8 +1190,7 @@ bool install_create_move() {
             reinterpret_cast<void*>(&hooked_create_move), reinterpret_cast<void**>(&original_create_move));
     }
     if (client_mode_instance)
-        world_visuals::initialize(client_mode_instance, world_input, cvar_interface, engine, entity_list,
-            panel_interface, client_module);
+        world_visuals::initialize();
     return create_move_installed;
 }
 

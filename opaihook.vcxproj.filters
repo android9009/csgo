@@ -290,6 +290,9 @@
     <ClCompile Include="sdk\game\structs.cpp">
       <Filter>Source Files\sdk\game</Filter>
     </ClCompile>
+    <ClCompile Include="runtime\hooks.cpp">
+      <Filter>Source Files\runtime</Filter>
+    </ClCompile>
     <ClCompile Include="runtime\d3d9_runtime.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
