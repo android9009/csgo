@@ -40,6 +40,16 @@ void OutlinedRect(int x, int y, int width, int height, Color color) {
     using Fn = void (__thiscall*)(void*, int, int, int, int);
     if (auto fn = MEM::GetVFunc<Fn>(Interfaces::Surface, 18)) fn(Interfaces::Surface, x, y, x + width, y + height);
 }
+void GradientRect(int x, int y, int width, int height, Color from, Color to, bool horizontal) {
+    if (!Interfaces::Surface || width <= 0 || height <= 0) return;
+    // 1px strips on the already-verified DrawFilledRect path; no extra vfunc indices needed.
+    const int steps = horizontal ? width : height;
+    for (int i = 0; i < steps; ++i) {
+        const Color c = Color::Lerp(from, to, static_cast<float>(i) / static_cast<float>(steps - 1));
+        if (horizontal) FilledRect(x + i, y, 1, height, c);
+        else FilledRect(x, y + i, width, 1, c);
+    }
+}
 void Text(int x, int y, Color color, std::string_view text) {
     if (!Interfaces::Surface || !font || text.empty()) return;
     using SetFont = void (__thiscall*)(void*, unsigned long);
