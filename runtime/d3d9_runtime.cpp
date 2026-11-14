@@ -30,6 +30,7 @@
 #include "../menu/menu.hpp"
 #include "../menu/weapon_icons.hpp"
 #include "../sdk/config_system/config_system.hpp"
+#include "../sdk/game/globals.hpp"
 
 #pragma comment(lib, "d3d9.lib")
 
@@ -49,7 +50,6 @@ bool initialized = false;
 bool configuration_ready = false;
 bool menu_ready = false;
 HWND game_window = nullptr;
-void* game_panel = nullptr;
 bool menu_input_open = false;
 std::mutex frame_mutex;
 
@@ -86,18 +86,7 @@ void note_present_thread(HWND override_window) {
 #endif
 
 using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
-using panel_set_mouse_input_t = void(__thiscall*)(void*, unsigned int, bool);
-using panel_get_name_t = const char*(__thiscall*)(void*, unsigned int);
-using create_interface_t = void* (__cdecl*)(const char*, int*);
 paint_traverse_t original_paint_traverse = nullptr;
-
-void* query_interface(HMODULE module, const char* name) {
-    if (!module)
-        return nullptr;
-    const auto factory = reinterpret_cast<create_interface_t>(
-        GetProcAddress(module, "CreateInterface"));
-    return factory ? factory(name, nullptr) : nullptr;
-}
 
 // VGUI PaintTraverse, same contract as main's vmt::paint_traverse: after the
 // original has run, the FocusOverlayPanel's mouse input follows the menu state
@@ -105,8 +94,7 @@ void* query_interface(HMODULE module, const char* name) {
 // game unlocks it and VGUI swallows the clicks); while it is closed the flag is
 // written back to false every frame, so no stale state can survive a map load.
 void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool repaint, bool force) {
-    const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
-    const char* name = get_name ? get_name(ecx, panel) : nullptr;
+    const char* name = HACKS->panel->get_name(static_cast<int>(panel));
     // World > Removals: one filter for both renderers, exact panel names only.
     if (name && world_visuals::should_skip_panel(name))
         return;
@@ -115,18 +103,15 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
 
     if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
         return;
-    const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
-    if (set_mouse_input)
-        set_mouse_input(ecx, panel, g_menu->is_opened());
+    HACKS->panel->set_mouse_input_enabled(panel, g_menu->is_opened());
 }
 
 bool install_panel_hook() {
     if (original_paint_traverse)
         return true;
-    game_panel = query_interface(GetModuleHandleA("vgui2.dll"), "VGUI_Panel009");
-    if (!game_panel)
+    if (!HACKS->panel)
         return false;
-    void** vtable = *reinterpret_cast<void***>(game_panel);
+    void** vtable = *reinterpret_cast<void***>(HACKS->panel);
     if (!vtable || !vtable[41])
         return false;
     if (MH_CreateHook(vtable[41], reinterpret_cast<void*>(&hooked_paint_traverse),
@@ -370,84 +355,17 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
     return result;
 }
 
-// IDA-style signature scan over a loaded module image ("A1 ? ? ? ? 50").
-const std::uint8_t* find_signature(HMODULE module, const char* signature) {
-    if (!module)
-        return nullptr;
-    const auto* base = reinterpret_cast<const std::uint8_t*>(module);
-    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
-        return nullptr;
-    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE)
-        return nullptr;
-
-    int bytes[64];
-    std::size_t count = 0;
-    for (const char* cursor = signature; *cursor && count < 64;) {
-        if (*cursor == ' ') {
-            ++cursor;
-        } else if (*cursor == '?') {
-            bytes[count++] = -1;
-            while (*cursor == '?')
-                ++cursor;
-        } else {
-            char* end = nullptr;
-            bytes[count++] = static_cast<int>(std::strtoul(cursor, &end, 16));
-            cursor = end;
-        }
-    }
-    if (!count)
-        return nullptr;
-
-    const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
-    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
-        if (!(section->Characteristics & IMAGE_SCN_MEM_EXECUTE) ||
-            section->Misc.VirtualSize < count)
-            continue;
-        const std::uint8_t* begin = base + section->VirtualAddress;
-        const std::size_t last = section->Misc.VirtualSize - count;
-        for (std::size_t offset = 0; offset <= last; ++offset) {
-            bool matches = true;
-            for (std::size_t j = 0; j < count; ++j) {
-                if (bytes[j] >= 0 && begin[offset + j] != static_cast<std::uint8_t>(bytes[j])) {
-                    matches = false;
-                    break;
-                }
-            }
-            if (matches)
-                return begin + offset;
-        }
-    }
-    return nullptr;
-}
-
-// Startup, same order as main's c_hacks::init: wait for the game window and for
-// serverbrowser.dll (the last module the game loads), take the game's own
-// IDirect3DDevice9 out of shaderapidx9 (main's offsets::d3d_device signature)
-// and detour its virtual functions. No second Direct3D device or helper window
-// is created inside the game process.
+// Startup: the SDK base taken from main (sdk/game) waits for the game, then
+// resolves modules, patterns, interfaces, convars and netvars. The game's own
+// IDirect3DDevice9 comes from there (offsets::d3d_device) and its virtual
+// functions are detoured. No second Direct3D device or helper window is created
+// inside the game process.
 bool install_hooks() {
-    while (!FindWindowA("Valve001", nullptr))
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    while (!GetModuleHandleA("serverbrowser.dll"))
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    const HMODULE shader_api = GetModuleHandleA("shaderapidx9.dll");
-    const std::uint8_t* match = find_signature(shader_api, "A1 ? ? ? ? 50 8B 08 FF 51 0C");
-    if (!match) {
-        AIRFLOW_DEBUG_LOG("[FAIL] D3D9: the device signature was not found in shaderapidx9.dll");
+    if (!HACKS->init()) {
+        AIRFLOW_DEBUG_LOG("[FAIL] SDK: a required game interface was not resolved");
         return false;
     }
-    IDirect3DDevice9** device_slot = nullptr;
-    std::memcpy(&device_slot, match + 1, sizeof(device_slot));
-    if (!device_slot) {
-        AIRFLOW_DEBUG_LOG("[FAIL] D3D9: the device signature resolved to a null pointer");
-        return false;
-    }
-    while (!*device_slot)
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    IDirect3DDevice9* game_device = *device_slot;
+    IDirect3DDevice9* game_device = HACKS->d3d_device;
 
     void** vtable = *reinterpret_cast<void***>(game_device);
     void* reset_target = vtable[16];

@@ -80,7 +80,7 @@ void register_bind_targets() {
     // Register binds for ALL weapon groups
     for (int g = 0; g < RAGE_WEAPON_PRESET_MAX; ++g) {
         auto& weapon = rage.m_weapon_config[g];
-        const std::string group_name = g < WEAPON_GROUP_MAX
+        const std::string group_name = g < UI_WEAPON_GROUP_MAX
             ? std::string(weapon_group_names[g]) : "Preset " + std::to_string(g);
         const std::string prefix = "rage." + group_name + ".";
         

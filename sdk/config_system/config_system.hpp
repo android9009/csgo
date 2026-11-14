@@ -23,17 +23,17 @@ struct item_t {
 // WEAPON GROUPS
 // ============================================================================
 enum weapon_group_t : int {
-    WEAPON_GROUP_GENERAL = 0,   // Общие настройки
-    WEAPON_GROUP_PISTOL,        // Пистолеты
-    WEAPON_GROUP_HEAVY_PISTOL,  // Дигл, R8
-    WEAPON_GROUP_SMG,           // SMG
-    WEAPON_GROUP_RIFLE,         // M4, AK
-    WEAPON_GROUP_AUTO,          // Авто снайперки
-    WEAPON_GROUP_SCOUT,         // SSG 08
-    WEAPON_GROUP_AWP,           // AWP
-    WEAPON_GROUP_SHOTGUN,       // Дробовики
-    WEAPON_GROUP_LMG,           // LMG
-    WEAPON_GROUP_MAX
+    UI_WEAPON_GROUP_GENERAL = 0,   // Общие настройки
+    UI_WEAPON_GROUP_PISTOL,        // Пистолеты
+    UI_WEAPON_GROUP_HEAVY_PISTOL,  // Дигл, R8
+    UI_WEAPON_GROUP_SMG,           // SMG
+    UI_WEAPON_GROUP_RIFLE,         // M4, AK
+    UI_WEAPON_GROUP_AUTO,          // Авто снайперки
+    UI_WEAPON_GROUP_SCOUT,         // SSG 08
+    UI_WEAPON_GROUP_AWP,           // AWP
+    UI_WEAPON_GROUP_SHOTGUN,       // Дробовики
+    UI_WEAPON_GROUP_LMG,           // LMG
+    UI_WEAPON_GROUP_MAX
 };
 
 const char* const weapon_group_names[] = {
@@ -144,11 +144,11 @@ public:
         std::string m_preset_names[RAGE_WEAPON_PRESET_MAX] = {};
         int m_preset_category[RAGE_WEAPON_PRESET_MAX] = {
             0,
-            WEAPON_PRESET_PISTOLS, WEAPON_PRESET_HEAVY_PISTOL, WEAPON_PRESET_SMGS,
-            WEAPON_PRESET_RIFLES, WEAPON_PRESET_AUTOSNIPERS, WEAPON_PRESET_SSG_08,
-            WEAPON_PRESET_AWP, WEAPON_PRESET_SHOTGUNS, WEAPON_PRESET_MACHINEGUNS
+            UI_WEAPON_PRESET_PISTOLS, UI_WEAPON_PRESET_HEAVY_PISTOL, UI_WEAPON_PRESET_SMGS,
+            UI_WEAPON_PRESET_RIFLES, UI_WEAPON_PRESET_AUTOSNIPERS, UI_WEAPON_PRESET_SSG_08,
+            UI_WEAPON_PRESET_AWP, UI_WEAPON_PRESET_SHOTGUNS, UI_WEAPON_PRESET_MACHINEGUNS
         };
-        bool m_preset_weapons[RAGE_WEAPON_PRESET_MAX][WEAPON_COUNT] = {};
+        bool m_preset_weapons[RAGE_WEAPON_PRESET_MAX][UI_WEAPON_COUNT] = {};
         
         // Override keybind
         int m_override_damage_key_bind = 0;
@@ -181,13 +181,13 @@ public:
         // Получение конфига для текущего оружия
         weapon_config_t& get_weapon_config(int group) {
             if (group < 0 || group >= RAGE_WEAPON_PRESET_MAX)
-                group = WEAPON_GROUP_GENERAL;
+                group = UI_WEAPON_GROUP_GENERAL;
             
             auto& cfg = m_weapon_config[group];
             
             // Если не override - возвращаем General
-            if (group != WEAPON_GROUP_GENERAL && !cfg.m_override_general) {
-                return m_weapon_config[WEAPON_GROUP_GENERAL];
+            if (group != UI_WEAPON_GROUP_GENERAL && !cfg.m_override_general) {
+                return m_weapon_config[UI_WEAPON_GROUP_GENERAL];
             }
             
             return cfg;
@@ -483,32 +483,32 @@ public:
         switch (item_def_index) {
             case 1:   // Deagle
             case 64:  // R8 Revolver
-                return WEAPON_GROUP_HEAVY_PISTOL;
+                return UI_WEAPON_GROUP_HEAVY_PISTOL;
             case 40:  // SSG 08 (Scout)
-                return WEAPON_GROUP_SCOUT;
+                return UI_WEAPON_GROUP_SCOUT;
             case 9:   // AWP
-                return WEAPON_GROUP_AWP;
+                return UI_WEAPON_GROUP_AWP;
             case 11:  // G3SG1
             case 38:  // SCAR-20
-                return WEAPON_GROUP_AUTO;
+                return UI_WEAPON_GROUP_AUTO;
         }
         
         // По типу оружия
         switch (weapon_type) {
             case 1:  // Pistol
-                return WEAPON_GROUP_PISTOL;
+                return UI_WEAPON_GROUP_PISTOL;
             case 2:  // SMG
-                return WEAPON_GROUP_SMG;
+                return UI_WEAPON_GROUP_SMG;
             case 3:  // Rifle
-                return WEAPON_GROUP_RIFLE;
+                return UI_WEAPON_GROUP_RIFLE;
             case 4:  // Shotgun
-                return WEAPON_GROUP_SHOTGUN;
+                return UI_WEAPON_GROUP_SHOTGUN;
             case 5:  // Sniper
-                return WEAPON_GROUP_SCOUT;  // Default to scout if not awp/auto
+                return UI_WEAPON_GROUP_SCOUT;  // Default to scout if not awp/auto
             case 6:  // LMG
-                return WEAPON_GROUP_LMG;
+                return UI_WEAPON_GROUP_LMG;
             default:
-                return WEAPON_GROUP_GENERAL;
+                return UI_WEAPON_GROUP_GENERAL;
         }
     }
 };

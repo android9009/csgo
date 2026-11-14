@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -49,7 +49,7 @@
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;_WINDOWS;_USRDLL;AIRFLOW_SHELL_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 /Zc:char8_t- %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)menu;$(ProjectDir)sdk\includes\imgui;$(ProjectDir)sdk\includes\minhook;$(ProjectDir)sdk\includes\json;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)menu;$(ProjectDir)sdk\includes\imgui;$(ProjectDir)sdk\includes\minhook;$(ProjectDir)sdk\includes\json;$(ProjectDir)sdk\game;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
@@ -116,6 +116,19 @@
     <ClCompile Include="menu\weapon_presets.cpp" />
     <ClCompile Include="menu\visuals.cpp" />
     <ClCompile Include="runtime\d3d9_runtime.cpp" />
+    <ClCompile Include="sdk\game\checksum_crc32.cpp" />
+    <ClCompile Include="sdk\game\convars.cpp" />
+    <ClCompile Include="sdk\game\entities.cpp" />
+    <ClCompile Include="sdk\game\hacks.cpp" />
+    <ClCompile Include="sdk\game\interfaces.cpp" />
+    <ClCompile Include="sdk\game\math.cpp" />
+    <ClCompile Include="sdk\game\md5_pseudo_random.cpp" />
+    <ClCompile Include="sdk\game\memory.cpp" />
+    <ClCompile Include="sdk\game\misc_structs.cpp" />
+    <ClCompile Include="sdk\game\modules.cpp" />
+    <ClCompile Include="sdk\game\netvars.cpp" />
+    <ClCompile Include="sdk\game\offsets.cpp" />
+    <ClCompile Include="sdk\game\structs.cpp" />
     <ClCompile Include="runtime\debug_console.cpp" />
     <ClCompile Include="runtime\fonts.cpp" />
     <ClCompile Include="runtime\steam_avatar.cpp" />
@@ -135,6 +148,22 @@
     <ClCompile Include="sdk\includes\minhook\trampoline.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="sdk\game\checksum_crc32.hpp" />
+    <ClInclude Include="sdk\game\color.hpp" />
+    <ClInclude Include="sdk\game\defines.hpp" />
+    <ClInclude Include="sdk\game\entities.hpp" />
+    <ClInclude Include="sdk\game\globals.hpp" />
+    <ClInclude Include="sdk\game\hacks.hpp" />
+    <ClInclude Include="sdk\game\hash.hpp" />
+    <ClInclude Include="sdk\game\interfaces.hpp" />
+    <ClInclude Include="sdk\game\math.hpp" />
+    <ClInclude Include="sdk\game\md5_pseudo_random.hpp" />
+    <ClInclude Include="sdk\game\memory.hpp" />
+    <ClInclude Include="sdk\game\misc_structs.hpp" />
+    <ClInclude Include="sdk\game\netvars.hpp" />
+    <ClInclude Include="sdk\game\offsets.hpp" />
+    <ClInclude Include="sdk\game\sdk_misc.hpp" />
+    <ClInclude Include="sdk\game\structs.hpp" />
     <ClInclude Include="features\misc\misc.hpp" />
     <ClInclude Include="features\visuals\chams\chams.hpp" />
     <ClInclude Include="features\misc\dependencies\gameplay.hpp" />

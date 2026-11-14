@@ -23,9 +23,9 @@ bool preset_active(int slot) {
 
 int preset_category(int slot) {
     if (slot <= 0 || slot >= RAGE_WEAPON_PRESET_MAX)
-        return WEAPON_PRESET_CUSTOM;
+        return UI_WEAPON_PRESET_CUSTOM;
     const int category = rage_state().m_preset_category[slot];
-    return category >= 0 && category < WEAPON_PRESET_CATEGORY_COUNT ? category : WEAPON_PRESET_CUSTOM;
+    return category >= 0 && category < UI_WEAPON_PRESET_CATEGORY_COUNT ? category : UI_WEAPON_PRESET_CUSTOM;
 }
 
 const char* preset_name(int slot) {
@@ -35,13 +35,13 @@ const char* preset_name(int slot) {
         return "Global";
     if (!rage_state().m_preset_names[slot].empty())
         return rage_state().m_preset_names[slot].c_str();
-    if (rage_state().m_preset_custom[slot] || preset_category(slot) == WEAPON_PRESET_CUSTOM)
+    if (rage_state().m_preset_custom[slot] || preset_category(slot) == UI_WEAPON_PRESET_CUSTOM)
         return "Unnamed";
     return weapon_preset_category_names[preset_category(slot)];
 }
 
 bool preset_has_weapon(int slot, int weapon) {
-    if (!preset_active(slot) || weapon < 0 || weapon >= WEAPON_COUNT)
+    if (!preset_active(slot) || weapon < 0 || weapon >= UI_WEAPON_COUNT)
         return false;
     if (rage_state().m_preset_initialized[slot])
         return rage_state().m_preset_weapons[slot][weapon];
@@ -50,7 +50,7 @@ bool preset_has_weapon(int slot, int weapon) {
 
 int preset_weapon_count(int slot) {
     int count = 0;
-    for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon)
+    for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon)
         count += preset_has_weapon(slot, weapon) ? 1 : 0;
     return count;
 }
@@ -59,7 +59,7 @@ void initialize_legacy_preset(int slot) {
     if (!preset_active(slot) || rage_state().m_preset_initialized[slot])
         return;
     rage_state().m_preset_initialized[slot] = true;
-    for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+    for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon) {
         rage_state().m_preset_weapons[slot][weapon] =
             weapon_preset_category_has_weapon(preset_category(slot), weapon);
     }
@@ -74,13 +74,13 @@ int create_preset(int category) {
         rage.m_weapon_config[slot] = c_config_system::weapon_config_t{};
         rage.m_weapon_config[slot].m_override_general = true;
         rage.m_preset_initialized[slot] = true;
-        rage.m_preset_custom[slot] = category == WEAPON_PRESET_CUSTOM;
+        rage.m_preset_custom[slot] = category == UI_WEAPON_PRESET_CUSTOM;
         rage.m_preset_names[slot].clear();
         rage.m_preset_category[slot] = category;
-        std::fill_n(rage.m_preset_weapons[slot], WEAPON_COUNT, false);
-        for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+        std::fill_n(rage.m_preset_weapons[slot], UI_WEAPON_COUNT, false);
+        for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon) {
             rage.m_preset_weapons[slot][weapon] =
-                category != WEAPON_PRESET_CUSTOM && weapon_preset_category_has_weapon(category, weapon);
+                category != UI_WEAPON_PRESET_CUSTOM && weapon_preset_category_has_weapon(category, weapon);
         }
         return slot;
     }
@@ -95,8 +95,8 @@ void delete_preset(int slot) {
     rage.m_preset_initialized[slot] = false;
     rage.m_preset_custom[slot] = false;
     rage.m_preset_names[slot].clear();
-    rage.m_preset_category[slot] = WEAPON_PRESET_CUSTOM;
-    std::fill_n(rage.m_preset_weapons[slot], WEAPON_COUNT, false);
+    rage.m_preset_category[slot] = UI_WEAPON_PRESET_CUSTOM;
+    std::fill_n(rage.m_preset_weapons[slot], UI_WEAPON_COUNT, false);
     if (rage.m_selected_group == slot)
         rage.m_selected_group = 0;
 }
@@ -165,14 +165,14 @@ void draw_create_group_popup(const ImGuiID popup_id, const ImVec2& anchor, float
     draw->AddText(create_pos + ImVec2(42.f * scale, (row_h - ImGui::GetFontSize()) * 0.5f),
                   gui.text.to_im_color(), "Create Group");
     if (create_clicked) {
-        create_preset(WEAPON_PRESET_CUSTOM);
+        create_preset(UI_WEAPON_PRESET_CUSTOM);
         ImGui::CloseCurrentPopup();
     }
 
     ImGui::Separator();
     ImGui::BeginChild("##create_group_list", ImVec2(0.f, 300.f * scale), false);
     draw = ImGui::GetWindowDrawList();
-    for (int category = WEAPON_PRESET_AUTOSNIPERS; category <= WEAPON_PRESET_TASER; ++category) {
+    for (int category = UI_WEAPON_PRESET_AUTOSNIPERS; category <= UI_WEAPON_PRESET_TASER; ++category) {
         ImGui::PushID(category);
         const ImVec2 row_pos = ImGui::GetCursorScreenPos();
         const float row_width = ImGui::GetContentRegionAvail().x;
@@ -243,12 +243,12 @@ void draw_weapon_picker_popup(const ImGuiID popup_id, int& slot, const ImVec2& a
     draw = ImGui::GetWindowDrawList();
     const float row_h = 30.f * scale;
     bool stop_list = false;
-    for (int weapon_class_index = 0; weapon_class_index < WEAPON_CLASS_COUNT; ++weapon_class_index) {
+    for (int weapon_class_index = 0; weapon_class_index < UI_WEAPON_CLASS_COUNT; ++weapon_class_index) {
         if (weapon_class_index != 0)
             ImGui::Dummy(ImVec2(1.f, 4.f * scale));
         ImGui::TextDisabled("%s", weapon_class_names[weapon_class_index]);
         ImGui::Dummy(ImVec2(1.f, 3.f * scale));
-        for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+        for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon) {
             if (weapon_class[weapon] != weapon_class_index)
                 continue;
             ImGui::PushID(weapon);
@@ -362,7 +362,7 @@ void draw_main_popup() {
             block_pos + ImVec2(block_width - 25.f * scale, 0.f),
             block_pos + ImVec2(block_width, 24.f * scale));
         int cell_index = 0;
-        for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+        for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon) {
             if (!preset_has_weapon(slot, weapon))
                 continue;
             const ImVec2 cell_min = block_pos + ImVec2(
@@ -427,7 +427,7 @@ void draw_main_popup() {
 
         ImGui::Indent(6.f * scale);
         int column = 0;
-        for (int weapon = 0; weapon < WEAPON_COUNT; ++weapon) {
+        for (int weapon = 0; weapon < UI_WEAPON_COUNT; ++weapon) {
             if (!preset_has_weapon(slot, weapon))
                 continue;
             if (column != 0)

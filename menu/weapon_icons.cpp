@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace {
-static_assert(weapon_icons::atlas::icon_count == WEAPON_COUNT, "Weapon enum and icon atlas differ");
+static_assert(weapon_icons::atlas::icon_count == UI_WEAPON_COUNT, "Weapon enum and icon atlas differ");
 static_assert(sizeof(weapon_icons::atlas::rle) % 3 == 0, "Invalid weapon atlas RLE");
 
 ImTextureID atlas_texture = nullptr;
@@ -61,7 +61,7 @@ ImTextureID texture() {
 
 namespace weapon_icons {
 void draw(ImDrawList* draw_list, int weapon, ImVec2 center, ImVec2 max_size, ImU32 color) {
-    if (!draw_list || weapon < 0 || weapon >= WEAPON_COUNT || max_size.x <= 0.f || max_size.y <= 0.f)
+    if (!draw_list || weapon < 0 || weapon >= UI_WEAPON_COUNT || max_size.x <= 0.f || max_size.y <= 0.f)
         return;
     const ImTextureID image = texture();
     if (!image)

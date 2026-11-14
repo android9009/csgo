@@ -1,6 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Source Files\sdk\game" />
+    <Filter Include="Header Files\sdk\game" />
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
     </Filter>
@@ -249,6 +251,45 @@
     <ClCompile Include="menu\visuals.cpp">
       <Filter>Source Files\menu</Filter>
     </ClCompile>
+    <ClCompile Include="sdk\game\checksum_crc32.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\convars.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\entities.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\hacks.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\interfaces.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\math.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\md5_pseudo_random.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\memory.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\misc_structs.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\modules.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\netvars.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\offsets.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\game\structs.cpp">
+      <Filter>Source Files\sdk\game</Filter>
+    </ClCompile>
     <ClCompile Include="runtime\d3d9_runtime.cpp">
       <Filter>Source Files\runtime</Filter>
     </ClCompile>
@@ -305,6 +346,54 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="sdk\game\checksum_crc32.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\color.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\defines.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\entities.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\globals.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\hacks.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\hash.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\interfaces.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\math.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\md5_pseudo_random.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\memory.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\misc_structs.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\netvars.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\offsets.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\sdk_misc.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\game\structs.hpp">
+      <Filter>Header Files\sdk\game</Filter>
+    </ClInclude>
     <ClInclude Include="features\misc\misc.hpp">
       <Filter>Header Files\features\misc</Filter>
     </ClInclude>

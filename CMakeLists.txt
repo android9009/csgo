@@ -46,6 +46,19 @@ add_library(airflow_shell SHARED
   runtime/fonts.cpp
   runtime/steam_avatar.cpp
   sdk/config_system/config_system.cpp
+  sdk/game/checksum_crc32.cpp
+  sdk/game/convars.cpp
+  sdk/game/entities.cpp
+  sdk/game/hacks.cpp
+  sdk/game/interfaces.cpp
+  sdk/game/math.cpp
+  sdk/game/md5_pseudo_random.cpp
+  sdk/game/memory.cpp
+  sdk/game/misc_structs.cpp
+  sdk/game/modules.cpp
+  sdk/game/netvars.cpp
+  sdk/game/offsets.cpp
+  sdk/game/structs.cpp
   sdk/includes/imgui/imgui.cpp
   sdk/includes/imgui/imgui_demo.cpp
   sdk/includes/imgui/imgui_draw.cpp
@@ -74,6 +87,7 @@ target_include_directories(airflow_shell PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/imgui"
   "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/minhook"
   "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/json"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/game"
 )
 target_link_libraries(airflow_shell PRIVATE
   d3d9
