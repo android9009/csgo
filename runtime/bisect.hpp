@@ -20,6 +20,8 @@
 //   viewmodel    CalcViewModelView hook
 //   radar        IVEngineClient::IsHLTV hook
 //   chams        DrawModelExecute / StudioRender hooks
+//   render       the whole Present path: no ImGui, no window procedure hook, no
+//                game hooks at all (only the D3D9 Present/Reset detours remain)
 #include <windows.h>
 #include <cstdio>
 #include <cstring>

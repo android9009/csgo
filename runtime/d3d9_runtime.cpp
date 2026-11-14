@@ -231,10 +231,16 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
     if (!original_wndproc)
         return DefWindowProc(hwnd, message, wparam, lparam);
 
-    // Match the main branch: another application's messages must not be
-    // consumed by our menu or leave its Win32 capture behind.
+    // Match the main branch exactly: while another window is in the foreground
+    // every message goes straight to the game. The capture is released only if
+    // the cheat menu took it. With the menu closed the capture on this window
+    // belongs to the engine (it is taken while a map loads and while the mouse
+    // drives the view); releasing it here - which happens whenever a message
+    // arrives while the injector console or the "not responding" ghost window
+    // is in the foreground during a map load - desynchronises the engine's
+    // mouse state from Win32 without the engine knowing about it.
     if (GetForegroundWindow() != hwnd) {
-        if (GetCapture() == hwnd)
+        if (menu_input_open && GetCapture() == hwnd)
             ReleaseCapture();
         return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
     }
@@ -356,6 +362,8 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
 
 void render_frame(IDirect3DDevice9* present_device) {
     AIRFLOW_DEBUG_STAGE("renderer.render_frame");
+    if (bisect::off("render"))
+        return;
     std::scoped_lock lock(frame_mutex);
     if (!initialized && !initialize_renderer(present_device))
         return;
