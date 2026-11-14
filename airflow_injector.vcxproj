@@ -52,6 +52,9 @@
   <ItemGroup>
     <ClCompile Include="injector\injector.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="runtime\debug_session.hpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

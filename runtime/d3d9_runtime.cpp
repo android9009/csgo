@@ -275,29 +275,36 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
 #ifdef _DEBUG
     static bool initialization_logged = false;
     if (!initialization_logged) {
-        AIRFLOW_DEBUG_LOG("renderer initialization enter");
+        AIRFLOW_DEBUG_LOG("[2/3] first frame: initializing the renderer (ImGui, fonts, window procedure, config, menu)");
         initialization_logged = true;
     }
 #endif
 
     D3DDEVICE_CREATION_PARAMETERS parameters{};
-    if (FAILED(present_device->GetCreationParameters(&parameters)) || !parameters.hFocusWindow)
+    if (FAILED(present_device->GetCreationParameters(&parameters)) || !parameters.hFocusWindow) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the D3D9 device has no focus window (GetCreationParameters)");
         return false;
+    }
 
     IMGUI_CHECKVERSION();
-    if (!ImGui::CreateContext())
+    if (!ImGui::CreateContext()) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: ImGui::CreateContext failed");
         return false;
+    }
 
     if (!ImGui_ImplWin32_Init(parameters.hFocusWindow)) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: ImGui Win32 backend failed to initialize");
         ImGui::DestroyContext();
         return false;
     }
     if (!ImGui_ImplDX9_Init(present_device)) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: ImGui DX9 backend failed to initialize");
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
         return false;
     }
     if (!initialize_menu_fonts()) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: menu fonts failed to load");
         ImGui_ImplDX9_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -308,6 +315,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     WNDPROC previous = reinterpret_cast<WNDPROC>(SetWindowLongPtr(parameters.hFocusWindow,
         GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&hooked_wndproc)));
     if (!previous) {
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the game window procedure could not be replaced (SetWindowLongPtr)");
         ImGui_ImplDX9_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -329,7 +337,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     initialized = true;
-    AIRFLOW_DEBUG_LOG("renderer initialized");
+    AIRFLOW_DEBUG_LOG(debug_session::renderer_ready);
     return true;
 }
 
@@ -430,16 +438,21 @@ bool install_hooks() {
     window_class.lpfnWndProc = dummy_wndproc;
     window_class.hInstance = GetModuleHandleW(nullptr);
     window_class.lpszClassName = L"airflow_shell_d3d9_probe";
-    if (!RegisterClassExW(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+    if (!RegisterClassExW(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: RegisterClassEx failed, error=%lu", GetLastError());
         return false;
+    }
 
     HWND probe_window = CreateWindowExW(0, window_class.lpszClassName, L"", WS_OVERLAPPEDWINDOW,
         0, 0, 1, 1, nullptr, nullptr, window_class.hInstance, nullptr);
-    if (!probe_window)
+    if (!probe_window) {
+        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: CreateWindowEx failed, error=%lu", GetLastError());
         return false;
+    }
 
     IDirect3D9* direct3d = Direct3DCreate9(D3D_SDK_VERSION);
     if (!direct3d) {
+        AIRFLOW_DEBUG_LOG("[FAIL] D3D9 probe: Direct3DCreate9 returned null (d3d9.dll is unavailable)");
         DestroyWindow(probe_window);
         return false;
     }
@@ -464,6 +477,8 @@ bool install_hooks() {
             D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters, &probe_device);
     }
     if (FAILED(result) || !probe_device) {
+        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: CreateDevice failed, HRESULT=0x%08lX",
+            static_cast<unsigned long>(result));
         direct3d->Release();
         DestroyWindow(probe_window);
         return false;
@@ -484,6 +499,8 @@ bool install_hooks() {
         success = MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
 
     if (!success) {
+        AIRFLOW_DEBUG_LOGF("[FAIL] MinHook could not create or enable the hooks (Reset=%p, Present=%p)",
+            reset_target, present_target);
         if (original_present)
             MH_RemoveHook(present_target);
         if (original_reset)
@@ -503,11 +520,12 @@ bool install_hooks() {
 DWORD WINAPI worker(LPVOID) {
     AIRFLOW_DEBUG_START();
     AIRFLOW_DEBUG_STAGE("install_hooks");
-    AIRFLOW_DEBUG_LOG("runtime worker started");
+    AIRFLOW_DEBUG_LOG("[1/3] runtime worker started: hooking Direct3D 9 Present/Reset");
     if (!install_hooks()) {
-        AIRFLOW_DEBUG_LOG("D3D9 hook initialization failed");
+        AIRFLOW_DEBUG_LOG(debug_session::hooks_failed);
     } else {
-        AIRFLOW_DEBUG_LOG("D3D9 hooks installed");
+        AIRFLOW_DEBUG_LOG(debug_session::hooks_installed);
+        AIRFLOW_DEBUG_LOG("      the renderer starts on the next frame; game interfaces and hooks follow on the render thread");
     }
     // Source interfaces, materials and gameplay hooks are initialized lazily on
     // the game's render thread, not on this background worker.

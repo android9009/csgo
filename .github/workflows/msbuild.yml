@@ -11,6 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
 
+      # Debug is built first so that the Release DLL is the one left in Bins/ for the upload.
+      - name: Build Debug DLL and injector
+        run: msbuild airflow.sln /m /p:Configuration=Debug /p:Platform=x86 /v:minimal
+
       - name: Build Darkside GUI DLL
         run: msbuild airflow.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal
 

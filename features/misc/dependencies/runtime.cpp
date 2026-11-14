@@ -2,6 +2,7 @@
 #include "gameplay.hpp"
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
+#include "../../../runtime/debug_console.hpp"
 #include "../../visuals/world/event_log.hpp"
 
 // Forward declared on purpose: render.hpp pulls the ImGui drawing helpers,
@@ -1299,6 +1300,74 @@ void update_filters() {
         chat_filter_applied = false;
     }
 }
+
+#ifdef _DEBUG
+// Debug-only startup report. It only reads the state left by acquire() and the install_*()
+// functions above and logs when that state changes, so the console names what is still missing
+// instead of the setup silently retrying forever.
+void debug_report_startup() {
+    static const ULONGLONG started = GetTickCount64();
+    static int last_blocker = -1;
+    static int last_hooks = -1;
+    static bool core_logged = false;
+    static bool timeout_logged = false;
+    static bool done_logged = false;
+    if (done_logged)
+        return;
+    const bool overdue = GetTickCount64() - started > 20000;
+    const auto mark = [](bool present) { return present ? "ok" : "MISSING"; };
+
+    if (!core_ready) {
+        static constexpr const char* reasons[] = {
+            "client.dll is not loaded yet",
+            "engine.dll is not loaded yet",
+            "interface VClient018 was not found in client.dll",
+            "interface VEngineClient014 was not found in engine.dll",
+            "interface VClientEntityList003 was not found in client.dll",
+            "a required virtual function failed validation or a required netvar is missing - the game build differs from the one the shell expects"
+        };
+        const int blocker = !client_module ? 0 : !engine_module ? 1 : !client ? 2 : !engine ? 3 :
+            !entity_list ? 4 : 5;
+        if (blocker != last_blocker) {
+            last_blocker = blocker;
+            AIRFLOW_DEBUG_LOGF("[3/3] game setup is waiting: %s", reasons[blocker]);
+            if (blocker == 5)
+                AIRFLOW_DEBUG_LOGF("      netvar offsets (-1 = not found): flags=%d velocity=%d origin=%d active_weapon=%d weapon_id=%d team=%d health=%d life_state=%d",
+                    nv.flags, nv.velocity, nv.origin, nv.active_weapon, nv.weapon_id, nv.team,
+                    nv.health, nv.life_state);
+        }
+        if (overdue && !timeout_logged) {
+            timeout_logged = true;
+            AIRFLOW_DEBUG_LOGF("[FAIL] game setup has not completed in 20 s: %s", reasons[blocker]);
+        }
+        return;
+    }
+
+    if (!core_logged) {
+        core_logged = true;
+        AIRFLOW_DEBUG_LOGF("[3/3] game interfaces and netvars acquired; optional parts: trace=%s sound=%s events=%s cvar=%s panel=%s input=%s globals=%s weapon_data=%s",
+            mark(engine_trace != nullptr), mark(engine_sound != nullptr),
+            mark(game_event_manager != nullptr), mark(cvar_interface != nullptr),
+            mark(panel_interface != nullptr), mark(world_input != nullptr), mark(globals != nullptr),
+            mark(get_weapon_data_fn != nullptr));
+    }
+    const int hooks = (create_move_installed ? 1 : 0) | (sound_installed ? 2 : 0) |
+        (events_installed ? 4 : 0);
+    if (hooks != last_hooks) {
+        last_hooks = hooks;
+        AIRFLOW_DEBUG_LOGF("      hooks: CreateMove=%s EmitSound=%s game_events=%s",
+            mark(create_move_installed), mark(sound_installed), mark(events_installed));
+    }
+    if (hooks == 7) {
+        done_logged = true;
+        AIRFLOW_DEBUG_LOG(debug_session::game_ready);
+    } else if (overdue && !timeout_logged) {
+        timeout_logged = true;
+        AIRFLOW_DEBUG_LOGF("[FAIL] game hooks are still incomplete after 20 s: CreateMove=%s EmitSound=%s game_events=%s",
+            mark(create_move_installed), mark(sound_installed), mark(events_installed));
+    }
+}
+#endif
 } // namespace
 
 namespace misc_features {
@@ -1309,12 +1378,18 @@ void initialize() {
             return;
         next_acquire_attempt = now + 1000;
         core_ready = acquire();
+#ifdef _DEBUG
+        debug_report_startup();
+#endif
         if (!core_ready)
             return;
     }
     install_create_move();
     install_sound_hook();
     register_events();
+#ifdef _DEBUG
+    debug_report_startup();
+#endif
     update_filters();
 }
 } // namespace misc_features
