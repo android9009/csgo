@@ -20,10 +20,6 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam
         // Выгрузка по клавише (Del/End) отключена — чит не выгружается по кнопке.
         if (wparam == static_cast<WPARAM>(Config::settings.menu_key))
             Config::settings.show_menu = !Config::settings.show_menu;
-        if (Config::settings.show_menu) {
-            if (wparam == VK_F5) Config::Save();
-            if (wparam == VK_F6) Config::Load();
-        }
     }
     // While the menu is open, swallow input so the game doesn't react.
     if (Config::settings.show_menu &&
