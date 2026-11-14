@@ -5,10 +5,6 @@
 #include "../offsets/offsets.hpp"
 #include "../math/math.hpp"
 #include "../utils/memory.hpp"
-#include "../features/visuals/player_esp.hpp"
-#include "../features/visuals/glow.hpp"
-#include "../features/visuals/world.hpp"
-#include "../features/menu/menu.hpp"
 #include "../utils/detourhook.hpp"
 #include <cstring>
 namespace HooksInternal {
@@ -25,7 +21,7 @@ void __fastcall PaintTraverse(void* ecx, void* /*edx*/, unsigned int panel, bool
     Interfaces::Engine->GetScreenSize(width, height);
     ctx.screen_size = Vector2D(static_cast<float>(width), static_cast<float>(height));
     ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if (!ctx.in_game) { ctx.reset(); Menu::Render(); return; }
+    if (!ctx.in_game) { ctx.reset(); return; }
     const int local_index = Interfaces::Engine->GetLocalPlayer();
     ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
     if (ctx.local) ctx.weapon = ctx.local->GetActiveWeapon();
@@ -33,12 +29,9 @@ void __fastcall PaintTraverse(void* ecx, void* /*edx*/, unsigned int panel, bool
     ctx.frametime = Interfaces::Globals->frametime;
     auto client_base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     const auto matrix_offset = offsets::Get("dwViewMatrix");
+    // TODO: features/visuals entry points go here
     if (client_base && matrix_offset)
         std::memcpy(&ctx.view_matrix, reinterpret_cast<const void*>(client_base + matrix_offset), sizeof(ctx.view_matrix));
 
-    Features::Visuals::World();
-    Features::Visuals::Glow();
-    Features::Visuals::PlayerEsp();
-    Menu::Render();
 }
 }

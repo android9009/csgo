@@ -1,12 +1,12 @@
 #include "config.hpp"
-#include "../features/menu/config.hpp"
+
 #include "log.hpp"
 #include <windows.h>
 #include <fstream>
 #include <string>
 #include <sstream>
 namespace Config {
-config_t settings{};
+settings_t settings{};
 static std::string FilePath() {
     char appdata[MAX_PATH]{};
     DWORD length = GetEnvironmentVariableA("APPDATA", appdata, MAX_PATH);

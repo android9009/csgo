@@ -11,7 +11,6 @@
 #include "utils/event_listener.hpp"
 #include "utils/log.hpp"
 #include "hooks/hooks.hpp"
-#include "features/menu/menu.hpp"
 
 static void Shutdown() {
     Hooks::Restore();
@@ -34,7 +33,6 @@ static DWORD WINAPI Entry(LPVOID parameter) {
 
     Render::CreateFonts();
     EventListener::Setup({"bullet_impact", "round_start", "player_hurt", "weapon_fire", "player_death"});
-    Menu::Register();
     if (!Hooks::Setup()) { Shutdown(); FreeLibraryAndExitThread(self, 6); }
     LOG_INFO("CS:GO base initialized");
 

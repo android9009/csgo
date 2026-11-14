@@ -2,9 +2,6 @@
 #include "../context.hpp"
 #include "../sdk/structs.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
-#include "../features/misc/movement.hpp"
-#include "../features/rage/ragebot.hpp"
-#include "../features/rage/antiaim.hpp"
 #include "../utils/detourhook.hpp"
 namespace HooksInternal {
 bool __fastcall CreateMove(void* ecx, void* /*edx*/, float sample_time, CUserCmd* cmd) {
@@ -25,9 +22,7 @@ bool __fastcall CreateMove(void* ecx, void* /*edx*/, float sample_time, CUserCmd
             ? static_cast<int>(1.f / Interfaces::Globals->interval_per_tick) : 64;
     }
     if (ctx.local && ctx.local->IsAlive()) {
-        Features::Misc::Movement(cmd);
-        Features::Rage::Ragebot(cmd);
-        Features::Rage::AntiAim(cmd);
+        // TODO: features/misc, features/rage entry points go here
     }
     ctx.view_angles = cmd->viewangles;
     return result;
