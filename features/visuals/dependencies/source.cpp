@@ -7,6 +7,7 @@
 #include <intrin.h>
 #include "MinHook.h"
 #include "../../../runtime/debug_console.hpp"
+#include "../../../runtime/bisect.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1718,6 +1719,8 @@ bool __fastcall hooked_is_hltv(void* self, void*) {
 bool install_radar_hook() {
     if (radar_hook_installed)
         return true;
+    if (bisect::off("radar"))
+        return false;
     static std::atomic<ULONGLONG> next_attempt = 0;
     const ULONGLONG now = GetTickCount64();
     if (now < next_attempt.load(std::memory_order_relaxed))
@@ -1764,6 +1767,8 @@ bool install_radar_hook() {
 bool install_viewmodel_hook() {
     if (viewmodel_hook_installed)
         return true;
+    if (bisect::off("viewmodel"))
+        return false;
     if (!client_module)
         return false;
     // Two prologues across the client builds main supports.
@@ -2408,6 +2413,8 @@ void __fastcall hooked_frame_stage(void* self, void*, int stage) {
 bool install_frame_stage_hook() {
     if (frame_stage_hook_ready.load(std::memory_order_acquire))
         return true;
+    if (bisect::off("framestage"))
+        return false;
     static std::atomic<ULONGLONG> next_attempt = 0;
     const ULONGLONG now = GetTickCount64();
     if (now < next_attempt.load(std::memory_order_relaxed))

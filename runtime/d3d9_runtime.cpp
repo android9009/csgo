@@ -6,6 +6,7 @@
 #include "debug_console.hpp"
 #include "fonts.hpp"
 #include "game_input.hpp"
+#include "bisect.hpp"
 #include "steam_avatar.hpp"
 
 #include <Windows.h>
@@ -126,6 +127,8 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
     // main menu is not guaranteed to be the id used by the in-game team UI.
     if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
         return;
+    if (bisect::off("focus"))
+        return;
 
     const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
     const auto is_mouse_input_enabled = (*reinterpret_cast<panel_is_mouse_input_enabled_t**>(ecx))[34];
@@ -149,6 +152,8 @@ void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool
 bool ensure_panel_hook() {
     if (original_paint_traverse)
         return true;
+    if (bisect::off("panel"))
+        return false;
     const ULONGLONG now = GetTickCount64();
     if (now < next_panel_probe)
         return false;
@@ -244,6 +249,9 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
     }
     if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)
         return 0;
+
+    if (bisect::off("wndproc"))
+        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
 
     const bool opened = g_menu->is_opened();
     if (opened && ImGui::GetCurrentContext()) {
@@ -341,6 +349,7 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     initialized = true;
+    AIRFLOW_DEBUG_LOGF("bisect.txt: [%s]", bisect::listed());
     AIRFLOW_DEBUG_LOG(debug_session::renderer_ready);
     return true;
 }

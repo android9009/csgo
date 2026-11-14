@@ -165,6 +165,7 @@
     <ClInclude Include="runtime\debug_console.hpp" />
     <ClInclude Include="runtime\debug_session.hpp" />
     <ClInclude Include="runtime\fonts.hpp" />
+    <ClInclude Include="runtime\bisect.hpp" />
     <ClInclude Include="runtime\game_input.hpp" />
     <ClInclude Include="runtime\runtime.hpp" />
     <ClInclude Include="runtime\steam_avatar.hpp" />

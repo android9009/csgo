@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include "MinHook.h"
 #include "../../../runtime/debug_console.hpp"
+#include "../../../runtime/bisect.hpp"
 
 #include <algorithm>
 #include <array>
@@ -920,6 +921,8 @@ chams_event_listener event_listener;
 bool register_events() {
     if (events_registered)
         return true;
+    if (bisect::off("events"))
+        return false;
     if (!game_event_manager)
         return false;
     const auto add_listener = virtual_function<event_add_listener_t>(game_event_manager, 3);
@@ -1955,6 +1958,8 @@ void set_preview_model(const char* model_path, bool active) {
 }
 
 bool initialize() {
+    if (bisect::off("chams"))
+        return false;
     if (hooks_ready.load(std::memory_order_acquire)) {
         register_events();
         return true;
