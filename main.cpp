@@ -19,10 +19,8 @@ static void Shutdown() {
 }
 static DWORD WINAPI Entry(LPVOID parameter) {
     const auto self = static_cast<HMODULE>(parameter);
-    while (!GetModuleHandleA("serverbrowser.dll")) {
-        if (GetAsyncKeyState(VK_END) & 1) FreeLibraryAndExitThread(self, 0);
+    while (!GetModuleHandleA("serverbrowser.dll"))
         Sleep(200);
-    }
     // Discover addresses first, then capture interfaces that depend on them.
     if (!Patterns::Init()) { LOG_ERROR("signature scan failed"); FreeLibraryAndExitThread(self, 1); }
     if (!offsets::Init()) { LOG_ERROR("offset setup failed"); FreeLibraryAndExitThread(self, 2); }

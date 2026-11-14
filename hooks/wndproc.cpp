@@ -17,7 +17,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam
         return true;
 
     if (message == WM_KEYUP) {
-        if (wparam == VK_END) ctx.unload = true;
+        // Выгрузка по клавише (Del/End) отключена — чит не выгружается по кнопке.
         if (wparam == static_cast<WPARAM>(Config::settings.menu_key))
             Config::settings.show_menu = !Config::settings.show_menu;
         if (Config::settings.show_menu) {

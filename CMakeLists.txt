@@ -36,11 +36,12 @@ set(THIRDPARTY_SOURCES
 add_library(csgo_base SHARED ${BASE_SOURCES} ${THIRDPARTY_SOURCES})
 target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json"
 )
 target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc)
-target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi)
+target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
