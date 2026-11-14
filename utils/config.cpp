@@ -3,10 +3,13 @@
 #include "log.hpp"
 #include <windows.h>
 #include <fstream>
-#include <string>
-#include <sstream>
+#include <json.h>
+
 namespace Config {
 settings_t settings{};
+
+using nlohmann::json;
+
 static std::string FilePath() {
     char appdata[MAX_PATH]{};
     DWORD length = GetEnvironmentVariableA("APPDATA", appdata, MAX_PATH);
@@ -15,40 +18,53 @@ static std::string FilePath() {
     CreateDirectoryA(dir.c_str(), nullptr);
     return dir + "\\config.json";
 }
+
+static json ColorToJson(const Color& c) {
+    return json::array({ c.r, c.g, c.b, c.a });
+}
+
+static Color ColorFromJson(const json& j, const Color& fallback) {
+    if (!j.is_array() || j.size() < 3) return fallback;
+    const uint8_t r = j[0].get<uint8_t>();
+    const uint8_t g = j[1].get<uint8_t>();
+    const uint8_t b = j[2].get<uint8_t>();
+    const uint8_t a = j.size() > 3 ? j[3].get<uint8_t>() : 255;
+    return Color(r, g, b, a);
+}
+
 bool Save() {
+    json j;
+    j["player_esp"] = settings.player_esp;
+    j["player_names"] = settings.player_names;
+    j["bunnyhop"] = settings.bunnyhop;
+    j["menu_key"] = settings.menu_key;
+    j["enemy_color"] = ColorToJson(settings.enemy_color);
+    j["friendly_color"] = ColorToJson(settings.friendly_color);
+
     std::ofstream out(FilePath(), std::ios::binary | std::ios::trunc);
     if (!out) return false;
-    out << "{\n"
-        << "  \"player_esp\": " << (settings.player_esp ? "true" : "false") << ",\n"
-        << "  \"player_names\": " << (settings.player_names ? "true" : "false") << ",\n"
-        << "  \"bunnyhop\": " << (settings.bunnyhop ? "true" : "false") << ",\n"
-        << "  \"menu_key\": " << settings.menu_key << ",\n"
-        << "  \"enemy_color\": [" << int(settings.enemy_color.r) << ',' << int(settings.enemy_color.g) << ',' << int(settings.enemy_color.b) << "]\n"
-        << "}\n";
+    out << j.dump(4) << '\n';
     return static_cast<bool>(out);
 }
-static bool ReadBool(const std::string& text, const char* key, bool& value) {
-    const std::string token = std::string("\"") + key + "\"";
-    auto at = text.find(token); if (at == std::string::npos) return false;
-    at = text.find(':', at + token.size()); if (at == std::string::npos) return false;
-    at = text.find_first_not_of(" \t\r\n", at + 1); if (at == std::string::npos) return false;
-    if (text.compare(at, 4, "true") == 0) { value = true; return true; }
-    if (text.compare(at, 5, "false") == 0) { value = false; return true; }
-    return false;
-}
+
 bool Load() {
     std::ifstream in(FilePath(), std::ios::binary);
     if (!in) return false;
-    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    ReadBool(text, "player_esp", settings.player_esp);
-    ReadBool(text, "player_names", settings.player_names);
-    ReadBool(text, "bunnyhop", settings.bunnyhop);
-    const std::string token = "\"menu_key\"";
-    auto at = text.find(token);
-    if (at != std::string::npos) {
-        at = text.find(':', at + token.size());
-        if (at != std::string::npos) { try { settings.menu_key = std::stoi(text.substr(at + 1)); } catch (...) {} }
+    json j;
+    try {
+        in >> j;
+    } catch (const std::exception& e) {
+        LOG_ERROR("config parse failed: %s", e.what());
+        return false;
     }
+    settings.player_esp = j.value("player_esp", settings.player_esp);
+    settings.player_names = j.value("player_names", settings.player_names);
+    settings.bunnyhop = j.value("bunnyhop", settings.bunnyhop);
+    settings.menu_key = j.value("menu_key", settings.menu_key);
+    if (j.contains("enemy_color"))
+        settings.enemy_color = ColorFromJson(j["enemy_color"], settings.enemy_color);
+    if (j.contains("friendly_color"))
+        settings.friendly_color = ColorFromJson(j["friendly_color"], settings.friendly_color);
     return true;
 }
 }

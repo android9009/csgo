@@ -1,8 +1,10 @@
 #pragma once
-// Dependency-free VMT hook plus optional MinHook adapter.
+// VMT hook for interface slots + MinHook-based inline detour for arbitrary functions.
 #include <windows.h>
 #include <cstdint>
 #include <cstddef>
+#include <MinHook.h>
+
 class VMT_Hook {
 public:
     VMT_Hook() = default;
@@ -37,8 +39,36 @@ private:
     std::size_t slot = 0;
     bool hooked = false;
 };
+
+// Inline detour on a raw function address (engine internals without a vtable slot).
 class Detour_Hook {
 public:
-    bool attach(void*, void*, void**) { return false; } // Optional MinHook integration can be added here.
-    void detach(void*) {}
+    static bool ensure_init() {
+        static const bool ok = [] {
+            const MH_STATUS status = MH_Initialize();
+            return status == MH_OK || status == MH_ERROR_ALREADY_INITIALIZED;
+        }();
+        return ok;
+    }
+    bool attach(void* target, void* detour, void** original) {
+        if (!target || !detour || hooked || !ensure_init()) return false;
+        if (MH_CreateHook(target, detour, original) != MH_OK) return false;
+        if (MH_EnableHook(target) != MH_OK) { MH_RemoveHook(target); return false; }
+        this->target = target;
+        hooked = true;
+        return true;
+    }
+    void detach() {
+        if (!hooked || !target) return;
+        MH_DisableHook(target);
+        MH_RemoveHook(target);
+        target = nullptr; hooked = false;
+    }
+    template <typename Fn> Fn get_original(void** trampoline) const {
+        return trampoline ? reinterpret_cast<Fn>(*trampoline) : nullptr;
+    }
+    bool is_hooked() const { return hooked; }
+private:
+    void* target = nullptr;
+    bool hooked = false;
 };
