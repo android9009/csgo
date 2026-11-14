@@ -1,69 +1,45 @@
-AsmJit
-------
+# Airflow Shell — Darkside GUI
 
-AsmJit is a lightweight library for machine code generation written in C++ language.
+Win32 DLL с оригинальным интерфейсом Darkside, адаптированным для Direct3D 9. В проект перенесены фактические `gui.cpp`, `gui.hpp`, страницы меню, контролы, анимации, модифицированный ImGui, конфиг-браузер, keybind-интерфейс и шрифты Darkside — не самодельная тема по скриншоту.
 
-  * [Official Home Page (asmjit.com)](https://asmjit.com)
-  * [Official Repository (asmjit/asmjit)](https://github.com/asmjit/asmjit)
-  * [Public Chat Channel](https://gitter.im/asmjit/asmjit)
-  * [Zlib License](./LICENSE.md)
+## Использование
 
-See [asmjit.com](https://asmjit.com) page for more details, examples, and documentation.
+1. Соберите `Release | x86` и загрузите `Bins/airflow_shell.dll` в D3D9-процесс CS:GO.
+2. Нажмите **Insert**, чтобы открыть или закрыть меню.
+3. Конфиги интерфейса сохраняются в `C:\airflow\configs`, бинды — в `C:\airflow\binds.json`.
 
-Documentation
--------------
+Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Reset`, обработку окна и рендер ImGui. Параметры Rage, ESP, Misc и Skins являются локальными UI-настройками: игровая логика Airflow, offsets, entity/weapon interfaces и gameplay-hook'и не восстановлены.
 
-  * [Documentation Index](https://asmjit.com/doc/index.html)
-  * [Build Instructions](https://asmjit.com/doc/group__asmjit__build.html)
+Базовый GUI использует оригинальные шрифты и rounded blur. Дополнительные D3D11/WIC/WinRT-сервисы анимированного shader-фона, GIF и live-данных Spotify в D3D9-backend не перенесены; соответствующие виджеты сохранены, но не получают текстуры или активную медиа-сессию.
 
-Breaking Changes
-----------------
+## Visual Studio 2022
 
-Breaking the API is sometimes inevitable, what to do?
+1. Откройте `airflow.sln`.
+2. Установите toolset **v143** и Windows SDK.
+3. Выберите `Release | x86` или `Debug | x86` и соберите проект.
 
-  * See [Breaking Changes Guide](https://asmjit.com/doc/group__asmjit__breaking__changes.html), which is now part of AsmJit documentation.
-  * See asmjit tests, they always compile and provide implementation of many use-cases:
-    * [asmjit_test_emitters.cpp](./test/asmjit_test_emitters.cpp) - Tests that demonstrate the purpose of emitters.
-    * [asmjit_test_assembler_x86.cpp](./test/asmjit_test_assembler_x86.cpp) - Tests targeting AsmJit's Assembler (x86/x64).
-    * [asmjit_test_compiler_x86.cpp](./test/asmjit_test_compiler_x86.cpp) - Tests targeting AsmJit's Compiler (x86/x64).
-    * [asmjit_test_instinfo.cpp](./test/asmjit_test_instinfo.cpp) - Tests that query instruction information.
-    * [asmjit_test_x86_sections.cpp](./test/asmjit_test_x86_sections.cpp) - Multiple sections test.
-  * Visit our [Official Chat](https://gitter.im/asmjit/asmjit) if you need a quick help.
+Результат: `Bins/airflow_shell.dll`. В конфигурации `Debug | x86` решение также собирает `Bins/airflow_injector.exe`. Проект использует C++20, `/utf-8`, `/Zc:char8_t-` и статический MSVC runtime. Отдельный DirectX SDK и D3DX не требуются; используются системные `d3d9.lib` и библиотеки Windows SDK.
 
-Project Organization
---------------------
+## Debug-инжектор
 
-  * **`/`**        - Project root.
-    * **src**      - Source code.
-      * **asmjit** - Source code and headers (always point include path in here).
-        * **core** - Core API, backend independent except relocations.
-        * **arm**  - ARM specific API, used only by ARM and AArch64 backends.
-        * **x86**  - X86 specific API, used only by X86 and X64 backends.
-    * **test**     - Unit and integration tests (don't embed in your project).
-    * **tools**    - Tools used for configuring, documenting, and generating files.
+1. Соберите всё решение в `Debug | x86` и запустите CS:GO. После замены уже загруженной DLL перезапустите игру, чтобы в процессе не осталась старая копия.
+2. Запустите `Bins\airflow_injector.exe`. Он найдёт `csgo.exe` и загрузит `airflow_shell.dll` из своей директории через `LoadLibraryW`.
+3. При необходимости путь к DLL можно передать явно: `airflow_injector.exe "C:\full\path\airflow_shell.dll"`.
+4. Откройте **Visuals**. После вылета нужны `C:\dev\csgo\Bins\debug.log` и `C:\dev\csgo\Bins\crash_last.dmp.txt`.
 
-TODO
-----
+Расширение `.txt` добавлено только для удобной отправки: содержимое остаётся бинарным MiniDump. Для открытия в отладчике переименуйте копию обратно в `crash_last.dmp`.
 
-  * [ ] Core:
-    * [ ] Add support for user external buffers in CodeBuffer / CodeHolder.
-  * [ ] Ports:
-    * [ ] 32-bit ARM/Thumb port.
-    * [ ] 64-bit ARM (AArch64) port.
-    * [ ] RISC-V port.
+Инжектор входит только в Debug-конфигурацию решения; Release-сборка DLL по-прежнему не получает консоль или crash-инструменты.
 
-Support
--------
+## Debug-диагностика
 
-  * AsmJit project has both community and commercial support, see [AsmJit's Support Page](https://asmjit.com/support.html)
-  * You can help the development and maintenance through Petr Kobalicek's [GitHub sponsors Profile](https://github.com/sponsors/kobalicek)
+Только сборка `Debug | x86` открывает консоль при запуске runtime и регистрирует SEH/CRT/SIGABRT-диагностику. Этапы renderer, меню и отдельных вызовов agent preview, код исключения, адрес, модуль+offset и регистры пишутся в консоль и `C:\dev\csgo\Bins\debug.log`; стадия сохраняется отдельно для каждого потока. `C:\dev\csgo\Bins\crash_last.dmp.txt` создаётся уже для первого зарегистрированного `FIRST-CHANCE`, а финальный `CRASH` перезаписывает его финальным исключением; дамп также создаётся для `abort()`. Строка `FIRST-CHANCE` описывает исключение, которое игра ещё может обработать; `CRASH` или `CRT report` важнее для итогового анализа. В `Release` консоль, файловые debug-логи, обработчики и DbgHelp полностью исключены препроцессором.
 
-Notable Donors List:
+## CMake (Windows)
 
-  * [ZehMatt](https://github.com/ZehMatt)
+```bat
+cmake -S . -B build -A Win32
+cmake --build build --config Release
+```
 
-
-Authors & Maintainers
----------------------
-
-  * Petr Kobalicek <kobalicek.petr@gmail.com>
+Результат CMake-сборки: `build/bin/Release/airflow_shell.dll`.
