@@ -1,4 +1,4 @@
-name: Airflow shell Win32 build
+name: CS:GO base Win32 build
 
 on:
   push:
@@ -9,18 +9,16 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v2
 
-      # Debug is built first so that the Release DLL is the one left in Bins/ for the upload.
-      - name: Build Debug DLL and injector
-        run: msbuild airflow.sln /m /p:Configuration=Debug /p:Platform=x86 /v:minimal
+      - name: Configure (Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
 
-      - name: Build Darkside GUI DLL
-        run: msbuild airflow.sln /m /p:Configuration=Release /p:Platform=x86 /v:minimal
+      - name: Build Release DLL
+        run: cmake --build build --config Release
 
       - name: Upload DLL
         uses: actions/upload-artifact@v4
         with:
-          name: airflow-shell-win32
-          path: Bins/airflow_shell.dll
+          name: csgo-base-win32
+          path: build/Release/csgo_base.dll
           if-no-files-found: error

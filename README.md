@@ -1,63 +1,74 @@
-# Airflow Shell — Darkside GUI
+# CS:GO clean base
 
-Win32 DLL с оригинальным интерфейсом Darkside, адаптированным для Direct3D 9. В проект перенесены фактические `gui.cpp`, `gui.hpp`, страницы меню, контролы, анимации, модифицированный ImGui, конфиг-браузер, keybind-интерфейс и шрифты Darkside — не самодельная тема по скриншоту.
+Самостоятельная чистая база в ``. Старый проект из корня удалён; код базы написан заново, а из трёх ссылок использованы только архитектурные идеи и публичные данные.
 
-## Использование
+## Дерево
 
-1. Соберите `Release | x86` и загрузите `Bins/airflow_shell.dll` в D3D9-процесс CS:GO.
-2. Нажмите **Insert**, чтобы открыть или закрыть меню.
-3. Конфиги интерфейса сохраняются в `C:\airflow\configs`, бинды — в `C:\airflow\binds.json`.
+```text
 
-Runtime содержит только hook'и `IDirect3DDevice9::Present` и `Reset`, обработку окна и рендер ImGui. Параметры Rage, ESP, Misc и Skins являются локальными UI-настройками: игровая логика Airflow, offsets, entity/weapon interfaces и gameplay-hook'и не восстановлены.
+├── main.cpp                 DllMain, поток Entry и контролируемое завершение
+├── context.hpp                единый runtime-контекст: local/weapon/view/prediction
+├── CMakeLists.txt           x86 DLL для Visual Studio 2022
+├── math/                    Vector, Vector2D, QAngle, Color, VMatrix, функции математики
+├── sdk/
+│   ├── interfaces/          Capture<T>, ключевые Source-интерфейсы и vfunc-обёртки
+│   ├── entity/              CBaseEntity, CCSPlayer, CBaseWeapon и netvar accessors
+│   ├── datatypes/           CUtlVector/CUtlString и совместимые типы
+│   ├── clientclass.hpp        ClientClass
+│   ├── recv.hpp               RecvTable/RecvProp
+│   ├── datamap.hpp            Source 1 datamap/typedescription
+│   ├── netvars.hpp/.cpp       поиск свойств и NETVAR-макрос
+│   ├── schema.hpp             общий фасад для RecvTable, datamap и статических полей
+│   └── structs.hpp            CUserCmd, glow/animation структуры
+├── utils/                   memory scanner, XOR/hash, logging, config, input, events, render
+├── patterns/                58 Hazedumper-сигнатур
+├── offsets/                 CS:GO snapshot-таблицы + runtime-результаты паттернов
+├── hooks/                   VMT manager; отдельные CreateMove/PaintTraverse/EndScene/WndProc
+└── features/
+    ├── visuals/              простой player ESP; glow/world — точки расширения
+    ├── misc/                 bunnyhop; сюда добавляются movement/misc функции
+    ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
+    └── menu/                 лёгкое VGUI-меню, hotkeys и настройки
+```
 
-Базовый GUI использует оригинальные шрифты и rounded blur. Дополнительные D3D11/WIC/WinRT-сервисы анимированного shader-фона, GIF и live-данных Spotify в D3D9-backend не перенесены; соответствующие виджеты сохранены, но не получают текстуры или активную медиа-сессию.
+## Слои и ответственность
 
-## Visual Studio 2022
+- **SDK** ничего не знает о функциях чита. Интерфейсы получаются по `CreateInterface`, RecvTables индексируются один раз, свойства сущностей читаются через `NETVAR`.
+- **Patterns → offsets → interfaces → netvars → hooks** — порядок загрузки в `main.cpp`. Результаты сканирования live-процесса важнее fallback-констант.
+- **`ctx`** — общее состояние для хуков/функций (вместо разрозненных глобальных переменных).
+- **`features/`** — независимые модули. `CreateMove` вызывает movement/rage entry points; `PaintTraverse` — visuals/menu. Добавление функции не требует менять SDK или центральный контекст, если ей не нужно новое состояние.
+- **Ошибки сигнатур** журналируются. Нет найденной optional-сигнатуры — её поле остаётся нулевым; известные поля могут использовать snapshot fallback. Для другого билда fallback нужно перепроверить.
 
-1. Откройте `airflow.sln`.
-2. Установите toolset **v143** и Windows SDK.
-3. Выберите `Release | x86` или `Debug | x86` и соберите проект.
+## Что взято как ориентир
 
-Результат: `Bins/airflow_shell.dll`. В конфигурации `Debug | x86` решение также собирает `Bins/airflow_injector.exe`. Проект использует C++20, `/utf-8`, `/Zc:char8_t-` и статический MSVC runtime. Отдельный DirectX SDK и D3DX не требуются; используются системные `d3d9.lib` и библиотеки Windows SDK.
+| Источник | Применённые идеи/данные |
+|---|---|
+| [hazedumper](https://github.com/frk1/hazedumper) | Модель «IDA signature → operand chain → RVA»; перенесён каталог из 58 CS:GO сигнатур и таблицы `csgo.hpp` (snapshot `2023-09-05`, 94 netvar-константы и 58 signature-констант). В базе это собственный scanner/registry в `patterns/` и собственные типизированные fallback-таблицы в `offsets/`. |
+| [fatality_source](https://github.com/reversed2603/fatality_source) | Группировка SDK/interfaces/features, разбиение хуков и feature-модулей по файлам, компактные typed-accessors и структура CUserCmd. Реализация здесь новая, без копирования исходников. |
+| [VeryElusive/game-hack (Havoc)](https://github.com/VeryElusive/game-hack/tree/main/base) | Слои `context` → `sdk/utils/hooks/features`, единый контекст вместо множества singleton-глобалок, отдельный memory/pattern helper, `Capture<T>` интерфейсов и staged Entry-инициализация. |
 
-## Debug-инжектор
+## Сборка
 
-1. Соберите всё решение в `Debug | x86`. После замены уже загруженной DLL перезапустите игру, чтобы в процессе не осталась старая копия.
-2. Запустите `Bins\airflow_injector.exe`. Первой строкой он печатает `open csgo` и ждёт `csgo.exe` — игру можно запускать и до, и после инжектора.
-3. Инжектор проходит этапы `[1/6]`–`[6/6]`: проверка DLL (существует, 32-бит), ожидание процесса, ожидание загрузки модулей игры, `LoadLibraryW`, ожидание отчёта DLL о запуске, наблюдение за игрой. У каждой ошибки указан вызов Windows, код и причина.
-4. Окно инжектора не закрывайте: в него же выводится лог самой DLL (строки `[shell <поток>]`). Отдельную консоль DLL при этом не открывает.
-5. При необходимости путь к DLL можно передать явно: `airflow_injector.exe "C:\full\path\airflow_shell.dll"`.
+Требуется Windows + Visual Studio 2022 (MSVC) и Windows SDK. DLL рассчитана на **Win32/x86**; внешние библиотеки не нужны (меню рисуется через VGUI surface).
 
-Цвета: зелёный `[OK]`, жёлтый `[WARN]` и `FIRST-CHANCE`, красный `[FAIL]` и `[CRASH]`.
-
-Инжектор входит только в Debug-конфигурацию решения; Release-сборка DLL по-прежнему не получает консоль или crash-инструменты.
-
-## Debug-диагностика
-
-Только сборка `Debug | x86` ведёт лог и регистрирует SEH/CRT/SIGABRT-диагностику. В `Release` консоль, файловые debug-логи, обработчики и DbgHelp полностью исключены препроцессором.
-
-Файлы в `C:\dev\csgo\Bins` (папка создаётся автоматически):
-
-| Файл | Что в нём |
-| --- | --- |
-| `debug.log` | Лог текущей сессии: строки инжектора и DLL в одном порядке. |
-| `debug_prev.log` | Лог предыдущей сессии. |
-| `crash_<дата>_<время>.txt` | Копия лога сессии, создаётся автоматически при краше. Один файл на краш, старые не перезаписываются. |
-| `crash_last.dmp.txt` | Бинарный MiniDump. Расширение `.txt` только для удобной отправки; для отладчика переименуйте копию в `crash_last.dmp`. |
-
-Блок `[CRASH]` содержит причину простыми словами (`reason`), место (`where`: модуль+offset, для кода DLL — функция и строка из PDB), последнюю стадию потока (`stage`), регистры, стек и вывод (`verdict`): упало в коде DLL, в коде игры, вызванном из DLL, или кадров DLL на стеке нет.
-
-Текстовый crash-лог сохраняется в двух случаях. DLL пишет его сама из обработчика необработанного исключения и `abort()`. Если игра перехватила исключение своим обработчиком, файл сохраняет инжектор — по коду завершения `csgo.exe`. Строка `FIRST-CHANCE` описывает исключение, которое игра ещё может обработать; MiniDump создаётся уже для первого такого исключения, а финальный `[CRASH]` его перезаписывает.
-
-Инжектор также сообщает, если окно игры не отвечает дольше 5 секунд (зависание без исключения), и когда оно снова начало отвечать.
-
-Если DLL загружена не инжектором, она открывает собственную консоль и пишет те же файлы.
-
-## CMake (Windows)
-
-```bat
-cmake -S . -B build -A Win32
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
 cmake --build build --config Release
 ```
 
-Результат CMake-сборки: `build/bin/Release/airflow_shell.dll`.
+В Visual Studio также можно открыть `CMakeLists.txt` как CMake-проект. Проверка сборки требует Windows/MSVC; текущая рабочая среда Linux не располагает ими.
+
+## Паттерны и актуальность
+
+В `patterns/patterns.cpp` находится каталог из 58 Hazedumper patterns. `offsets/offsets.hpp` хранит fallback значения из последнего известного Hazedumper snapshot — **5 сентября 2023 года**. Это известная зафиксированная база для CS:GO Legacy, не live-обновляемый источник и не обещание совместимости с любым исполняемым файлом. Перед использованием на конкретной сборке проверяйте успешность сканирования и адреса в отладчике; неподходящие fallback-данные надо обновить.
+
+CS:GO Source 1 использует RecvTables и datamaps; отдельной Source 2 `SchemaSystem` в этой базе нет. `sdk/schema.hpp` даёт единый фасад к этим Source 1-метаданным, чтобы не путать их с CS2-схемой.
+
+## Что уже работает и куда расширять
+
+- Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging, JSON-настройки и VGUI-отрисовка.
+- Пример player ESP в `features/visuals/player_esp.cpp`; bunnyhop как пример `CreateMove`-фичи в `features/misc/movement.cpp`.
+- Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bunnyhop, **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
+- `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
+
+Новая фича обычно состоит из `<feature>.h/.cpp` в подходящей папке и одного вызова из `hooks/client.cpp` или `hooks/paint.cpp`. Netvar-поля объявляйте рядом с соответствующим SDK-классом; runtime-адреса получайте через `offsets::Get()` / `Patterns::Get()`, а не хардкодьте в feature-коде.

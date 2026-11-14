@@ -1,117 +1,22 @@
 cmake_minimum_required(VERSION 3.20)
+project(csgo_clean_base LANGUAGES CXX)
 
-if(NOT WIN32)
-  message(FATAL_ERROR "airflow_shell is a Windows DLL and must be built for Win32")
+if(NOT WIN32 OR NOT MSVC)
+  message(FATAL_ERROR "Build this x86 DLL with Visual Studio 2022 (MSVC).")
+endif()
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+  message(FATAL_ERROR "CS:GO is a 32-bit process. Configure with -A Win32.")
 endif()
 
-project(airflow_shell LANGUAGES C CXX RC)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(airflow_shell SHARED
-  dllmain.cpp
-  features/config/config.cpp
-  features/legit/legit.cpp
-  features/misc/air_strafe.cpp
-  features/misc/bunny_hop.cpp
-  features/misc/grenade_release.cpp
-  features/misc/dependencies/runtime.cpp
-  features/misc/dependencies/state.cpp
-  features/misc/misc.cpp
-  features/misc/super_toss.cpp
-  features/rage/anti_aim.cpp
-  features/rage/rage.cpp
-  features/skins/skins.cpp
-  features/visuals/chams/chams.cpp
-  features/visuals/dependencies/source.cpp
-  features/visuals/esp/esp.cpp
-  features/visuals/world/event_log.cpp
-  features/visuals/world/cvars.cpp
-  features/visuals/world/entities_esp.cpp
-  features/visuals/world/hud.cpp
-  features/visuals/world/scoreboard.cpp
-  features/visuals/world/windows.cpp
-  features/visuals/world/grenade_trajectory.cpp
-  features/visuals/sound_esp.cpp
-  menu/binds.cpp
-  menu/blur.cpp
-  menu/effects.cpp
-  menu/gui.cpp
-  menu/menu.cpp
-  menu/misc_menu.cpp
-  menu/menu_shared.cpp
-  menu/weapon_icons.cpp
-  menu/weapon_presets.cpp
-  menu/visuals.cpp
-  runtime/d3d9_runtime.cpp
-  runtime/hooks.cpp
-  runtime/debug_console.cpp
-  runtime/fonts.cpp
-  runtime/steam_avatar.cpp
-  sdk/config_system/config_system.cpp
-  sdk/game/checksum_crc32.cpp
-  sdk/game/convars.cpp
-  sdk/game/entities.cpp
-  sdk/game/hacks.cpp
-  sdk/game/interfaces.cpp
-  sdk/game/math.cpp
-  sdk/game/md5_pseudo_random.cpp
-  sdk/game/memory.cpp
-  sdk/game/misc_structs.cpp
-  sdk/game/modules.cpp
-  sdk/game/netvars.cpp
-  sdk/game/offsets.cpp
-  sdk/game/structs.cpp
-  sdk/includes/imgui/imgui.cpp
-  sdk/includes/imgui/imgui_demo.cpp
-  sdk/includes/imgui/imgui_draw.cpp
-  sdk/includes/imgui/imgui_impl_dx9.cpp
-  sdk/includes/imgui/imgui_impl_win32.cpp
-  sdk/includes/imgui/imgui_stdlib.cpp
-  sdk/includes/imgui/imgui_tables.cpp
-  sdk/includes/imgui/imgui_widgets.cpp
-  sdk/includes/minhook/buffer.c
-  sdk/includes/minhook/hde/hde32.c
-  sdk/includes/minhook/hde/hde64.c
-  sdk/includes/minhook/hook.c
-  sdk/includes/minhook/trampoline.c
-  menu_fonts.rc
-)
-
-target_compile_features(airflow_shell PRIVATE cxx_std_20)
-target_compile_definitions(airflow_shell PRIVATE
-  WIN32_LEAN_AND_MEAN
-  NOMINMAX
-  _CRT_SECURE_NO_WARNINGS
-)
-target_include_directories(airflow_shell PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/menu"
-  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/imgui"
-  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/minhook"
-  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/includes/json"
-  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/game"
-)
-target_link_libraries(airflow_shell PRIVATE
-  d3d9
-  shell32
-  imm32
-  dwmapi
-  gdi32
-  user32
-)
-
-set_target_properties(airflow_shell PROPERTIES
-  PREFIX ""
-  OUTPUT_NAME "airflow_shell"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-if(MSVC)
-  target_compile_options(airflow_shell PRIVATE
-    /W4
-    /utf-8
-    $<$<COMPILE_LANGUAGE:CXX>:/Zc:char8_t->
-  )
-  set_property(TARGET airflow_shell PROPERTY
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-  )
-endif()
+file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/thirdparty/")
+add_library(csgo_base SHARED ${BASE_SOURCES})
+target_include_directories(csgo_base PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc)
+target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32)
+set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
