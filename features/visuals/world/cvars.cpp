@@ -8,6 +8,7 @@
 
 #include "../../../runtime/debug_console.hpp"
 #include <Windows.h>
+#include "MinHook.h"
 
 #include <algorithm>
 #include <array>
@@ -185,19 +186,22 @@ void* vfunc(void* object, std::size_t index) {
     return table[index];
 }
 
+// Detour on the function behind a vtable slot (main's hooker::add_detour); the
+// vtable in the module's read-only data is not modified.
 bool write_vfunc(void* object, std::size_t index, void* replacement, void** original) {
     void* target = vfunc(object, index);
     if (!target || !replacement || !original)
         return false;
-    void** table = *reinterpret_cast<void***>(object);
-    DWORD old_protect = 0;
-    if (!VirtualProtect(&table[index], sizeof(void*), PAGE_READWRITE, &old_protect))
+    const MH_STATUS init_status = MH_Initialize();
+    if (init_status != MH_OK && init_status != MH_ERROR_ALREADY_INITIALIZED)
         return false;
-    *original = table[index];
-    table[index] = replacement;
-    DWORD ignored = 0;
-    VirtualProtect(&table[index], sizeof(void*), old_protect, &ignored);
-    FlushInstructionCache(GetCurrentProcess(), &table[index], sizeof(void*));
+    if (MH_CreateHook(target, replacement, original) != MH_OK)
+        return false;
+    if (MH_EnableHook(target) != MH_OK) {
+        MH_RemoveHook(target);
+        *original = nullptr;
+        return false;
+    }
     return true;
 }
 

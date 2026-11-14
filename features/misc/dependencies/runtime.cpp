@@ -3,7 +3,6 @@
 #include "source_types.hpp"
 #include "../../../sdk/config_system/config_system.hpp"
 #include "../../../runtime/debug_console.hpp"
-#include "../../../runtime/bisect.hpp"
 #include "../../visuals/world/event_log.hpp"
 
 // Forward declared on purpose: render.hpp pulls the ImGui drawing helpers,
@@ -16,6 +15,7 @@ void push_death_notice(std::string text, bool assistant, bool by_local);
 #include "../../visuals/esp/esp.hpp"
 
 #include <Windows.h>
+#include "MinHook.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -558,24 +558,29 @@ void console_print(const std::string& text, bool use_log_color = false) {
     }
 }
 
+// Detour on the function a vtable slot points at - the way main installs every
+// game hook (hooker::add_detour(memory::get_virtual(...))). The vtable itself,
+// which lives in the module's read-only data, is left untouched.
 bool hook_slot(void* instance, std::size_t index, void* replacement, void** original) {
     if (!instance || !replacement || !original || !readable_range(instance, sizeof(void*)))
         return false;
     void** table = *reinterpret_cast<void***>(instance);
     if (!readable_range(table, (index + 1) * sizeof(void*)))
         return false;
-    if (table[index] == replacement)
-        return *original != nullptr;
-    DWORD old_protect = 0;
-    if (!VirtualProtect(&table[index], sizeof(void*), PAGE_READWRITE, &old_protect))
+    void* target = table[index];
+    if (!target)
         return false;
-    void* previous = table[index];
-    table[index] = replacement;
-    DWORD ignored = 0;
-    VirtualProtect(&table[index], sizeof(void*), old_protect, &ignored);
-    FlushInstructionCache(GetCurrentProcess(), &table[index], sizeof(void*));
-    *original = previous;
-    return previous != nullptr;
+    const MH_STATUS init_status = MH_Initialize();
+    if (init_status != MH_OK && init_status != MH_ERROR_ALREADY_INITIALIZED)
+        return false;
+    if (MH_CreateHook(target, replacement, original) != MH_OK)
+        return false;
+    if (MH_EnableHook(target) != MH_OK) {
+        MH_RemoveHook(target);
+        *original = nullptr;
+        return false;
+    }
+    return true;
 }
 
 
@@ -1144,8 +1149,6 @@ misc_event_listener event_listener;
 bool register_events() {
     if (events_installed)
         return true;
-    if (bisect::off("events"))
-        return events_installed = true;
     if (!game_event_manager)
         return false;
     const auto add = virtual_function<event_add_listener_t>(game_event_manager, 3);
@@ -1183,10 +1186,10 @@ bool install_create_move() {
         const auto target = virtual_function<void*>(client_mode_instance, 24);
         if (!target || !function_in_module(client_module, target))
             return false;
-        create_move_installed = bisect::off("createmove") ? true : hook_slot(client_mode_instance, 24,
+        create_move_installed = hook_slot(client_mode_instance, 24,
             reinterpret_cast<void*>(&hooked_create_move), reinterpret_cast<void**>(&original_create_move));
     }
-    if (client_mode_instance && !bisect::off("overrideview"))
+    if (client_mode_instance)
         world_visuals::initialize(client_mode_instance, world_input, cvar_interface, engine, entity_list,
             panel_interface, client_module);
     return create_move_installed;
@@ -1195,8 +1198,6 @@ bool install_create_move() {
 bool install_sound_hook() {
     if (sound_installed)
         return true;
-    if (bisect::off("sound"))
-        return sound_installed = true;
     if (!engine_sound)
         return false;
     const auto target = virtual_function<void*>(engine_sound, 5);
@@ -1294,8 +1295,6 @@ bool console_filter_applied = false;
 bool chat_filter_applied = false;
 
 void update_filters() {
-    if (bisect::off("filters"))
-        return;
     const auto& state = misc_features::settings();
     if (state.filter_console_output && !console_filter_applied) {
         client_command("developer 0; con_filter_enable 1; con_filter_text opaihook");

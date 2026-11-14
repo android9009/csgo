@@ -392,9 +392,6 @@
     <ClInclude Include="runtime\fonts.hpp">
       <Filter>Header Files\runtime</Filter>
     </ClInclude>
-    <ClInclude Include="runtime\game_input.hpp">
-      <Filter>Header Files\runtime</Filter>
-    </ClInclude>
     <ClInclude Include="runtime\runtime.hpp">
       <Filter>Header Files\runtime</Filter>
     </ClInclude>

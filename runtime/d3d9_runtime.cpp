@@ -5,16 +5,18 @@
 #include "runtime.hpp"
 #include "debug_console.hpp"
 #include "fonts.hpp"
-#include "game_input.hpp"
-#include "bisect.hpp"
 #include "steam_avatar.hpp"
 
 #include <Windows.h>
 #include <d3d9.h>
 
+#include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <cstddef>
 #include <mutex>
+#include <thread>
 
 #include "MinHook.h"
 #include "imgui.h"
@@ -48,8 +50,6 @@ bool configuration_ready = false;
 bool menu_ready = false;
 HWND game_window = nullptr;
 void* game_panel = nullptr;
-ULONGLONG next_panel_probe = 0;
-game_input::mouse_input_state focus_overlay_input;
 bool menu_input_open = false;
 std::mutex frame_mutex;
 
@@ -87,7 +87,6 @@ void note_present_thread(HWND override_window) {
 
 using paint_traverse_t = void(__thiscall*)(void*, unsigned int, bool, bool);
 using panel_set_mouse_input_t = void(__thiscall*)(void*, unsigned int, bool);
-using panel_is_mouse_input_enabled_t = bool(__thiscall*)(void*, unsigned int);
 using panel_get_name_t = const char*(__thiscall*)(void*, unsigned int);
 using create_interface_t = void* (__cdecl*)(const char*, int*);
 paint_traverse_t original_paint_traverse = nullptr;
@@ -100,70 +99,33 @@ void* query_interface(HMODULE module, const char* name) {
     return factory ? factory(name, nullptr) : nullptr;
 }
 
+// VGUI PaintTraverse, same contract as main's vmt::paint_traverse: after the
+// original has run, the FocusOverlayPanel's mouse input follows the menu state
+// on every traversal. While the menu is open that panel owns the cursor (the
+// game unlocks it and VGUI swallows the clicks); while it is closed the flag is
+// written back to false every frame, so no stale state can survive a map load.
 void __fastcall hooked_paint_traverse(void* ecx, void*, unsigned int panel, bool repaint, bool force) {
     const auto get_name = (*reinterpret_cast<panel_get_name_t**>(ecx))[36];
     const char* name = get_name ? get_name(ecx, panel) : nullptr;
     // World > Removals: one filter for both renderers, exact panel names only.
-    if (name && world_visuals::should_skip_panel(name)) {
-        // Log each skipped panel once so a hidden HUD element (the old broad
-        // "Panorama" match could hide the team select) is visible in the log.
-        static char last_skipped[128] = {};
-        if (std::strcmp(last_skipped, name) != 0) {
-            std::strncpy(last_skipped, name, sizeof(last_skipped) - 1);
-            last_skipped[sizeof(last_skipped) - 1] = '\0';
-            AIRFLOW_DEBUG_LOGF("panel skipped: %s", name);
-        }
+    if (name && world_visuals::should_skip_panel(name))
         return;
-    }
 
     original_paint_traverse(ecx, panel, repaint, force);
 
-    // This is the cursor path used by main: enabling mouse input on the
-    // FocusOverlayPanel releases the game's centred/locked cursor. Do not
-    // replace it with per-frame ISurface::UnlockCursor calls.
-    //
-    // Resolve the panel by name on every traversal instead of caching the first
-    // id forever. A map load can rebuild VGUI panels; the id observed in the
-    // main menu is not guaranteed to be the id used by the in-game team UI.
     if (!name || std::strcmp(name, "FocusOverlayPanel") != 0)
         return;
-    if (bisect::off("focus"))
-        return;
-
     const auto set_mouse_input = (*reinterpret_cast<panel_set_mouse_input_t**>(ecx))[32];
-    const auto is_mouse_input_enabled = (*reinterpret_cast<panel_is_mouse_input_enabled_t**>(ecx))[34];
-    if (!set_mouse_input || !is_mouse_input_enabled)
-        return;
-
-    // Never write `false` just because the cheat menu is closed. The game may
-    // legitimately have mouse input enabled (main menu, team select, buy menu).
-    // Capture the game's current value when the menu opens, enable input only
-    // while the menu owns it, and restore that captured value on close.
-    const bool current_enabled = is_mouse_input_enabled(ecx, panel);
-    const game_input::mouse_input_state::action action =
-        focus_overlay_input.update(panel, current_enabled, g_menu->is_opened());
-    if (action.write) {
-        set_mouse_input(ecx, panel, action.enabled);
-        AIRFLOW_DEBUG_LOGF("FocusOverlayPanel(%u): mouse input %s", panel,
-            action.enabled ? "enabled for menu" : "restored for game");
-    }
+    if (set_mouse_input)
+        set_mouse_input(ecx, panel, g_menu->is_opened());
 }
 
-bool ensure_panel_hook() {
+bool install_panel_hook() {
     if (original_paint_traverse)
         return true;
-    if (bisect::off("panel"))
-        return false;
-    const ULONGLONG now = GetTickCount64();
-    if (now < next_panel_probe)
-        return false;
-    next_panel_probe = now + 1000;
-
-    if (!game_panel)
-        game_panel = query_interface(GetModuleHandleW(L"vgui2.dll"), "VGUI_Panel009");
+    game_panel = query_interface(GetModuleHandleA("vgui2.dll"), "VGUI_Panel009");
     if (!game_panel)
         return false;
-
     void** vtable = *reinterpret_cast<void***>(game_panel);
     if (!vtable || !vtable[41])
         return false;
@@ -178,13 +140,13 @@ bool ensure_panel_hook() {
     return true;
 }
 
+// Closing the menu: hand ImGui the button releases it will no longer receive,
+// so a click cannot stay "held" (ImGui drops its own SetCapture on the last
+// release). The engine's capture is never touched.
 void release_menu_input(HWND hwnd) {
     if (!hwnd)
         hwnd = game_window;
     if (hwnd && ImGui::GetCurrentContext()) {
-        // The Win32 backend keeps its own button mask in addition to ImGuiIO.
-        // Feed all releases before clearing IO so a later click cannot inherit
-        // a stuck capture or a held button from the closed menu.
         static const UINT releases[] = {
             WM_LBUTTONUP, WM_RBUTTONUP, WM_MBUTTONUP, WM_XBUTTONUP
         };
@@ -195,8 +157,6 @@ void release_menu_input(HWND hwnd) {
         ImGui::GetIO().ClearInputKeys();
         ImGui::GetIO().MouseDrawCursor = false;
     }
-    if (hwnd && GetCapture() == hwnd)
-        ReleaseCapture();
     menu_input_open = false;
 }
 
@@ -215,35 +175,17 @@ bool keyboard_message(UINT message) {
     return message >= WM_KEYFIRST && message <= WM_KEYLAST;
 }
 
-bool movement_key(WPARAM key) {
-    switch (key) {
-    case 'W': case 'A': case 'S': case 'D':
-    case 'w': case 'a': case 's': case 'd':
-    case VK_SPACE: case VK_SHIFT: case VK_LSHIFT: case VK_RSHIFT:
-    case VK_CONTROL: case VK_LCONTROL: case VK_RCONTROL:
-        return true;
-    default:
-        return false;
-    }
-}
-
+// Window procedure, same flow as main's hooks::hooked_wnd_proc:
+//   1. Insert (key up) toggles the menu;
+//   2. while another window is in the foreground everything goes to the game;
+//   3. while the menu is open ImGui sees the message first and it is swallowed
+//      only if ImGui handled it or a text field is being edited;
+//   4. everything else goes to the game untouched.
+// The game's own input is kept away from the open menu by the FocusOverlayPanel
+// (see hooked_paint_traverse), not by eating window messages here.
 LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
     if (!original_wndproc)
-        return DefWindowProc(hwnd, message, wparam, lparam);
-
-    // Match the main branch exactly: while another window is in the foreground
-    // every message goes straight to the game. The capture is released only if
-    // the cheat menu took it. With the menu closed the capture on this window
-    // belongs to the engine (it is taken while a map loads and while the mouse
-    // drives the view); releasing it here - which happens whenever a message
-    // arrives while the injector console or the "not responding" ghost window
-    // is in the foreground during a map load - desynchronises the engine's
-    // mouse state from Win32 without the engine knowing about it.
-    if (GetForegroundWindow() != hwnd) {
-        if (menu_input_open && GetCapture() == hwnd)
-            ReleaseCapture();
-        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
-    }
+        return DefWindowProcA(hwnd, message, wparam, lparam);
 
     if (message == WM_KEYUP && wparam == VK_INSERT) {
         g_menu->toggle();
@@ -251,39 +193,21 @@ LRESULT CALLBACK hooked_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM l
             menu_input_open = true;
         else
             release_menu_input(hwnd);
-        return 0;
     }
-    if ((message == WM_KEYUP || message == WM_KEYDOWN) && wparam == VK_INSERT)
-        return 0;
 
-    if (bisect::off("wndproc"))
-        return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+    if (GetForegroundWindow() != hwnd)
+        return CallWindowProcA(original_wndproc, hwnd, message, wparam, lparam);
 
-    const bool opened = g_menu->is_opened();
-    if (opened && ImGui::GetCurrentContext()) {
-        // Feed each event to ImGui exactly once. Unlike the old selective
-        // route, the same click is never also delivered to the game.
-        const LRESULT imgui_result = ImGui_ImplWin32_WndProcHandler(hwnd, message, wparam, lparam);
-        if (menu_binds::is_capturing() &&
-            (keyboard_message(message) || mouse_message(message)))
+    if (g_menu->is_opened() && ImGui::GetCurrentContext()) {
+        if (ImGui_ImplWin32_WndProcHandler(hwnd, message, wparam, lparam) ||
+            ImGui::GetIO().WantTextInput)
             return TRUE;
-
-        // The open menu is a modal overlay. Raw mouse input and client mouse
-        // messages stay out of the game until the menu is closed.
-        if (message == WM_INPUT || mouse_message(message))
-            return 0;
-
-        // Keep movement keys available to the live player, as in the existing
-        // menu, while text editing owns the remaining keyboard input.
-        if (ImGui::GetIO().WantTextInput && keyboard_message(message) && !movement_key(wparam))
-            return 0;
-        if (imgui_result)
-            return imgui_result;
-    } else if (opened && (message == WM_INPUT || mouse_message(message))) {
-        return 0;
+        // Keybind capture: the key or button being bound must not reach the game.
+        if (menu_binds::is_capturing() && (keyboard_message(message) || mouse_message(message)))
+            return TRUE;
     }
 
-    return CallWindowProc(original_wndproc, hwnd, message, wparam, lparam);
+    return CallWindowProcA(original_wndproc, hwnd, message, wparam, lparam);
 }
 
 bool initialize_renderer(IDirect3DDevice9* present_device) {
@@ -330,10 +254,11 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     SetLastError(ERROR_SUCCESS);
-    WNDPROC previous = reinterpret_cast<WNDPROC>(SetWindowLongPtr(parameters.hFocusWindow,
-        GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&hooked_wndproc)));
+    // Same call main uses (hooks::init): ANSI subclass of the game window.
+    WNDPROC previous = reinterpret_cast<WNDPROC>(SetWindowLongA(parameters.hFocusWindow,
+        GWL_WNDPROC, reinterpret_cast<LONG>(reinterpret_cast<LONG_PTR>(&hooked_wndproc))));
     if (!previous) {
-        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the game window procedure could not be replaced (SetWindowLongPtr)");
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the game window procedure could not be replaced (SetWindowLongA)");
         ImGui_ImplDX9_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -355,22 +280,18 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
     }
 
     initialized = true;
-    AIRFLOW_DEBUG_LOGF("bisect.txt: [%s]", bisect::listed());
     AIRFLOW_DEBUG_LOG(debug_session::renderer_ready);
     return true;
 }
 
 void render_frame(IDirect3DDevice9* present_device) {
     AIRFLOW_DEBUG_STAGE("renderer.render_frame");
-    if (bisect::off("render"))
-        return;
     std::scoped_lock lock(frame_mutex);
     if (!initialized && !initialize_renderer(present_device))
         return;
     if (present_device != device)
         return;
 
-    ensure_panel_hook();
     synchronize_menu_input();
 
 #ifdef _DEBUG
@@ -449,63 +370,86 @@ HRESULT WINAPI hooked_reset(IDirect3DDevice9* reset_device, D3DPRESENT_PARAMETER
     return result;
 }
 
-LRESULT CALLBACK dummy_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
-    return DefWindowProc(hwnd, message, wparam, lparam);
+// IDA-style signature scan over a loaded module image ("A1 ? ? ? ? 50").
+const std::uint8_t* find_signature(HMODULE module, const char* signature) {
+    if (!module)
+        return nullptr;
+    const auto* base = reinterpret_cast<const std::uint8_t*>(module);
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return nullptr;
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return nullptr;
+
+    int bytes[64];
+    std::size_t count = 0;
+    for (const char* cursor = signature; *cursor && count < 64;) {
+        if (*cursor == ' ') {
+            ++cursor;
+        } else if (*cursor == '?') {
+            bytes[count++] = -1;
+            while (*cursor == '?')
+                ++cursor;
+        } else {
+            char* end = nullptr;
+            bytes[count++] = static_cast<int>(std::strtoul(cursor, &end, 16));
+            cursor = end;
+        }
+    }
+    if (!count)
+        return nullptr;
+
+    const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (!(section->Characteristics & IMAGE_SCN_MEM_EXECUTE) ||
+            section->Misc.VirtualSize < count)
+            continue;
+        const std::uint8_t* begin = base + section->VirtualAddress;
+        const std::size_t last = section->Misc.VirtualSize - count;
+        for (std::size_t offset = 0; offset <= last; ++offset) {
+            bool matches = true;
+            for (std::size_t j = 0; j < count; ++j) {
+                if (bytes[j] >= 0 && begin[offset + j] != static_cast<std::uint8_t>(bytes[j])) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches)
+                return begin + offset;
+        }
+    }
+    return nullptr;
 }
 
+// Startup, same order as main's c_hacks::init: wait for the game window and for
+// serverbrowser.dll (the last module the game loads), take the game's own
+// IDirect3DDevice9 out of shaderapidx9 (main's offsets::d3d_device signature)
+// and detour its virtual functions. No second Direct3D device or helper window
+// is created inside the game process.
 bool install_hooks() {
-    WNDCLASSEXW window_class{};
-    window_class.cbSize = sizeof(window_class);
-    window_class.lpfnWndProc = dummy_wndproc;
-    window_class.hInstance = GetModuleHandleW(nullptr);
-    window_class.lpszClassName = L"airflow_shell_d3d9_probe";
-    if (!RegisterClassExW(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
-        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: RegisterClassEx failed, error=%lu", GetLastError());
+    while (!FindWindowA("Valve001", nullptr))
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    while (!GetModuleHandleA("serverbrowser.dll"))
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    const HMODULE shader_api = GetModuleHandleA("shaderapidx9.dll");
+    const std::uint8_t* match = find_signature(shader_api, "A1 ? ? ? ? 50 8B 08 FF 51 0C");
+    if (!match) {
+        AIRFLOW_DEBUG_LOG("[FAIL] D3D9: the device signature was not found in shaderapidx9.dll");
         return false;
     }
-
-    HWND probe_window = CreateWindowExW(0, window_class.lpszClassName, L"", WS_OVERLAPPEDWINDOW,
-        0, 0, 1, 1, nullptr, nullptr, window_class.hInstance, nullptr);
-    if (!probe_window) {
-        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: CreateWindowEx failed, error=%lu", GetLastError());
+    IDirect3DDevice9** device_slot = nullptr;
+    std::memcpy(&device_slot, match + 1, sizeof(device_slot));
+    if (!device_slot) {
+        AIRFLOW_DEBUG_LOG("[FAIL] D3D9: the device signature resolved to a null pointer");
         return false;
     }
+    while (!*device_slot)
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    IDirect3DDevice9* game_device = *device_slot;
 
-    IDirect3D9* direct3d = Direct3DCreate9(D3D_SDK_VERSION);
-    if (!direct3d) {
-        AIRFLOW_DEBUG_LOG("[FAIL] D3D9 probe: Direct3DCreate9 returned null (d3d9.dll is unavailable)");
-        DestroyWindow(probe_window);
-        return false;
-    }
-
-    D3DPRESENT_PARAMETERS present_parameters{};
-    present_parameters.BackBufferCount = 1;
-    present_parameters.BackBufferWidth = 1;
-    present_parameters.BackBufferHeight = 1;
-    present_parameters.BackBufferFormat = D3DFMT_UNKNOWN;
-    present_parameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    present_parameters.hDeviceWindow = probe_window;
-    present_parameters.Windowed = TRUE;
-    present_parameters.EnableAutoDepthStencil = TRUE;
-    present_parameters.AutoDepthStencilFormat = D3DFMT_D16;
-    present_parameters.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
-
-    IDirect3DDevice9* probe_device = nullptr;
-    HRESULT result = direct3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, probe_window,
-        D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters, &probe_device);
-    if (FAILED(result)) {
-        result = direct3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, probe_window,
-            D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters, &probe_device);
-    }
-    if (FAILED(result) || !probe_device) {
-        AIRFLOW_DEBUG_LOGF("[FAIL] D3D9 probe: CreateDevice failed, HRESULT=0x%08lX",
-            static_cast<unsigned long>(result));
-        direct3d->Release();
-        DestroyWindow(probe_window);
-        return false;
-    }
-
-    void** vtable = *reinterpret_cast<void***>(probe_device);
+    void** vtable = *reinterpret_cast<void***>(game_device);
     void* reset_target = vtable[16];
     void* present_target = vtable[17];
 
@@ -516,32 +460,27 @@ bool install_hooks() {
     if (success)
         success = MH_CreateHook(present_target, &hooked_present,
             reinterpret_cast<void**>(&original_present)) == MH_OK;
+    if (success && !install_panel_hook())
+        AIRFLOW_DEBUG_LOG("[FAIL] VGUI PaintTraverse hook was not installed: the menu cannot take the cursor");
     if (success)
         success = MH_EnableHook(MH_ALL_HOOKS) == MH_OK;
 
     if (!success) {
         AIRFLOW_DEBUG_LOGF("[FAIL] MinHook could not create or enable the hooks (Reset=%p, Present=%p)",
             reset_target, present_target);
-        if (original_present)
-            MH_RemoveHook(present_target);
-        if (original_reset)
-            MH_RemoveHook(reset_target);
         MH_Uninitialize();
         original_present = nullptr;
         original_reset = nullptr;
+        original_paint_traverse = nullptr;
     }
-
-    probe_device->Release();
-    direct3d->Release();
-    DestroyWindow(probe_window);
-    UnregisterClassW(window_class.lpszClassName, window_class.hInstance);
     return success;
 }
+
 
 DWORD WINAPI worker(LPVOID) {
     AIRFLOW_DEBUG_START();
     AIRFLOW_DEBUG_STAGE("install_hooks");
-    AIRFLOW_DEBUG_LOG("[1/3] runtime worker started: hooking Direct3D 9 Present/Reset");
+    AIRFLOW_DEBUG_LOG("[1/3] runtime worker started: waiting for the game, then hooking its Direct3D 9 device and VGUI panel");
     if (!install_hooks()) {
         AIRFLOW_DEBUG_LOG(debug_session::hooks_failed);
     } else {
