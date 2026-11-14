@@ -255,10 +255,10 @@ bool initialize_renderer(IDirect3DDevice9* present_device) {
 
     SetLastError(ERROR_SUCCESS);
     // Same call main uses (hooks::init): ANSI subclass of the game window.
-    WNDPROC previous = reinterpret_cast<WNDPROC>(SetWindowLongA(parameters.hFocusWindow,
-        GWL_WNDPROC, reinterpret_cast<LONG>(reinterpret_cast<LONG_PTR>(&hooked_wndproc))));
+    WNDPROC previous = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(parameters.hFocusWindow,
+        GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&hooked_wndproc)));
     if (!previous) {
-        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the game window procedure could not be replaced (SetWindowLongA)");
+        AIRFLOW_DEBUG_LOG_ONCE("[FAIL] renderer: the game window procedure could not be replaced (SetWindowLongPtrA)");
         ImGui_ImplDX9_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
