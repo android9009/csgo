@@ -2577,6 +2577,7 @@ namespace {
         { "Grenade Trajectory", "Траектория гранат",  "Bomba Yörüngesi" },
         { "Grenade Proximity Warnings", "Предупреждения о гранатах", "Bomba Yakınlık Uyarısı" },
         { "Proximity Warnings", "Предупреждения вблизи", "Yakınlık Uyarısı" },
+        { "Grenade Warning", "Предупреждение о гранатах", "Bomba Uyarısı" },
         { "Windows",           "Окна",                "Pencereler" },
         { "Removals",          "Удаления",            "Kaldırmalar" },
         { "Ambience",          "Атмосфера",           "Atmosfer" },

@@ -1130,7 +1130,12 @@ public:
         }
     }
 
-    virtual int get_event_debug_id() { return 43; }
+    // IGameEventListener2::GetEventDebugID. The engine compares it against
+    // EVENT_DEBUG_ID_INIT (42) for every listener it is about to call and prints
+    // "GameEventListener2 callback in list that should NOT be - <event>!" for any
+    // other value. 42 is the only "alive" id (13 = EVENT_DEBUG_ID_SHUTDOWN); it is
+    // not a per-listener identifier, so every listener returns the same constant.
+    virtual int get_event_debug_id() { return 42; }
 };
 
 misc_event_listener event_listener;

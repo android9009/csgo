@@ -968,9 +968,9 @@ void draw_visuals_world() {
         gui.row_options_end();
     }
     gui.row_checkbox("Grenade Trajectory", &world.grenade_trajectory);
-    // Proximity warning is its own row again: it fires for any nearby grenade and
-    // does not depend on the trajectory being enabled.
-    gui.row_checkbox("Proximity Warnings", &world.grenade_proximity_warnings);
+    // Neverlose-style Grenade Warning (HE / molotov / inferno). Its own row: it does
+    // not depend on the trajectory being enabled. The config key is unchanged.
+    gui.row_checkbox("Grenade Warning", &world.grenade_proximity_warnings);
     gui.end_group_box();
 
     gui.grid_col(1);

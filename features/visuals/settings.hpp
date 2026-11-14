@@ -362,7 +362,9 @@ struct world_esp_settings {
     float trajectory_points_thickness = 4.f;
     int trajectory_shimmer = 0;
     bool trajectory_thrown_grenades = true;
-    bool trajectory_engine_beams = true; // Fatality draws the arc with the engine overlay
+    // Off by default: the Neverlose-style arc (line, white bounce dots, red end dot)
+    // is the 2D renderer. On = Fatality's world-space boxes from the engine overlay.
+    bool trajectory_engine_beams = false;
     bool trajectory_pin_pulled_only = true; // Fatality always previews with the pin out
     bool trajectory_precise = false;
     int watermark_position = 1;

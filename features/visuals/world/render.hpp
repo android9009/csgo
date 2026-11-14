@@ -49,9 +49,9 @@ void render_hotkeys(ImDrawList* draw, const ImVec2& display);
 void render_held_trajectory(ImDrawList* draw, const visuals_source::frame_data& frame,
                             const ImVec2& display);
 
-// World > Grenades > Proximity Warnings: Airflow's projectile warning — marker on the
-// predicted detonation spot (damage colour, distance in meters, edge arrow), drawn
-// for every grenade in flight, with the local owner's fade exception.
+// World > Grenades > Grenade Warning: the Neverlose-style warning for HE grenades,
+// molotovs and burning infernos — remaining arc, per-player damage forecast and
+// the ring + timer widget near the landing spot (see grenade_trajectory.cpp).
 void render_grenade_warning(ImDrawList* draw, const visuals_source::frame_data& frame,
                             const ImVec2& display);
 

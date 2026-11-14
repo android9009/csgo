@@ -132,6 +132,9 @@ struct world_data {
     // m_hOwnerEntity & 0x7FFF: who threw this projectile. Airflow skips the owner in
     // the grenade sweep and only draws the remaining arc for the local owner.
     int owner_index = -1;
+    // The owner is a live teammate of the local player (resolved at capture, so the
+    // renderer does not have to touch entities for the Grenade Warning filter).
+    bool owner_teammate = false;
     int clip = -1;
     int max_clip = -1;
     float alpha = 1.f;
@@ -164,6 +167,34 @@ struct grenade_prediction {
     bool landed = false;
     float fuse_time = 0.f;   // 0 for smoke/decoy
     float expire_time = 0.f; // predicted detonation, game clock
+    // Grenade Warning (HE / molotov that can hurt the local team). `warn` is the
+    // thrower filter; the victims live in frame_data::grenade_victims.
+    bool warn = false;
+    bool local_in_range = false; // the local player is one of the victims
+    // HE: predicted HP loss of the local player. Molotov: distance from the local
+    // player's feet to the landing spot, in feet (units / 12).
+    float local_damage = 0.f;
+    int victim_begin = 0;
+    int victim_count = 0;
+};
+
+// One player the predicted detonation would reach.
+struct grenade_victim {
+    int entity_index = 0;
+    int health = 0;
+    int damage = 0;        // HE: HP after armor, rounded. 0 for molotovs.
+    float distance = -1.f; // molotov: metres to the landing spot minus one. -1 for HE.
+};
+
+// What the damage forecast needs to know about a player; filled on the game thread.
+struct grenade_target {
+    int index = 0;
+    bool local = false;
+    int health = 0;
+    int armor = 0;
+    vector3 origin;
+    vector3 eye;
+    float eye_yaw = 0.f;
 };
 
 struct local_view_state {
@@ -207,6 +238,7 @@ struct frame_data {
     bool has_view_matrix = false;
     bool local_alive = false;
     int local_index = 0;
+    int local_health = 0;
     vector3 local_origin;
     vector3 view_angles;
     float view_matrix[4][4] = {};
@@ -218,8 +250,10 @@ struct frame_data {
     // The engine overlay is drawing the arcs in world space this frame, so the
     // renderer must not draw the 2D polyline on top of it.
     bool grenade_engine_beams = false;
+    bool friendly_fire = false; // mp_friendlyfire at capture time
     std::vector<grenade_prediction> grenades;
     std::vector<vector3> grenade_points;
+    std::vector<grenade_victim> grenade_victims;
 };
 
 // Retry-safe Source 1 acquisition. Core player/team netvars gate chams; ESP-only
@@ -279,6 +313,9 @@ int atlas_weapon_id(int item_definition_index); // -1 when no embedded glyph exi
 bool entity_is_player(void* entity);
 bool entity_is_breakable(void* entity);
 void* entity_for_index(int index);
+// Every live, non-dormant player (the local one included) for the grenade damage
+// forecast. Game thread only. `out` is cleared first and keeps its capacity.
+void collect_grenade_targets(std::vector<grenade_target>& out);
 
 // Fatality anchors a thrown grenade's prediction to the exact server throw tick,
 // tracked through the "grenade_thrown" game event (userid + event time), instead of

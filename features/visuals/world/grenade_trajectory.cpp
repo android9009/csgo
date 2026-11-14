@@ -67,9 +67,9 @@ using visuals_source::vector3;
 // 2x2x2 hull, the entity-aware filter (skip the thrower, hit everything else), the
 // water current re-trace, the line re-trace against players, player/breakable
 // elasticity, the debris-group switch on repeated hits, the ground damper and the
-// think() timer that detonates on the fuse. Own extensions: damage-coloured
-// proximity warning with a meters readout, echo of the landing circle for molotovs,
-// and the Exponent/Precise/Shimmer UI knobs (Exponent = 1.0 is stock Airflow).
+// think() timer that detonates on the fuse. Own extensions: the Exponent/Precise/
+// Shimmer UI knobs (Exponent = 1.0 is stock Airflow). The look of the arc and the
+// Grenade Warning (bottom of this file) is ported from the Neverlose Lua.
 namespace {
 
 // CS:GO definition indices of the grenades the prediction cares about.
@@ -149,6 +149,7 @@ struct convar_cache_t {
     float gravity = 800.f;
     float molotov_fuse = 2.f;
     float molotov_max_slope = 45.f;
+    bool friendly_fire = false;
     std::chrono::steady_clock::time_point refreshed{};
     bool valid = false;
 };
@@ -162,6 +163,7 @@ convar_cache_t& cached_convars() {
         cache.gravity = world_convar("sv_gravity", 800.f);
         cache.molotov_fuse = world_convar("molotov_throw_detonate_time", 2.f);
         cache.molotov_max_slope = world_convar("weapon_molotov_maxdetonateslope", 45.f);
+        cache.friendly_fire = world_convar("mp_friendlyfire", 0.f) != 0.f;
     }
     return cache;
 }
@@ -574,6 +576,11 @@ struct projectile_state_t {
     vector3 origin{};
     std::size_t first_point = 0;
     bool arc_visible = false;
+    // Grenade Warning forecast, refreshed together with the simulation.
+    bool warn = false;
+    bool local_in_range = false;
+    float local_damage = 0.f;
+    std::vector<visuals_source::grenade_victim> victims{};
 };
 
 struct prediction_state_t {
@@ -625,7 +632,7 @@ std::size_t first_remaining_point(const simulated_grenade& sim, const vector3& l
 // Copies an arc into the frame snapshot and returns its index in frame.grenades.
 int publish(visuals_source::frame_data& frame, const simulated_grenade& sim,
             const int entity_index, const int weapon_id, const std::size_t first_point,
-            const vector3* live_origin) {
+            const vector3* live_origin, const projectile_state_t* danger = nullptr) {
     visuals_source::grenade_prediction out{};
     out.entity_index = entity_index;
     out.weapon_id = weapon_id;
@@ -648,6 +655,16 @@ int publish(visuals_source::frame_data& frame, const simulated_grenade& sim,
             frame.grenade_points.push_back(sim.points[i].position);
     }
     out.bounce_count = static_cast<int>(frame.grenade_points.size()) - out.bounce_begin;
+
+    if (danger) {
+        out.warn = danger->warn;
+        out.local_in_range = danger->local_in_range;
+        out.local_damage = danger->local_damage;
+        out.victim_begin = static_cast<int>(frame.grenade_victims.size());
+        frame.grenade_victims.insert(frame.grenade_victims.end(), danger->victims.begin(),
+            danger->victims.end());
+        out.victim_count = static_cast<int>(danger->victims.size());
+    }
 
     frame.grenades.push_back(out);
     return static_cast<int>(frame.grenades.size()) - 1;
@@ -752,6 +769,87 @@ bool simulate_held(const visuals_source::frame_data& frame,
     return true;
 }
 
+// Grenade Warning forecast (the Lua source's get_dangerous_data): who the predicted
+// detonation reaches and for how much. Game thread: it traces from the landing
+// spot to five points of every player within 350 units.
+//   HE:      exp(-d^2 / 27222.2) * 100 * exposure, then the armor rule.
+//   Molotov: no damage figure, only the distance to the landing spot.
+// The source samples hitbox 0 for the first point; the eye position stands in for
+// it here so the forecast does not need a bone setup per player.
+void forecast_danger(projectile_state_t& projectile, const int weapon_id, const int owner_index,
+                     const int local_index,
+                     const std::vector<visuals_source::grenade_target>& targets) {
+    projectile.victims.clear();
+    projectile.local_damage = 0.f;
+    projectile.local_in_range = false;
+    projectile.warn = false;
+
+    const bool molotov = kind_of(weapon_id) == grenade_kind::molotov;
+    if (!molotov && weapon_id != weapon_hegrenade)
+        return;
+    // A teammate's grenade only matters with friendly fire on; the local player's
+    // own grenade and everything thrown by the enemy (or by nobody we can resolve)
+    // always does.
+    if (owner_index != local_index && visuals_source::player_side(owner_index) == 1 &&
+        !cached_convars().friendly_fire)
+        return;
+    projectile.warn = true;
+
+    constexpr unsigned int mask_shot = 0x46004003u;
+    constexpr float weights[5] = { 0.2f, 0.4f, 0.1f, 0.1f, 0.2f };
+    const vector3 end = projectile.sim.end;
+    const vector3 point_hull{};
+
+    for (const auto& target : targets) {
+        const float distance = length(sub(end, target.eye));
+        if (distance > 350.f)
+            continue;
+
+        const float yaw = (target.eye_yaw + 90.f) * (pi / 180.f);
+        const vector3 side{ std::cos(yaw) * 16.f, std::sin(yaw) * 16.f, 0.f };
+        const vector3 points[5] = { target.eye, target.eye, sub(target.eye, side),
+            add(target.eye, side), target.origin };
+        float exposure = 0.f;
+        // Points 0 and 1 are the same position here: one trace answers both.
+        swept_trace trace{};
+        for (int i = 1; i < 5; ++i) {
+            if (!trace_swept(end, points[i], point_hull, point_hull, mask_shot, trace))
+                continue;
+            if (trace.fraction >= 1.f)
+                exposure += i == 1 ? weights[0] + weights[1] : weights[i];
+        }
+
+        const float feet_distance = length(sub(end, target.origin));
+        visuals_source::grenade_victim victim{};
+        victim.entity_index = target.index;
+        victim.health = target.health;
+        if (molotov) {
+            victim.distance = feet_distance * 0.0254f - 1.f;
+            if (target.local) {
+                projectile.local_in_range = true;
+                projectile.local_damage = feet_distance / 12.f;
+            }
+            projectile.victims.push_back(victim);
+            continue;
+        }
+        if (exposure <= 0.f)
+            continue;
+        float damage = std::exp(-distance * distance / 27222.2222f) * 100.f * exposure;
+        if (target.armor > 0) {
+            float after_armor = damage * 0.6f;
+            if (static_cast<float>(target.armor) < (damage - after_armor) * 0.5f)
+                after_armor = damage - static_cast<float>(target.armor) * 2.f;
+            damage = after_armor;
+        }
+        if (target.local) {
+            projectile.local_in_range = true;
+            projectile.local_damage = damage;
+        }
+        victim.damage = static_cast<int>(damage + 0.5f);
+        projectile.victims.push_back(victim);
+    }
+}
+
 void update_held(visuals_source::frame_data& frame, held_state_t& held) {
     const auto& settings = player_visuals::world_settings();
     visuals_source::local_view_state view{};
@@ -771,6 +869,10 @@ void update_projectiles(visuals_source::frame_data& frame, prediction_state_t& s
                         const bool thrown_arcs, const bool warnings) {
     const int tick = visuals_source::tick_count();
     const float now = frame.game_time;
+    // Players for the damage forecast, collected once per capture and only when a
+    // projectile is actually re-simulated on it.
+    static std::vector<visuals_source::grenade_target> targets;
+    bool targets_ready = false;
 
     for (auto& entity : frame.world) {
         if (entity.kind != visuals_source::world_projectile)
@@ -832,13 +934,25 @@ void update_projectiles(visuals_source::frame_data& frame, prediction_state_t& s
 #endif
             projectile.sim_tick = tick;
             projectile.has_sim = true;
+
+            if (warnings) {
+                if (!targets_ready) {
+                    visuals_source::collect_grenade_targets(targets);
+                    targets_ready = true;
+                }
+                forecast_danger(projectile, entity.weapon_id, entity.owner_index,
+                    frame.local_index, targets);
+            } else {
+                projectile.warn = false;
+                projectile.victims.clear();
+            }
         }
 
         if (projectile.sim.points.size() < 2)
             continue;
         projectile.first_point = first_remaining_point(projectile.sim, entity.origin);
         entity.prediction = publish(frame, projectile.sim, entity.index, entity.weapon_id,
-            projectile.first_point, &entity.origin);
+            projectile.first_point, &entity.origin, &projectile);
         projectile.arc_visible = thrown_arcs && local_owned &&
             length(sub(projectile.sim.end, frame.local_origin)) <= thrown_arc_cutoff;
     }
@@ -868,6 +982,9 @@ void submit_arc(const simulated_grenade& sim, const std::size_t first_point,
             visuals_source::debug_cube(point.position, cube, ink);
         previous = &point.position;
     }
+    // Same accent as the 2D arc: the detonation / rest point is red.
+    if (sim.landed || sim.detonated)
+        visuals_source::debug_cube(sim.end, cube * 1.25f, c_color{ 1.f, 0.f, 40.f / 255.f, ink.a });
 }
 
 } // namespace
@@ -887,6 +1004,7 @@ void update_grenade_predictions(visuals_source::frame_data& frame) {
         state.projectiles.clear();
         return;
     }
+    frame.friendly_fire = cached_convars().friendly_fire;
     if (arcs)
         update_held(frame, state.held);
     update_projectiles(frame, state, arcs && settings.trajectory_thrown_grenades, warnings);
@@ -978,37 +1096,278 @@ const visuals_source::grenade_prediction* prediction_at(const visuals_source::fr
     return &prediction;
 }
 
-// The 2D arc: a soft, wide low-alpha underpass with a thin full-alpha core - it reads
-// as a glowing beam without any engine-renderer dependency - plus a solid filled dot
-// at every bounce. With Engine Beams on, the engine overlay draws the same arc in
-// world space instead (submit_grenade_beams) and this stays out of the way.
+// -----------------------------------------------------------------------------
+//  Visual layer ported from the Neverlose "Grenade Warning" Lua (draw_warning).
+//  Only the look is taken from it; the physics above stays Airflow's.
+// -----------------------------------------------------------------------------
+
+// The Lua's colours are 0-255; keep them readable at the call sites.
+ImU32 rgba(const float r, const float g, const float b, const float a) {
+    return color(r / 255.f, g / 255.f, b / 255.f, a / 255.f);
+}
+
+// neverlose/smoothy with its default (linear) easing, as the source calls it:
+// smoothy(duration, target). Per frame:
+//     value = (target - value) * frametime / duration + value
+// It snaps to the target when the frame is longer than the duration or the
+// remaining difference drops to 0.001. The source always passes 0.1 s.
+constexpr float smoothy_duration = 0.1f;
+
+float approach(float& value, const float target, const float delta_time) {
+    if (value == target)
+        return value;
+    if (delta_time <= 0.f || delta_time >= smoothy_duration) {
+        value = target;
+        return value;
+    }
+    value += (target - value) * delta_time / smoothy_duration;
+    if (std::fabs(target - value) <= 0.001f)
+        value = target;
+    return value;
+}
+
+// MuseoSans 12 in the source. Slot 5 is the embedded MuseoSans (17 px), drawn at 12.
+ImFont* warning_text_font() {
+    const ImFontAtlas* atlas = ImGui::GetIO().Fonts;
+    return atlas->Fonts.Size > 5 ? atlas->Fonts[5] : ImGui::GetFont();
+}
+
+// Slot 6 carries the merged Font Awesome glyphs (timer / grenade / fire).
+ImFont* warning_icon_font() {
+    const ImFontAtlas* atlas = ImGui::GetIO().Fonts;
+    return atlas->Fonts.Size > 6 ? atlas->Fonts[6] : ImGui::GetFont();
+}
+
+constexpr float warning_text_size = 12.f;
+constexpr const char* glyph_timer = "\xef\x80\x97"; // U+F017 clock
+constexpr const char* glyph_bomb = "\xef\x87\xa2";  // U+F1E2 bomb
+constexpr const char* glyph_fire = "\xef\x81\xad";  // U+F06D fire
+
+ImVec2 text_size(ImFont* font, const float size, const char* text) {
+    return font->CalcTextSizeA(size, FLT_MAX, 0.f, text);
+}
+
+// render.text(font, pos, color, "c", text): centred on both axes.
+void text_centered(ImDrawList* draw, ImFont* font, const float size, const ImVec2& center,
+                   const ImU32 ink, const char* text) {
+    const ImVec2 extent = text_size(font, size, text);
+    draw->AddText(font, size,
+        ImVec2(std::floor(center.x - extent.x * 0.5f), std::floor(center.y - extent.y * 0.5f)),
+        ink, text);
+}
+
+// render.shadow(): a soft glow around a rounded box. Stacked outlines with a
+// falling alpha - no blur pass, a handful of AA strokes.
+void soft_shadow(ImDrawList* draw, const ImVec2& a, const ImVec2& b, const float rounding,
+                 const float alpha, const float spread = 8.f) {
+    if (alpha <= 0.004f)
+        return;
+    constexpr int layers = 8;
+    for (int i = 1; i <= layers; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(layers);
+        const float grow = spread * t;
+        const float fade = (1.f - t) * (1.f - t) * 0.22f * alpha;
+        draw->AddRect(a - ImVec2(grow, grow), b + ImVec2(grow, grow),
+            color(0.f, 0.f, 0.f, fade), rounding + grow, ImDrawFlags_None, spread / layers + 1.f);
+    }
+}
+
+// Text with the Lua's glow behind it (render.shadow under render.text).
+void text_glow(ImDrawList* draw, ImFont* font, const ImVec2& center, const ImU32 ink,
+               const float alpha, const char* text) {
+    const ImU32 shade = color(0.f, 0.f, 0.f, 0.55f * alpha);
+    const ImVec2 extent = text_size(font, warning_text_size, text);
+    const ImVec2 top_left(std::floor(center.x - extent.x * 0.5f),
+        std::floor(center.y - extent.y * 0.5f));
+    static const ImVec2 offsets[4] = { { 1.f, 1.f }, { -1.f, 1.f }, { 1.f, -1.f }, { -1.f, -1.f } };
+    for (const ImVec2& offset : offsets)
+        draw->AddText(font, warning_text_size, top_left + offset, shade, text);
+    draw->AddText(font, warning_text_size, top_left, ink, text);
+}
+
+// render.circle_gradient(pos, inner, outer, radius): a radial fan, transparent in
+// the middle and coloured at the rim.
+void circle_gradient(ImDrawList* draw, const ImVec2& center, const float radius,
+                     const ImU32 inner, const ImU32 outer) {
+    if (((inner | outer) & IM_COL32_A_MASK) == 0)
+        return;
+    constexpr int segments = 48;
+    const ImVec2 uv = draw->_Data->TexUvWhitePixel;
+    draw->PrimReserve(segments * 3, segments + 1);
+    const unsigned int base = draw->_VtxCurrentIdx;
+    draw->PrimWriteVtx(center, uv, inner);
+    for (int i = 0; i < segments; ++i) {
+        const float angle = (2.f * pi) * static_cast<float>(i) / static_cast<float>(segments);
+        draw->PrimWriteVtx(ImVec2(center.x + std::cos(angle) * radius,
+            center.y + std::sin(angle) * radius), uv, outer);
+    }
+    for (int i = 0; i < segments; ++i) {
+        draw->PrimWriteIdx(static_cast<ImDrawIdx>(base));
+        draw->PrimWriteIdx(static_cast<ImDrawIdx>(base + 1 + i));
+        draw->PrimWriteIdx(static_cast<ImDrawIdx>(base + 1 + (i + 1) % segments));
+    }
+    // The fan itself is not anti-aliased; a thin stroke cleans the rim up.
+    draw->AddCircle(center, radius, outer, segments, 1.f);
+}
+
+// render.get_offscreen(pos, 0.9): the projected point while it is on screen,
+// otherwise a point on a 0.9x screen ellipse in the direction of the target.
+ImVec2 screen_or_edge(const visuals_source::frame_data& frame, const ImVec2& display,
+                      const vector3& world) {
+    ImVec2 screen{};
+    if (world_to_screen(frame.view_matrix, world, display, screen) && screen.x >= 0.f &&
+        screen.y >= 0.f && screen.x <= display.x && screen.y <= display.y)
+        return screen;
+    const float target_yaw = std::atan2(world.y - frame.local_origin.y,
+        world.x - frame.local_origin.x) * (180.f / pi);
+    float delta = frame.view_angles.y - target_yaw;
+    while (delta > 180.f)
+        delta -= 360.f;
+    while (delta < -180.f)
+        delta += 360.f;
+    const float angle = (delta - 90.f) * (pi / 180.f);
+    return ImVec2(display.x * 0.5f + std::cos(angle) * display.x * 0.5f * 0.9f,
+        display.y * 0.5f + std::sin(angle) * display.y * 0.5f * 0.9f);
+}
+
+// The 2D arc in the source's style: a plain line in the trajectory colour, a white
+// dot with a dark halo on every bounce and a red dot where the grenade ends up.
+// Points behind the camera break the line instead of being bridged.
 void draw_path(ImDrawList* draw, const visuals_source::frame_data& frame, const ImVec2& display,
                const visuals_source::grenade_prediction& prediction, const c_color& ink,
                const float thickness, const float dot_radius) {
-    if (prediction.path_count < 2 || frame.grenade_engine_beams)
+    if (prediction.path_count < 2)
         return;
     const vector3* path = frame.grenade_points.data() + prediction.path_begin;
     const vector3* bounces = frame.grenade_points.data() + prediction.bounce_begin;
 
-    static thread_local std::vector<ImVec2> points;
-    points.clear();
+    static thread_local std::vector<ImVec2> run;
+    run.clear();
+    const auto flush = [&] {
+        if (run.size() >= 2)
+            draw->AddPolyline(run.data(), static_cast<int>(run.size()), color(ink),
+                ImDrawFlags_None, thickness);
+        run.clear();
+    };
     for (int i = 0; i < prediction.path_count; ++i) {
         ImVec2 screen{};
         if (world_to_screen(frame.view_matrix, path[i], display, screen))
-            points.push_back(screen);
+            run.push_back(screen);
+        else
+            flush();
     }
-    const int count = static_cast<int>(points.size());
-    if (count >= 2) {
-        const auto soft = c_color{ ink.r, ink.g, ink.b, ink.a * 0.22f };
-        draw->AddPolyline(points.data(), count, color(soft), ImDrawFlags_None, thickness * 2.75f);
-        draw->AddPolyline(points.data(), count, color(ink), ImDrawFlags_None, thickness);
-    }
-    for (int i = 0; i < prediction.bounce_count; ++i) {
+    flush();
+
+    const float radius = std::max(1.5f, dot_radius);
+    const auto dot = [&](const vector3& position, const ImU32 fill) {
         ImVec2 screen{};
-        if (!world_to_screen(frame.view_matrix, bounces[i], display, screen))
+        if (!world_to_screen(frame.view_matrix, position, display, screen))
+            return;
+        draw->AddCircleFilled(screen, radius + 1.f, rgba(0.f, 0.f, 0.f, 60.f * ink.a), 16);
+        draw->AddCircleFilled(screen, radius, fill, 16);
+    };
+    const bool has_end = prediction.landed || prediction.detonated;
+    for (int i = 0; i < prediction.bounce_count; ++i) {
+        // The final collision is the red one; do not stack a white dot under it.
+        if (has_end && length_sqr(sub(bounces[i], prediction.end)) < 4.f)
             continue;
-        draw->AddCircleFilled(screen, std::max(1.5f, dot_radius), color(ink), 12);
+        dot(bounces[i], rgba(255.f, 255.f, 255.f, 200.f * ink.a));
     }
+    if (has_end)
+        dot(prediction.end, rgba(255.f, 0.f, 40.f, 200.f * ink.a));
+}
+
+// Per-object animation state of the warning. Present thread only.
+struct warning_anim {
+    float near_alpha = 0.f;  // local player within 300 units of the landing spot
+    float alive_alpha = 0.f; // the fuse has not run out yet
+    float danger = 0.f;      // white -> red blend
+    bool seen = false;
+};
+
+std::unordered_map<int, warning_anim>& warning_anims() {
+    static thread_local std::unordered_map<int, warning_anim> anims;
+    return anims;
+}
+
+constexpr int inferno_anim_key = 0x10000; // entity indices stay below 2048
+
+// The widget itself: gradient ring, grenade glyph, and the rounded timer pill
+// underneath (with the "-N HP" line sliding out for an HE that would hurt).
+void draw_warning_widget(ImDrawList* draw, const ImVec2& anchor, const bool molotov,
+                         const float alpha, const float danger, const bool pulse,
+                         const float seconds, const float local_damage) {
+    if (alpha <= 0.01f)
+        return;
+    ImFont* text_font = warning_text_font();
+    ImFont* icon_font = warning_icon_font();
+    const ImVec2 pos(std::floor(anchor.x), std::floor(anchor.y));
+
+    float ring_alpha = alpha;
+    if (pulse) {
+        const float wave = (std::sin(static_cast<float>(ImGui::GetTime()) * 6.f) + 1.f) * 0.5f;
+        ring_alpha = (0.55f + 0.45f * wave) * alpha;
+    }
+    // color(255, 200):lerp(color(255, 0, 0, 255), blend)
+    const float green_blue = 255.f * (1.f - danger);
+    const float ring_base = 200.f + 55.f * danger;
+    circle_gradient(draw, pos, 35.f, rgba(0.f, 0.f, 0.f, 0.f),
+        rgba(255.f, green_blue, green_blue, ring_base * ring_alpha));
+
+    constexpr float icon_size = 24.f;
+    constexpr float icon_height = 30.f; // layout height of the source's panorama icon
+    const char* glyph = molotov ? glyph_fire : glyph_bomb;
+    text_centered(draw, icon_font, icon_size, pos + ImVec2(1.f, 0.f), rgba(0.f, 0.f, 0.f, 200.f * alpha), glyph);
+    text_centered(draw, icon_font, icon_size, pos - ImVec2(0.f, 1.f), rgba(255.f, 255.f, 255.f, 255.f * alpha), glyph);
+
+    char timer_text[16];
+    std::snprintf(timer_text, sizeof(timer_text), "%.1fs", std::max(0.f, seconds));
+    ImVec2 timer_extent = text_size(text_font, warning_text_size, timer_text);
+    timer_extent.x = std::floor(timer_extent.x);
+
+    char damage_text[16];
+    std::snprintf(damage_text, sizeof(damage_text), "-%.0f HP", local_damage);
+
+    const ImVec2 timer_pos = pos + ImVec2(0.f, icon_height + 16.f);
+    ImVec2 a{}, b{};
+    if (molotov) {
+        a = timer_pos - ImVec2(timer_extent.x + 7.f, 15.f);
+        b = timer_pos + ImVec2(timer_extent.x + 2.f, 15.f);
+    } else {
+        const float damage_width = text_size(text_font, warning_text_size, damage_text).x;
+        const float base_half = timer_extent.x * 0.5f + 15.f;
+        const float wide_half = std::max(timer_extent.x, damage_width) * 0.5f + 15.f;
+        const float half = base_half + (wide_half - base_half) * danger;
+        a = timer_pos - ImVec2(half, 15.f);
+        b = timer_pos + ImVec2(half, 15.f + 14.f * danger);
+    }
+    constexpr float rounding = 13.f;
+    const ImVec2 one(1.f, 1.f);
+    soft_shadow(draw, a - one, b + one, rounding, alpha);
+    draw->AddRect(a - one, b + one, rgba(16.f, 16.f, 16.f, 195.f * alpha), rounding,
+        ImDrawFlags_None, 2.f);
+    draw->AddRectFilled(a, b, rgba(16.f, 16.f, 16.f, 185.f * alpha), rounding);
+
+    const float text_alpha = (molotov ? 225.f : 255.f) * alpha;
+    text_centered(draw, icon_font, warning_text_size,
+        timer_pos - ImVec2(timer_extent.x * 0.5f + 3.f, 0.f), rgba(255.f, 255.f, 255.f, text_alpha),
+        glyph_timer);
+    text_centered(draw, text_font, warning_text_size, timer_pos + ImVec2(7.f, 0.f),
+        rgba(255.f, 255.f, 255.f, text_alpha), timer_text);
+
+    if (!molotov) {
+        const float damage_alpha = 225.f * alpha * danger;
+        if (damage_alpha >= 1.f)
+            text_centered(draw, text_font, warning_text_size,
+                timer_pos + ImVec2(0.f, danger * 17.f), rgba(255.f, 0.f, 0.f, damage_alpha),
+                damage_text);
+    }
+}
+
+// The widget hangs 90 px above its anchor; keep the whole thing on screen.
+ImVec2 widget_position(const ImVec2& anchor, const ImVec2& display) {
+    return ImVec2(std::clamp(anchor.x, 60.f, std::max(60.f, display.x - 60.f)),
+        std::clamp(anchor.y - 90.f, 45.f, std::max(45.f, display.y - 85.f)));
 }
 
 } // namespace
@@ -1020,8 +1379,8 @@ void render_held_trajectory(ImDrawList* draw, const visuals_source::frame_data& 
                             const ImVec2& display) {
     const auto& settings = player_visuals::world_settings();
     const auto* prediction = prediction_at(frame, frame.held_grenade);
-    if (!prediction)
-        return;
+    if (!prediction || frame.grenade_engine_beams)
+        return; // Engine Beams: the debug overlay draws this arc in world space
 
     auto ink = settings.trajectory_color;
     if (settings.trajectory_shimmer > 0) {
@@ -1040,14 +1399,20 @@ void render_trajectory(ImDrawList* draw, const visuals_source::world_data& entit
                        const visuals_source::frame_data& frame, const ImVec2& display) {
     const auto& settings = player_visuals::world_settings();
     // Airflow only draws the remaining arc for the thrower (grenade_warning_line);
-    // everyone else's grenades get the marker, not the line.
+    // everyone else's grenades are the Grenade Warning's business.
     if (entity.owner_index < 0 || entity.owner_index != frame.local_index)
         return;
     if (!settings.grenade_trajectory || !settings.trajectory_thrown_grenades)
-        return; // the proximity warning owns the marker; this only draws the remaining arc
+        return;
+    if (frame.grenade_engine_beams)
+        return;
 
     const auto* prediction = prediction_at(frame, entity.prediction);
     if (!prediction || prediction->path_count < 2)
+        return;
+    // An HE / molotov under the Grenade Warning gets its arc from there (it can
+    // turn green), so it is not drawn twice.
+    if (settings.grenade_proximity_warnings && prediction->warn)
         return;
     const float end_distance = length(sub(prediction->end, frame.local_origin));
     if (end_distance > thrown_arc_cutoff)
@@ -1060,123 +1425,155 @@ void render_trajectory(ImDrawList* draw, const visuals_source::world_data& entit
 }
 
 // -----------------------------------------------------------------------------
-//  Grenade proximity warning — Fatality's grenade marker: it tracks the nade while
-//  it is IN FLIGHT (not after detonation) and shows how dangerous the landing spot
-//  is. Filled circle (red when HE/molotov would reach it, dark grey otherwise), a
-//  fuse-depleting arc ring in the tracer colour, the weapon glyph, and the distance
-//  in metres. Off-screen, a triangle rides a 0.7x screen-edge ellipse instead.
+//  Grenade Warning — the Neverlose Lua's draw_warning, for HE grenades and
+//  molotovs in flight plus burning infernos:
+//    * far away: the remaining arc (green once somebody takes half their health)
+//      and a "N dmg" / "N m" line per player the detonation reaches;
+//    * within 300 units of the landing spot: the ring + glyph + timer pill, red
+//      and pulsing when the local player is the one who gets hurt;
+//    * off screen the widget rides a 0.9x screen ellipse towards the grenade.
 // -----------------------------------------------------------------------------
 void render_grenade_warning(ImDrawList* draw, const visuals_source::frame_data& frame,
                             const ImVec2& display) {
     const auto& settings = player_visuals::world_settings();
-    if (!settings.grenade_proximity_warnings || !frame.in_game || !frame.has_view_matrix)
+    auto& anims = warning_anims();
+    if (!settings.grenade_proximity_warnings || !frame.in_game || !frame.has_view_matrix) {
+        anims.clear();
         return;
+    }
+    for (auto& entry : anims)
+        entry.second.seen = false;
 
-    // The game clock of the capture: the renderer does not read engine globals.
     const float now = frame.game_time;
-    const c_color tracer = settings.trajectory_color;
-    const c_color danger{ 0.90f, 0.28f, 0.28f, 1.f };   // Fatality's helper red
-    const c_color safe{ 0.42f, 0.44f, 0.50f, 1.f };     // dark grey otherwise
+    const float delta_time = std::clamp(ImGui::GetIO().DeltaTime, 0.f, 0.1f);
+    const float thickness = std::clamp(settings.trajectory_thickness, 0.5f, 5.f);
+    const float dot_radius = std::clamp(settings.trajectory_points_thickness, 1.5f, 6.f) * 0.5f;
+    const int victim_total = static_cast<int>(frame.grenade_victims.size());
+    ImFont* text_font = warning_text_font();
 
     for (const auto& entity : frame.world) {
         if (entity.kind != visuals_source::world_projectile)
             continue;
-        if (kind_of(entity.weapon_id) == grenade_kind::other)
+        const bool molotov = kind_of(entity.weapon_id) == grenade_kind::molotov;
+        if (!molotov && entity.weapon_id != weapon_hegrenade)
             continue;
         const auto* sim = prediction_at(frame, entity.prediction);
-        if (!sim || sim->path_count <= 1)
+        if (!sim || !sim->warn || sim->path_count < 2)
+            continue;
+        if (sim->victim_begin < 0 || sim->victim_count < 0 ||
+            sim->victim_begin + sim->victim_count > victim_total)
+            continue;
+        const auto* victims = frame.grenade_victims.data() + sim->victim_begin;
+
+        warning_anim& anim = anims[entity.index];
+        anim.seen = true;
+
+        const float remaining = sim->expire_time - now;
+        const float local_distance = length(sub(sim->end, frame.local_origin));
+        const float near_alpha = approach(anim.near_alpha, local_distance < 300.f ? 1.f : 0.f,
+            delta_time);
+        const float alive_alpha = approach(anim.alive_alpha, remaining > 0.f ? 1.f : 0.f,
+            delta_time);
+
+        const float local_damage = sim->local_in_range ? sim->local_damage : 0.f;
+        bool hurts_local = false;
+        if (molotov)
+            hurts_local = sim->local_in_range && local_damage <= 12.5f;
+        else
+            hurts_local = local_damage > 10.f ||
+                (local_damage > 0.f && local_damage >= static_cast<float>(frame.local_health));
+        const float danger = approach(anim.danger, hurts_local ? 1.f : 0.f, delta_time);
+
+        const float warning_alpha = near_alpha * alive_alpha;
+        const float label_alpha = 1.f - near_alpha;
+
+        // Per-player forecast, stacked above the landing spot.
+        ImVec2 end_screen{};
+        const bool end_visible = world_to_screen(frame.view_matrix, sim->end, display, end_screen);
+        bool dangerous = false;
+        float stack = 0.f;
+        for (int i = 0; i < sim->victim_count; ++i) {
+            const auto& victim = victims[i];
+            char text[24];
+            ImU32 ink = 0;
+            if (victim.damage > 0) {
+                const bool heavy = victim.damage * 2 >= victim.health;
+                dangerous = dangerous || heavy;
+                std::snprintf(text, sizeof(text), "%d dmg", victim.damage);
+                ink = heavy ? rgba(150.f, 200.f, 60.f, 200.f * label_alpha)
+                            : rgba(255.f, 255.f, 255.f, 200.f * label_alpha);
+            } else if (victim.distance > 0.f && victim.distance < 4.f) {
+                const bool close = victim.distance < 3.f;
+                dangerous = dangerous || close;
+                std::snprintf(text, sizeof(text), "%.0f m", victim.distance);
+                ink = close ? rgba(150.f, 200.f, 60.f, 200.f * label_alpha)
+                            : rgba(255.f, 255.f, 255.f, 225.f * label_alpha);
+            } else {
+                continue;
+            }
+            if (end_visible && label_alpha > 0.01f)
+                text_glow(draw, text_font, end_screen - ImVec2(0.f, 30.f + stack), ink,
+                    label_alpha, text);
+            stack -= 15.f;
+        }
+
+        // The remaining arc. A local grenade under Engine Beams is already drawn in
+        // world space by the debug overlay.
+        const bool local_owned = entity.owner_index >= 0 && entity.owner_index == frame.local_index;
+        const bool overlay_arc = frame.grenade_engine_beams && local_owned &&
+            settings.trajectory_thrown_grenades;
+        if (!overlay_arc) {
+            const c_color ink = dangerous
+                ? c_color{ 150.f / 255.f, 200.f / 255.f, 60.f / 255.f, 200.f / 255.f }
+                : settings.trajectory_color;
+            draw_path(draw, frame, display, *sim, ink, thickness, dot_radius);
+        }
+
+        if (alive_alpha > 0.f && warning_alpha > 0.01f) {
+            const bool pulse = molotov ? hurts_local : local_damage > 0.f;
+            draw_warning_widget(draw,
+                widget_position(screen_or_edge(frame, display, sim->end), display), molotov,
+                warning_alpha, danger, pulse, remaining, local_damage);
+        }
+    }
+
+    // Burning infernos: the same widget on the nearest edge of the fire, shown
+    // within 40 ft, red and pulsing within 5 ft.
+    for (const auto& entity : frame.world) {
+        if (entity.kind != visuals_source::world_inferno || entity.time_remaining <= 0.f)
+            continue;
+        // is_visible_owner(): enemy fire, our own fire, or anyone's with friendly fire.
+        const bool local_owned = entity.owner_index >= 0 && entity.owner_index == frame.local_index;
+        if (!frame.friendly_fire && !local_owned && entity.owner_teammate)
             continue;
 
-        const float distance = length(sub(sim->end, frame.local_origin));
-        if (distance > 1600.f)
-            continue; // Fatality's marker cutoff
+        // Nearest point of the fire's footprint to the local player. The source pads
+        // the outer flames by 60 units; `range` already holds the outer flame radius.
+        const float reach = entity.range + 45.f;
+        vector3 to_local = sub(frame.local_origin, entity.origin);
+        to_local.z = 0.f;
+        const float flat = length(to_local);
+        vector3 nearest = entity.origin;
+        if (flat > 0.001f)
+            nearest = add(entity.origin, scale(to_local, std::min(flat, reach) / flat));
 
-        // Damage forecast at the landing spot: HE ~350 flat minus falloff, molotov ~140.
-        float damage = 0.f;
-        if (entity.weapon_id == weapon_hegrenade)
-            damage = 350.f - distance;
-        else if (kind_of(entity.weapon_id) == grenade_kind::molotov)
-            damage = 140.f - distance;
-        const bool lethal = damage > 0.f;
-        const c_color marker = lethal ? danger : safe;
+        const float feet = length(sub(frame.local_origin, nearest)) / 12.f;
+        warning_anim& anim = anims[inferno_anim_key + entity.index];
+        anim.seen = true;
+        const float alpha = approach(anim.near_alpha, feet < 40.f ? 1.f : 0.f, delta_time);
+        if (alpha < 0.01f)
+            continue;
+        const bool burning = feet < 5.f;
+        const float danger = approach(anim.danger, burning ? 1.f : 0.f, delta_time);
+        draw_warning_widget(draw, widget_position(screen_or_edge(frame, display, nearest), display),
+            true, alpha, danger, burning, entity.time_remaining, 0.f);
+    }
 
-        // Fuse fraction left: full ring until the fuse starts burning, then it drains.
-        float percent = 1.f;
-        if (sim->fuse_time > 0.f)
-            percent = std::clamp((sim->expire_time - now) / sim->fuse_time, 0.f, 1.f);
-
-        ImVec2 screen{};
-        const bool oof = !world_to_screen(frame.view_matrix, sim->end, display, screen);
-        if (oof) {
-            // Edge helper: a triangle riding a 0.7x screen-height-adjusted ellipse,
-            // aimed away from the centre, then the marker sits 35px inside it.
-            const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
-            const float dx = sim->end.x - frame.local_origin.x;
-            const float dy = sim->end.y - frame.local_origin.y;
-            const float target_yaw = std::atan2(dy, dx) * (180.f / pi);
-            float delta = frame.view_angles.y - target_yaw;
-            while (delta > 180.f)
-                delta -= 360.f;
-            while (delta < -180.f)
-                delta += 360.f;
-            const float sa = (delta - 90.f) * (pi / 180.f);
-            const float radius = display.x * 0.5f * 0.7f;
-            const float ry = radius * (display.y / std::max(1.f, display.x));
-            const float c = std::cos(sa);
-            const float s = std::sin(sa);
-            const ImVec2 tip(center.x + radius * c, center.y + ry * s);
-            // Triangle, authored apex-up and rotated into the axis.
-            const float rot = sa + pi * 0.5f;
-            const float cosr = std::cos(rot);
-            const float sinr = std::sin(rot);
-            const ImVec2 local[3] = { ImVec2(0.f, -23.f), ImVec2(-11.5f, 0.f), ImVec2(11.5f, 0.f) };
-            ImVec2 tri[3];
-            for (int i = 0; i < 3; ++i)
-                tri[i] = ImVec2(tip.x + local[i].x * cosr - local[i].y * sinr,
-                                tip.y + local[i].x * sinr + local[i].y * cosr);
-            auto fill = marker;
-            fill.a = 100.f / 255.f;
-            draw->AddTriangleFilled(tri[0], tri[1], tri[2], color(fill));
-            auto outline = tracer;
-            outline.a = 100.f / 255.f;
-            draw->AddTriangle(tri[0], tri[1], tri[2], color(outline), 1.f);
-            // The circle marker rides 35 px inside the arrow along the same axis.
-            screen = ImVec2(tip.x - 35.f * c, tip.y - 35.f * s);
-        }
-
-        // On-screen marker (also drawn at the edge position when off-screen):
-        // filled circle, tracer-coloured fuse arc, weapon glyph, metres to the spot.
-        constexpr float radius = 23.f;
-        auto fill = marker;
-        fill.a = 100.f / 255.f;
-        draw->AddCircleFilled(screen, radius, color(fill), 32);
-
-        const auto ring = tracer;
-        if (percent >= 1.f) {
-            draw->AddCircle(screen, radius,
-                color(c_color{ ring.r, ring.g, ring.b, 200.f / 255.f }), 32, 2.f);
-        } else if (percent > 0.f) {
-            constexpr int segments = 64;
-            ImVec2 arc[segments + 1];
-            for (int i = 0; i <= segments; ++i) {
-                const float a = -pi * 0.5f + (2.f * pi) * percent
-                    * (static_cast<float>(i) / static_cast<float>(segments));
-                arc[i] = ImVec2(screen.x + radius * std::cos(a), screen.y + radius * std::sin(a));
-            }
-            draw->AddPolyline(arc, segments + 1,
-                color(c_color{ ring.r, ring.g, ring.b, 200.f / 255.f }), ImDrawFlags_None, 2.f);
-        }
-
-        if (const int atlas = visuals_source::atlas_weapon_id(entity.weapon_id); atlas >= 0)
-            weapon_icons::draw(draw, atlas, ImVec2(screen.x, screen.y - 4.f), ImVec2(22.f, 9.f),
-                color(c_color{ 1.f, 1.f, 1.f, 1.f }));
-
-        char text[24];
-        std::snprintf(text, sizeof(text), "%.0f m", distance * 0.01905f);
-        const ImVec2 size = ImGui::CalcTextSize(text);
-        const ImVec2 text_pos(screen.x - size.x * 0.5f, screen.y + 13.f);
-        draw->AddText(text_pos + ImVec2(1.f, 1.f), color(c_color{ 0.f, 0.f, 0.f, 0.6f }), text);
-        draw->AddText(text_pos, color(c_color{ 1.f, 1.f, 1.f, 1.f }), text);
+    for (auto it = anims.begin(); it != anims.end();) {
+        if (!it->second.seen)
+            it = anims.erase(it);
+        else
+            ++it;
     }
 }
 

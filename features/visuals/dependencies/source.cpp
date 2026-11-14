@@ -234,6 +234,8 @@ struct netvars_t {
     int fire_x = -1;
     int fire_y = -1;
     int fire_z = -1;
+    int fire_tick = -1;
+    int eye_angles = -1;
 };
 
 void* client = nullptr;
@@ -623,6 +625,10 @@ void resolve_netvars() {
     nv.fire_x = table_offset(classes, { "DT_Inferno" }, "m_fireXDelta");
     nv.fire_y = table_offset(classes, { "DT_Inferno" }, "m_fireYDelta");
     nv.fire_z = table_offset(classes, { "DT_Inferno" }, "m_fireZDelta");
+    nv.fire_tick = table_offset(classes, { "DT_Inferno" }, "m_nFireEffectTickBegin");
+    nv.eye_angles = table_offset(classes, { "DT_CSPlayer" }, "m_angEyeAngles[0]");
+    if (nv.eye_angles < 0)
+        nv.eye_angles = table_offset(classes, { "DT_CSPlayer" }, "m_angEyeAngles");
     AIRFLOW_DEBUG_LOGF(
         "netvars: origin=%d velocity=%d view_offset=%d throw_strength=%d pin_pulled=%d velocity_modifier=%d",
         nv.origin, nv.velocity, nv.view_offset, nv.throw_strength, nv.pin_pulled, nv.velocity_modifier);
@@ -2016,8 +2022,10 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             const unsigned int owner_handle = value<unsigned int>(entity, nv.owner, 0xFFFFFFFFu);
             if (owner_handle != 0u && owner_handle != 0xFFFFFFFFu) {
                 const int owner_index = static_cast<int>(owner_handle & 0x7FFFu);
-                if (owner_index > 0 && owner_index < 2048)
+                if (owner_index > 0 && owner_index < 2048) {
                     data.owner_index = owner_index;
+                    data.owner_teammate = player_side(owner_index) == 1;
+                }
             }
         }
         data.kind = inferno ? visuals_source::world_inferno :
@@ -2089,6 +2097,14 @@ void capture_world(frame_data& output, const vector3& local_origin) {
             }
             data.range = std::max(100.f, radius);
             data.time_remaining = -1.f;
+            // Grenade Warning: an inferno burns for inferno_flame_lifetime (7 s)
+            // from m_nFireEffectTickBegin.
+            if (global_vars && nv.fire_tick >= 0) {
+                const int tick = value<int>(entity, nv.fire_tick, 0);
+                if (tick > 0)
+                    data.time_remaining = tick * global_vars->interval_per_tick + 7.f -
+                        global_vars->current_time;
+            }
         }
         output.world.push_back(std::move(data));
     }
@@ -2162,6 +2178,9 @@ void reset_frame(frame_data& output) {
     output.game_time = 0.f;
     output.held_grenade = -1;
     output.grenade_engine_beams = false;
+    output.friendly_fire = false;
+    output.local_health = 0;
+    output.grenade_victims.clear();
     output.grenades.clear();
     output.grenade_points.clear();
 }
@@ -2197,8 +2216,9 @@ void capture_now(frame_data& output, float alpha_blend) {
 
     update_view_projection(output);
 
+    output.local_health = value<int>(local, nv.health, 0);
     output.local_alive = value<unsigned char>(local, nv.life_state, 0) == 0 &&
-        value<int>(local, nv.health, 0) > 0;
+        output.local_health > 0;
     const int local_team = value<int>(local, nv.team, 0);
     const vector3 local_origin = abs_origin(local, value<vector3>(local, nv.origin));
     output.local_origin = local_origin;
@@ -2498,6 +2518,33 @@ void* entity_for_index(int index) {
     if (index <= 0)
         return nullptr;
     return entity_at(index);
+}
+
+void collect_grenade_targets(std::vector<grenade_target>& out) {
+    out.clear();
+    if (!is_in_game())
+        return;
+    const int local_idx = local_index();
+    for (int index = 1; index <= 64; ++index) {
+        void* player = entity_at(index);
+        if (!player || dormant(player) || value<unsigned char>(player, nv.life_state, 0) != 0)
+            continue;
+        const int health = value<int>(player, nv.health, 0);
+        const int team = value<int>(player, nv.team, 0);
+        if (health <= 0 || (team != 2 && team != 3))
+            continue;
+        grenade_target target;
+        target.index = index;
+        target.local = index == local_idx;
+        target.health = health;
+        target.armor = std::max(0, value<int>(player, nv.armor, 0));
+        target.origin = abs_origin(player, value<vector3>(player, nv.origin));
+        const vector3 view_offset = value<vector3>(player, nv.view_offset, { 0.f, 0.f, 64.f });
+        target.eye = { target.origin.x + view_offset.x, target.origin.y + view_offset.y,
+            target.origin.z + view_offset.z };
+        target.eye_yaw = nv.eye_angles >= 0 ? value<float>(player, nv.eye_angles + 4, 0.f) : 0.f;
+        out.push_back(target);
+    }
 }
 
 // Outstanding grenades, tracked via the grenade_thrown game event. FIFO per
