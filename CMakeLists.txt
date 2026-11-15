@@ -45,3 +45,31 @@ target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_S
 target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc)
 target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
+
+# The original Fatality GUI is being ported separately; it is not linked into
+# the DLL until the renderer, input and device-reset integration are tested.
+option(BUILD_FATALITY_PORT_CHECK "Compile the staged Fatality GUI and DX9 renderer" OFF)
+if(BUILD_FATALITY_PORT_CHECK)
+  file(GLOB_RECURSE FATALITY_GUI_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src/gui/*.cpp")
+  set(FATALITY_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/deps/renderer")
+  set(FATALITY_RENDERER_SOURCES
+    ${FATALITY_RENDERER_DIR}/src/adapters/adapter_dx9.cpp
+    ${FATALITY_RENDERER_DIR}/src/buffers/cmd_buffer.cpp
+    ${FATALITY_RENDERER_DIR}/src/buffers/ib_dx9.cpp
+    ${FATALITY_RENDERER_DIR}/src/buffers/vb_dx9.cpp
+    ${FATALITY_RENDERER_DIR}/src/layer.cpp
+    ${FATALITY_RENDERER_DIR}/src/renderer.cpp
+    ${FATALITY_RENDERER_DIR}/src/types/animated_texture.cpp
+    ${FATALITY_RENDERER_DIR}/src/types/font.cpp
+    ${FATALITY_RENDERER_DIR}/src/types/shader.cpp
+    ${FATALITY_RENDERER_DIR}/src/types/texture.cpp)
+  add_library(fatality_port_check STATIC ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES})
+  set_target_properties(fatality_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  target_include_directories(fatality_port_check PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src"
+    "${FATALITY_RENDERER_DIR}/include")
+  target_compile_definitions(fatality_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+  target_link_libraries(fatality_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
+endif()
