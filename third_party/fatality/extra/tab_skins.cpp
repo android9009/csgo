@@ -5,6 +5,9 @@
 #include "macros.h"
 #include "../../../sdk/interfaces/interfaces.hpp"
 #include "../../../sdk/skin_icon_file.hpp"
+#include "../../../sdk/skin_catalog.hpp"
+#include "../preview_bridge.hpp"
+#include "../../../utils/log.hpp"
 #include <algorithm>
 #include <array>
 #include <map>
@@ -37,24 +40,57 @@ namespace menu::group
         std::vector<std::uint8_t> bytes; // texture keeps a non-owning pointer to this data
         std::shared_ptr<texture> image;
         bool attempted{};
+        unsigned long long last_used{};
     };
-    // Entries and their PNG bytes stay alive for device Reset/recreation.
     std::map<std::string, CachedIcon> icons;
-    std::shared_ptr<texture> get_weapon_icon(const char* name, bool& load_budget) {
-        auto& item = icons[name];
+    unsigned long long icon_clock{};
+    void trim_icons() {
+        // Evict before issuing this frame's draw commands. Texture bytes must
+        // survive D3D9 Reset, but browsing thousands of skins must be bounded.
+        while (icons.size() > 80) {
+            auto oldest = icons.begin();
+            for (auto it = icons.begin(); it != icons.end(); ++it)
+                if (it->second.last_used < oldest->second.last_used) oldest = it;
+            if (oldest->second.image) {
+                oldest->second.image->destroy();
+                draw.textures.erase(hash(std::string("skins>weapon_icon>") + oldest->first));
+            }
+            icons.erase(oldest);
+        }
+    }
+    std::shared_ptr<texture> get_weapon_icon(const char* weapon, const std::string& paint, bool& load_budget) {
+        const std::string key = std::string(weapon) + "|" + paint;
+        auto& item = icons[key];
+        item.last_used = ++icon_clock;
         if (!item.attempted && load_budget && Interfaces::BaseFileSystem) {
-            load_budget = false; // do not decode every icon in one frame
+            load_budget = false; // decode at most one newly visible image per frame
             item.attempted = true;
-            item.bytes = SkinIconFile::ReadIcon(Interfaces::BaseFileSystem, name);
+            const auto path = paint.empty() ? SkinIconPath::Base(weapon) : SkinIconPath::Generated(weapon, paint);
+            item.bytes = SkinIconFile::Read(Interfaces::BaseFileSystem, path);
             if (!item.bytes.empty()) {
                 item.image = std::make_shared<texture>(item.bytes.data(), static_cast<uint32_t>(item.bytes.size()));
                 item.image->create();
-                // draw.create_objects/destroy_objects handle D3D9 Reset.
-                draw.textures[hash(std::string("skins>weapon_icon>") + name)] = item.image;
+                draw.textures[hash(std::string("skins>weapon_icon>") + key)] = item.image;
             }
         }
         return item.image;
     }
+    SkinCatalog::Catalog catalog;
+    bool catalog_loaded{};
+    bool load_catalog() {
+        if (catalog_loaded) return true;
+        if (!Interfaces::BaseFileSystem) return false;
+        const auto data = SkinIconFile::Read(Interfaces::BaseFileSystem, "scripts/items/items_game.txt", 64u * 1024u * 1024u);
+        if (data.empty()) {
+            LOG_WARN("skin menu: unable to read scripts/items/items_game.txt");
+            return false;
+        }
+        catalog = SkinCatalog::Parse(std::string_view(reinterpret_cast<const char*>(data.data()), data.size()));
+        catalog_loaded = !catalog.empty();
+        LOG_INFO("skin menu: catalogue loaded for %zu weapons", catalog.size());
+        return catalog_loaded;
+    }
+    std::map<std::string, std::string> selection[2]; // independent CT/T menu state
 
     class weapon_grid final : public control {
     public:
@@ -62,8 +98,10 @@ namespace menu::group
         void render() override {
             control::render();
             if (!is_visible) return;
+            trim_icons();
             auto& layer = draw.layers[ctx->content_layer];
             const auto r = area_abs();
+            if (selected_weapon.internal) { render_skins(layer, r); return; }
             const auto ct = rect(r.tl(), r.tl() + vec2{72.f, 25.f});
             const auto t = rect(r.tl() + vec2{78.f, 0.f}, r.tl() + vec2{150.f, 25.f});
             layer->add_rect_filled_rounded(ct, team_ct ? colors.bg_block_light : colors.bg_bottom, 2.f);
@@ -91,7 +129,7 @@ namespace menu::group
                     if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                     const auto& weapon = columns[c][i];
                     layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
-                    if (auto icon = get_weapon_icon(weapon.internal, load_budget); icon && icon->obj) {
+                    if (auto icon = get_weapon_icon(weapon.internal, selected_paint(weapon.internal), load_budget); icon && icon->obj) {
                         const auto native = icon->get_size();
                         if (native.x > 0.f && native.y > 0.f) {
                             const float scale = (std::min)((cell_width - 10.f) / native.x, 48.f / native.y);
@@ -112,20 +150,107 @@ namespace menu::group
         void on_mouse_down(char key) override {
             if (key != m_left) return;
             const auto local = input.cursor() - area_abs().tl();
+            const float cell_width = (size.x - 12.f) / 3.f;
+            if (selected_weapon.internal) {
+                if (local.y >= 0.f && local.y < 30.f && local.x >= size.x - 35.f) {
+                    close_skins();
+                    return;
+                }
+                if (local.y < 42.f || local.x < 0.f) return;
+                const int col = static_cast<int>(local.x / (cell_width + 6.f));
+                const int row = static_cast<int>((local.y - 42.f + skin_scroll) / 78.f);
+                if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+                const size_t index = static_cast<size_t>(row * 3 + col);
+                if (index == 0) { selection[team_ct ? 0 : 1].erase(selected_weapon.internal); close_skins(); }
+                else if (index <= paints.size()) {
+                    selection[team_ct ? 0 : 1][selected_weapon.internal] = paints[index - 1];
+                    close_skins();
+                }
+                return;
+            }
             if (local.y >= 0.f && local.y < 25.f) {
                 if (local.x >= 0.f && local.x < 72.f) { team_ct = true; scroll = 0.f; }
                 else if (local.x >= 78.f && local.x < 150.f) { team_ct = false; scroll = 0.f; }
+                return;
             }
+            if (local.y < 55.f || local.x < 0.f) return;
+            const int col = static_cast<int>(local.x / (cell_width + 6.f));
+            const int row = static_cast<int>((local.y - 55.f + scroll) / 78.f);
+            if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+            const auto& columns = team_ct ? ct_weapons : t_weapons;
+            if (static_cast<size_t>(row) >= columns[col].size()) return;
+            selected_weapon = columns[col][row];
+            paints.clear();
+            if (load_catalog()) {
+                auto it = catalog.find(selected_weapon.internal);
+                if (it != catalog.end()) paints = it->second;
+            }
+            skin_scroll = 0.f;
+            FatalityPreviewBridge::skins_selecting.store(true, std::memory_order_relaxed);
         }
         void on_mouse_wheel(float delta) override {
             input.consume_wheel();
-            const float viewport_height = (std::max)(0.f, size.y - 55.f);
-            const float max_scroll = (std::max)(0.f, 11.f * 78.f - viewport_height);
-            scroll = std::clamp(scroll - delta * 55.f, 0.f, max_scroll);
+            if (selected_weapon.internal) {
+                const float rows = static_cast<float>((paints.size() + 3) / 3);
+                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
+                skin_scroll = std::clamp(skin_scroll - delta * 55.f, 0.f, max_scroll);
+            } else {
+                const float viewport_height = (std::max)(0.f, size.y - 55.f);
+                const float max_scroll = (std::max)(0.f, 11.f * 78.f - viewport_height);
+                scroll = std::clamp(scroll - delta * 55.f, 0.f, max_scroll);
+            }
         }
     private:
+        const std::string& selected_paint(const char* weapon) const {
+            static const std::string empty;
+            const auto& chosen = selection[team_ct ? 0 : 1];
+            const auto it = chosen.find(weapon);
+            return it == chosen.end() ? empty : it->second;
+        }
+        void close_skins() {
+            selected_weapon = {};
+            FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
+        }
+        void render_skins(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
+            layer->font = draw.fonts[GUI_HASH("gui_main")];
+            layer->add_text(r.tl() + vec2{2.f, 12.f}, std::string(selected_weapon.label) + " - SKINS", colors.text, text_params::with_v(align_center));
+            const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
+            layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
+            layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
+            if (!catalog_loaded)
+                layer->add_text(r.tl() + vec2{0.f, 30.f}, "Skin catalogue unavailable", colors.text_dark);
+            const float cell_width = (r.width() - 12.f) / 3.f;
+            const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
+            const auto old_clip = layer->g.clip_rect;
+            layer->override_clip_rect(viewport);
+            bool load_budget = true;
+            for (size_t i = 0; i <= paints.size(); ++i) {
+                const float x = r.mins.x + static_cast<float>(i % 3) * (cell_width + 6.f);
+                const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - skin_scroll;
+                const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
+                if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
+                const std::string paint = i ? paints[i - 1] : std::string{};
+                layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
+                if (auto icon = get_weapon_icon(selected_weapon.internal, paint, load_budget); icon && icon->obj) {
+                    const auto native = icon->get_size();
+                    if (native.x > 0.f && native.y > 0.f) {
+                        const float scale = (std::min)((cell_width - 10.f) / native.x, 48.f / native.y);
+                        const vec2 image_size = native * scale, center{x + cell_width * .5f, y + 27.f};
+                        layer->g.texture = icon->obj;
+                        layer->add_rect_filled(rect{center - image_size * .5f, center + image_size * .5f}, color::white());
+                        layer->g.texture = {};
+                    }
+                }
+                layer->font = draw.fonts[GUI_HASH("gui_main")];
+                const auto label = i ? paint : std::string("Default");
+                layer->add_text(vec2{x + 4.f, y + 57.f}, label, colors.text, text_params::with_v(align_center));
+            }
+            layer->g.clip_rect = old_clip;
+        }
         bool team_ct{true};
-        float scroll{};
+        float scroll{}, skin_scroll{};
+        WeaponIcon selected_weapon{};
+        std::vector<std::string> paints;
     };
     }
 

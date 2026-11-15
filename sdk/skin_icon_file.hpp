@@ -10,7 +10,7 @@ namespace SkinIconFile {
 template <typename T> inline T Slot(void* instance, int index) {
     return reinterpret_cast<T>((*reinterpret_cast<void***>(instance))[index]);
 }
-inline std::vector<std::uint8_t> Read(void* fs, const std::string& path) {
+inline std::vector<std::uint8_t> Read(void* fs, const std::string& path, unsigned max_size = 8u * 1024u * 1024u) {
     if (!fs || path.empty()) return {};
     using Open = void* (__thiscall*)(void*, const char*, const char*, const char*);
     using Size = unsigned (__thiscall*)(void*, void*);
@@ -25,7 +25,7 @@ inline std::vector<std::uint8_t> Read(void* fs, const std::string& path) {
     } guard{fs, file};
     std::vector<std::uint8_t> bytes;
     // Prevent malformed files from forcing unbounded allocations.
-    if (size && size <= 8u * 1024u * 1024u) {
+    if (size && size <= max_size) {
         bytes.resize(size);
         if (Slot<Read>(fs, 0)(fs, bytes.data(), static_cast<int>(size), file) != static_cast<int>(size)) bytes.clear();
     }

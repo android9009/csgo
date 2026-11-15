@@ -19,7 +19,7 @@ namespace menu::group
 	class model_preview_viewport final : public control
 	{
 	public:
-		model_preview_viewport(control_id id, const vec2 &size) : control(id, {}, size) { }
+		model_preview_viewport(control_id id, const vec2 &size, bool skins = false) : control(id, {}, size), skins_preview(skins) { }
 
 		void render() override
 		{
@@ -31,6 +31,8 @@ namespace menu::group
 				layer->g.texture = texture;
 				layer->add_rect_filled(area_abs(), color::white());
 				layer->g.texture = {};
+				if (skins_preview && FatalityPreviewBridge::skins_selecting.load(std::memory_order_relaxed))
+					layer->add_rect_filled(area_abs(), color{0, 0, 0, 120});
 			} else {
 				layer->font = draw.fonts[GUI_HASH("gui_main")];
 				layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
@@ -62,11 +64,13 @@ namespace menu::group
 			const auto distance = FatalityPreviewBridge::distance.load(std::memory_order_relaxed);
 			FatalityPreviewBridge::distance.store(std::clamp(distance - delta * 15.f, 180.f, 500.f), std::memory_order_relaxed);
 		}
+	private:
+		bool skins_preview{};
 	};
 
 	std::shared_ptr<control> make_model_preview(const char* id, const vec2 &size)
 	{
-		return std::make_shared<model_preview_viewport>(control_id{hash(id), id}, size);
+		return std::make_shared<model_preview_viewport>(control_id{hash(id), id}, size, true);
 	}
 
 	constexpr int removal_ragdolls = 7;
