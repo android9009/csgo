@@ -16,19 +16,23 @@ static bool IsViewModel(const char* name) {
 void __fastcall DrawModelExecute(void* ecx, void* /*edx*/, void* context,
                                  const DrawModelState_t& state, const ModelRenderInfo_t& info,
                                  matrix3x4_t* bone_to_world) {
-    // Resolve model + entity for future chams/glow passes. The hook is hot
-    // (called for every model), so skip the lookups outside of a match.
-    if (ctx.in_game) {
-        const char* model_name = nullptr;
-        if (Interfaces::ModelInfo && info.model) model_name = Interfaces::ModelInfo->GetModelName(info.model);
-        CBaseEntity* entity = nullptr;
-        if (Interfaces::EntityList && info.entity_index > 0)
-            entity = static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(info.entity_index));
-        const bool is_player = IsPlayerModel(model_name);
-        const bool is_viewmodel = IsViewModel(model_name);
-        (void)entity; (void)is_player; (void)is_viewmodel; (void)state;
-        // TODO: features/visuals/chams entry point goes here
-        // (Interfaces::ModelRender->ForcedMaterialOverride + IMaterialSystem::FindMaterial)
+    // SEH: this hook runs for every model; game pointers may be transient.
+    __try {
+        // Resolve model + entity for future chams/glow passes. The hook is hot
+        // (called for every model), so skip the lookups outside of a match.
+        if (ctx.in_game) {
+            const char* model_name = nullptr;
+            if (Interfaces::ModelInfo && info.model) model_name = Interfaces::ModelInfo->GetModelName(info.model);
+            CBaseEntity* entity = nullptr;
+            if (Interfaces::EntityList && info.entity_index > 0)
+                entity = static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(info.entity_index));
+            const bool is_player = IsPlayerModel(model_name);
+            const bool is_viewmodel = IsViewModel(model_name);
+            (void)entity; (void)is_player; (void)is_viewmodel; (void)state;
+            // TODO: features/visuals/chams entry point goes here
+            // (Interfaces::ModelRender->ForcedMaterialOverride + IMaterialSystem::FindMaterial)
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
     if (auto original = Hooks::GetDrawModelExecuteOriginal())
         original(ecx, context, state, info, bone_to_world);

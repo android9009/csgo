@@ -58,8 +58,13 @@ long __stdcall EndScene(void* device) {
     }
     menu_key_was_down = menu_key_down;
 
-    if (Config::settings.show_menu)
-        draw_menu(dev);  // меню Fatality (CS2-стиль), визуальная копия
+    if (Config::settings.show_menu) {
+        // SEH: menu code must never crash the game.
+        __try {
+            draw_menu(dev);  // меню Fatality (CS2-стиль), визуальная копия
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+    }
 
     // IMPORTANT: ImGui::Render() must be called to build the draw data.
     // EndFrame() alone leaves viewport->DrawDataP invalid, GetDrawData()
