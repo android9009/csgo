@@ -47,9 +47,18 @@ constexpr std::uintptr_t reference_set_merged_model_rva = 0x009ab930;
 // Resolved once during DLL initialization, before the frame hook is installed.
 inline std::atomic<std::uintptr_t> model_constructor{0}, attachment_bones{0}, set_merged_model{0};
 
-// C_MergedMDL's size and lifetime are build-specific. Keep it opaque: never
-// allocate or destroy it with guessed offsets or the wrong allocator.
-struct MergedModel;
+// C_MergedMDL's virtual interface mirrors Fatality's Source 1 declarations.
+// Its storage layout and lifetime are still build-specific.
+struct RenderToTargetHelper {
+    virtual void Draw(const matrix3x4_t&) = 0;
+    virtual bool BoundingSphere(Vector&, float&) = 0;
+    virtual void* GetEnvCubeMap() = 0;
+};
+struct MergedModel : RenderToTargetHelper {
+    virtual ~MergedModel() {}
+    virtual void SetMDL(std::uint16_t, void* = nullptr, void* = nullptr) = 0;
+    virtual void SetMDL(const char*, void* = nullptr, void* = nullptr) = 0;
+};
 struct Texture;
 struct RenderContext;
 using ConstructModelFn = void (__thiscall*)(MergedModel*);

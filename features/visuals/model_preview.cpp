@@ -76,8 +76,14 @@ bool Initialize() {
     std::memset(model, 0, 0x75c);
     phase = "construct merged model";
     reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(model));
+    phase = "inspect model interface";
+    auto* merged_model = static_cast<MergedModel*>(model);
+    auto** table = *reinterpret_cast<void***>(model);
+    const bool in_game = Interfaces::Engine && Interfaces::Engine->IsInGame();
+    LOG_INFO("model preview: model=%p vtable=%p slots=[%p,%p,%p,%p,%p,%p] mdlcache=%p in_game=%d", model, table,
+        table[0], table[1], table[2], table[3], table[4], table[5], Interfaces::MDLCache, in_game ? 1 : 0);
     phase = "set animation model";
-    Slot<void(__thiscall*)(void*, const char*, void*, void*)>(model, 5)(model, "models/player/custom_player/uiplayer/animset_uiplayer.mdl", nullptr, nullptr);
+    merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/player/custom_player/legacy/ctm_fbi_variantb.mdl", nullptr, nullptr, false);
     *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = 113;
@@ -146,7 +152,7 @@ void PaintImpl() {
     phase = "suppress engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, true);
     phase = "draw merged model";
-    Slot<void(__thiscall*)(void*, const matrix3x4_t&)>(model, 0)(model, matrix);
+    static_cast<MergedModel*>(model)->Draw(matrix);
     phase = "restore engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, false);
     phase = "pop 3D view";
