@@ -27,12 +27,12 @@ void control_container::remove(const std::shared_ptr<control> &c)
 	container::remove(c);
 }
 
-void control_container::remove(uint64_t id)
+void control_container::remove(uint64_t child_id)
 {
 	if (auto p = std::find_if(
-		controls.begin(), controls.end(), [id](const std::shared_ptr<control> &c) -> bool
+		controls.begin(), controls.end(), [child_id](const std::shared_ptr<control> &c) -> bool
 		{
-			return c->id == id;
+			return c->id == child_id;
 		}); p != controls.end())
 	{
 		const auto &c = *p;
@@ -40,7 +40,7 @@ void control_container::remove(uint64_t id)
 			c->as<control_container>()->remove_all();
 	}
 
-	container::remove(id);
+	container::remove(child_id);
 }
 
 void control_container::refresh()

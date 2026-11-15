@@ -94,12 +94,12 @@ void dialog_box::render()
 	popup::render();
 }
 
-std::string dialog_box::get_button_name(int pos)
+std::string dialog_box::get_button_name(int button_index)
 {
 	switch (buttons)
 	{
 	case db_ok_cancel:
-		switch (pos)
+		switch (button_index)
 		{
 		case 0:
 			return XOR("Ok");
@@ -109,7 +109,7 @@ std::string dialog_box::get_button_name(int pos)
 
 		break;
 	case db_yes_no:
-		switch (pos)
+		switch (button_index)
 		{
 		case 0:
 			return XOR("Yes");
@@ -119,7 +119,7 @@ std::string dialog_box::get_button_name(int pos)
 
 		break;
 	case db_yes_no_cancel:
-		switch (pos)
+		switch (button_index)
 		{
 		case 0:
 			return XOR("Yes");

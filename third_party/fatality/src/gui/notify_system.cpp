@@ -112,8 +112,10 @@ void notification_system::render()
 
 	const auto &f_main = draw.fonts[GUI_HASH("gui_main")];
 
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-lambda-capture"
+#endif
 	for_each(
 		[cur, f_main, &d](const std::shared_ptr<notification> &n)
 		{
@@ -159,7 +161,9 @@ void notification_system::render()
 			d->add_text(r.tl() + vec2{8.f, 24.f}, n->text, colors.text);
 			d->g.alpha = old_alpha;
 		});
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif
 }
 
 int notification_system::get_count() const

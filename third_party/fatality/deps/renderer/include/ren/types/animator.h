@@ -21,7 +21,7 @@
 
 namespace evo::ren
 {
-	enum easing_func
+	enum easing_func : char
 	{
 		ease_linear,
 		ease_in,

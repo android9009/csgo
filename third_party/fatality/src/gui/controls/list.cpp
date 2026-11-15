@@ -1,3 +1,4 @@
+#include <cctype>
 #include <gui/controls/list.h>
 #include <gui/controls/selectable.h>
 
@@ -164,7 +165,7 @@ void list::filter_items(const std::string &str)
 	else
 	{
 		std::string lc{str};
-		std::ranges::transform(lc, lc.begin(), ::tolower);
+		std::ranges::transform(lc, lc.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 		for_each_control(
 			[&](auto e)
@@ -172,7 +173,7 @@ void list::filter_items(const std::string &str)
 				const auto c = e->template as<selectable>();
 
 				std::string lcn{c->text};
-				std::ranges::transform(lcn, lcn.begin(), ::tolower);
+				std::ranges::transform(lcn, lcn.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 				c->is_visible = lcn.find(lc) != std::string::npos;
 			});

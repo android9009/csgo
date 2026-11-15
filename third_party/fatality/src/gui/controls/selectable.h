@@ -12,19 +12,19 @@ namespace evo::gui
 	class selectable : public control
 	{
 	public:
-		selectable(control_id _id, const std::string &t, char v = -1, const ren::vec2 &s = {0.f, 0.f}) :
+		selectable(control_id _id, const std::string &t, int v = -1, const ren::vec2 &s = {0.f, 0.f}) :
 			control(_id, {}, s), text(t), value(v)
 		{
 			init(t, std::nullopt, v, s);
 		}
 
-		selectable(control_id _id, const std::string &t, ren::color c, char v = -1, const ren::vec2 &s = {0.f, 0.f}) :
+		selectable(control_id _id, const std::string &t, ren::color c, int v = -1, const ren::vec2 &s = {0.f, 0.f}) :
 			control(_id, {}, s), text(t), value(v)
 		{
 			init(t, c, v, s);
 		}
 
-		void init(const std::string &, std::optional<ren::color> c, char = -1, const ren::vec2 & = {0.f, 0.f})
+		void init(const std::string &, std::optional<ren::color> c, int = -1, const ren::vec2 & = {0.f, 0.f})
 		{
 			using namespace ren;
 

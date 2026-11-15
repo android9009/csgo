@@ -8,7 +8,7 @@
 
 namespace evo::gui
 {
-	inline static const std::unordered_map<uint16_t, std::string> key_table = {{VK_LBUTTON, XOR("Mouse Left")}, {VK_RBUTTON, XOR("Mouse Right")},
+	inline static const std::unordered_map<int, std::string> key_table = {{VK_LBUTTON, XOR("Mouse Left")}, {VK_RBUTTON, XOR("Mouse Right")},
 																			   {VK_MBUTTON, XOR("Mouse Middle")}, {VK_XBUTTON1, XOR("Mouse Back")},
 																			   {VK_XBUTTON2, XOR("Mouse Forward")}, {VK_BACK, XOR("Backspace")}, {VK_TAB, XOR("Tab")},
 																			   {VK_RETURN, XOR("Enter")}, {VK_SHIFT, XOR("Shift")}, {VK_CONTROL, XOR("Control")},

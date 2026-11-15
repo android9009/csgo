@@ -48,12 +48,12 @@ void hsv_slider::render()
 	d->add_shadow_rect(hue, 4.f);
 
 	const auto part_height = hue.height() / (hue_parts.size() - 1);
-	for (auto i = 0; i < hue_parts.size() - 1; i++)
+	for (size_t i = 0; i < hue_parts.size() - 1; i++)
 	{
 		const auto &p = hue_parts[i];
 		const auto &n = hue_parts[i + 1];
 
-		d->add_rect_filled_multicolor(hue.translate({0.f, i * part_height}).height(part_height), {p, p, n, n});
+		d->add_rect_filled_multicolor(hue.translate({0.f, static_cast<float>(i) * part_height}).height(part_height), {p, p, n, n});
 	}
 
 	d->g.anti_alias = true;
@@ -122,7 +122,7 @@ void hsv_slider::on_mouse_move(const vec2 &p, const vec2 &)
 		fake_brightness = std::clamp(1.f - (p.y - sb.tl().y) / sb.height(), 0.f, 1.f);
 		break;
 	case e_hue:
-		fake_hue = std::clamp((p.y - hue.tl().y) / hue.height() * 360.f, 0.f, 360.f);
+		fake_hue = static_cast<uint16_t>(std::clamp((p.y - hue.tl().y) / hue.height() * 360.f, 0.f, 360.f));
 		break;
 	case e_alpha:
 		*value = value->a(std::clamp((p.x - alpha.tl().x) / alpha.width(), 0.f, 1.f));

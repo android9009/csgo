@@ -86,7 +86,8 @@ void hotkey::on_key_down(uint16_t key)
 	if (!is_locked_by_me())
 		return;
 
-	*value = key == VK_ESCAPE ? 0 : key;
+	if (key > UINT8_MAX) return;
+	*value = key == VK_ESCAPE ? 0 : static_cast<uint8_t>(key);
 	if (callback)
 		callback(*value);
 

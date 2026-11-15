@@ -46,13 +46,13 @@ void group::add(const std::shared_ptr<control> &c)
 	}
 }
 
-void group::remove(uint64_t id)
+void group::remove(uint64_t child_id)
 {
 	if (!controls.empty())
 	{
 		auto f = controls.front();
 		if (f->is_container)
-			f->as<control_container>()->remove(id);
+			f->as<control_container>()->remove(child_id);
 	}
 }
 

@@ -47,39 +47,39 @@ namespace evo::gui
 			return !first_set_bit();
 		}
 
-		void set(char n)
+		void set(int n)
 		{
 			assert_n(n);
 			v |= (uint64_t)1 << (uint64_t)n;
 		}
 
-		void unset(char n)
+		void unset(int n)
 		{
 			assert_n(n);
 			v &= ~((uint64_t)1 << (uint64_t)n);
 		}
 
-		bool get(char n) const
+		bool get(int n) const
 		{
 			assert_n(n);
 			return v & ((uint64_t)1 << (uint64_t)n);
 		}
 
 		// std::bitset compatibility
-		bool test(char n) const
+		bool test(int n) const
 		{
 			return get(n);
 		}
 
-		void toggle(char n)
+		void toggle(int n)
 		{
 			get(n) ? unset(n) : set(n);
 		}
 
 	private:
-		void assert_n(char n) const
+		void assert_n(int n) const
 		{
-			if (n > sizeof(v) * 8 - 1 || n < 0)
+			if (n < 0 || static_cast<size_t>(n) >= sizeof(v) * 8)
 				throw;
 		}
 

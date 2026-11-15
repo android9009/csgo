@@ -1,3 +1,4 @@
+#include <cctype>
 #include <gui/popups/action_list_popup.h>
 #include <gui/controls/layout.h>
 #include <gui/controls/spacer.h>
@@ -24,7 +25,7 @@ namespace evo::gui
 		search->callback = [this](const std::string &v)
 		{
 			std::string term{v};
-			std::transform(term.begin(), term.end(), term.begin(), ::tolower);
+			std::transform(term.begin(), term.end(), term.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 			repopulate_list(find<layout>(GUI_HASH("alp>list")), term);
 		};
@@ -86,7 +87,7 @@ namespace evo::gui
 				if (!filter.empty())
 				{
 					std::string s_lower{s};
-					std::transform(s_lower.begin(), s_lower.end(), s_lower.begin(), ::tolower);
+					std::transform(s_lower.begin(), s_lower.end(), s_lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 					// skip if not found
 					if (s_lower.find(filter) == std::string::npos)

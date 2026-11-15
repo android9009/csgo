@@ -1,3 +1,4 @@
+#include <cctype>
 #include <gui/popups/search_popup.h>
 #include <gui/gui.h>
 #include <gui/controls.h>
@@ -36,11 +37,11 @@ namespace evo::gui
 
 			search_list->clear();
 
-			std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+			std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 			for (const auto &c : cache)
 			{
 				std::string tmp_text{c.text};
-				std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), ::tolower);
+				std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 				auto found = tmp_text.find(str) != std::string::npos;
 				if (!found)
@@ -149,13 +150,13 @@ namespace evo::gui
 
 						entry.text = text;
 
-						std::transform(text.begin(), text.end(), text.begin(), ::tolower);
+						std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 						entry.names.push_back(text);
 
 						if (!c->tooltip.empty())
 						{
 							std::string tmp_text{c->tooltip};
-							std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), ::tolower);
+							std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 							entry.names.push_back(tmp_text);
 						}
 
@@ -165,7 +166,7 @@ namespace evo::gui
 						for (const auto &bc : c->get_breadcrumbs())
 						{
 							std::string tmp_text{bc};
-							std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), ::tolower);
+							std::transform(tmp_text.begin(), tmp_text.end(), tmp_text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 							entry.names.push_back(tmp_text);
 						}
 
