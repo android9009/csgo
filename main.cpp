@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <string>
 #include "injector/status.hpp"
 #include "context.hpp"
 #include "sdk/interfaces/interfaces.hpp"
@@ -50,6 +51,7 @@ void Shutdown() {
 }
 DWORD InitializeAndRun(HMODULE self) {
     try {
+        std::string warnings;
         current_stage = "Waiting for serverbrowser.dll";
         while (!GetModuleHandleA("serverbrowser.dll")) Sleep(200);
         current_stage = "Signature scan";
@@ -57,13 +59,13 @@ DWORD InitializeAndRun(HMODULE self) {
         current_stage = "Offset setup";
         if (!offsets::Init()) { Publish(PastavarStatus::Failed, "Offset setup failed"); return 2; }
         current_stage = "Interface setup";
-        if (!Interfaces::Setup()) LOG_ERROR("interface setup incomplete; menu hooks will still be attempted");
+        if (!Interfaces::Setup()) { LOG_ERROR("interface setup incomplete; menu hooks will still be attempted"); warnings += "Interface setup incomplete; "; }
         current_stage = "Netvar setup";
-        if (!PropManager::Get().Create()) LOG_ERROR("RecvTable setup failed; netvars unavailable");
+        if (!PropManager::Get().Create()) { LOG_ERROR("RecvTable setup failed; netvars unavailable"); warnings += "Netvar setup failed; "; }
         current_stage = "Displacement setup";
         Displacement::Init();
         current_stage = "Math setup";
-        if (!Math::Setup()) LOG_ERROR("math setup failed");
+        if (!Math::Setup()) { LOG_ERROR("math setup failed"); warnings += "Math setup failed; "; }
         current_stage = "Font creation";
         Render::CreateFonts();
         current_stage = "Event listener setup";
@@ -72,7 +74,7 @@ DWORD InitializeAndRun(HMODULE self) {
         if (!Hooks::Setup()) { Shutdown(); Publish(PastavarStatus::Failed, "Hook setup failed: game window, WndProc or EndScene hook unavailable"); return 6; }
         LOG_INFO("CS:GO base initialized");
         current_stage = "Running";
-        Publish(PastavarStatus::Ready);
+        Publish(PastavarStatus::Ready, warnings.empty() ? "" : warnings.c_str());
         while (!ctx.unload) Sleep(200);
         current_stage = "Shutdown";
         Shutdown();

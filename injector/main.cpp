@@ -115,7 +115,7 @@ void Monitor(DWORD pid, HANDLE process, PastavarStatus::Shared* shared, bool alr
             if (name) {
                 std::wstring message = std::wstring(L"Status: ") + name;
                 if (already_injected) message += L" (already injected)";
-                if ((state == PastavarStatus::Failed || state == PastavarStatus::Crashed) && shared->detail[0])
+                if ((state == PastavarStatus::Ready || state == PastavarStatus::Failed || state == PastavarStatus::Crashed) && shared->detail[0])
                     message += L" - " + FromUtf8(shared->detail);
                 Emit(message);
             }
@@ -229,7 +229,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
     case WM_COMMAND: if (LOWORD(wp) == 1) { SendMessageW(hwnd, WM_CLOSE, 0, 0); return 0; } break;
     case WM_CLOSE:
         SetEvent(stop_event);
-        if (worker) WaitForSingleObject(worker, 2000);
+        if (worker) WaitForSingleObject(worker, INFINITE);
         DestroyWindow(hwnd); return 0;
     case WM_DESTROY: PostQuitMessage(0); return 0;
     }
