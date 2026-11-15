@@ -53,8 +53,6 @@ namespace menu::group
 			if (is_locked_by_me()) {
 				const auto yaw = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
 				FatalityPreviewBridge::yaw.store(std::remainder(yaw + delta.x * 0.5f, 360.f), std::memory_order_relaxed);
-				const auto pitch = FatalityPreviewBridge::pitch.load(std::memory_order_relaxed);
-				FatalityPreviewBridge::pitch.store(std::clamp(pitch + delta.y * 0.5f, -45.f, 45.f), std::memory_order_relaxed);
 			}
 		}
 

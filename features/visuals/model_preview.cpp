@@ -112,6 +112,8 @@ bool Initialize() {
     merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/player/custom_player/legacy/ctm_fbi_variantb.mdl", nullptr, nullptr, false);
+    phase = "merge weapon model";
+    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/weapons/w_snip_ssg08.mdl", nullptr, nullptr, false);
     *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = 113;
     *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 20.f;
     phase = "setup model bones";
@@ -146,7 +148,7 @@ void PaintImpl() {
     context->SetIntRenderingParameter(10, 0);
     ViewSetup view{};
     view.width = width; view.height = height;
-    view.fov = 12.f; view.origin = Vector{-FatalityPreviewBridge::distance.load(std::memory_order_relaxed), 0.f, 52.f};
+    view.fov = 12.f; view.origin = Vector{-FatalityPreviewBridge::distance.load(std::memory_order_relaxed), 0.f, 55.f};
     view.angles = QAngle{2.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
     view.flags = 4; // bloom and tone mapping, as in Fatality
     auto* rv = reinterpret_cast<RenderViewABI*>(Interfaces::RenderView);
@@ -167,12 +169,11 @@ void PaintImpl() {
     phase = "set studio local lights";
     Slot<void(__thiscall*)(void*, int, void*)>(Interfaces::StudioRender, 22)(Interfaces::StudioRender, 0, nullptr);
     const float angle = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed) * 0.01745329252f;
-    const float pitch = FatalityPreviewBridge::pitch.load(std::memory_order_relaxed) * 0.01745329252f;
-    const float cy = std::cos(angle), sy = std::sin(angle), cp = std::cos(pitch), sp = std::sin(pitch);
+    const float cy = std::cos(angle), sy = std::sin(angle);
     matrix3x4_t matrix{};
-    matrix[0][0] = cp * cy; matrix[0][1] = -sy; matrix[0][2] = sp * cy;
-    matrix[1][0] = cp * sy; matrix[1][1] = cy; matrix[1][2] = sp * sy;
-    matrix[2][0] = -sp; matrix[2][2] = cp;
+    matrix[0][0] = cy; matrix[0][1] = -sy;
+    matrix[1][0] = sy; matrix[1][1] = cy;
+    matrix[2][2] = 1.f;
     static DWORD last_time{};
     const DWORD now = GetTickCount();
     if (last_time) {
