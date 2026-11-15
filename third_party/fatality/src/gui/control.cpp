@@ -23,11 +23,11 @@ void control::refresh()
 	// take key input
 	if (is_taking_keys)
 	{
-		for (auto i = 0; i < 255; i++)
+		for (uint16_t i = 0; i < 255; i++)
 		{
-			if (input.is_key_clicked(i))
+			if (input.is_key_clicked(static_cast<uint8_t>(i)))
 				on_key_down(i);
-			if (input.is_key_released(i))
+			if (input.is_key_released(static_cast<uint8_t>(i)))
 				on_key_up(i);
 		}
 	}
@@ -84,7 +84,7 @@ void control::refresh()
 		if (input.did_cursor_move())
 			on_mouse_move(input.cursor(), input.cursor_delta());
 
-		for (auto i = 0; i < m_max; i++)
+		for (char i = 0; i < m_max; i++)
 		{
 			if (input.is_mouse_clicked(i))
 				on_mouse_down(i);

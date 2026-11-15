@@ -31,7 +31,7 @@ namespace evo::gui
 		lock_input();
 	}
 
-	void action_item::on_mouse_up(char key)
+	void action_item::on_mouse_up(char)
 	{
 		unlock_input();
 	}
