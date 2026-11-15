@@ -590,7 +590,7 @@ struct cfg_t {
 				setting<color> color{ color::white( ) };
 				struct category_visuals {
 					setting<bitset> material{1 << cham_none}, glow_mode{1};
-					setting<color> glow_color{color::white()};
+					setting<evo::ren::color> glow_color{evo::ren::color::white()};
 				} weapon_visuals, grenade_visuals, c4_visuals;
 			} world;
 

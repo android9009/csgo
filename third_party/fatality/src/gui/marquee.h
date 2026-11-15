@@ -11,11 +11,11 @@ namespace evo::gui
         float update(bool hovered, float overflow, float frame_time)
         {
             const float dt = std::clamp(frame_time, 0.f, .1f);
-            overflow = std::max(0.f, overflow);
+            overflow = (std::max)(0.f, overflow);
             offset = std::clamp(offset, 0.f, overflow);
             if (!hovered || overflow <= 0.f)
             {
-                offset = std::max(0.f, offset - 100.f * dt);
+                offset = (std::max)(0.f, offset - 100.f * dt);
                 pause = .45f;
                 forward = true;
             }
