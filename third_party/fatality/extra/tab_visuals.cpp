@@ -2,6 +2,8 @@
 
 #include <gui/controls/image.h>
 #include <array>
+#include <algorithm>
+#include <cmath>
 
 #include "../cfg.h"
 #include "macros.h"
@@ -12,6 +14,52 @@ using namespace evo::ren;
 
 namespace menu::group
 {
+	// Camera state is shared between the ESP and Chams preview panels. It does not
+	// own an engine texture or call Source interfaces; the renderer is not ported yet.
+	struct preview_camera_state
+	{
+		float yaw = 180.f;
+		float distance = 329.f;
+	};
+	static preview_camera_state preview_camera;
+
+	class model_preview_viewport final : public control
+	{
+	public:
+		model_preview_viewport(control_id id, const vec2 &size) : control(id, {}, size) { }
+
+		void render() override
+		{
+			control::render();
+			if (!is_visible) return;
+			auto &layer = draw.layers[ctx->content_layer];
+			layer->font = draw.fonts[GUI_HASH("gui_main")];
+			layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
+				text_params::with_vh(align_center, align_center));
+		}
+
+		void on_mouse_down(char key) override
+		{
+			if (key == m_left) lock_input();
+		}
+
+		void on_mouse_up(char key) override
+		{
+			if (key == m_left && is_locked_by_me()) unlock_input();
+		}
+
+		void on_mouse_move(const vec2 &, const vec2 &delta) override
+		{
+			if (is_locked_by_me()) preview_camera.yaw = std::remainder(preview_camera.yaw + delta.x * 0.5f, 360.f);
+		}
+
+		void on_mouse_wheel(float delta) override
+		{
+			input.consume_wheel();
+			preview_camera.distance = std::clamp(preview_camera.distance - delta * 15.f, 180.f, 500.f);
+		}
+	};
+
 	constexpr int removal_ragdolls = 7;
 
 	void update_ragdoll_chams_visibility(bool removed)
@@ -80,15 +128,7 @@ namespace menu::group
 						ADD_INLINE("Type", c, preview_settings("visuals>esp>preview>type"));
 					}
 
-					/*const auto img = MAKE("visuals>chams>preview>image2", image, entity_rendering::is_setup ? (entity_rendering::preview_texture->pTextureHandles[0]->lpRawTexture) : nullptr, vec2{ 235.f, 370.f });
-					img->rnd = [](const std::shared_ptr<control>& c)
-					{
-						entity_rendering::preview_pos = { c->pos_abs().x, c->pos_abs().y };
-						visuals::queue_custom_player_esp();
-						visuals::render_custom_player_esp();
-					};
-		
-					ADD_LINE("preview img 2", img);*/
+					e->add(MAKE("visuals>esp>preview>viewport", model_preview_viewport, vec2{220.f, 340.f}));
 				}));
 
 		e->add(area);
@@ -127,15 +167,7 @@ namespace menu::group
 						ADD_INLINE("Type", c, preview_settings("visuals>chams>preview>type"));
 					}
 
-					/*const auto img = MAKE("visuals>chams>preview>image", image, entity_rendering::is_setup ? (entity_rendering::preview_texture->pTextureHandles[0]->lpRawTexture) : nullptr, vec2{ 235.f, 370.f });
-					img->rnd = [](const std::shared_ptr<control>& c)
-					{
-						entity_rendering::preview_pos = { c->pos_abs().x, c->pos_abs().y };
-						visuals::queue_custom_player_esp();
-						visuals::render_custom_player_esp();
-					};
-		
-					ADD_LINE("preview img", img);*/
+					e->add(MAKE("visuals>chams>preview>viewport", model_preview_viewport, vec2{220.f, 340.f}));
 				}));
 
 		e->add(area);
