@@ -24,34 +24,53 @@ namespace menu
 
 namespace menu::group
 {
-	void misc_various(std::shared_ptr<layout> &e)
+	static std::shared_ptr<combo_box> make_multi(const std::string &id, value_param<bits> &value, const std::vector<std::string> &items)
 	{
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD("Bypass sv_pure", "misc>various>bypass sv_pure", checkbox, cfg.misc.sv_pure);
-		ADD("Auto-accept", "misc>various>auto-accept", checkbox, cfg.misc.autoaccept);
-		ADD("Radar", "misc>various>radar", checkbox, cfg.misc.radar);
-		ADD("Reveal ranks", "misc>various>reveal ranks", checkbox, cfg.misc.reveal_ranks);
+		auto c = MAKE_RUNTIME(id, combo_box, value);
+		c->allow_multiple = true;
+		for (size_t i = 0; i < items.size(); ++i)
+			c->add(MAKE_RUNTIME(id + ">" + std::to_string(i), selectable, items[i], static_cast<int>(i)));
+		return c;
+	}
 
-		ADD_INLINE(
-			"Hurt log", MAKE("misc>various>hurt log", checkbox, cfg.misc.hurtlog),
-			MAKE("misc>various>hurt log>settings", settings, [](auto e) { ADD("Additional info", "misc>various>additional info", checkbox, cfg.misc.hurtlog_info); }));
+	static std::shared_ptr<combo_box> make_sound(const std::string &id, value_param<bits> &value)
+	{
+		auto c = MAKE_RUNTIME(id, combo_box, value);
+		const std::vector<std::string> names{"None", "Bell", "CoD", "Fatality", "Arena switch", "Bepis", "Phonk", "Sparkle", "Cock"};
+		for (size_t i = 0; i < names.size(); ++i)
+			c->add(MAKE_RUNTIME(id + ">" + std::to_string(i), selectable, names[i], static_cast<int>(i)));
+		return c;
+	}
 
-		ADD("Buy log", "misc>various>buy log", checkbox, cfg.misc.buylog);
-
-		{
-			const auto c = MAKE("misc>various>hitsound", combo_box, cfg.misc.hitsound_select);
-			c->add(
-			{MAKE("misc>various>hitsound>none", selectable, XOR("None")), MAKE("misc>various>hitsound>bell", selectable, XOR("Bell")),
-			 MAKE("misc>various>hitsound>cod", selectable, XOR("CoD")), MAKE("misc>various>hitsound>fatality", selectable, XOR("Fatality")),
-			 MAKE("misc>various>hitsound>arena switch", selectable, XOR("Arena switch")), MAKE("misc>various>hitsound>bepis", selectable, XOR("Bepis")),
-			 MAKE("misc>various>hitsound>phonk", selectable, XOR("Phonk")), MAKE("misc>various>hitsound>sparkle", selectable, XOR("Sparkle")),
-			 MAKE("misc>various>hitsound>cock", selectable, XOR("Cock")),});
-
-			ADD_INLINE("Hitsound", c);
-		}
-
-		ADD("Preserve deathnotices", "misc>various>preserve deathnotices", checkbox, cfg.misc.preservedn);
-
+	static void misc_main(std::shared_ptr<layout> &e)
+	{
+		const auto scoreboard = make_multi("misc>main>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
+		ADD_INLINE("Scoreboard", scoreboard);
+		const auto logs = make_multi("misc>main>logs", cfg.misc.log_types, {"Hit logs", "Miss logs", "Buy logs", "Hurt logs", "Naded logs"});
+		const auto log_settings = MAKE("misc>main>logs>settings", settings, [](auto e) {
+			const std::vector<std::string> details{"Damage dealt", "Damage aimed", "Hitchance", "Shot", "Backtrack", "Safe point"};
+			auto hits = make_multi("misc>main>logs>hit details", cfg.misc.hit_log_details, details);
+			auto miss_details = details; miss_details.emplace_back("Miss reason");
+			auto misses = make_multi("misc>main>logs>miss details", cfg.misc.miss_log_details, miss_details);
+			auto buys = make_multi("misc>main>logs>buy targets", cfg.misc.buy_log_targets, {"Teammates", "Enemy", "Local", "All"});
+			e->add(make_control("Hit logs", hits));
+			e->add(make_control("Miss logs", misses));
+			e->add(make_control("Buy logs", buys));
+			const std::vector<std::string> names{"Hit color", "Miss color", "Buy color", "Hurt color", "Naded color"};
+			for (size_t i = 0; i < names.size(); ++i) {
+				const auto key = std::string("misc>main>logs>color>") + std::to_string(i);
+				e->add(make_control(names[i], MAKE_RUNTIME(key, color_picker, cfg.misc.log_colors[i])));
+			}
+			ADD("Console logs", "misc>main>logs>console", checkbox, cfg.misc.console_logs);
+		});
+		ADD_INLINE("Logs", logs, log_settings);
+		const auto sound = make_sound("misc>various>hitsound", cfg.misc.hitsound_select);
+		const auto sound_settings = MAKE("misc>main>hitsound>settings", settings, [](auto e) {
+			ADD("Hit sound", "misc>main>hitsound>hit enabled", checkbox, cfg.misc.hit_sound_enabled);
+			ADD("Kill sound", "misc>main>hitsound>kill enabled", checkbox, cfg.misc.kill_sound_enabled);
+			e->add(make_control("Kill sound", make_sound("misc>main>hitsound>kill select", cfg.misc.kill_sound_select)));
+		});
+		ADD_INLINE("Hitsound", sound, sound_settings);
 		{
 			const auto c = MAKE("misc>various>indicators", combo_box, cfg.aa.indicators);
 			c->allow_multiple = true;
@@ -70,15 +89,23 @@ namespace menu::group
 			ADD_INLINE("Indicators", c);
 		}
 
-		ADD("Clan tag", "misc>various>clan tag", checkbox, cfg.misc.clantag);
-		ADD("Ragdoll thrust", "misc>various>ragdoll thrust", slider<float>, 1.f, 1000.f, cfg.visuals.ragdoll_thrust, XOR("%.f%%"));
-		ADD("Party mode", "misc>various>party mode", checkbox, cfg.misc.birthday_mode);
-		ADD("Ping Spike", "misc>various>ping spike", slider<float>, 0.f, 200.f, cfg.aim.ping_spike_amt, XOR("%.0f ms"));
+		ADD("Clantag", "misc>various>clan tag", checkbox, cfg.misc.clantag);
+		ADD("Reveal enemy chat", "misc>main>enemy chat", checkbox, cfg.misc.reveal_enemy_chat);
+		ADD_INLINE("Ragdoll thrust", MAKE("misc>main>ragdoll thrust", checkbox, cfg.misc.ragdoll_thrust_enabled), MAKE("misc>main>ragdoll thrust>settings", settings, [](auto e) {
+			ADD("Amount", "misc>main>ragdoll thrust>amount", slider<float>, 1.f, 1000.f, cfg.visuals.ragdoll_thrust, "%.0f%%");
+		}));
+		ADD_INLINE("Ping spike", MAKE("misc>main>ping spike", checkbox, cfg.misc.ping_spike_enabled), MAKE("misc>main>ping spike>settings", settings, [](auto e) {
+			ADD("Amount", "misc>main>ping spike>amount", slider<float>, 0.f, 200.f, cfg.aim.ping_spike_amt, "%.0f ms");
+		}));
+	}
 
-#if defined(_DEBUG) || defined(ALPHA)
-		ADD("Debug info", "misc>various>debug info", checkbox, cfg.misc.debug_info);
-#endif
-
+	static void misc_other(std::shared_ptr<layout> &e)
+	{
+		ADD("Bypass SV Pure", "misc>various>bypass sv_pure", checkbox, cfg.misc.sv_pure);
+		ADD("Bypass SV Cheats", "misc>other>bypass sv_cheats", checkbox, cfg.misc.sv_cheats);
+		ADD("Console filter", "misc>other>console filter", checkbox, cfg.misc.console_filter);
+		ADD("Auto-accept", "misc>various>auto-accept", checkbox, cfg.misc.autoaccept);
+		ADD("Radar", "misc>various>radar", checkbox, cfg.misc.radar);
 		{
 			const auto c = MAKE("misc>various>dpi scale", combo_box, cfg.misc.dpi_scale);
 			c->add(
@@ -91,44 +118,70 @@ namespace menu::group
 
 			ADD_INLINE("DPI scale", c);
 		}
-		//VIRTUALIZER_TIGER_WHITE_END;
+	}
+
+	static void movement_main(std::shared_ptr<layout> &e)
+	{
+		ADD("Bhop", "misc>movement>bhop", checkbox, cfg.misc.bhop);
+		const auto c = MAKE("misc>movement>autostrafer", combo_box, cfg.misc.autostrafe);
+		c->allow_multiple = true;
+		c->add({MAKE("misc>movement>autostrafer>viewangles", selectable, "Viewangles", cfg_t::autostrafe_viewangles),
+			MAKE("misc>movement>autostrafer>movement keys", selectable, "Movement keys", cfg_t::autostrafe_movement_keys),
+			MAKE("misc>movement>autostrafer>easy strafe", selectable, "Easy strafe", cfg_t::autostrafe_easy_strafe),
+			MAKE("misc>movement>autostrafer>jump release", selectable, "Jump release", cfg_t::autostrafe_jump_release)});
+		ADD_INLINE("Air strafe", c, MAKE("misc>movement>autostrafer>settings", settings, [](auto e) {
+			ADD("Smoothing", "misc>movement>smoothing", slider<float>, 0.f, 100.f, cfg.misc.autostrafe_smoothing, "%.0f");
+			ADD("Avoid walls", "misc>movement>avoid walls", checkbox, cfg.misc.avoid_walls);
+		}));
+		ADD("Instant duck", "misc>movement>instant unduck", checkbox, cfg.misc.instant_unduck);
+		ADD("Edge jump", "misc>movement>edge jump", checkbox, cfg.misc.edge_jump);
+		ADD("Edge stop", "misc>movement>edge stop", checkbox, cfg.misc.edge_stop);
+		ADD("Quick stop", "misc>movement>standalone quick stop", checkbox, cfg.legit.quick_stop);
+	}
+
+	static void movement_extra(std::shared_ptr<layout> &e)
+	{
+		ADD("Edge bugs", "misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug);
+		ADD("Pixel surf", "misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf);
+		ADD("Jump bug", "misc>movement>extra>jump bug", checkbox, cfg.misc.jump_bug);
+		ADD("Long jump", "misc>movement>extra>long jump", checkbox, cfg.misc.long_jump);
+		ADD("Ladder jump", "misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump);
+		ADD_INLINE("Peek assist", MAKE("misc>movement>peek assist", checkbox, cfg.misc.peek_assist),
+			MAKE("misc>movement>peek assist>col 1", color_picker, cfg.misc.peek_assist_col),
+			MAKE("misc>movement>peek assist>col 2", color_picker, cfg.misc.peek_assist_col2),
+			MAKE("misc>movement>peek assist>settings", settings, [](auto e) {
+				ADD("Retreat on release", "misc>movement>retreat on release", checkbox, cfg.misc.peek_assist_retreat_on_release);
+			}));
+	}
+
+	static void add_vertical_sections(std::shared_ptr<layout> &e, const std::string &id,
+		const char *first, const char *second, const std::function<void(std::shared_ptr<layout> &)> &first_content,
+		const std::function<void(std::shared_ptr<layout> &)> &second_content)
+	{
+		const vec2 content_size{e->size.x - 32.f, e->size.y};
+		const auto shell = MAKE_RUNTIME(id + ">shell", layout, vec2{}, content_size, s_none);
+		shell->make_not_clip();
+		const auto tabs = MAKE_RUNTIME(id + ">tabs", tabs_layout, vec2{}, vec2{content_size.x, 50.f}, td_vertical);
+		tabs->add(MAKE_RUNTIME(id + ">first tab", child_tab, first, hash(id + ">first"))->make_vertical()->make_selected());
+		tabs->add(MAKE_RUNTIME(id + ">second tab", child_tab, second, hash(id + ">second"))->make_vertical());
+		const auto page_size = vec2{content_size.x, content_size.y - 52.f};
+		auto page1 = MAKE_RUNTIME(id + ">first", layout, vec2{0.f, 52.f}, page_size, s_vertical);
+		auto page2 = MAKE_RUNTIME(id + ">second", layout, vec2{0.f, 52.f}, page_size, s_vertical);
+		page1->margin = {}; page2->margin = {};
+		page2->is_visible = false;
+		first_content(page1); second_content(page2);
+		shell->add(tabs); shell->add(page1); shell->add(page2);
+		e->add(shell);
+	}
+
+	void misc_various(std::shared_ptr<layout> &e)
+	{
+		add_vertical_sections(e, "misc>sections", "Misc", "Other", misc_main, misc_other);
 	}
 
 	void misc_movement(std::shared_ptr<layout> &e)
 	{
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD("Bhop", "misc>movement>bhop", checkbox, cfg.misc.bhop);
-
-		{
-			const auto c = MAKE("misc>movement>autostrafer", combo_box, cfg.misc.autostrafe);
-			c->allow_multiple = true;
-			c->add(
-			{MAKE("misc>movement>autostrafer>viewangles", selectable, XOR("Viewangles"), cfg_t::autostrafe_viewangles), MAKE(
-				 "misc>movement>autostrafer>movement keys", selectable, XOR("Movement keys"), cfg_t::autostrafe_movement_keys),
-			 MAKE("misc>movement>autostrafer>easy strafe", selectable, XOR("Easy strafe"), cfg_t::autostrafe_easy_strafe), MAKE(
-				 "misc>movement>autostrafer>jump release", selectable, XOR("Jump release"), cfg_t::autostrafe_jump_release),});
-
-			ADD_INLINE(
-				"Autostrafer", c,
-				MAKE("misc>movement>autostrafer>settings", settings, [](auto e) { ADD("Smoothing", "misc>movement>smoothing", slider<float>, 0.f, 100.f, cfg.misc.
-					autostrafe_smoothing, XOR("%.f")); ADD("Avoid walls", "misc>movement>avoid walls", checkbox, cfg.misc.avoid_walls); }));
-		}
-
-		ADD_INLINE(
-			"Peek assist", MAKE("misc>movement>peek assist", checkbox, cfg.misc.peek_assist),
-			MAKE("misc>movement>peek assist>col 1", color_picker, cfg.misc.peek_assist_col),
-			MAKE("misc>movement>peek assist>col 2", color_picker, cfg.misc.peek_assist_col2),
-			MAKE("misc>movement>peek assist>settings", settings, [](auto e) { ADD("Retreat on release", "misc>movement>retreat on release", checkbox, cfg.misc.
-				peek_assist_retreat_on_release); }));
-
-		ADD("Instant unduck", "misc>movement>instant unduck", checkbox, cfg.misc.instant_unduck);
-		ADD("Slide", "misc>movement>slide", checkbox, cfg.aim.slide);
-		ADD("Stop in air", "misc>movement>stop in air", checkbox, cfg.aim.stop_in_air);
-		ADD("Fake duck", "misc>movement>fake duck", checkbox, cfg.aim.fake_duck);
-		// ADD("Compensate throwable", "misc>movement>compensate throwable", checkbox, cfg.misc.compensate_grenade);
-		ADD("Edge jump", "misc>movement>edge jump", checkbox, cfg.misc.edge_jump);
-		ADD("Standalone quick stop", "misc>movement>standalone quick stop", checkbox, cfg.legit.quick_stop);
-		//VIRTUALIZER_TIGER_WHITE_END;
+		add_vertical_sections(e, "misc>movement>sections", "Movement", "Movement extra", movement_main, movement_extra);
 	}
 
 	void misc_buybot(std::shared_ptr<layout> &e)

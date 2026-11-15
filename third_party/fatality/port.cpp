@@ -370,6 +370,7 @@ namespace menu::group
 		}));
 		ADD("Hide shots", "rage>aimbot>general>hide shot", checkbox, cfg.aim.hideshot);
 		ADD("Double tap", "rage>aimbot>general>double tap", checkbox, cfg.aim.doubletap);
+		ADD("Fake duck", "rage>aimbot>general>fake duck", checkbox, cfg.aim.fake_duck);
 		const auto defensive = MAKE("rage>aimbot>general>defensive lag", combo_box, cfg.aim.dt_exploit, vec2{}, vec2{80.f, 20.f});
 		defensive->add({MAKE("rage>aimbot>general>defensive lag>none", selectable, "None", cfg_t::def_none),
 			MAKE("rage>aimbot>general>defensive lag>air", selectable, "In air", cfg_t::def_in_air),
@@ -731,7 +732,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                         e->add(make_tab_area(GUI_HASH("legit_container"), false, s_none, menu::group::legit_tab));
                         e->add(make_tab_area(GUI_HASH("visuals_container"), false, s_none, menu::group::visuals_tab));
                         e->add(make_tab_area(GUI_HASH("misc_container"), false, [&](const std::shared_ptr<layout>& e) {
-                            e->add(make_groupbox("misc>various", "VARIOUS", group_sz, menu::group::misc_various));
+                            e->add(make_groupbox("misc>various", "MISC", group_sz, menu::group::misc_various));
                             e->add(make_groupbox("misc>movement", "MOVEMENT", group_sz, menu::group::misc_movement));
                             e->add(make_groupbox("misc>buy bot", "BUY BOT", group_sz, menu::group::misc_buybot));
                         }));
