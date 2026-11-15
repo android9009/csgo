@@ -389,6 +389,12 @@ namespace menu::group
 			MAKE("rage>aimbot>general>defensive lag>air", selectable, "In air", cfg_t::def_in_air),
 			MAKE("rage>aimbot>general>defensive lag>always", selectable, "Always on", cfg_t::def_always_on)});
 		ADD_INLINE("Defensive lag", defensive);
+		const auto delay = MAKE("rage>aimbot>general>delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
+		delay->allow_multiple = true;
+		delay->add({MAKE("rage>aimbot>general>delay shot>damage", selectable, "Wait damage", 0),
+			MAKE("rage>aimbot>general>delay shot>hitchance", selectable, "Wait hitchance", 1),
+			MAKE("rage>aimbot>general>delay shot>safe", selectable, "Wait safe point or resolved", 2)});
+		ADD_INLINE("Delay shot", delay);
 	}
 
 	void rage_antiaim_custom(std::shared_ptr<layout>& e) { }
@@ -430,12 +436,7 @@ namespace menu::group
 			ADD_RUNTIME("Double tap hitchance", id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%"); }
 		ADD_INLINE("Hitchance", MAKE_RUNTIME(id + "hit chance", slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[grp], "%.0f%%", 1.f, vec2{80.f, 14.f}), hc_settings);
 		ADD_RUNTIME("Min damage", id + "min damage", slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[grp], (ssa<float>{ssv<float>{101.f, "HP + %.0f"}, ssv<float>{0.f, "%.0f hp"}}), 1.f, vec2{80.f, 14.f});
-		const auto delay = MAKE_RUNTIME(id + "delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
-		delay->allow_multiple = true;
-		delay->add({MAKE_RUNTIME(id + "delay>damage", selectable, "Wait damage", 0),
-			MAKE_RUNTIME(id + "delay>hitchance", selectable, "Wait hitchance", 1),
-			MAKE_RUNTIME(id + "delay>safe", selectable, "Wait safe point or resolved", 2)});
-		ADD_INLINE("Delay shot", delay);
+
 	}
 
 	void rage_aimbot_extra(std::shared_ptr<layout>& e, uint32_t grp, const std::string& id) {
