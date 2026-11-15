@@ -18,7 +18,7 @@ void hsv_slider::render()
 	auto &d = draw.layers[ctx->content_layer];
 
 	// --- saturation/brightness ---
-	auto fake_color = *value;
+	auto fake_color = *active_value();
 	fake_color = fake_color.hsv(fake_hue, 1.f, 1.f, 1.f);
 
 	// brightness
@@ -28,12 +28,18 @@ void hsv_slider::render()
 	d->add_rect_filled_multicolor(saturation, {color::black_transparent(), color::black_transparent(), color::black(), color::black()});
 
 	const auto sb_grip_pos = saturation.tl() + vec2{fake_saturation * saturation.width(), (1.f - fake_brightness) * saturation.height()};
-	const auto sb_grip_color = std::clamp(std::max((1.f - fake_brightness), fake_saturation), 0.f, 1.f);
+	const auto grip_color = color(220, 220, 220);
 
 	const auto old_clip = d->g.clip_rect;
 	d->override_clip_rect(saturation);
 	d->g.anti_alias = true;
-	d->add_circle(sb_grip_pos, 3.f, color(sb_grip_color, sb_grip_color, sb_grip_color), 36, 1.f, 2.f);
+	d->add_circle(sb_grip_pos, 3.f, grip_color, 36, 1.f, 2.f);
+	if (secondary)
+	{
+		const auto &other = secondary_selected ? value.get() : secondary->get();
+		const auto other_pos = saturation.tl() + vec2{other.s() * saturation.width(), (1.f - other.v()) * saturation.height()};
+		d->add_circle(other_pos, 3.f, grip_color, 36, 1.f, 2.f);
+	}
 	d->g.clip_rect = old_clip;
 
 	// apply fake rounding
@@ -71,14 +77,14 @@ void hsv_slider::render()
 	if (allow_alpha)
 	{
 		d->add_shadow_rect(alpha, 4.f);
-		d->add_rect_filled_multicolor(alpha, {value->mod_a(0.f), value, value, value->mod_a(0.f)});
+		d->add_rect_filled_multicolor(alpha, {active_value()->mod_a(0.f), active_value(), active_value(), active_value()->mod_a(0.f)});
 
 		d->g.anti_alias = true;
 		d->add_fake_rounding(alpha, colors.bg_block, 4.f);
 		d->add_rect_rounded(alpha.expand(1.f), colors.outline, 4.f);
 		d->g.anti_alias = false;
 
-		const auto alpha_grip_pos = alpha.tl() + vec2{std::clamp(value->value.a * alpha.width(), 0.f, alpha.width() - 1), -2.f};
+		const auto alpha_grip_pos = alpha.tl() + vec2{std::clamp(active_value()->value.a * alpha.width(), 0.f, alpha.width() - 1), -2.f};
 		const auto alpha_grip_rect = rect(alpha_grip_pos).size({2.f, alpha.height() + 4.f});
 
 		d->add_shadow_rect(alpha_grip_rect, 4.f);
@@ -94,7 +100,22 @@ void hsv_slider::on_mouse_down(char key)
 
 		const auto cur = input.cursor();
 		if (get_sb_rect().contains(cur))
+		{
+			if (secondary)
+			{
+				const auto sb = get_sb_rect();
+				const auto marker = [&](const ren::color &c) { return sb.tl() + vec2{c.s() * sb.width(), (1.f - c.v()) * sb.height()}; };
+				const auto d1 = (cur - marker(value.get())).len_sqr();
+				const auto d2 = (cur - marker(secondary->get())).len_sqr();
+				if (d1 < 100.f || d2 < 100.f)
+				{
+					secondary_selected = d1 == d2 ? !secondary_selected : d2 < d1;
+					reset();
+					run_universal_callbacks();
+				}
+			}
 			current_edit = e_sb;
+		}
 		else if (get_hue_rect().contains(cur))
 			current_edit = e_hue;
 		else if (get_alpha_rect().contains(cur))
@@ -125,15 +146,15 @@ void hsv_slider::on_mouse_move(const vec2 &p, const vec2 &)
 		fake_hue = static_cast<uint16_t>(std::clamp((p.y - hue.tl().y) / hue.height() * 360.f, 0.f, 360.f));
 		break;
 	case e_alpha:
-		*value = value->a(std::clamp((p.x - alpha.tl().x) / alpha.width(), 0.f, 1.f));
+		*active_value() = active_value()->a(std::clamp((p.x - alpha.tl().x) / alpha.width(), 0.f, 1.f));
 		break;
 	}
 
 	// update color
-	*value = value->hsv(fake_hue, fake_saturation, fake_brightness);
+	*active_value() = active_value()->hsv(fake_hue, fake_saturation, fake_brightness);
 
 	if (callback)
-		callback(*value);
+		callback(*active_value());
 
 	run_universal_callbacks();
 }
@@ -164,10 +185,10 @@ ren::rect hsv_slider::get_alpha_rect()
 
 void hsv_slider::reset()
 {
-	fake_hue = value->h();
-	fake_saturation = value->s();
-	fake_brightness = value->v();
+	fake_hue = active_value()->h();
+	fake_saturation = active_value()->s();
+	fake_brightness = active_value()->v();
 
 	if (callback)
-		callback(*value);
+		callback(*active_value());
 }

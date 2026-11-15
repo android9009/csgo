@@ -24,6 +24,9 @@ namespace evo::gui
 		bool allow_alpha{true};
 		bool prefer_left{};
 		value_param<ren::color> &value;
+		value_param<ren::color> *gradient_color{};
+		value_param<bits> *gradient_style{};
+		int gradient_bit{};
 
 		std::function<void(ren::color)> callback{};
 	};

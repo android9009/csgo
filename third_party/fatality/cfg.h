@@ -572,7 +572,7 @@ struct cfg_t {
 
 			setting<bool> enable, check_occlusion, enemy_his, local_interp, local_pulsate, local_nosleeve;
 			setting<color> enemy_his_col{ color::white( ) };
-			cham_t team_pl, team_rag, team_att, enemy_pl, enemy_shot, enemy_rag, enemy_att, local_pl, local_fake, local_arms, local_att;
+			cham_t team_pl, team_rag, team_att, enemy_pl, enemy_backtrack, enemy_shot, enemy_rag, enemy_att, local_pl, local_fake, local_arms, local_att;
 		} chams;
 
 		struct {
@@ -584,6 +584,8 @@ struct cfg_t {
 
 			struct {
 				setting<bool> weapon_icons;
+				setting<bool> weapon_enabled, grenade_enabled, grenade_icons, c4_enabled, c4_icons, c4_timer;
+				setting<color> weapon_color{color::white()}, grenade_color{color::white()}, c4_color{color::white()}, c4_timer_color{color::white()};
 				setting<bitset> enabled;
 				setting<color> color{ color::white( ) };
 			} world;

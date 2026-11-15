@@ -26,6 +26,20 @@ namespace menu::group
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
+	static std::shared_ptr<settings> preview_settings(const std::string &id)
+	{
+		auto gear = MAKE_RUNTIME(id + ">settings", settings, nullptr);
+		auto disablers = MAKE_RUNTIME(id + ">animation disablers", combo_box, cfg.visuals.disablers);
+		disablers->allow_multiple = true;
+		disablers->add({
+			MAKE_RUNTIME(id + ">model fading", selectable, "Model fading", cfg_t::vis_disable_model_fade),
+			MAKE_RUNTIME(id + ">dormancy animation", selectable, "Dormancy animation", cfg_t::vis_disable_dormancy_interp),
+			MAKE_RUNTIME(id + ">health bar animation", selectable, "Health bar animation", cfg_t::vis_disable_health_bar_interp),
+			MAKE_RUNTIME(id + ">esp fading", selectable, "ESP fading", cfg_t::vis_disable_esp_fade)});
+		gear->add(make_control("Animation disablers", disablers));
+		return gear;
+	}
+
 	void visuals_esp(std::shared_ptr<layout> &e)
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;
@@ -46,7 +60,7 @@ namespace menu::group
 						{MAKE("visuals>esp>preview>type>enemy", selectable, XOR("Enemy"), 0), MAKE("visuals>esp>preview>type>team", selectable, XOR("Team"), 1),
 						 MAKE("visuals>esp>preview>type>local", selectable, XOR("Local"), 2),});
 
-						ADD_INLINE("Type", c);
+						ADD_INLINE("Type", c, preview_settings("visuals>esp>preview>type"));
 					}
 
 					/*const auto img = MAKE("visuals>chams>preview>image2", image, entity_rendering::is_setup ? (entity_rendering::preview_texture->pTextureHandles[0]->lpRawTexture) : nullptr, vec2{ 235.f, 370.f });
@@ -76,8 +90,8 @@ namespace menu::group
 		area->add(
 			tools::make_stacked_groupboxes(
 				GUI_HASH("visuals>chams>general,local"), group_sz,
-				{make_groupbox(XOR("visuals>chams>general"), XOR("GENERAL"), group_half_sz * vec2{1.f, .5f}, visuals_models_general),
-				 make_groupbox(XOR("visuals>chams>local"), XOR("LOCAL"), group_half_sz + group_half_sz * vec2{0.f, .5f}, visuals_models_local)}));
+				{make_groupbox(XOR("visuals>chams>general"), XOR("GENERAL"), group_half_sz, visuals_models_general),
+				 make_groupbox(XOR("visuals>chams>local"), XOR("LOCAL"), group_half_sz, visuals_models_local)}));
 		area->add(
 			tools::make_stacked_groupboxes(
 				GUI_HASH("visuals>chams>enemy,team"), group_sz, {make_groupbox(XOR("visuals>chams>enemy"), XOR("ENEMY"), group_half_sz, visuals_models_enemy),
@@ -93,7 +107,7 @@ namespace menu::group
 						{MAKE("visuals>chams>preview>type>enemy", selectable, XOR("Enemy"), 0), MAKE("visuals>chams>preview>type>team", selectable, XOR("Team"), 1),
 						 MAKE("visuals>chams>preview>type>local", selectable, XOR("Local"), 2),});
 
-						ADD_INLINE("Type", c);
+						ADD_INLINE("Type", c, preview_settings("visuals>chams>preview>type"));
 					}
 
 					/*const auto img = MAKE("visuals>chams>preview>image", image, entity_rendering::is_setup ? (entity_rendering::preview_texture->pTextureHandles[0]->lpRawTexture) : nullptr, vec2{ 235.f, 370.f });
@@ -129,6 +143,8 @@ namespace menu::group
 
 	void visuals_esp_player(std::shared_ptr<layout> &e)
 	{
+
+
 		//VIRTUALIZER_TIGER_WHITE_START;
 		ADD("Esp", "visuals>esp>player>esp", checkbox, cfg.visuals.esp.enabled);
 		ADD_INLINE(
@@ -148,14 +164,19 @@ namespace menu::group
 		ADD_INLINE(
 			"Weapon icons", MAKE("visuals>esp>player>weapon icons", checkbox, cfg.visuals.esp.weapon_icon),
 			MAKE("visuals>esp>player>weapon icons>color", color_picker, cfg.visuals.esp.weapon_icon_color, false ));
-		ADD_INLINE(
-			"Health", MAKE("visuals>esp>player>health", checkbox, cfg.visuals.esp.health),
-			MAKE("visuals>esp>player>health>color 1", color_picker, cfg.visuals.esp.health_color_1, false),
-			MAKE("visuals>esp>player>health>color 2", color_picker, cfg.visuals.esp.health_color_2, false),
-			MAKE("visuals>esp>player>health>settings", settings, [](auto e) { const auto c = MAKE("visuals>esp>player>health>settings>health style", combo_box, cfg.
-				visuals.esp .health_style); c->add({ MAKE("visuals>esp>player>health>settings>health style>solid", selectable, XOR("Solid"), cfg_t ::healthbar_solid),
-				MAKE("visuals>esp>player>health>settings>health style>gradient", selectable, XOR("Gradient"), cfg_t::healthbar_gradient), }); ADD_INLINE("Health style", c
-			); }));
+		{
+			const auto picker = MAKE("visuals>esp>player>health>color 1", color_picker, cfg.visuals.esp.health_color_1, false);
+			picker->gradient_color = &cfg.visuals.esp.health_color_2;
+			picker->gradient_style = &cfg.visuals.esp.health_style;
+			picker->gradient_bit = cfg_t::healthbar_gradient;
+			ADD_INLINE("Health", MAKE("visuals>esp>player>health", checkbox, cfg.visuals.esp.health), picker,
+				MAKE("visuals>esp>player>health>settings", settings, [](auto e) {
+					const auto c = MAKE("visuals>esp>player>health>settings>health style", combo_box, cfg.visuals.esp.health_style);
+					c->add({MAKE("visuals>esp>player>health>settings>health style>solid", selectable, "Solid", cfg_t::healthbar_solid),
+						MAKE("visuals>esp>player>health>settings>health style>gradient", selectable, "Gradient", cfg_t::healthbar_gradient)});
+					ADD_INLINE("Health style", c);
+				}));
+		}
 
 
 		ADD_INLINE(
@@ -164,9 +185,18 @@ namespace menu::group
 		ADD_INLINE(
 			"Ammo", MAKE("visuals>esp>player>ammo", checkbox, cfg.visuals.esp.ammo),
 			MAKE("visuals>esp>player>ammo>color", color_picker, cfg.visuals.esp.ammo_color, false));
+
+
+
 		ADD_INLINE(
-			"Ping spike", MAKE("visuals>esp>player>ping spike", checkbox, cfg.visuals.esp.ping),
-			MAKE("visuals>esp>player>ping>color", color_picker, cfg.visuals.esp.ping_color, false));
+			"Sound", MAKE("visuals>esp>player>sound", checkbox, cfg.visuals.esp.sound_esp),
+			MAKE("visuals>esp>player>sound>color", color_picker, cfg.visuals.esp.sound_esp_color));
+
+
+
+		ADD("Shared ESP", "visuals>esp>player>shared esp", checkbox, cfg.misc.shared_esp);
+		ADD("Share with enemies", "visuals>esp>player>share with enemies", checkbox, cfg.misc.shared_esp_with_enemy);
+
 
 		{
 			const auto c = MAKE("visuals>esp>player>info", combo_box, cfg.visuals.esp.flags);
@@ -186,64 +216,47 @@ namespace menu::group
 
 			ADD_INLINE("Info", c);
 		}
-
-		ADD_INLINE(
-			"Sound", MAKE("visuals>esp>player>sound", checkbox, cfg.visuals.esp.sound_esp),
-			MAKE("visuals>esp>player>sound>color", color_picker, cfg.visuals.esp.sound_esp_color));
-
-		ADD_INLINE(
-			"Glow", MAKE("visuals>esp>player>glow", checkbox, cfg.visuals.esp.glow.enabled),
-			MAKE("visuals>esp>player>glow>settings", settings, [](auto e) { ADD_INLINE("Team", MAKE("visuals>esp>player>glow>settings>team", checkbox, cfg.visuals.esp.
-				glow. team), MAKE("visuals>esp>player>glow>settings>team>color", color_picker, cfg.visuals.esp.glow. team_color)); ADD_INLINE("Enemy", MAKE(
-				"visuals>esp>player>glow>settings>enemy", checkbox, cfg.visuals.esp.glow .enemy), MAKE("visuals>esp>player>glow>settings>enemy>color", color_picker, cfg.
-				visuals.esp.glow. enemy_color)); ADD_INLINE("Local", MAKE("visuals>esp>player>glow>settings>local", checkbox, cfg.visuals.esp.glow .local), MAKE(
-				"visuals>esp>player>glow>settings>local>color", color_picker, cfg.visuals.esp.glow. local_color)); }));
-
-		ADD("Shared ESP", "visuals>esp>player>shared esp", checkbox, cfg.misc.shared_esp);
-		ADD("Share with enemies", "visuals>esp>player>share with enemies", checkbox, cfg.misc.shared_esp_with_enemy);
-
-		{
-			const auto c = MAKE("visuals>esp>player>animation disablers", combo_box, cfg.visuals.disablers);
-			c->allow_multiple = true;
-			c->add(
-			{MAKE("visuals>esp>player>animation disablers>model fading", selectable, XOR("Model fading"), cfg_t::vis_disable_model_fade), MAKE(
-				 "visuals>esp>player>animation disablers>dormancy animation", selectable, XOR("Dormancy animation"), cfg_t::vis_disable_dormancy_interp), MAKE(
-				 "visuals>esp>player>animation disablers>health bar animation", selectable, XOR("Health bar animation"), cfg_t::vis_disable_health_bar_interp), MAKE(
-				 "visuals>esp>player>animation disablers>esp fading", selectable, XOR("ESP fading"), cfg_t::vis_disable_esp_fade),});
-
-			ADD_INLINE("Animation disablers", c);
-		}
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
 	void visuals_esp_world(std::shared_ptr<layout> &e)
 	{
-		//VIRTUALIZER_TIGER_WHITE_START;
+		const float content_width = e->size.x - 32.f;
+		const auto tabs = MAKE("visuals>esp>world>tabs", tabs_layout, vec2{}, vec2{0.f, 24.f}, td_horizontal);
+		tabs->add(MAKE("visuals>esp>world>tabs>weapon", child_tab, "Weapon", GUI_HASH("visuals>esp>world>weapon"))->make_selected());
+		tabs->add(MAKE("visuals>esp>world>tabs>grenades", child_tab, "Grenades", GUI_HASH("visuals>esp>world>grenades")));
+		tabs->add(MAKE("visuals>esp>world>tabs>c4", child_tab, "C4", GUI_HASH("visuals>esp>world>c4")));
+		e->add(tabs);
+
+		auto weapon = MAKE("visuals>esp>world>weapon", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
+		weapon->size_to_parent_w = true;
 		{
-			const auto c = MAKE("visuals>esp>world>esp", combo_box, cfg.visuals.esp.world.enabled);
-			c->allow_multiple = true;
-			c->add(
-			{MAKE("visuals>esp>world>esp>weapons", selectable, XOR("Weapons"), cfg_t::world_weapons), MAKE(
-				 "visuals>esp>world>esp>grenades", selectable, XOR("Grenades"), cfg_t::world_grenades),
-			 MAKE("visuals>esp>world>esp>c4", selectable, XOR("C4"), cfg_t::world_c4), MAKE(
-				 "visuals>esp>world>esp>danger zone", selectable, XOR("Danger Zone"), cfg_t::world_dangerzone),});
-
-			ADD_INLINE("ESP", c, MAKE("visuals>esp>world>esp>color", color_picker, cfg.visuals.esp.world.color, false));
+			auto e = weapon;
+			ADD_INLINE("Enable", MAKE("visuals>esp>world>weapon>enable", checkbox, cfg.visuals.esp.world.weapon_enabled), MAKE("visuals>esp>world>weapon>color", color_picker, cfg.visuals.esp.world.weapon_color));
+			ADD("Weapon icons", "visuals>esp>world>weapon icons", checkbox, cfg.visuals.esp.world.weapon_icons);
 		}
+		e->add(weapon);
 
-		ADD("Weapon icons", "visuals>esp>world>weapon icons", checkbox, cfg.visuals.esp.world.weapon_icons);
-
+		auto grenades = MAKE("visuals>esp>world>grenades", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
+		grenades->size_to_parent_w = true;
+		grenades->is_visible = false;
 		{
-			const auto c = MAKE("visuals>esp>world>glow", combo_box, cfg.visuals.world.glow);
-			c->allow_multiple = true;
-			c->add(
-			{MAKE("visuals>esp>world>glow>weapons", selectable, XOR("Weapons"), cfg_t::world_weapons), MAKE(
-				 "visuals>esp>world>glow>grenades", selectable, XOR("Grenades"), cfg_t::world_grenades),
-			 MAKE("visuals>esp>world>glow>c4", selectable, XOR("C4"), cfg_t::world_c4),});
-
-			ADD_INLINE("Glow", c, MAKE("visuals>esp>world>glow>color", color_picker, cfg.visuals.world.glow_color));
+			auto e = grenades;
+			ADD_INLINE("Enable", MAKE("visuals>esp>world>grenades>enable", checkbox, cfg.visuals.esp.world.grenade_enabled), MAKE("visuals>esp>world>grenades>color", color_picker, cfg.visuals.esp.world.grenade_color));
+			ADD("Grenade icons", "visuals>esp>world>grenades>icons", checkbox, cfg.visuals.esp.world.grenade_icons);
 		}
-		//VIRTUALIZER_TIGER_WHITE_END;
+		e->add(grenades);
+
+		auto c4 = MAKE("visuals>esp>world>c4", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
+		c4->size_to_parent_w = true;
+		c4->is_visible = false;
+		{
+			auto e = c4;
+			ADD_INLINE("Enable", MAKE("visuals>esp>world>c4>enable", checkbox, cfg.visuals.esp.world.c4_enabled), MAKE("visuals>esp>world>c4>color", color_picker, cfg.visuals.esp.world.c4_color));
+			ADD("C4 icons", "visuals>esp>world>c4>icons", checkbox, cfg.visuals.esp.world.c4_icons);
+			ADD_INLINE("Timer enable", MAKE("visuals>esp>world>c4>timer", checkbox, cfg.visuals.esp.world.c4_timer), MAKE("visuals>esp>world>c4>timer>color", color_picker, cfg.visuals.esp.world.c4_timer_color));
+		}
+		e->add(c4);
 	}
 
 	void visuals_models_general(std::shared_ptr<layout> &e)
@@ -251,6 +264,21 @@ namespace menu::group
 		//VIRTUALIZER_TIGER_WHITE_START;
 		ADD("Enabled", "visuals>chams>general>enabled", checkbox, cfg.visuals.chams.enable);
 		ADD("Skip occlusion", "visuals>chams>general>skip occlusion", checkbox, cfg.visuals.chams.check_occlusion);
+		ADD_INLINE(
+			"Glow", MAKE("visuals>esp>player>glow", checkbox, cfg.visuals.esp.glow.enabled),
+			MAKE("visuals>esp>player>glow>settings", settings, [](auto e) { ADD_INLINE("Team", MAKE("visuals>esp>player>glow>settings>team", checkbox, cfg.visuals.esp.
+				glow. team), MAKE("visuals>esp>player>glow>settings>team>color", color_picker, cfg.visuals.esp.glow. team_color)); ADD_INLINE("Enemy", MAKE(
+				"visuals>esp>player>glow>settings>enemy", checkbox, cfg.visuals.esp.glow .enemy), MAKE("visuals>esp>player>glow>settings>enemy>color", color_picker, cfg.
+				visuals.esp.glow. enemy_color)); ADD_INLINE("Local", MAKE("visuals>esp>player>glow>settings>local", checkbox, cfg.visuals.esp.glow .local), MAKE(
+				"visuals>esp>player>glow>settings>local>color", color_picker, cfg.visuals.esp.glow. local_color)); }));
+		{
+			const auto c = MAKE("visuals>chams>general>world glow", combo_box, cfg.visuals.world.glow);
+			c->allow_multiple = true;
+			c->add({MAKE("visuals>chams>general>world glow>weapons", selectable, "Weapons", cfg_t::world_weapons),
+				MAKE("visuals>chams>general>world glow>grenades", selectable, "Grenades", cfg_t::world_grenades),
+				MAKE("visuals>chams>general>world glow>c4", selectable, "C4", cfg_t::world_c4)});
+			ADD_INLINE("World glow", c, MAKE("visuals>chams>general>world glow>color", color_picker, cfg.visuals.world.glow_color));
+		}
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
@@ -381,13 +409,16 @@ namespace menu::group
 					.visuals.chams.enemy_pl.col2, true, vec2{}, true); })->make_invisible());
 		}
 
-		ADD_INLINE(
-			"Ignore Z", MAKE("visuals>chams>enemy>player>settings>ignore z", checkbox, cfg.visuals.chams.enemy_pl.ignorez),
-			MAKE("visuals>chams>enemy>player>settings>hidden color", color_picker, cfg.visuals.chams.enemy_pl. col_z, true, vec2{}, true));
 
-		ADD_INLINE(
-			"History", MAKE("visuals>chams>enemy>history", checkbox, cfg.visuals.chams.enemy_his),
-			MAKE("visuals>chams>enemy>history>color", color_picker, cfg.visuals.chams.enemy_his_col, true, vec2{} , true));
+
+		{
+			const auto c = MAKE("visuals>chams>enemy>history", combo_box, cfg.visuals.chams.enemy_backtrack.mat);
+			insert_chams("visuals>chams>enemy>history>", c);
+			ADD_INLINE("Backtrack", c, MAKE("visuals>chams>enemy>history>settings", settings, [](auto e) {
+				ADD("Primary color", "visuals>chams>enemy>history>color", color_picker, cfg.visuals.chams.enemy_his_col, true, vec2{}, true);
+				ADD("Secondary color", "visuals>chams>enemy>history>secondary color", color_picker, cfg.visuals.chams.enemy_backtrack.col2, true, vec2{}, true);
+			}));
+		}
 
 		{
 			const auto c = MAKE("visuals>chams>enemy>shot record", combo_box, cfg.visuals.chams.enemy_shot.mat);
@@ -404,7 +435,7 @@ namespace menu::group
 			};
 
 			ADD_INLINE(
-				"Shot record", c,
+				"On shot", c,
 				MAKE("visuals>chams>enemy>shot record>settings", settings, [](auto e) { ADD("Primary color", "visuals>chams>enemy>shot record>settings>primary color",
 					color_picker, cfg.visuals.chams.enemy_shot.col1, true, vec2{}, true); ADD("Secondary color",
 					"visuals>chams>enemy>shot record>settings>secondary color", color_picker, cfg.visuals.chams.enemy_shot.col2, true, vec2{}, true); })->make_invisible(
@@ -453,6 +484,10 @@ namespace menu::group
 					, color_picker, cfg.visuals.chams.enemy_att.col2, true, vec2{}, true); ADD("Ignore Z", "visuals>chams>enemy>attachments>settings>ignore z", checkbox,
 					cfg.visuals. chams.enemy_att.ignorez); })->make_invisible());
 		}
+
+		ADD_INLINE(
+			"Ignore Z", MAKE("visuals>chams>enemy>player>settings>ignore z", checkbox, cfg.visuals.chams.enemy_pl.ignorez),
+			MAKE("visuals>chams>enemy>player>settings>hidden color", color_picker, cfg.visuals.chams.enemy_pl. col_z, true, vec2{}, true));
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
@@ -480,9 +515,7 @@ namespace menu::group
 					visuals.chams.team_pl.col2, true, vec2{}, true); })->make_invisible());
 		}
 
-		ADD_INLINE(
-			"Ignore Z", MAKE("visuals>chams>team>player>settings>ignore z", checkbox, cfg.visuals.chams.team_pl.ignorez),
-			MAKE("visuals>chams>team>player>settings>hidden color", color_picker, cfg.visuals.chams.team_pl.col_z , true, vec2{}, true));
+
 
 		{
 			const auto c = MAKE("visuals>chams>team>ragdoll", combo_box, cfg.visuals.chams.team_rag.mat);
@@ -526,6 +559,10 @@ namespace menu::group
 					color_picker, cfg.visuals.chams.team_att.col2, true, vec2{}, true); ADD("Ignore Z", "visuals>chams>team>attachments>settings>ignore z", checkbox, cfg.
 					visuals. chams.team_att.ignorez); })->make_invisible());
 		}
+
+		ADD_INLINE(
+			"Ignore Z", MAKE("visuals>chams>team>player>settings>ignore z", checkbox, cfg.visuals.chams.team_pl.ignorez),
+			MAKE("visuals>chams>team>player>settings>hidden color", color_picker, cfg.visuals.chams.team_pl.col_z , true, vec2{}, true));
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 

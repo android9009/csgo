@@ -14,16 +14,20 @@ void color_picker_popup::on_first_render_call()
 
 	// create hsv picker
 	const auto p = std::make_shared<hsv_slider>(control_id{GUI_HASH("cpp_hsv")}, picker->value, picker->allow_alpha);
+	if (picker->gradient_color && picker->gradient_style && picker->gradient_style->get().test(picker->gradient_bit))
+		p->secondary = picker->gradient_color;
 	p->pos = {8.f, 8.f};
 	p->callback = picker->callback;
 	p->universal_callbacks = picker->universal_callbacks;
 	p->universal_callbacks[UINT32_MAX].push_back(
-		[this]()
+		[this, weak = std::weak_ptr<hsv_slider>(p)]()
 		{
+			const auto p = weak.lock();
+			if (!p) return;
 			const auto shit = find<text_input>(GUI_HASH("cpp_txt"));
 			const auto old_cbk = shit->callback;
 			shit->callback = {};
-			shit->set_value(color_to_string(picker->value.get()));
+			shit->set_value(color_to_string(p->active_value().get()));
 			shit->move_caret_to_end();
 			shit->callback = old_cbk;
 		});
@@ -33,39 +37,39 @@ void color_picker_popup::on_first_render_call()
 	// copy/paste buttons
 	const auto copy = std::make_shared<button>(GUI_HASH("cpp_copy"), (""), ctx->res.icons.copy, vec2{8.f, picker->allow_alpha ? 210.f : 170.f}, vec2{0.f, 16.f});
 	copy->tooltip = ("Copy");
-	copy->callback = [this]()
+	copy->callback = [p]()
 	{
-		clipboard::set(color_to_string(picker->value.get()));
+		clipboard::set(color_to_string(p->active_value().get()));
 	};
 
 	const auto paste = std::make_shared<button>(GUI_HASH("cpp_paste"), (""), ctx->res.icons.paste, vec2{30.f, picker->allow_alpha ? 210.f : 170.f}, vec2{0.f, 16.f});
 	paste->tooltip = ("Paste");
-	paste->callback = [this]()
+	paste->callback = [this, p]()
 	{
 		const auto c = color_from_string(clipboard::get());
 		if (!c)
 			return;
 
-		auto &picker_v = picker->value.get();
+		auto &picker_v = p->active_value().get();
 		picker_v.value = c->value;
 		if (!picker->allow_alpha)
 			picker_v.value.a = 1.f;
 
 		find<hsv_slider>(GUI_HASH("cpp_hsv"))->reset();
-		find<text_input>(GUI_HASH("cpp_txt"))->set_value(color_to_string(picker->value.get()));
+		find<text_input>(GUI_HASH("cpp_txt"))->set_value(color_to_string(p->active_value().get()));
 	};
 
 	const auto txt = std::make_shared<text_input>(
 		GUI_HASH("cpp_txt"), vec2{50.f, picker->allow_alpha ? 208.f : 168.f}, vec2{152.f, 20.f}, std::regex(("[#0-9a-f]+")), std::wregex((L"[#0-9a-f]")), 9);
-	txt->set_value(color_to_string(picker->value.get()));
+	txt->set_value(color_to_string(p->active_value().get()));
 	txt->move_caret_to_end();
-	txt->callback = [this](std::string &str)
+	txt->callback = [this, p](std::string &str)
 	{
 		if (const auto c = color_from_string(str); c)
 		{
-			picker->value->value = c->value;
+			p->active_value()->value = c->value;
 			if (!picker->allow_alpha)
-				picker->value->value.a = 1.f;
+				p->active_value()->value.a = 1.f;
 			find<hsv_slider>(GUI_HASH("cpp_hsv"))->reset();
 		}
 	};

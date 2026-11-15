@@ -34,7 +34,10 @@ namespace evo::gui
 		void reset() override;
 		void render() override;
 
+		value_param<ren::color> &active_value() { return secondary_selected && secondary ? *secondary : value; }
 		value_param<ren::color> &value;
+		value_param<ren::color> *secondary{};
+		bool secondary_selected{};
 		bool allow_alpha{true};
 		std::function<void(ren::color)> callback{};
 
