@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d1e">
+  <title>Skins — просмотр интерфейса</title>
+  <style>
+    @font-face{font-family:Josefin;src:url('assets/josefin_sans.ttf')}
+    @font-face{font-family:Josefin;src:url('assets/josefin_sans_bold.ttf');font-weight:700}
+    *{box-sizing:border-box}body{margin:0;background:#090a15;color:#efecfc;font-family:Josefin,Arial,sans-serif}button{font:inherit;cursor:pointer}button:focus-visible{outline:2px solid #f34680;outline-offset:2px}
+    .page{max-width:940px;margin:auto;padding:20px 14px 38px}.intro{display:flex;align-items:end;justify-content:space-between;gap:15px;margin-bottom:13px}.eyebrow{font:700 10px Arial,sans-serif;letter-spacing:.18em;color:#a78bb6;text-transform:uppercase}.intro h1{margin:6px 0 0;font-size:21px;font-weight:700}.zoom{border:1px solid #393052;background:#17142c;color:#e2d9f0;padding:9px 12px;border-radius:5px;white-space:nowrap;font-size:12px}.hint{color:#aaa0bd;font:12px/1.55 Arial,sans-serif;margin:0 0 16px}.hint strong{color:#eee5f8;font-weight:600}.demo-note{border-left:2px solid #cb2668;background:#191329;padding:11px 13px;border-radius:0 4px 4px 0;margin-top:16px;color:#afa6bf;font:12px/1.55 Arial,sans-serif}.demo-note strong{color:#f6eefa}
+    .frame-viewport{overflow:auto;overscroll-behavior:contain;border-radius:6px;box-shadow:0 15px 50px #0008}.scaled{position:relative;transform-origin:top left;width:848px;height:588px}.frame{width:848px;height:588px;background:#0f0e22;border:1px solid #343053;position:relative;overflow:hidden}.top{height:51px;display:flex;align-items:center;border-bottom:1px solid #1c1b36;padding:0 25px;gap:25px}.brand{font-size:22px;font-weight:700;color:#ed2d78;letter-spacing:-1px;margin-right:14px}.tabs{display:flex;gap:26px;align-items:center;height:100%;font-size:13px;font-weight:700;color:#79718f}.tabs span.active{height:100%;display:flex;align-items:center;color:#f4eefc;border-bottom:2px solid #e1286c}.main{height:493px;display:grid;grid-template-columns:256px 528px;gap:16px;padding:15px 23px 0}.left{display:flex;flex-direction:column;gap:10px}.box{border:1px solid #494064;background:#191632;border-radius:5px;position:relative}.box-title{position:absolute;top:-9px;left:10px;background:#0f0e22;padding:0 6px;font-size:13px;font-weight:700;letter-spacing:.045em;z-index:2}.preview{height:318px;padding:18px 16px}.preview-shot{height:280px;width:220px;position:relative;overflow:hidden;background:#18142f}.preview-shot img{width:100%;height:100%;object-fit:contain;display:block}.preview-shot.dim:after{content:'';position:absolute;inset:0;background:#0008}.agents{height:150px;padding:18px 15px 10px;overflow:hidden}.agent-row{height:25px;display:flex;justify-content:space-between;align-items:center;font-size:12px}.fake-select{background:#0f0e23;padding:6px 8px;width:114px;color:#e5def1;font-size:11px;border-radius:2px}.fake-select:after{content:'⌄';float:right;color:#ef2c76}.weapons{height:478px;padding:16px}.grid-inner{height:440px;width:490px}.team-row{height:25px;display:flex;gap:6px}.team-row button{width:72px;border:0;border-radius:2px;background:#100f23;color:#817992;font-size:13px}.team-row button.active{background:#27213d;color:#e72c73}.headings{height:30px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;align-items:end;padding-bottom:5px;font-size:12px}.cards-area{height:385px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:#544b70 #100f23}.columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.column{display:flex;flex-direction:column;gap:6px}.card{position:relative;background:#0f0e23;border:0;border-radius:2px;color:#efecf7;height:72px;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:4px 4px 10px;overflow:hidden}.card:after{content:'';height:2px;position:absolute;bottom:3px;left:3px;right:3px;background:#514b6a}.card:hover{background:#24203d}.card-label{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1}.symbol{width:118px;height:42px;display:block;fill:#aaa7b4;opacity:.82;margin-bottom:2px}.card .selected-skin{color:#d3a5c3;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;position:absolute;top:3px;left:5px;right:5px}.skin-head{height:42px;display:flex;align-items:flex-start;justify-content:space-between;font-size:13px;font-weight:700;padding-top:5px}.close{background:#100f23;border:0;color:#e63d65;border-radius:2px;width:30px;height:27px;font-size:17px;margin-top:-5px}.skin-area{height:398px;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:#544b70 #100f23}.skin-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.skin-card .card-label{align-self:start}.skin-card .symbol{fill:#c6bdc9}.footer{height:42px;position:absolute;bottom:0;left:0;right:0;background:#191632;border-top:1px solid #211c3e;display:flex;justify-content:space-between;align-items:center;padding:0 26px;color:#756c93;font-size:11px}.footer .right{color:#b3a8c4}.foot-info{border:1px solid #746a96;border-radius:50%;height:18px;width:18px;display:grid;place-items:center;font-family:Arial;font-size:11px}
+    @media(max-width:550px){.page{padding:16px 10px 30px}.intro h1{font-size:19px}.hint{font-size:12px}.demo-note{font-size:12px}}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="intro"><div><div class="eyebrow">Интерактивный просмотр</div><h1>Вкладка Skins</h1></div><button class="zoom" id="zoom" type="button">Увеличить</button></div>
+    <p class="hint">Нажми <strong>CT / T</strong>, затем оружие. Список можно прокручивать пальцем. Чтобы вернуть сетку, нажми <strong>×</strong> или выбери вариант.</p>
+    <div class="frame-viewport" id="viewport" aria-label="Макет вкладки Skins"><div id="sizer"><div class="scaled" id="scaled">
+      <div class="frame">
+        <header class="top"><span class="brand">fatality</span><nav class="tabs" aria-label="Вкладки меню"><span>RAGE</span><span>LEGIT</span><span>VISUALS</span><span>MISC</span><span>LUA</span><span class="active">SKINS</span></nav></header>
+        <main class="main">
+          <div class="left">
+            <section class="box preview"><span class="box-title">PREVIEW</span><div class="preview-shot" id="preview"><img src="assets/agent-preview.png" alt="Снимок модели из игры"></div></section>
+            <section class="box agents"><span class="box-title">AGENTS</span><div class="agent-row">Agent CT <span class="fake-select">Default</span></div><div class="agent-row">Agent T <span class="fake-select">Default</span></div><div class="agent-row">Facemask CT <span class="fake-select">Default</span></div><div class="agent-row">Facemask T <span class="fake-select">Default</span></div></section>
+          </div>
+          <section class="box weapons"><span class="box-title">WEAPONS</span><div class="grid-inner" id="content"></div></section>
+        </main>
+        <footer class="footer"><span>FATALITY &nbsp; / &nbsp; SKINS</span><span class="right">WEB PREVIEW &nbsp; <span class="foot-info" style="display:inline-grid">i</span></span></footer>
+      </div>
+    </div></div></div>
+    <div class="demo-note"><strong>Это не сама игра.</strong> Модель слева — снимок из твоего скриншота, а силуэты оружия и варианты скинов — схематичные примеры. Настоящие иконки и каталог в DLL загружаются из файлов CS:GO. Страничка не показывает реальный 3D-рендер, не меняет скины в игре и не проверяет работу DLL.</div>
+  </div>
+  <script>
+    // A browser-only mock of the current C++ layout. These aren't game assets.
+    const weapons = {
+      CT: [
+        [['USP-S','usp_silencer'],['P2000','hkp2000'],['Dual Berettas','elite'],['P250','p250'],['Five-SeveN','fiveseven'],['CZ75-Auto','cz75a'],['Desert Eagle','deagle'],['R8 Revolver','revolver']],
+        [['MP9','mp9'],['MP7','mp7'],['MP5-SD','mp5sd'],['UMP-45','ump45'],['P90','p90'],['PP-Bizon','bizon'],['Nova','nova'],['XM1014','xm1014'],['MAG-7','mag7'],['M249','m249'],['Negev','negev']],
+        [['FAMAS','famas'],['M4A4','m4a1'],['M4A1-S','m4a1_silencer'],['AUG','aug'],['SSG 08','ssg08'],['AWP','awp'],['SCAR-20','scar20']]
+      ],
+      T: [
+        [['Glock-18','glock'],['Dual Berettas','elite'],['P250','p250'],['Tec-9','tec9'],['CZ75-Auto','cz75a'],['Desert Eagle','deagle'],['R8 Revolver','revolver']],
+        [['MAC-10','mac10'],['MP7','mp7'],['MP5-SD','mp5sd'],['UMP-45','ump45'],['P90','p90'],['PP-Bizon','bizon'],['Nova','nova'],['XM1014','xm1014'],['Sawed-Off','sawedoff'],['M249','m249'],['Negev','negev']],
+        [['Galil AR','galilar'],['AK-47','ak47'],['SG 553','sg556'],['SSG 08','ssg08'],['AWP','awp'],['G3SG1','g3sg1']]
+      ]
+    };
+    const examples = {
+      usp_silencer:['cu_usp_spitfire','cu_kaiman','demo_finish_03','demo_finish_04','demo_finish_05','demo_finish_06'],
+      ak47:['cu_ak47_rubber','demo_finish_02','demo_finish_03','demo_finish_04','demo_finish_05'],
+      default:['demo_finish_01','demo_finish_02','demo_finish_03','demo_finish_04','demo_finish_05','demo_finish_06']
+    };
+    const shapes = [
+      '<path d="M13 13h69l4 6h13v5H77l-3 5H59l-3 6 3 18H47l-6-24H27l-3-5H13z"/>',
+      '<path d="M5 21h20l5-7h30l4 4h18l5-4h10l-4 9h18v4H75l-4 5H57l6 17H51l-8-16H31l-5-6H5z"/>',
+      '<path d="M4 22h26l8-5h20l7-7h13l4 7h28v4h14v4H86l-5 5H69l-5 16H52l4-16H34l-7-4H4z"/>'
+    ];
+    const content = document.getElementById('content'), preview = document.getElementById('preview');
+    let team = 'CT', current = null, gridScroll = 0, enlarged = false;
+    const selected = {CT:Object.create(null), T:Object.create(null)};
+    function silhouette(category) { return `<svg class="symbol" viewBox="0 0 128 58" aria-hidden="true">${shapes[category]}</svg>`; }
+    function buttonCard(label, category, onClick, chosen, skinCard = false) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = `card${skinCard?' skin-card':''}`;
+      button.setAttribute('aria-label', label); button.innerHTML = `${chosen ? `<span class="selected-skin">${chosen}</span>` : ''}${silhouette(category)}<span class="card-label"></span>`;
+      button.querySelector('.card-label').textContent = label; button.addEventListener('click',onClick); return button;
+    }
+    function showGrid() {
+      current = null; preview.classList.remove('dim'); content.innerHTML = '';
+      const teamRow = document.createElement('div'); teamRow.className='team-row';
+      for (const value of ['CT','T']) { const b = document.createElement('button'); b.type='button'; b.textContent=value; b.className=team===value?'active':''; b.setAttribute('aria-pressed',String(team===value)); b.onclick=()=>{team=value;gridScroll=0;showGrid()}; teamRow.append(b); }
+      content.append(teamRow);
+      const heading=document.createElement('div');heading.className='headings'; for(const name of ['Pistols','Mid-Tier','Rifles']){const h=document.createElement('span');h.textContent=name;heading.append(h)} content.append(heading);
+      const area=document.createElement('div');area.className='cards-area';area.setAttribute('aria-label','Оружие');const columns=document.createElement('div');columns.className='columns';
+      weapons[team].forEach((items,category)=>{ const column=document.createElement('div');column.className='column';items.forEach(([label,id])=>column.append(buttonCard(label,category,()=>{gridScroll=area.scrollTop;showSkins({label,id,category})},selected[team][id])));columns.append(column)});
+      area.append(columns);content.append(area);area.scrollTop=gridScroll;
+    }
+    function showSkins(weapon) {
+      current=weapon;preview.classList.add('dim');content.innerHTML='';
+      const head=document.createElement('div');head.className='skin-head';const title=document.createElement('span');title.textContent=`${weapon.label} - SKINS`;const close=document.createElement('button');close.className='close';close.textContent='×';close.setAttribute('aria-label','Закрыть список скинов');close.onclick=showGrid;head.append(title,close);content.append(head);
+      const area=document.createElement('div');area.className='skin-area';area.setAttribute('aria-label','Примеры скинов');const grid=document.createElement('div');grid.className='skin-grid';
+      for(const paint of ['',...(examples[weapon.id]||examples.default)]) { const label=paint||'Default';grid.append(buttonCard(label,weapon.category,()=>{if(paint)selected[team][weapon.id]=paint;else delete selected[team][weapon.id];showGrid()},null,true)); }
+      area.append(grid);content.append(area);
+    }
+    function resize() { const viewport=document.getElementById('viewport');const scale=enlarged?1:Math.min(1,viewport.clientWidth/848);document.getElementById('scaled').style.transform=`scale(${scale})`;const sizer=document.getElementById('sizer');sizer.style.width=`${848*scale}px`;sizer.style.height=`${588*scale}px`; }
+    document.getElementById('zoom').onclick=()=>{enlarged=!enlarged;document.getElementById('zoom').textContent=enlarged?'Уместить':'Увеличить';resize()};
+    window.addEventListener('resize',resize);showGrid();resize();
+  </script>
+</body>
+</html>
