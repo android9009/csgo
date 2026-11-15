@@ -1,0 +1,1197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{903E4E56-FDBD-5793-BEC8-BD410BD7E538}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features">
+      <UniqueIdentifier>{B5256A3E-E4B1-501D-9F99-0EB69F6B038E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\menu">
+      <UniqueIdentifier>{3B8D28AD-38E6-5A43-978D-E95549C7452E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\menu\fonts">
+      <UniqueIdentifier>{B6D9CC02-5103-585A-9648-030F46CCF238}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\menu\img">
+      <UniqueIdentifier>{26EE96FD-CDF4-5371-B1D2-DAD05A7EE004}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\menu\text_editor">
+      <UniqueIdentifier>{2A3D2343-EA6A-566F-BD4C-77601742B20F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Hooks">
+      <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math">
+      <UniqueIdentifier>{ED16866E-FEFF-5150-8807-A5E54D6EA62B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)">
+      <UniqueIdentifier>{9130C2DE-DB21-5ACD-961E-36A33341DBA3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\gui">
+      <UniqueIdentifier>{DAE02D31-8C03-5100-B658-5FE34810B9A9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\gui\controls">
+      <UniqueIdentifier>{3EB6AF3F-3D89-549B-A5C4-139499E8D9AD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\gui\popups">
+      <UniqueIdentifier>{633336CB-28FA-59F8-8C35-54DB0F1260C2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer">
+      <UniqueIdentifier>{FCAC22ED-DB97-50B0-89ED-1276FD4EA256}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include">
+      <UniqueIdentifier>{C3A94D1A-E2E5-561F-9775-BBBB79D2CFDB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include\lib">
+      <UniqueIdentifier>{EEA17440-CA5F-5CA5-8163-40179A2F37B0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include\ren">
+      <UniqueIdentifier>{E070CE80-36CB-5D78-8574-BEC68E63BA88}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include\ren\adapters">
+      <UniqueIdentifier>{667278BE-4CB9-515B-AF9E-DC9B27AA96E6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include\ren\buffers">
+      <UniqueIdentifier>{6D0D690C-581D-58C4-97D4-AEA90D2FB47D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\include\ren\types">
+      <UniqueIdentifier>{52AA9549-A56C-5E93-B948-FBB2910ADEDF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\src">
+      <UniqueIdentifier>{3B25AF3D-A316-517A-A1A0-6CD1E80A8C20}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\src\adapters">
+      <UniqueIdentifier>{0725F5DD-A058-5998-A56E-800242B4272E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\src\buffers">
+      <UniqueIdentifier>{9D950C98-55A8-54E1-BA19-16948C870A78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Renderer\src\types">
+      <UniqueIdentifier>{5339AF84-56BF-59F1-8FB6-AF01B50898BD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Resources">
+      <UniqueIdentifier>{07CE341A-A5E8-55F1-8872-6C3F6E03E233}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Menu (Fatality)\Tabs">
+      <UniqueIdentifier>{9E40483C-6174-5832-83B1-6441F3E9D302}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Offsets">
+      <UniqueIdentifier>{855F5E8A-B1D2-5805-8112-5F8607FFE292}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Patterns">
+      <UniqueIdentifier>{9885CC74-8EC8-5126-B58A-9462B483666D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK">
+      <UniqueIdentifier>{B36CCE51-4EDD-57CA-94D8-7904697B6D73}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\datatypes">
+      <UniqueIdentifier>{A746F15C-FD0E-5CE8-9F40-E535FC46FDBF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\entity">
+      <UniqueIdentifier>{5D4D3335-9EA9-5BCA-9C23-78274D67840A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SDK\interfaces">
+      <UniqueIdentifier>{EEB35B55-6D73-52CA-B09C-0B11D0A59479}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{740937C8-6AD2-54C6-BCF1-2FF9676E8813}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\img">
+      <UniqueIdentifier>{7A199EB9-CADE-5CFE-AA2E-DB11CCDBC746}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\imgui">
+      <UniqueIdentifier>{79E72F2A-02C2-5684-8920-E9885743C06A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json">
+      <UniqueIdentifier>{97A4265E-8292-5088-B386-D9680C13267D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail">
+      <UniqueIdentifier>{E90B54C2-BD3A-5C43-91A5-A56A9471E2A6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\conversions">
+      <UniqueIdentifier>{AB263683-CC26-55BA-B24F-9319162C034E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\input">
+      <UniqueIdentifier>{6B8743C4-C0A4-5BBD-9A1B-6F2AF90E3B17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\iterators">
+      <UniqueIdentifier>{7D1D49BD-3312-5B28-98B1-E2CF276B79B0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\meta">
+      <UniqueIdentifier>{9C4089E6-BEFB-5363-8CA9-BF196B249093}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\meta\call_std">
+      <UniqueIdentifier>{16CA5472-C4B6-5E3A-BE15-5AC32E747652}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\detail\output">
+      <UniqueIdentifier>{B3031236-043A-521F-97F4-9FB0C7E614D8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\thirdparty">
+      <UniqueIdentifier>{3CC4A106-EA57-56EF-9346-685B0701FBEF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\json\thirdparty\hedley">
+      <UniqueIdentifier>{74A453B9-14D2-56F1-9DE6-8B379265FD0B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\minhook">
+      <UniqueIdentifier>{BBE230E5-8A53-5B4B-9FB9-8116E4CCB5C8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\minhook\hde">
+      <UniqueIdentifier>{70BC70BF-07C3-5098-891B-29C7EDB65686}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utils">
+      <UniqueIdentifier>{94620A4D-1F82-5ECA-AD11-7D770B27ABC3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="features\menu\fonts\FontIcon.cpp">
+      <Filter>Features\menu\fonts</Filter>
+    </ClCompile>
+    <ClCompile Include="features\menu\fonts\JosefinSansBold.cpp">
+      <Filter>Features\menu\fonts</Filter>
+    </ClCompile>
+    <ClCompile Include="features\menu\fonts\JosefinSansRegular.cpp">
+      <Filter>Features\menu\fonts</Filter>
+    </ClCompile>
+    <ClCompile Include="features\menu\menu.cpp">
+      <Filter>Features\menu</Filter>
+    </ClCompile>
+    <ClCompile Include="features\menu\text_editor\TextEditor.cpp">
+      <Filter>Features\menu\text_editor</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\client.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\detours.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\directx.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\drawmodel.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\framestage.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\hooks.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\paint.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\sceneend.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="hooks\wndproc.cpp">
+      <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="math\math.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="offsets\offsets.cpp">
+      <Filter>Offsets</Filter>
+    </ClCompile>
+    <ClCompile Include="patterns\patterns.cpp">
+      <Filter>Patterns</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\entity\entity.cpp">
+      <Filter>SDK\entity</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\entity\player.cpp">
+      <Filter>SDK\entity</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\entity\weapon.cpp">
+      <Filter>SDK\entity</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\interfaces\interfaces.cpp">
+      <Filter>SDK\interfaces</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\netvars.cpp">
+      <Filter>SDK</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\adapters\adapter_dx9.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\adapters</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\buffers\cmd_buffer.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\buffers\ib_dx9.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\buffers\vb_dx9.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\layer.cpp">
+      <Filter>Menu (Fatality)\Renderer\src</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\renderer.cpp">
+      <Filter>Menu (Fatality)\Renderer\src</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\types\animated_texture.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\types</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\types\font.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\types</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\types\shader.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\types</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\deps\renderer\src\types\texture.cpp">
+      <Filter>Menu (Fatality)\Renderer\src\types</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\extra\bridge.cpp">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_legit.cpp">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_misc.cpp">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_skins.cpp">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_visuals.cpp">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\port.cpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\anim.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\container.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\control.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\action_item.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\button.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\checkbox.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\child_tab.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\color_picker.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\combo_box.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\combo_box_agent.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\control_container.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\group.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\hotkey.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\hotkey_view.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\hsv_slider.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\label.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\layout.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\list.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\loading.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\notification_control.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\popup.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\public_software_item.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\search_result.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\selectable.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\selectable_game.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\selectable_inv.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\selectable_script.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\settings.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\slider.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\spacer.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\tab.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\tabs_layout.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\text_input.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\toggle_button.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\widget.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\controls\window.cpp">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\gui.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\helpers.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\input.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\notify_system.cpp">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\about_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\action_list_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\color_picker_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\combo_box_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\configs_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\dialog_box.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\hotkey_overview_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\hotkey_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\message_box.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\notifications_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\public_software_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\search_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\fatality\src\gui\popups\settings_popup.cpp">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_demo.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_impl_dx9.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_stdlib.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp">
+      <Filter>Third Party\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\minhook\buffer.c">
+      <Filter>Third Party\minhook</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\minhook\hde\hde32.c">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\minhook\hde\hde64.c">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\minhook\hook.c">
+      <Filter>Third Party\minhook</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\minhook\trampoline.c">
+      <Filter>Third Party\minhook</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\config.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\displacement.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\event_listener.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\input_manager.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\log.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\memory.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\render.cpp">
+      <Filter>Utils</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="context.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\fonts\FontIcon.h">
+      <Filter>Features\menu\fonts</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\fonts\JosefinSansBold.h">
+      <Filter>Features\menu\fonts</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\fonts\JosefinSansRegular.h">
+      <Filter>Features\menu\fonts</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\img\stb_image.h">
+      <Filter>Features\menu\img</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\img\vis_preview.hpp">
+      <Filter>Features\menu\img</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\img\vis_preview_ent.hpp">
+      <Filter>Features\menu\img</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\menu.h">
+      <Filter>Features\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\text_editor\TextEditor.h">
+      <Filter>Features\menu\text_editor</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\texture.hpp">
+      <Filter>Features\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\vars.h">
+      <Filter>Features\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="features\menu\xorstr.hpp">
+      <Filter>Features\menu</Filter>
+    </ClInclude>
+    <ClInclude Include="hooks\hooks.hpp">
+      <Filter>Hooks</Filter>
+    </ClInclude>
+    <ClInclude Include="math\color.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\math.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\matrix.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\qangle.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="math\vector.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="offsets\offsets.hpp">
+      <Filter>Offsets</Filter>
+    </ClInclude>
+    <ClInclude Include="patterns\patterns.hpp">
+      <Filter>Patterns</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\clientclass.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\datamap.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\datatypes\datatypes.hpp">
+      <Filter>SDK\datatypes</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\entity\entity.hpp">
+      <Filter>SDK\entity</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\entity\player.hpp">
+      <Filter>SDK\entity</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\entity\weapon.hpp">
+      <Filter>SDK\entity</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\glow.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\interfaces\interfaces.hpp">
+      <Filter>SDK\interfaces</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\material.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\netvars.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\recv.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\schema.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\structs.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\studiohdr.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\trace_ray.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\cfg.h">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\lib\image.h">
+      <Filter>Menu (Fatality)\Renderer\include\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\lib\rectpack.h">
+      <Filter>Menu (Fatality)\Renderer\include\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\lib\truetype.h">
+      <Filter>Menu (Fatality)\Renderer\include\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\adapter.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\adapters\adapter_dx11.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\adapters</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\adapters\adapter_dx9.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\adapters</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffer.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffers\cmd_buffer.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffers\ib_dx11.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffers\ib_dx9.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffers\vb_dx11.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\buffers\vb_dx9.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\layer.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\macros.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\managed.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\misc.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\renderer.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\animated_texture.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\animator.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\color.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\command.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\font.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\pos.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\shader.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\texture.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\vertex.h">
+      <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\macros.h">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\menu.h">
+      <Filter>Menu (Fatality)\Tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\port.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\cursor.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\hotkey_icons.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_add.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_allow_insecure.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_autoload.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_bug.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_clear.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_close.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_cloud.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_cloud_upd.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_configs.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_copy.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_delete.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_down.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_export.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_file.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_import.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_info.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_keys.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_legit.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_load.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_misc.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_paste.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_rage.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_refresh.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_save.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_scripts.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_search.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_settings.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_skins.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_up.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\icon_visuals.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\josefin_sans.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\josefin_sans_bold.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\loading.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\logo_head.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\logo_stripes.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\smallest_pixel.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\anim.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\container.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\control.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\action_item.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\button.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\checkbox.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\child_tab.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\color_picker.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\combo_box.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\combo_box_agent.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\control_container.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\group.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\hotkey.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\hotkey_view.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\hsv_slider.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\image.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\label.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\layout.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\list.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\loading.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\notification_control.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\popup.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\public_software_item.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\search_result.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\selectable.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\selectable_inv.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\selectable_script.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\settings.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\slider.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\spacer.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\tab.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\tabs_layout.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\text_input.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\toggle_button.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\widget.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\controls\window.h">
+      <Filter>Menu (Fatality)\gui\controls</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\debug.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\gui.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\helpers.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\hotkeys.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\input.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\misc.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\notify_system.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\about_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\action_list_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\color_picker_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\combo_box_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\configs_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\dialog_box.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\hotkey_overview_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\hotkey_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\message_box.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\notifications_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\public_software_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\search_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\popups\settings_popup.h">
+      <Filter>Menu (Fatality)\gui\popups</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\traits.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\values.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\img\click_sfx.hpp">
+      <Filter>Third Party\img</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\img\stb_image.h">
+      <Filter>Third Party\img</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imconfig.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_impl_dx9.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_impl_win32.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_internal.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imgui_stdlib.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_rectpack.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_textedit.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\imgui\imstb_truetype.h">
+      <Filter>Third Party\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\adl_serializer.h">
+      <Filter>Third Party\json</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\byte_container_with_subtype.h">
+      <Filter>Third Party\json</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\abi_macros.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\conversions\from_json.h">
+      <Filter>Third Party\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\conversions\to_chars.h">
+      <Filter>Third Party\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\conversions\to_json.h">
+      <Filter>Third Party\json\detail\conversions</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\exceptions.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\hash.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\binary_reader.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\input_adapters.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\json_sax.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\lexer.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\parser.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\input\position_t.h">
+      <Filter>Third Party\json\detail\input</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\internal_iterator.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\iter_impl.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\iteration_proxy.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\iterator_traits.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\json_reverse_iterator.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\iterators\primitive_iterator.h">
+      <Filter>Third Party\json\detail\iterators</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\json_custom_base_class.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\json_pointer.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\json_ref.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\macro_scope.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\macro_unscope.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\call_std\begin.h">
+      <Filter>Third Party\json\detail\meta\call_std</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\call_std\end.h">
+      <Filter>Third Party\json\detail\meta\call_std</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\cpp_future.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\detected.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\identity_tag.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\is_sax.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\std_fs.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\type_traits.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\meta\void_t.h">
+      <Filter>Third Party\json\detail\meta</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\output\binary_writer.h">
+      <Filter>Third Party\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\output\output_adapters.h">
+      <Filter>Third Party\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\output\serializer.h">
+      <Filter>Third Party\json\detail\output</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\string_concat.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\string_escape.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\detail\value_t.h">
+      <Filter>Third Party\json\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\json.h">
+      <Filter>Third Party\json</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\json_fwd.h">
+      <Filter>Third Party\json</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\ordered_map.h">
+      <Filter>Third Party\json</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\thirdparty\hedley\hedley.h">
+      <Filter>Third Party\json\thirdparty\hedley</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\json\thirdparty\hedley\hedley_undef.h">
+      <Filter>Third Party\json\thirdparty\hedley</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\buffer.h">
+      <Filter>Third Party\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\hde\hde32.h">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\hde\hde64.h">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\hde\pstdint.h">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\hde\table32.h">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\hde\table64.h">
+      <Filter>Third Party\minhook\hde</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\MinHook.h">
+      <Filter>Third Party\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\minhook\trampoline.h">
+      <Filter>Third Party\minhook</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\config.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\detourhook.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\displacement.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\event_listener.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\hash.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\input_manager.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\log.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\math.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\memory.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\render.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\xorstr.hpp">
+      <Filter>Utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
