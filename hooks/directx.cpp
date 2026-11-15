@@ -20,6 +20,17 @@ long __stdcall EndScene(void* device) {
     if (!dev)
         return 0;
 
+    // Frame counter: logged for the first frames to pinpoint where a crash
+    // happens (per-frame path with the menu closed must never crash).
+    static int frame_no = 0;
+    ++frame_no;
+    if (frame_no <= 30 || frame_no % 600 == 0)
+        LOG_INFO("EndScene frame %d", frame_no);
+
+    // SEH: nothing in our hook may crash the game. The original EndScene is
+    // always called (outside the guarded region) so rendering continues.
+    __try {
+
     // Save D3D state (same approach as the working Airflow menu) so ImGui
     // drawing doesn't depend on whatever state the game left behind and
     // doesn't corrupt the game's own state.
@@ -78,6 +89,10 @@ long __stdcall EndScene(void* device) {
     }
     dev->SetRenderState(D3DRS_COLORWRITEENABLE, colorwrite);
     dev->SetRenderState(D3DRS_SRGBWRITEENABLE, srgbwrite);
+
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG_ERROR("EndScene hook crashed (SEH caught) at frame %d", frame_no);
+    }
 
     auto original = Hooks::GetEndSceneOriginalFor(dev);
     return original ? original(dev) : D3D_OK;
