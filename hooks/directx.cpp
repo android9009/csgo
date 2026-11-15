@@ -62,11 +62,15 @@ long __stdcall EndScene(void* device) {
     // EndFrame() alone leaves viewport->DrawDataP invalid, GetDrawData()
     // returns NULL and RenderDrawData() silently draws nothing.
     ImGui::Render();
+    __try {
+        ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG_ERROR("RenderDrawData crashed (SEH caught)");
+    }
     {
         static bool render_logged = false;
-        if (!render_logged) { LOG_INFO("render draw data"); render_logged = true; }
+        if (!render_logged) { LOG_INFO("render draw data done"); render_logged = true; }
     }
-    ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
 
     if (have_state) {
         state_block->Apply();
