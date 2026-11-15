@@ -3,6 +3,7 @@
 
 #include <gui/gui.h>
 #include <gui/control.h>
+#include <gui/marquee.h>
 #include <gui/controls/control_container.h>
 #include <gui/misc.h>
 
@@ -44,6 +45,7 @@ namespace evo::gui
 
 	private:
 		std::shared_ptr<ren::font_base> fnt{};
+		marquee scroll_text;
 	};
 }
 

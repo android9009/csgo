@@ -3,6 +3,7 @@
 
 #include <string>
 #include <gui/control.h>
+#include <gui/marquee.h>
 #include <gui/gui.h>
 #include <gui/anim.h>
 #include <gui/controls/list.h>
@@ -68,6 +69,7 @@ namespace evo::gui
 		std::optional<ren::color> custom_color{};
 
 	protected:
+		marquee scroll_text;
 		std::shared_ptr<anim_float_color> a;
 	};
 }

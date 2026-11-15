@@ -40,6 +40,10 @@ namespace menu::group
 		return gear;
 	}
 
+	void insert_chams(const std::string &id, const std::shared_ptr<combo_box> &c);
+
+	void visuals_esp_world(std::shared_ptr<layout> &e, int category);
+
 	void visuals_esp(std::shared_ptr<layout> &e)
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;
@@ -48,7 +52,11 @@ namespace menu::group
 		const auto area = MAKE("visuals>tab>esp", layout, vec2{ 0.f, 36.f }, vec2{ 800.f, 446.f }, s_justify);
 		area->make_not_clip();
 		area->add(make_groupbox(XOR("visuals>esp>player"), XOR("PLAYER"), group_sz, visuals_esp_player));
-		area->add(make_groupbox(XOR("visuals>esp>world"), XOR("WORLD"), group_sz, visuals_esp_world));
+		const auto section_size = vec2{group_sz.x, (group_sz.y - 20.f) / 3.f};
+		area->add(tools::make_stacked_groupboxes(GUI_HASH("visuals>esp>objects"), group_sz, {
+			make_groupbox("visuals>esp>weapon", "WEAPON", section_size, [](auto e) { visuals_esp_world(e, 0); }),
+			make_groupbox("visuals>esp>grenades", "GRENADES", section_size, [](auto e) { visuals_esp_world(e, 1); }),
+			make_groupbox("visuals>esp>c4", "C4", section_size, [](auto e) { visuals_esp_world(e, 2); })}));
 		area->add(
 			make_groupbox(
 				XOR("visuals>esp>preview"), XOR("PREVIEW"), group_sz, [](auto e)
@@ -219,44 +227,31 @@ namespace menu::group
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
-	void visuals_esp_world(std::shared_ptr<layout> &e)
+	void visuals_esp_world(std::shared_ptr<layout> &e, int category)
 	{
-		const float content_width = e->size.x - 32.f;
-		const auto tabs = MAKE("visuals>esp>world>tabs", tabs_layout, vec2{}, vec2{0.f, 24.f}, td_horizontal);
-		tabs->add(MAKE("visuals>esp>world>tabs>weapon", child_tab, "Weapon", GUI_HASH("visuals>esp>world>weapon"))->make_selected());
-		tabs->add(MAKE("visuals>esp>world>tabs>grenades", child_tab, "Grenades", GUI_HASH("visuals>esp>world>grenades")));
-		tabs->add(MAKE("visuals>esp>world>tabs>c4", child_tab, "C4", GUI_HASH("visuals>esp>world>c4")));
-		e->add(tabs);
-
-		auto weapon = MAKE("visuals>esp>world>weapon", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
-		weapon->size_to_parent_w = true;
-		{
-			auto e = weapon;
-			ADD_INLINE("Enable", MAKE("visuals>esp>world>weapon>enable", checkbox, cfg.visuals.esp.world.weapon_enabled), MAKE("visuals>esp>world>weapon>color", color_picker, cfg.visuals.esp.world.weapon_color));
-			ADD("Weapon icons", "visuals>esp>world>weapon icons", checkbox, cfg.visuals.esp.world.weapon_icons);
-		}
-		e->add(weapon);
-
-		auto grenades = MAKE("visuals>esp>world>grenades", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
-		grenades->size_to_parent_w = true;
-		grenades->is_visible = false;
-		{
-			auto e = grenades;
-			ADD_INLINE("Enable", MAKE("visuals>esp>world>grenades>enable", checkbox, cfg.visuals.esp.world.grenade_enabled), MAKE("visuals>esp>world>grenades>color", color_picker, cfg.visuals.esp.world.grenade_color));
-			ADD("Grenade icons", "visuals>esp>world>grenades>icons", checkbox, cfg.visuals.esp.world.grenade_icons);
-		}
-		e->add(grenades);
-
-		auto c4 = MAKE("visuals>esp>world>c4", layout, vec2{}, vec2{content_width, 120.f}, s_vertical);
-		c4->size_to_parent_w = true;
-		c4->is_visible = false;
-		{
-			auto e = c4;
-			ADD_INLINE("Enable", MAKE("visuals>esp>world>c4>enable", checkbox, cfg.visuals.esp.world.c4_enabled), MAKE("visuals>esp>world>c4>color", color_picker, cfg.visuals.esp.world.c4_color));
-			ADD("C4 icons", "visuals>esp>world>c4>icons", checkbox, cfg.visuals.esp.world.c4_icons);
-			ADD_INLINE("Timer enable", MAKE("visuals>esp>world>c4>timer", checkbox, cfg.visuals.esp.world.c4_timer), MAKE("visuals>esp>world>c4>timer>color", color_picker, cfg.visuals.esp.world.c4_timer_color));
-		}
-		e->add(c4);
+		auto &world = cfg.visuals.esp.world;
+		const std::string key = category == 0 ? "visuals>esp>weapon>" : category == 1 ? "visuals>esp>grenades>" : "visuals>esp>c4>";
+		auto &enabled = category == 0 ? world.weapon_enabled : category == 1 ? world.grenade_enabled : world.c4_enabled;
+		auto &base_color = category == 0 ? world.weapon_color : category == 1 ? world.grenade_color : world.c4_color;
+		auto &icons = category == 0 ? world.weapon_icons : category == 1 ? world.grenade_icons : world.c4_icons;
+		auto &visual = category == 0 ? world.weapon_visuals : category == 1 ? world.grenade_visuals : world.c4_visuals;
+		const char *icon_label = category == 0 ? "Weapon icons" : category == 1 ? "Grenade icons" : "C4 icons";
+		auto add_inline = [&](const std::string &suffix, const char *label_text, const std::vector<std::shared_ptr<control>> &controls) {
+			e->add(make_inlined(hash(key + suffix + ">row"), [&](std::shared_ptr<layout> &row) {
+				row->add(std::make_shared<label>(control_id{hash(key + suffix + ">label")}, label_text));
+				for (const auto &c : controls) row->add(c);
+			}));
+		};
+		add_inline("enable", "Enable", {MAKE_RUNTIME(key + "enable", checkbox, enabled), MAKE_RUNTIME(key + "color", color_picker, base_color)});
+		e->add(make_control(icon_label, MAKE_RUNTIME(key + "icons", checkbox, icons)));
+		if (category == 2)
+			add_inline("timer", "Timer enable", {MAKE_RUNTIME(key + "timer", checkbox, world.c4_timer), MAKE_RUNTIME(key + "timer>color", color_picker, world.c4_timer_color)});
+		auto material = MAKE_RUNTIME(key + "chams", combo_box, visual.material, vec2{}, vec2{80.f, 20.f});
+		insert_chams(key + "chams>", material);
+		e->add(make_control("Chams", material));
+		auto glow = MAKE_RUNTIME(key + "glow", combo_box, visual.glow_mode, vec2{}, vec2{80.f, 20.f});
+		glow->add({MAKE_RUNTIME(key + "glow>off", selectable, "Off", 0), MAKE_RUNTIME(key + "glow>on", selectable, "On", 1)});
+		add_inline("glow", "Glow", {glow, MAKE_RUNTIME(key + "glow>color", color_picker, visual.glow_color)});
 	}
 
 	void visuals_models_general(std::shared_ptr<layout> &e)
@@ -271,18 +266,11 @@ namespace menu::group
 				"visuals>esp>player>glow>settings>enemy", checkbox, cfg.visuals.esp.glow .enemy), MAKE("visuals>esp>player>glow>settings>enemy>color", color_picker, cfg.
 				visuals.esp.glow. enemy_color)); ADD_INLINE("Local", MAKE("visuals>esp>player>glow>settings>local", checkbox, cfg.visuals.esp.glow .local), MAKE(
 				"visuals>esp>player>glow>settings>local>color", color_picker, cfg.visuals.esp.glow. local_color)); }));
-		{
-			const auto c = MAKE("visuals>chams>general>world glow", combo_box, cfg.visuals.world.glow);
-			c->allow_multiple = true;
-			c->add({MAKE("visuals>chams>general>world glow>weapons", selectable, "Weapons", cfg_t::world_weapons),
-				MAKE("visuals>chams>general>world glow>grenades", selectable, "Grenades", cfg_t::world_grenades),
-				MAKE("visuals>chams>general>world glow>c4", selectable, "C4", cfg_t::world_c4)});
-			ADD_INLINE("World glow", c, MAKE("visuals>chams>general>world glow>color", color_picker, cfg.visuals.world.glow_color));
-		}
+
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
-	__forceinline void insert_chams(const std::string &id, const std::shared_ptr<combo_box> &c)
+	void insert_chams(const std::string &id, const std::shared_ptr<combo_box> &c)
 	{
 		c->add(
 		{MAKE_RUNTIME(id + XOR("none"), selectable, XOR("None"), cfg_t::cham_none), MAKE_RUNTIME(id + XOR("normal"), selectable, XOR("Normal"), cfg_t::cham_normal),

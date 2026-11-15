@@ -3,6 +3,7 @@
 
 #include <gui/controls/control_container.h>
 #include <gui/values.h>
+#include <gui/marquee.h>
 
 namespace evo::gui
 {
@@ -48,6 +49,7 @@ namespace evo::gui
 		bool legacy_mode{};
 
 	private:
+		marquee scroll_text;
 		bits old_value{};
 		bool handling_hotkey{};
 	};

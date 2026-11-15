@@ -301,6 +301,7 @@
     <ClInclude Include="third_party\fatality\src\gui\debug.h" />
     <ClInclude Include="third_party\fatality\src\gui\gui.h" />
     <ClInclude Include="third_party\fatality\src\gui\helpers.h" />
+    <ClInclude Include="third_party\fatality\src\gui\marquee.h" />
     <ClInclude Include="third_party\fatality\src\gui\hotkeys.h" />
     <ClInclude Include="third_party\fatality\src\gui\input.h" />
     <ClInclude Include="third_party\fatality\src\gui\misc.h" />

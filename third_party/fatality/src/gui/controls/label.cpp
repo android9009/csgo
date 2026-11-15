@@ -1,5 +1,7 @@
 #include <gui/controls/label.h>
 #include <gui/controls/checkbox.h>
+#include <gui/controls/layout.h>
+#include <algorithm>
 
 GUI_NAMESPACE;
 
@@ -107,5 +109,25 @@ void label::render()
 	}
 
 	d->font = fnt;
-	d->add_text(pos_abs() + offset, text, col);
+	const auto start = pos_abs() + offset;
+	float right = start.x + fnt->get_text_size(text).x;
+	const auto parent_control = get_parent();
+	if (parent_control && parent_control->type == ctrl_layout && parent_control->as<layout>()->direction == s_inline)
+	{
+		const auto row = parent_control->as<layout>();
+		right = row->area_abs().br().x;
+		row->for_each_control([&](const std::shared_ptr<control> &other) {
+			if (other.get() != this && other->is_visible && other->area_abs().tl().x > start.x)
+				right = std::min(right, other->area_abs().tl().x - 4.f);
+		});
+	}
+	right = std::max(right, start.x);
+	const float width = right - start.x;
+	const auto clip = rect(start, {right, start.y + std::max(size.y, fnt->get_text_size(text).y)});
+	const float shift = scroll_text.update(clip.contains(input.cursor()) && is_mouse_on_me,
+		fnt->get_text_size(text).x - width, draw.frame_time);
+	const auto old_clip = d->g.clip_rect;
+	d->override_clip_rect(clip);
+	d->add_text(start - vec2{shift, 0.f}, text, col);
+	d->g.clip_rect = old_clip;
 }

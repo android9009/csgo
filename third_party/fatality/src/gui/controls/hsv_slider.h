@@ -15,6 +15,8 @@ namespace evo::gui
 			e_none,
 			e_sb,
 			e_hue,
+			e_mix_left,
+			e_mix_right,
 			e_alpha
 		};
 
@@ -43,7 +45,9 @@ namespace evo::gui
 
 	private:
 		ren::rect get_sb_rect();
-		ren::rect get_hue_rect();
+		ren::rect get_hue_rect(int index = 0);
+		ren::color mix_color(float x, float y) const;
+		ren::vec2 find_mix_position(const ren::color &c) const;
 		ren::rect get_alpha_rect();
 
 		char current_edit{};
@@ -51,6 +55,9 @@ namespace evo::gui
 		uint16_t fake_hue{};
 		float fake_saturation{};
 		float fake_brightness{};
+		bool mix_mode{};
+		uint16_t mix_left_hue{}, mix_right_hue{240};
+		ren::vec2 mix_positions[2]{};
 	};
 }
 

@@ -71,7 +71,10 @@ void combo_box::render()
 	}
 
 	d->font = draw.fonts[GUI_HASH("gui_main")];
-	d->add_text(r.tl() + vec2{5.f, 5.f}, text, colors.text);
+	const float text_width = d->font->get_text_size(text).x;
+	const float available = std::max(0.f, r.width() - size.y - 10.f);
+	const float shift = scroll_text.update(is_mouse_on_me, text_width - available, draw.frame_time);
+	d->add_text(r.tl() + vec2{5.f - shift, 5.f}, text, colors.text);
 	d->g.clip_rect = old_clip;
 
 	d->add_rect_filled_multicolor(

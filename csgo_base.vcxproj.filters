@@ -911,6 +911,9 @@
     <ClInclude Include="third_party\fatality\src\gui\helpers.h">
       <Filter>Menu (Fatality)\gui</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\src\gui\marquee.h">
+      <Filter>Menu (Fatality)\gui</Filter>
+    </ClInclude>
     <ClInclude Include="third_party\fatality\src\gui\hotkeys.h">
       <Filter>Menu (Fatality)\gui</Filter>
     </ClInclude>

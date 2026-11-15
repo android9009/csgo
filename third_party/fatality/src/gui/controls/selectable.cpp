@@ -62,7 +62,13 @@ void selectable::render()
 		off.x += 5.f;
 
 	l->font = is_highlighted || (is_selected && custom_color) ? draw.fonts[GUI_HASH("gui_bold")] : draw.fonts[GUI_HASH("gui_main")];
-	l->add_text(r.tl() + vec2(4.f, 4.f) + off, text, a->value.c);
+	const auto start = r.tl() + vec2(4.f, 4.f) + off;
+	const auto text_area = rect(start, {std::max(start.x, r.br().x - 4.f), r.br().y});
+	const auto shift = scroll_text.update(is_mouse_on_me, l->font->get_text_size(text).x - text_area.width(), draw.frame_time);
+	const auto old_clip = l->g.clip_rect;
+	l->override_clip_rect(text_area);
+	l->add_text(start - vec2{shift, 0.f}, text, a->value.c);
+	l->g.clip_rect = old_clip;
 }
 
 void selectable::select()

@@ -588,6 +588,10 @@ struct cfg_t {
 				setting<color> weapon_color{color::white()}, grenade_color{color::white()}, c4_color{color::white()}, c4_timer_color{color::white()};
 				setting<bitset> enabled;
 				setting<color> color{ color::white( ) };
+				struct category_visuals {
+					setting<bitset> material{1 << cham_none}, glow_mode{1};
+					setting<color> glow_color{color::white()};
+				} weapon_visuals, grenade_visuals, c4_visuals;
 			} world;
 
 			struct {

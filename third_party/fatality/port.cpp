@@ -453,7 +453,6 @@ namespace menu::group
 			mode->add({
 				MAKE_RUNTIME(id + "autostop>between", selectable, "Between shots", cfg_t::autostop_inbetween),
 				MAKE_RUNTIME(id + "autostop>early", selectable, "Early", cfg_t::autostop_predictive),
-				MAKE_RUNTIME(id + "autostop>lethal", selectable, "Only when lethal", cfg_t::autostop_lethal),
 				MAKE_RUNTIME(id + "autostop>duck", selectable, "Duck", cfg_t::autostop_duck),
 				MAKE_RUNTIME(id + "autostop>air", selectable, "In air", cfg_t::autostop_air),
 				MAKE_RUNTIME(id + "autostop>land", selectable, "On land", cfg_t::autostop_land)});
