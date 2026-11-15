@@ -15,7 +15,7 @@ void color_picker_popup::on_first_render_call()
 	// create hsv picker
 	const auto p = std::make_shared<hsv_slider>(control_id{GUI_HASH("cpp_hsv")}, picker->value, picker->allow_alpha);
 	if (picker->gradient_color && picker->gradient_style && picker->gradient_style->get().test(picker->gradient_bit))
-		p->secondary = picker->gradient_color;
+		p->enable_gradient(*picker->gradient_color);
 	p->pos = {8.f, 8.f};
 	p->callback = picker->callback;
 	p->universal_callbacks = picker->universal_callbacks;

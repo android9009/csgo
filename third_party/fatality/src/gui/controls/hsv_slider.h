@@ -15,7 +15,6 @@ namespace evo::gui
 			e_none,
 			e_sb,
 			e_hue,
-			e_mix_left,
 			e_mix_right,
 			e_alpha
 		};
@@ -35,6 +34,7 @@ namespace evo::gui
 		void on_mouse_up(char key) override;
 		void reset() override;
 		void render() override;
+		void enable_gradient(value_param<ren::color> &second);
 
 		value_param<ren::color> &active_value() { return secondary_selected && secondary ? *secondary : value; }
 		value_param<ren::color> &value;
@@ -55,7 +55,6 @@ namespace evo::gui
 		uint16_t fake_hue{};
 		float fake_saturation{};
 		float fake_brightness{};
-		bool mix_mode{};
 		uint16_t mix_left_hue{}, mix_right_hue{240};
 		ren::vec2 mix_positions[2]{};
 	};
