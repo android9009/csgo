@@ -145,6 +145,11 @@
     <ClCompile Include="third_party\fatality\deps\renderer\src\types\shader.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\deps\renderer\src\types\texture.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\port.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="third_party\fatality\extra\bridge.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_legit.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_misc.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_skins.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="third_party\fatality\extra\tab_visuals.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="hooks\client.cpp" />
     <ClCompile Include="hooks\detours.cpp" />
     <ClCompile Include="hooks\directx.cpp" />

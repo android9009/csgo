@@ -72,6 +72,7 @@
 #include <ren/types/animated_texture.h>
 #include "cfg.h"
 #include "port.hpp"
+#include "extra/menu.h"
 #include <chrono>
 #include <mutex>
 #include <exception>
@@ -884,6 +885,26 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                         e->add( MAKE_TAB( "skins", "SKINS" ) );
                     }, [ & ]( std::shared_ptr<layout>& e ) {
 						e->add( make_tab_area( GUI_HASH( "rage_container" ), true, s_none, menu::group::rage_tab ) );
+                        const auto group_sz = window_size_to_groupbox_size(848.f, 588.f);
+                        const auto half = group_sz * vec2{1.f, .5f} - vec2{0.f, 5.f};
+                        const auto quarter = half * vec2{1.f, .5f};
+                        e->add(make_tab_area(GUI_HASH("legit_container"), false, s_none, menu::group::legit_tab));
+                        e->add(make_tab_area(GUI_HASH("visuals_container"), false, s_none, menu::group::visuals_tab));
+                        e->add(make_tab_area(GUI_HASH("misc_container"), false, [&](const std::shared_ptr<layout>& e) {
+                            e->add(make_groupbox("misc>various", "VARIOUS", group_sz, menu::group::misc_various));
+                            e->add(make_groupbox("misc>movement", "MOVEMENT", group_sz, menu::group::misc_movement));
+                            e->add(make_groupbox("misc>buy bot", "BUY BOT", group_sz, menu::group::misc_buybot));
+                        }));
+                        e->add(make_tab_area(GUI_HASH("scripts_container"), false, [](const std::shared_ptr<layout>&) {}));
+                        e->add(make_tab_area(GUI_HASH("skins_container"), false, [&](const std::shared_ptr<layout>& e) {
+                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("skins_weapons_options"), group_sz, {
+                                make_groupbox("skins>weapons", "WEAPONS", half + vec2{0.f, 40.f}, menu::group::skins_weapons),
+                                make_groupbox("skins>options", "OPTIONS", half - vec2{0.f, 40.f}, menu::group::skins_options)}));
+                            e->add(make_groupbox("skins>paint kit", "PAINT KIT", group_sz, menu::group::skins_paintkit));
+                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("skins_inventory_options"), group_sz, {
+                                make_groupbox("skins>inventory", "INVENTORY", half + vec2{0.f, quarter.y} - vec2{0.f, 20.f}, menu::group::skins_inventory),
+                                make_groupbox("skins>agents", "AGENTS", quarter + vec2{0.f, 20.f}, menu::group::skins_agents)}));
+                        }));
                         }, [ & ]( std::shared_ptr<layout>& e) {
 							{
 								const auto s = MAKE( "tools>search", button, "", ctx->res.icons.search )->adjust_margin( { 0.f, 0.f, 8.f, 0.f } )->adjust_size( { 20.f, 20.f } )->as<button>( );
@@ -940,6 +961,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                     ctx->add( wnd );
 
                     main_wnd = wnd;
+                    menu::men.main_wnd = wnd;
                 }
 
                 draw.refresh( );
