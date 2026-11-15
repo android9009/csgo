@@ -14,8 +14,7 @@ void window::render()
 	auto &d = draw.layers[ctx->content_layer];
 	d->g.anti_alias = true;
 
-	// shadow, background
-	d->add_shadow_rect(r, 24.f, true, .1f);
+	// background
 	d->add_rect_filled_rounded(r, colors.bg_bottom, 3.f);
 
 	// header background
@@ -31,12 +30,7 @@ void window::render()
 	const auto fnt = draw.fonts[GUI_HASH("gui_title")];
 	vec2 text_pos{25.f, 19.f};
 
-	const auto off_x = cosf(glitch->value);
-	const auto off_y = sinf(glitch->value);
-
 	d->font = fnt;
-	d->add_text(r.tl() + text_pos + vec2{off_x, off_y}, XOR("FATALITY"), color(255, 0, 0));
-	d->add_text(r.tl() + text_pos + (vec2{off_x, off_y} * -1.f), XOR("FATALITY"), color(0, 0, 255));
 	d->add_text(r.tl() + text_pos, XOR("FATALITY"), colors.text);
 
 	// user information
@@ -63,7 +57,6 @@ void window::render()
 		r.tr() + vec2{-57.f, 26.f} - vec2{expiry_sz.x + 3.f, 0.f}, std::string(ctx->user.is_alpha ? XOR("alpha - ") : XOR("")) + XOR("expires:"), colors.text_dark,
 		text_params::with_h(align_right));
 
-	glitch->animate();
 	control_container::render();
 }
 

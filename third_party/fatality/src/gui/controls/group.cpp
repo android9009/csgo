@@ -13,7 +13,9 @@ void group::render()
 	const auto r = area_abs();
 
 	auto &d = draw.layers[ctx->content_layer];
+	d->g.anti_alias = true;
 	d->add_rect_filled_rounded(r, colors.bg_block, 4.f);
+	d->g.anti_alias = false;
 
 	for_each_control(
 		[](std::shared_ptr<control> &c)

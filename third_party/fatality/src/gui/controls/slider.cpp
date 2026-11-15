@@ -125,18 +125,11 @@ void slider<T>::render()
 
 	const auto old_clip = d->g.clip_rect;
 
-	d->font = m;
+	const bool show_infinity = infinite_at_min && *value == low;
+	d->font = show_infinity ? draw.fonts[GUI_HASH("gui_infinity")] : m;
 	const auto draw_value = [&](const color &c) {
-		if (infinite_at_min && *value == low)
-		{
-			const auto center = r.center() + vec2{0.f, 1.f};
-			d->g.anti_alias = true;
-			d->add_circle(center + vec2{-2.5f, 0.f}, 2.5f, c, 24, 1.f, 1.f);
-			d->add_circle(center + vec2{2.5f, 0.f}, 2.5f, c, 24, 1.f, 1.f);
-			d->g.anti_alias = false;
-		}
-		else
-			d->add_text(r.center() + vec2{0.f, 1.f}, value_s, c, text_params::with_vh(align_center, align_center));
+		d->add_text(r.center() + vec2{0.f, 1.f}, show_infinity ? "\xE2\x88\x9E" : value_s, c,
+			text_params::with_vh(align_center, align_center));
 	};
 	draw_value(colors.text_dark);
 	d->override_clip_rect(r.size(f));

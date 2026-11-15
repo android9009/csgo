@@ -567,6 +567,7 @@ struct cfg_t {
 		arr_setting<bitset> tracer_style{1};
 		arr_setting<color> tracer_colors{color::white()};
 		setting<float> texture_transparency, peek_assist_distance{-1.f};
+		setting<float> scoreboard_scale_x{100.f}, scoreboard_scale_y{100.f}, scoreboard_weapon_scale{100.f}, scoreboard_unmatched_scale{100.f};
 		setting<bitset> peek_assist_visual{1};
 		setting<bitset> dpi_scale{ 1 << dpi_automatic };
 		bool in_peek_assist( );

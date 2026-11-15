@@ -38,6 +38,7 @@ struct device_backup_t
 		device->GetRenderState(D3DRS_SHADEMODE, &rs_shade_mode);
 		device->GetRenderState(D3DRS_FOGENABLE, &rs_fog_enable);
 		device->GetRenderState(D3DRS_FILLMODE, &fm);
+		device->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &rs_multisample);
 		device->GetTextureStageState(0, D3DTSS_COLOROP, &tss_color_op);
 		device->GetTextureStageState(0, D3DTSS_COLORARG1, &tss_color_arg_1);
 		device->GetTextureStageState(0, D3DTSS_COLORARG2, &tss_color_arg_2);
@@ -77,6 +78,7 @@ struct device_backup_t
 		device->SetRenderState(D3DRS_SHADEMODE, rs_shade_mode);
 		device->SetRenderState(D3DRS_FOGENABLE, rs_fog_enable);
 		device->SetRenderState(D3DRS_FILLMODE, fm);
+		device->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, rs_multisample);
 		device->SetTextureStageState(0, D3DTSS_COLOROP, tss_color_op);
 		device->SetTextureStageState(0, D3DTSS_COLORARG1, tss_color_arg_1);
 		device->SetTextureStageState(0, D3DTSS_COLORARG2, tss_color_arg_2);
@@ -102,7 +104,7 @@ private:
 	DWORD rs_cull_mode{}, rs_lighting{}, rs_z_enable{}, rs_alpha_blend_enable{}, rs_alpha_test_enable{};
 	DWORD rs_blend_op{}, rs_src_blend{}, rs_dest_blend{}, rs_scissor_test_enable{}, rs_shade_mode{}, rs_fog_enable{};
 	DWORD tss_color_op{}, tss_color_arg_1{}, tss_color_arg_2{}, tss_alpha_op{}, tss_alpha_arg_1{}, tss_alpha_arg_2{};
-	DWORD tss_ttff{}, fm{};
+	DWORD tss_ttff{}, fm{}, rs_multisample{};
 	DWORD samp_min_filter{}, samp_mag_filter{}, samp_au{}, samp_av{};
 	DWORD fvf{};
 	IDirect3DVertexBuffer9 *vertex_buffer{};

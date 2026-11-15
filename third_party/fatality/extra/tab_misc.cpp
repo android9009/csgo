@@ -45,7 +45,13 @@ namespace menu::group
 	void misc_various(std::shared_ptr<layout> &e)
 	{
 		const auto scoreboard = make_multi("misc>main>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
-		ADD_INLINE("Scoreboard", scoreboard);
+		const auto scoreboard_settings = MAKE("misc>main>scoreboard>settings", settings, [](auto e) {
+			ADD("Horizontal scale", "misc>main>scoreboard>scale x", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_x, "%.0f%%");
+			ADD("Vertical scale", "misc>main>scoreboard>scale y", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_y, "%.0f%%");
+			ADD("Weapon scale", "misc>main>scoreboard>weapon scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_weapon_scale, "%.0f%%");
+			ADD("Unmatched scale", "misc>main>scoreboard>unmatched scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_unmatched_scale, "%.0f%%");
+		});
+		ADD_INLINE("Scoreboard", scoreboard, scoreboard_settings);
 		const auto logs = make_multi("misc>main>logs", cfg.misc.log_types, {"Hit logs", "Miss logs", "Buy logs", "Hurt logs", "Naded logs"});
 		const auto log_settings = MAKE("misc>main>logs>settings", settings, [](auto e) {
 			const std::vector<std::string> details{"Damage dealt", "Damage aimed", "Hitchance", "Shot", "Backtrack", "Safe point"};

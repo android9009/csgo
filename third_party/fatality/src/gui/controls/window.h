@@ -20,12 +20,6 @@ namespace evo::gui
 			sort = ++ctx->top_sort;
 			type = ctrl_window;
 
-			glitch = std::make_shared<anim_float>(0.f, 0.64f);
-			glitch->direct(6.28f);
-			glitch->on_finished = [&](const std::shared_ptr<anim<float>> &f)
-			{
-				f->direct(0.f, 6.28f);
-			};
 		}
 
 		void add(const std::shared_ptr<control> &c) override;
@@ -38,8 +32,6 @@ namespace evo::gui
 
 		bool allow_move{true};
 
-	private:
-		std::shared_ptr<ren::anim_float> glitch;
 	};
 }
 
