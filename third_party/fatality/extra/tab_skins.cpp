@@ -96,7 +96,7 @@ namespace menu::group
     }
     struct SkinChoice {
         std::string paint, custom_name;
-        int seed{};
+        int seed{}, stattrak_count{};
         float wear{};
         bool stattrak{}, souvenir{};
     };
@@ -420,10 +420,12 @@ namespace menu::group
             input.consume_wheel();
             if (editor_open && equipment_screen == Equipment::None) {
                 const auto local = input.cursor() - area_abs().tl();
-                if (local.y >= 155.f && local.y < 185.f)
+                if (local.y >= 190.f && local.y < 220.f)
                     pending.seed = std::clamp(pending.seed + (delta > 0.f ? 1 : -1), 0, 1000);
-                else if (local.y >= 200.f && local.y < 230.f)
+                else if (local.y >= 225.f && local.y < 255.f)
                     pending.wear = std::clamp(pending.wear + (delta > 0.f ? .01f : -.01f), 0.f, 1.f);
+                else if (pending.stattrak && local.y >= 260.f && local.y < 290.f)
+                    pending.stattrak_count = std::clamp(pending.stattrak_count + (delta > 0.f ? 1 : -1), 0, 99999);
                 return;
             }
             if (equipment_screen != Equipment::None) {
@@ -443,9 +445,15 @@ namespace menu::group
         void on_mouse_move(const vec2& cursor, const vec2&) override {
             if (!editor_open || !drag_slider) return;
             if (!input.is_mouse_down(m_left)) { drag_slider = 0; return; }
-            const float fraction = std::clamp((cursor.x - area_abs().tl().x - 165.f) / 290.f, 0.f, 1.f);
-            if (drag_slider == 1) pending.seed = static_cast<int>(fraction * 1000.f + .5f);
-            else pending.wear = fraction;
+            const float x = cursor.x - area_abs().tl().x;
+            if (drag_slider == 3) {
+                const float fraction = std::clamp((x - 200.f) / 255.f, 0.f, 1.f);
+                pending.stattrak_count = static_cast<int>(fraction * 99999.f + .5f);
+            } else {
+                const float fraction = std::clamp((x - 165.f) / 290.f, 0.f, 1.f);
+                if (drag_slider == 1) pending.seed = static_cast<int>(fraction * 1000.f + .5f);
+                else pending.wear = fraction;
+            }
         }
         void on_mouse_up(char key) override { if (key == m_left) drag_slider = 0; }
         void on_text_input(const std::vector<uint32_t>& text) override {
@@ -470,19 +478,28 @@ namespace menu::group
         void stop_name_input() { editing_name = false; is_taking_text = false; is_taking_keys = false; }
         void editor_click(const vec2& p) {
             if (p.y >= 0.f && p.y < 30.f && p.x >= size.x - 35.f) { editor_open = false; stop_name_input(); return; }
-            if (p.y >= 315.f && p.y < 346.f && p.x >= 165.f && p.x < 460.f) {
+            if (p.y >= 330.f && p.y < 361.f && p.x >= 165.f && p.x < 460.f) {
                 editing_name = true; is_taking_text = true; is_taking_keys = true; return;
             }
             stop_name_input();
-            if (p.x >= 165.f && p.x <= 455.f && p.y >= 155.f && p.y < 185.f) {
+            if (p.x >= 165.f && p.x <= 455.f && p.y >= 190.f && p.y < 220.f) {
                 drag_slider = 1; pending.seed = static_cast<int>(std::clamp((p.x - 165.f) / 290.f, 0.f, 1.f) * 1000.f + .5f); return;
             }
-            if (p.x >= 165.f && p.x <= 455.f && p.y >= 200.f && p.y < 230.f) {
+            if (p.x >= 165.f && p.x <= 455.f && p.y >= 225.f && p.y < 255.f) {
                 drag_slider = 2; pending.wear = std::clamp((p.x - 165.f) / 290.f, 0.f, 1.f); return;
             }
-            if (p.y >= 245.f && p.y < 275.f) { pending.stattrak = !pending.stattrak; if (pending.stattrak) pending.souvenir = false; return; }
-            if (p.y >= 280.f && p.y < 310.f) { pending.souvenir = !pending.souvenir; if (pending.souvenir) pending.stattrak = false; return; }
-            if (p.y >= 375.f && p.y < 410.f) {
+            if (p.y >= 260.f && p.y < 290.f) {
+                if (p.x >= 200.f && p.x <= 455.f && pending.stattrak) {
+                    drag_slider = 3;
+                    pending.stattrak_count = static_cast<int>(std::clamp((p.x - 200.f) / 255.f, 0.f, 1.f) * 99999.f + .5f);
+                } else if (p.x < 190.f) {
+                    pending.stattrak = !pending.stattrak;
+                    if (pending.stattrak) pending.souvenir = false;
+                }
+                return;
+            }
+            if (p.y >= 295.f && p.y < 325.f) { pending.souvenir = !pending.souvenir; if (pending.souvenir) pending.stattrak = false; return; }
+            if (p.y >= 390.f && p.y < 425.f) {
                 if (p.x >= 165.f && p.x < 300.f) { editor_open = false; return; }
                 if (p.x >= 315.f && p.x < 460.f) {
                     selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
@@ -497,13 +514,13 @@ namespace menu::group
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
-            const rect icon_box{r.tl() + vec2{8.f, 46.f}, r.tl() + vec2{157.f, 135.f}};
+            const rect icon_box{r.tl() + vec2{8.f, 38.f}, r.tl() + vec2{460.f, 166.f}};
             layer->add_rect_filled_rounded(icon_box, colors.bg_bottom, 2.f);
             bool budget = true;
             if (auto icon = get_weapon_icon(selected_weapon.internal, pending.paint, budget); icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
-                    const float scale = (std::min)(135.f / native.x, 70.f / native.y);
+                    const float scale = (std::min)(440.f / native.x, 115.f / native.y);
                     const auto sz = native * scale;
                     layer->g.texture = icon->obj;
                     layer->add_rect_filled(rect{icon_box.center() - sz * .5f, icon_box.center() + sz * .5f}, color::white());
@@ -511,8 +528,8 @@ namespace menu::group
                 }
             }
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            layer->add_text(r.tl() + vec2{175.f, 72.f}, pending.paint, colors.text);
-            layer->add_text(r.tl() + vec2{175.f, 94.f}, "Menu preview only", colors.text_dark);
+            layer->add_text(r.tl() + vec2{10.f, 179.f}, pending.paint, colors.text, text_params::with_v(align_center));
+            layer->add_text(r.tl() + vec2{455.f, 179.f}, "2D preview", colors.text_dark, text_params::with_vh(align_center, align_right));
             auto slider = [&](const char* label, float y, float value, const char* display) {
                 layer->add_text(r.tl() + vec2{10.f, y + 15.f}, label, colors.text, text_params::with_v(align_center));
                 const auto start = r.tl() + vec2{165.f, y + 13.f};
@@ -523,21 +540,28 @@ namespace menu::group
             char seed[24], wear[24];
             std::snprintf(seed, sizeof(seed), "%d", pending.seed);
             std::snprintf(wear, sizeof(wear), "%.3f", pending.wear);
-            slider("Seed", 155.f, static_cast<float>(pending.seed) / 1000.f, seed);
-            slider("Wear", 200.f, pending.wear, wear);
+            slider("Seed", 190.f, static_cast<float>(pending.seed) / 1000.f, seed);
+            slider("Wear", 225.f, pending.wear, wear);
             auto toggle = [&](const char* label, float y, bool checked) {
                 layer->add_text(r.tl() + vec2{10.f, y + 15.f}, label, colors.text, text_params::with_v(align_center));
                 const rect box{r.tl() + vec2{165.f, y + 6.f}, r.tl() + vec2{183.f, y + 24.f}};
                 layer->add_rect_filled_rounded(box, checked ? colors.accent : colors.bg_bottom, 2.f);
             };
-            toggle("StatTrak", 245.f, pending.stattrak);
-            toggle("Souvenir", 280.f, pending.souvenir);
-            layer->add_text(r.tl() + vec2{10.f, 330.f}, "Custom name", colors.text, text_params::with_v(align_center));
-            const rect name{r.tl() + vec2{165.f, 315.f}, r.tl() + vec2{460.f, 346.f}};
+            toggle("StatTrak", 260.f, pending.stattrak);
+            if (pending.stattrak) {
+                const auto start = r.tl() + vec2{200.f, 273.f};
+                layer->add_rect_filled(rect{start, start + vec2{255.f, 5.f}}, colors.bg_bottom);
+                layer->add_rect_filled(rect{start, start + vec2{255.f * static_cast<float>(pending.stattrak_count) / 99999.f, 5.f}}, colors.accent);
+                char kills[24]; std::snprintf(kills, sizeof(kills), "%d", pending.stattrak_count);
+                layer->add_text(r.tl() + vec2{455.f, 263.f}, kills, colors.text_dark, text_params::with_vh(align_center, align_right));
+            }
+            toggle("Souvenir", 295.f, pending.souvenir);
+            layer->add_text(r.tl() + vec2{10.f, 346.f}, "Name Tag", colors.text, text_params::with_v(align_center));
+            const rect name{r.tl() + vec2{165.f, 330.f}, r.tl() + vec2{460.f, 361.f}};
             layer->add_rect_filled_rounded(name, colors.bg_bottom, 2.f);
             layer->add_text(name.tl() + vec2{7.f, 16.f}, pending.custom_name.empty() ? (editing_name ? "|" : "Click to enter name") : pending.custom_name + (editing_name ? "|" : ""), pending.custom_name.empty() ? colors.text_dark : colors.text, text_params::with_v(align_center));
-            const rect cancel{r.tl() + vec2{165.f, 375.f}, r.tl() + vec2{300.f, 410.f}};
-            const rect apply{r.tl() + vec2{315.f, 375.f}, r.tl() + vec2{460.f, 410.f}};
+            const rect cancel{r.tl() + vec2{165.f, 390.f}, r.tl() + vec2{300.f, 425.f}};
+            const rect apply{r.tl() + vec2{315.f, 390.f}, r.tl() + vec2{460.f, 425.f}};
             layer->add_rect_filled_rounded(cancel, colors.bg_bottom, 2.f);
             layer->add_rect_filled_rounded(apply, colors.bg_block_light, 2.f);
             layer->add_text(cancel.center(), "BACK", colors.text, text_params::with_vh(align_center, align_center));
