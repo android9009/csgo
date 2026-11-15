@@ -70,6 +70,7 @@ namespace menu
 		void lua_stub(std::shared_ptr<layout> &e);
 
 		std::shared_ptr<control> make_model_preview(const char* id, const evo::ren::vec2 &size);
+		void skins_weapon_grid(std::shared_ptr<layout> &e);
 		void skins_weapons(std::shared_ptr<layout> &e);
 		void skins_options(std::shared_ptr<layout> &e);
 		void skins_paintkit(std::shared_ptr<layout> &e);

@@ -3,6 +3,12 @@
 #include "../cfg.h"
 #include "gui/controls/combo_box_agent.h"
 #include "macros.h"
+#include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../sdk/skin_icon_file.hpp"
+#include <algorithm>
+#include <array>
+#include <map>
+#include <vector>
 
 using namespace evo::gui;
 using namespace evo::gui::helpers;
@@ -10,6 +16,123 @@ using namespace evo::ren;
 
 namespace menu::group
 {
+
+    namespace {
+    struct WeaponIcon { const char* label; const char* internal; };
+    using Column = std::vector<WeaponIcon>;
+    // The teams have different exclusive equipment; shared weapons deliberately
+    // appear in both loadouts. This is the complete weapon catalogue, not the
+    // five-slot CS2 loadout shown in the reference image.
+    const std::array<Column, 3> ct_weapons{{
+        {{"USP-S", "weapon_usp_silencer"}, {"P2000", "weapon_hkp2000"}, {"Dual Berettas", "weapon_elite"}, {"P250", "weapon_p250"}, {"Five-SeveN", "weapon_fiveseven"}, {"CZ75-Auto", "weapon_cz75a"}, {"Desert Eagle", "weapon_deagle"}, {"R8 Revolver", "weapon_revolver"}},
+        {{"MP9", "weapon_mp9"}, {"MP7", "weapon_mp7"}, {"MP5-SD", "weapon_mp5sd"}, {"UMP-45", "weapon_ump45"}, {"P90", "weapon_p90"}, {"PP-Bizon", "weapon_bizon"}, {"Nova", "weapon_nova"}, {"XM1014", "weapon_xm1014"}, {"MAG-7", "weapon_mag7"}, {"M249", "weapon_m249"}, {"Negev", "weapon_negev"}},
+        {{"FAMAS", "weapon_famas"}, {"M4A4", "weapon_m4a1"}, {"M4A1-S", "weapon_m4a1_silencer"}, {"AUG", "weapon_aug"}, {"SSG 08", "weapon_ssg08"}, {"AWP", "weapon_awp"}, {"SCAR-20", "weapon_scar20"}}
+    }};
+    const std::array<Column, 3> t_weapons{{
+        {{"Glock-18", "weapon_glock"}, {"Dual Berettas", "weapon_elite"}, {"P250", "weapon_p250"}, {"Tec-9", "weapon_tec9"}, {"CZ75-Auto", "weapon_cz75a"}, {"Desert Eagle", "weapon_deagle"}, {"R8 Revolver", "weapon_revolver"}},
+        {{"MAC-10", "weapon_mac10"}, {"MP7", "weapon_mp7"}, {"MP5-SD", "weapon_mp5sd"}, {"UMP-45", "weapon_ump45"}, {"P90", "weapon_p90"}, {"PP-Bizon", "weapon_bizon"}, {"Nova", "weapon_nova"}, {"XM1014", "weapon_xm1014"}, {"Sawed-Off", "weapon_sawedoff"}, {"M249", "weapon_m249"}, {"Negev", "weapon_negev"}},
+        {{"Galil AR", "weapon_galilar"}, {"AK-47", "weapon_ak47"}, {"SG 553", "weapon_sg556"}, {"SSG 08", "weapon_ssg08"}, {"AWP", "weapon_awp"}, {"G3SG1", "weapon_g3sg1"}}
+    }};
+    struct CachedIcon {
+        std::vector<std::uint8_t> bytes; // texture keeps a non-owning pointer to this data
+        std::shared_ptr<texture> image;
+        bool attempted{};
+    };
+    // Entries and their PNG bytes stay alive for device Reset/recreation.
+    std::map<std::string, CachedIcon> icons;
+    std::shared_ptr<texture> get_weapon_icon(const char* name, bool& load_budget) {
+        auto& item = icons[name];
+        if (!item.attempted && load_budget && Interfaces::BaseFileSystem) {
+            load_budget = false; // do not decode every icon in one frame
+            item.attempted = true;
+            item.bytes = SkinIconFile::ReadIcon(Interfaces::BaseFileSystem, name);
+            if (!item.bytes.empty()) {
+                item.image = std::make_shared<texture>(item.bytes.data(), static_cast<uint32_t>(item.bytes.size()));
+                item.image->create();
+                // draw.create_objects/destroy_objects handle D3D9 Reset.
+                draw.textures[hash(std::string("skins>weapon_icon>") + name)] = item.image;
+            }
+        }
+        return item.image;
+    }
+
+    class weapon_grid final : public control {
+    public:
+        weapon_grid(control_id id, const vec2& size) : control(id, {}, size) {}
+        void render() override {
+            control::render();
+            if (!is_visible) return;
+            auto& layer = draw.layers[ctx->content_layer];
+            const auto r = area_abs();
+            const auto ct = rect(r.tl(), r.tl() + vec2{72.f, 25.f});
+            const auto t = rect(r.tl() + vec2{78.f, 0.f}, r.tl() + vec2{150.f, 25.f});
+            layer->add_rect_filled_rounded(ct, team_ct ? colors.bg_block_light : colors.bg_bottom, 2.f);
+            layer->add_rect_filled_rounded(t, !team_ct ? colors.bg_block_light : colors.bg_bottom, 2.f);
+            layer->font = draw.fonts[GUI_HASH("gui_main")];
+            layer->add_text(ct.center(), "CT", team_ct ? colors.accent : colors.text_dark, text_params::with_vh(align_center, align_center));
+            layer->add_text(t.center(), "T", !team_ct ? colors.accent : colors.text_dark, text_params::with_vh(align_center, align_center));
+            const auto& columns = team_ct ? ct_weapons : t_weapons;
+            const float gap = 6.f, cell_width = (r.width() - 2.f * gap) / 3.f;
+            static constexpr float header_y = 34.f, list_y = 55.f, cell_height = 78.f;
+            const char* headings[] = {"Pistols", "Mid-Tier", "Rifles"};
+            for (size_t c = 0; c < columns.size(); ++c) {
+                const float x = r.mins.x + static_cast<float>(c) * (cell_width + gap);
+                layer->add_text(vec2{x + cell_width * .5f, r.mins.y + header_y}, headings[c], colors.text, text_params::with_vh(align_center, align_center));
+            }
+            const rect viewport{r.mins + vec2{0.f, list_y}, r.maxs};
+            const auto old_clip = layer->g.clip_rect;
+            layer->override_clip_rect(viewport);
+            bool load_budget = true;
+            for (size_t c = 0; c < columns.size(); ++c) {
+                const float x = r.mins.x + static_cast<float>(c) * (cell_width + gap);
+                for (size_t i = 0; i < columns[c].size(); ++i) {
+                    const float y = r.mins.y + list_y + static_cast<float>(i) * cell_height - scroll;
+                    const rect cell{vec2{x, y}, vec2{x + cell_width, y + cell_height - gap}};
+                    if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
+                    const auto& weapon = columns[c][i];
+                    layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
+                    if (auto icon = get_weapon_icon(weapon.internal, load_budget); icon && icon->obj) {
+                        const auto native = icon->get_size();
+                        if (native.x > 0.f && native.y > 0.f) {
+                            const float scale = (std::min)((cell_width - 10.f) / native.x, 48.f / native.y);
+                            const vec2 image_size = native * scale;
+                            const vec2 center{x + cell_width * .5f, y + 27.f};
+                            layer->g.texture = icon->obj;
+                            layer->add_rect_filled(rect{center - image_size * .5f, center + image_size * .5f}, color::white());
+                            layer->g.texture = {};
+                        }
+                    }
+                    layer->font = draw.fonts[GUI_HASH("gui_main")];
+                    layer->add_text(vec2{x + cell_width * .5f, y + 57.f}, weapon.label, colors.text, text_params::with_vh(align_center, align_center));
+                    layer->add_rect_filled(rect{vec2{x + 3.f, y + cell_height - 9.f}, vec2{x + cell_width - 3.f, y + cell_height - 7.f}}, colors.outline);
+                }
+            }
+            layer->g.clip_rect = old_clip;
+        }
+        void on_mouse_down(char key) override {
+            if (key != m_left) return;
+            const auto local = input.cursor() - area_abs().tl();
+            if (local.y >= 0.f && local.y < 25.f) {
+                if (local.x >= 0.f && local.x < 72.f) { team_ct = true; scroll = 0.f; }
+                else if (local.x >= 78.f && local.x < 150.f) { team_ct = false; scroll = 0.f; }
+            }
+        }
+        void on_mouse_wheel(float delta) override {
+            input.consume_wheel();
+            const float viewport_height = (std::max)(0.f, size.y - 55.f);
+            const float max_scroll = (std::max)(0.f, 11.f * 78.f - viewport_height);
+            scroll = std::clamp(scroll - delta * 55.f, 0.f, max_scroll);
+        }
+    private:
+        bool team_ct{true};
+        float scroll{};
+    };
+    }
+
+    void skins_weapon_grid(std::shared_ptr<layout>& e) {
+        e->add(MAKE("skins>weapon_grid", weapon_grid, vec2{490.f, 440.f}));
+    }
+
 	void skins_weapons(std::shared_ptr<layout> &e)
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;

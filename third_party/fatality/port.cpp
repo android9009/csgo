@@ -761,10 +761,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                                     e->add(menu::group::make_model_preview("skins>preview>viewport", vec2{220.f, 280.f}));
                                 }),
                                 make_groupbox("skins>agents", "AGENTS", vec2{group_sz.x, group_sz.y - 328.f}, menu::group::skins_agents)}));
-                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("skins_weapons_options"), group_sz, {
-                                make_groupbox("skins>weapons", "WEAPONS", half + vec2{0.f, 40.f}, menu::group::skins_weapons),
-                                make_groupbox("skins>options", "OPTIONS", half - vec2{0.f, 40.f}, menu::group::skins_options)}));
-                            e->add(make_groupbox("skins>paint kit", "PAINT KIT", group_sz, menu::group::skins_paintkit));
+                            e->add(make_groupbox("skins>weapon grid", "WEAPONS", vec2{group_sz.x * 2.f + 16.f, group_sz.y}, menu::group::skins_weapon_grid));
                         }));
                         }, [ & ]( std::shared_ptr<layout>& e) {
 							{
