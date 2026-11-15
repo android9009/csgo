@@ -232,7 +232,7 @@ namespace menu::group
 		auto &world = cfg.visuals.esp.world;
 		const std::string key = category == 0 ? "visuals>esp>weapon>" : category == 1 ? "visuals>esp>grenades>" : "visuals>esp>c4>";
 		auto &enabled = category == 0 ? world.weapon_enabled : category == 1 ? world.grenade_enabled : world.c4_enabled;
-		auto &base_color = category == 0 ? world.weapon_color : category == 1 ? world.grenade_color : world.c4_color;
+		auto &icon_color = category == 0 ? world.weapon_color : world.grenade_color;
 		auto &icons = category == 0 ? world.weapon_icons : world.grenade_icons;
 		auto &visual = category == 0 ? world.weapon_visuals : category == 1 ? world.grenade_visuals : world.c4_visuals;
 		const char *icon_label = category == 0 ? "Weapon icons" : category == 1 ? "Grenade icons" : "C4 icons";
@@ -242,9 +242,9 @@ namespace menu::group
 				for (const auto &c : controls) row->add(c);
 			}));
 		};
-		add_inline("enable", "Enable", {MAKE_RUNTIME(key + "enable", checkbox, enabled), MAKE_RUNTIME(key + "color", color_picker, base_color)});
+		add_inline("enable", "Enable", {MAKE_RUNTIME(key + "enable", checkbox, enabled)});
 		if (category != 2)
-			e->add(make_control(icon_label, MAKE_RUNTIME(key + "icons", checkbox, icons)));
+			add_inline("icons", icon_label, {MAKE_RUNTIME(key + "icons", checkbox, icons), MAKE_RUNTIME(key + "icons>color", color_picker, icon_color)});
 		else {
 			auto options = MAKE_RUNTIME(key + "options", combo_box, world.c4_options, vec2{}, vec2{80.f, 20.f});
 			options->allow_multiple = true;
@@ -259,7 +259,12 @@ namespace menu::group
 		e->add(make_control("Chams", material));
 		auto glow = MAKE_RUNTIME(key + "glow", combo_box, visual.glow_mode, vec2{}, vec2{80.f, 20.f});
 		glow->add({MAKE_RUNTIME(key + "glow>off", selectable, "Off", 0), MAKE_RUNTIME(key + "glow>on", selectable, "On", 1)});
-		add_inline("glow", "Glow", {glow, MAKE_RUNTIME(key + "glow>color", color_picker, visual.glow_color)});
+		const auto glow_color = MAKE_RUNTIME(key + "glow>color", color_picker, visual.glow_color);
+		glow_color->is_visible = visual.glow_mode->test(1);
+		glow->callback = [weak = std::weak_ptr<color_picker>(glow_color)](bits &mode) {
+			if (const auto picker = weak.lock()) picker->set_visible(mode.test(1));
+		};
+		add_inline("glow", "Glow", {glow, glow_color});
 	}
 
 	void visuals_models_general(std::shared_ptr<layout> &e)
