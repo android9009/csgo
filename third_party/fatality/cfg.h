@@ -558,6 +558,7 @@ struct cfg_t {
 		setting<color> grenade_warning_color{color::white()};
 		setting<color> hitmarker_world_color{color::white()}, hitmarker_screen_color{color::white()}, hitmarker_kibit_color{color::white()};
 		setting<bitset> removals, tracer_targets;
+		arr_setting<float> hitmarker_duration{1.f};
 		arr_setting<bitset> tracer_style{1};
 		arr_setting<color> tracer_colors{color::white()};
 		setting<float> texture_transparency;
@@ -566,7 +567,7 @@ struct cfg_t {
 	} misc;
 
 	struct visuals_t {
-		setting<bool> disable_postprocessing, dark, out_of_fov, autowall_crosshair, force_spread;
+		setting<bool> disable_postprocessing, dark, out_of_fov, autowall_crosshair;
 		setting<float> darkness, prop_transparency, out_of_fov_dst{ 50.f }, out_of_fov_size{ 24.f }, ragdoll_thrust{ 100.f };
 		setting<color> skybox_color{ color::white( ) }, dark_color{ color::white( ) }, prop_color{ color::white( ) }, spread_circle_color1{ color::white( ) }, spread_circle_color2
 		{ color::white( ) }, out_of_fov_col{ color::white( ) };

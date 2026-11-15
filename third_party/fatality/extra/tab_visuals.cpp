@@ -633,22 +633,39 @@ namespace menu::group
 
 		{
 			const auto c = MAKE("visuals>misc>local>remove scope", combo_box, cfg.misc.noscope);
-			c->add({MAKE("visuals>misc>local>remove scope>none", selectable, "None", cfg_t::noscope_none),
-				MAKE("visuals>misc>local>remove scope>static", selectable, "Static", cfg_t::noscope_static),
-				MAKE("visuals>misc>local>remove scope>dynamic", selectable, "Dynamic", cfg_t::noscope_dynamic)});
-			ADD_INLINE("Remove scope", c, MAKE("visuals>misc>local>remove scope>settings", settings, [](auto e) {
-				ADD("Line color", "visuals>misc>local>remove scope>settings>line color", color_picker, cfg.misc.scope_line_color);
-				ADD("Line size", "visuals>misc>local>remove scope>settings>line size", slider<float>, 5.f, 100.f, cfg.misc.scope_line_size, "%.0f%%");
-				ADD("Invert", "visuals>misc>local>remove scope>settings>invert", checkbox, cfg.misc.scope_invert);
-			}));
+			c->add(
+			{MAKE("visuals>misc>local>remove scope>none", selectable, XOR("None"), cfg_t::noscope_none), MAKE(
+				 "visuals>misc>local>remove scope>static", selectable, XOR("Static"), cfg_t::noscope_static),
+			 MAKE("visuals>misc>local>remove scope>dynamic", selectable, XOR("Dynamic"), cfg_t::noscope_dynamic),
+			 MAKE("visuals>misc>local>remove scope>gradient static", selectable, XOR("Gradient static"), cfg_t::noscope_gradient_static), MAKE(
+				 "visuals>misc>local>remove scope>gradient dynamic", selectable, XOR("Gradient dynamic"), cfg_t::noscope_gradient_dynamic),});
+
+			c->callback = [](bits &v)
+			{
+				FIND_SAFE(rss, "visuals>misc>local>remove scope>settings");
+				rss->set_visible(v.test(cfg_t::noscope_gradient_static) || v.test(cfg_t::noscope_gradient_dynamic));
+			};
+
+			ADD_INLINE(
+				"Remove scope", c,
+				MAKE("visuals>misc>local>remove scope>settings", settings, [](auto e) { ADD("Line color", "visuals>misc>local>remove scope>settings>line color",
+					color_picker, cfg. misc.scope_line_color); ADD("Line size", "visuals>misc>local>remove scope>settings>line size", slider<float>, 5.f, 100.f, cfg.misc.
+					scope_line_size, XOR("%.0f%%")); ADD("Invert", "visuals>misc>local>remove scope>settings>invert", checkbox, cfg.misc. scope_invert); })->
+				make_invisible());
 		}
+
 		ADD("Penetration crosshair", "visuals>misc>local>penetration crosshair", checkbox, cfg.visuals.autowall_crosshair);
 		ADD("Force crosshair", "visuals>misc>local>force crosshair", checkbox, cfg.misc.force_crosshair);
+
 		{
-			const auto spread = MAKE("visuals>misc>local>spread", checkbox, cfg.visuals.force_spread);
-			const auto picker = MAKE("visuals>misc>local>spread>color", color_picker, cfg.visuals.spread_circle_color1);
-			picker->gradient_color = &cfg.visuals.spread_circle_color2;
-			ADD_INLINE("Spread", spread, picker);
+			const auto c = MAKE("visuals>misc>local>spread", combo_box, cfg.visuals.spread_circle_type);
+			c->add(
+			{MAKE("visuals>misc>local>spread>none", selectable, XOR("None"), cfg_t::spread_circle_off), MAKE(
+				 "visuals>misc>local>spread>gradient", selectable, XOR("Gradient"), cfg_t::spread_circle_gradient),});
+
+			ADD_INLINE(
+				"Spread", c, MAKE("visuals>misc>local>spread>color 1", color_picker, cfg.visuals.spread_circle_color1),
+				MAKE("visuals>misc>local>spread>color 2", color_picker, cfg.visuals.spread_circle_color2));
 		}
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
@@ -660,12 +677,6 @@ namespace menu::group
 		{
 			const auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets);
 			tracer->allow_multiple = true;
-			tracer->callback = [](bits &v) {
-				for (int i = 0; i < 3; ++i) {
-					const auto id = hash(std::string("visuals>misc>other>tracers>settings>") + std::to_string(i) + ">row");
-					if (const auto row = ctx->find(id)) row->set_visible(v.test(i));
-				}
-			};
 			const auto local = MAKE("visuals>misc>other>tracers>local", selectable, "Local", 0);
 			const auto enemy = MAKE("visuals>misc>other>tracers>enemy", selectable, "Enemy", 1);
 			const auto team = MAKE("visuals>misc>other>tracers>team", selectable, "Teammates", 2);
@@ -687,6 +698,17 @@ namespace menu::group
 					e->add(row);
 				}
 			});
+			gear->is_visible = cfg.misc.tracer_targets->test(0) || cfg.misc.tracer_targets->test(1) || cfg.misc.tracer_targets->test(2);
+			tracer->callback = [weak = std::weak_ptr<settings>(gear)](bits &v) {
+				if (const auto g = weak.lock()) {
+					const bool show = v.test(0) || v.test(1) || v.test(2);
+					if (g->is_visible != show) g->set_visible(show);
+				}
+				for (int i = 0; i < 3; ++i) {
+					const auto id = hash(std::string("visuals>misc>other>tracers>settings>") + std::to_string(i) + ">row");
+					if (const auto row = ctx->find(id); row && row->is_visible != v.test(i)) row->set_visible(v.test(i));
+				}
+			};
 			ADD_INLINE("Bullet tracers", tracer, gear);
 		}
 		{
@@ -699,7 +721,28 @@ namespace menu::group
 			screen->swatch = MAKE("visuals>misc>other>hitmarker>screen>color", color_picker, cfg.misc.hitmarker_screen_color);
 			kibit->swatch = MAKE("visuals>misc>other>hitmarker>kibit>color", color_picker, cfg.misc.hitmarker_kibit_color);
 			c->add({world, screen, kibit});
-			ADD_INLINE("Hitmarker", c);
+			const auto gear = MAKE("visuals>misc>other>hitmarker>settings", settings, [](auto e) {
+				const std::array<const char *, 3> names{"World", "Screen", "Kibit"};
+				const std::array<int, 3> indices{cfg_t::hitmarker_world, cfg_t::hitmarker_cross, cfg_t::hitmarker_kibit};
+				for (int i = 0; i < 3; ++i) {
+					const auto key = std::string("visuals>misc>other>hitmarker>settings>") + std::to_string(indices[i]);
+					const auto row = make_control(names[i], MAKE_RUNTIME(key + ">duration", slider<float>, 0.f, 10.f, cfg.misc.hitmarker_duration[indices[i]], "%.1f s", .1f));
+					row->is_visible = cfg.misc.hitmarker->test(indices[i]);
+					e->add(row);
+				}
+			});
+			gear->is_visible = cfg.misc.hitmarker->test(cfg_t::hitmarker_world) || cfg.misc.hitmarker->test(cfg_t::hitmarker_cross) || cfg.misc.hitmarker->test(cfg_t::hitmarker_kibit);
+			c->callback = [weak = std::weak_ptr<settings>(gear)](bits &v) {
+				const std::array<int, 3> indices{cfg_t::hitmarker_world, cfg_t::hitmarker_cross, cfg_t::hitmarker_kibit};
+				const bool show = v.test(indices[0]) || v.test(indices[1]) || v.test(indices[2]);
+				if (const auto g = weak.lock(); g && g->is_visible != show) g->set_visible(show);
+				for (const auto i : indices) {
+					const auto id = hash(std::string("visuals>misc>other>hitmarker>settings>") + std::to_string(i) + ">duration");
+					if (const auto slider = ctx->find(id))
+						if (const auto row = slider->get_parent(); row && row->is_visible != v.test(i)) row->set_visible(v.test(i));
+				}
+			};
+			ADD_INLINE("Hitmarker", c, gear);
 		}
 		ADD_INLINE("Show impacts", MAKE("visuals>misc>other>impacts", checkbox, cfg.misc.impacts),
 			MAKE("visuals>misc>other>impacts>color1", color_picker, cfg.misc.impacts_color), MAKE("visuals>misc>other>impacts>color2", color_picker, cfg.misc.impacts_color2));
@@ -716,7 +759,6 @@ namespace menu::group
 			const std::array<const char *, 10> names{"Flashbang Effect", "Smoke Rendering", "Particle", "Post Processing", "Water Effects", "Blood Effects", "Decals", "Ragdolls", "Visual punch", "Shadows"};
 			for (int i = 0; i < static_cast<int>(names.size()); ++i) {
 				const auto item = MAKE_RUNTIME(std::string("visuals>misc>other>removals>") + std::to_string(i), selectable, names[i], i);
-				item->show_checkbox = true;
 				c->add(item);
 			}
 			ADD_INLINE("Removals", c);
