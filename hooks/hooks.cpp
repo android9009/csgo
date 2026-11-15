@@ -12,6 +12,7 @@ static VMT_Hook panel_hook;
 static VMT_Hook device_hook;
 static VMT_Hook device_d3d9_hook;
 static VMT_Hook device_ex_hook;
+static VMT_Hook reset_hook, reset_d3d9_hook, reset_ex_hook;
 static VMT_Hook client_hook;
 static VMT_Hook view_render_hook;
 static VMT_Hook model_render_hook;
@@ -36,6 +37,14 @@ EndSceneFn GetEndSceneOriginalFor(void* device) {
     if (device_hook.is_hooked() && vtable == direct_vtable) return device_hook.get_original<EndSceneFn>();
     if (device_d3d9_hook.is_hooked() && vtable == d3d9_vtable) return device_d3d9_hook.get_original<EndSceneFn>();
     if (device_ex_hook.is_hooked() && vtable == ex_vtable) return device_ex_hook.get_original<EndSceneFn>();
+    return nullptr;
+}
+ResetFn GetResetOriginalFor(void* device) {
+    if (!device) return nullptr;
+    void* vtable = *reinterpret_cast<void**>(device);
+    if (reset_hook.is_hooked() && vtable == direct_vtable) return reset_hook.get_original<ResetFn>();
+    if (reset_d3d9_hook.is_hooked() && vtable == d3d9_vtable) return reset_d3d9_hook.get_original<ResetFn>();
+    if (reset_ex_hook.is_hooked() && vtable == ex_vtable) return reset_ex_hook.get_original<ResetFn>();
     return nullptr;
 }
 FrameStageNotifyFn GetFrameStageNotifyOriginal() { return client_hook.get_original<FrameStageNotifyFn>(); }
@@ -105,6 +114,7 @@ bool Setup() {
     if (Interfaces::DirectDevice) {
         direct_vtable = *reinterpret_cast<void**>(Interfaces::DirectDevice);
         device_hook.attach(Interfaces::DirectDevice, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
+        reset_hook.attach(Interfaces::DirectDevice, 16, reinterpret_cast<void*>(&HooksInternal::Reset));
         LOG_INFO("captured device vtable=%p hooked=%d", direct_vtable, device_hook.is_hooked());
     } else {
         LOG_ERROR("DirectDevice is null; captured-device EndScene hook skipped");
@@ -112,15 +122,19 @@ bool Setup() {
     dummy_d3d9 = CreateDummyDevice(false);
     if (dummy_d3d9) {
         d3d9_vtable = *reinterpret_cast<void**>(dummy_d3d9);
-        if (d3d9_vtable != direct_vtable)
+        if (d3d9_vtable != direct_vtable) {
             device_d3d9_hook.attach(dummy_d3d9, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
+            reset_d3d9_hook.attach(dummy_d3d9, 16, reinterpret_cast<void*>(&HooksInternal::Reset));
+        }
         LOG_INFO("dummy D3D9 vtable=%p hooked=%d", d3d9_vtable, device_d3d9_hook.is_hooked());
     }
     dummy_ex = CreateDummyDevice(true);
     if (dummy_ex) {
         ex_vtable = *reinterpret_cast<void**>(dummy_ex);
-        if (ex_vtable != direct_vtable && ex_vtable != d3d9_vtable)
+        if (ex_vtable != direct_vtable && ex_vtable != d3d9_vtable) {
             device_ex_hook.attach(dummy_ex, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
+            reset_ex_hook.attach(dummy_ex, 16, reinterpret_cast<void*>(&HooksInternal::Reset));
+        }
         LOG_INFO("dummy D3D9Ex vtable=%p hooked=%d", ex_vtable, device_ex_hook.is_hooked());
     } else {
         LOG_WARN("dummy D3D9Ex device creation failed");
@@ -157,6 +171,7 @@ void Restore() {
         SetWindowLongPtrA(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_wndproc));
     original_wndproc = nullptr; game_window = nullptr;
     model_render_hook.detach(); view_render_hook.detach(); client_hook.detach();
+    reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
     panel_hook.detach(); client_mode_hook.detach();
     LOG_INFO("hooks restored");

@@ -66,7 +66,7 @@ namespace evo::ren
 				t->destroy();
 		}
 
-		for (const auto &[_, t] : fonts)
+		for (const auto &[_, t] : shaders)
 		{
 			if (t)
 				t->destroy();

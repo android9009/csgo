@@ -122,9 +122,9 @@ void adapter_dx9::on_destroy_objects()
 	if (!pixel)
 		return;
 
-	destroy_texture(pixel);
-	destroy_texture(back_buffer);
-	destroy_texture(back_buffer_ds);
+	if (pixel) destroy_texture(pixel);
+	if (back_buffer) destroy_texture(back_buffer);
+	if (back_buffer_ds) destroy_texture(back_buffer_ds);
 	pixel = back_buffer = back_buffer_ds = nullptr;
 }
 

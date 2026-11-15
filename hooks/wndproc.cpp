@@ -4,11 +4,7 @@
 #include "../utils/config.hpp"
 #include "../utils/log.hpp"
 #include <windows.h>
-#include <imgui.h>
-#include <imgui_impl_win32.h>
-
-// imgui_impl_win32.h intentionally hides this behind #if 0 — declare it ourselves.
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
+#include "../third_party/fatality/port.hpp"
 
 namespace HooksInternal {
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -24,9 +20,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam
             LOG_INFO("menu toggled: %s", Config::settings.show_menu ? "open" : "closed");
         }
     }
-    // Feed input to ImGui so the menu is interactive when open.
-    if (ImGui::GetCurrentContext() &&
-        ImGui_ImplWin32_WndProcHandler(window, message, wparam, lparam))
+    if (FatalityMenu::Input(message, wparam, lparam, Config::settings.show_menu))
         return true;
 
     // While the menu is open, swallow input so the game doesn't react.
