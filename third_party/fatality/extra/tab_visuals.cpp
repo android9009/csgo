@@ -12,6 +12,14 @@ using namespace evo::ren;
 
 namespace menu::group
 {
+	constexpr int removal_ragdolls = 7;
+
+	void update_ragdoll_chams_visibility(bool removed)
+	{
+		for (const auto id : {GUI_HASH("visuals>chams>enemy>ragdoll>row"), GUI_HASH("visuals>chams>team>ragdoll>row")})
+			if (const auto row = ctx->find(id)) row->set_visible(!removed);
+	}
+
 	void visuals_tab(std::shared_ptr<layout> &e)
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;
@@ -460,11 +468,17 @@ namespace menu::group
 					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
 			};
 
-			ADD_INLINE(
-				"Ragdoll", c,
-				MAKE("visuals>chams>enemy>ragdoll>settings", settings, [](auto e) { ADD("Primary color", "visuals>chams>enemy>ragdoll>settings>primary color",
-					color_picker, cfg. visuals.chams.enemy_rag.col1, true, vec2{}, true); ADD("Secondary color", "visuals>chams>enemy>ragdoll>settings>secondary color",
-					color_picker, cfg.visuals.chams.enemy_rag.col2, true, vec2{}, true); })->make_invisible());
+			const auto gear = MAKE("visuals>chams>enemy>ragdoll>settings", settings, [](auto e) {
+				ADD("Primary color", "visuals>chams>enemy>ragdoll>settings>primary color", color_picker, cfg.visuals.chams.enemy_rag.col1, true, vec2{}, true);
+				ADD("Secondary color", "visuals>chams>enemy>ragdoll>settings>secondary color", color_picker, cfg.visuals.chams.enemy_rag.col2, true, vec2{}, true);
+			})->make_invisible();
+			const auto row = make_inlined(GUI_HASH("visuals>chams>enemy>ragdoll>row"), [&](std::shared_ptr<layout> &r) {
+				r->add(std::make_shared<label>(control_id{GUI_HASH("visuals>chams>enemy>ragdoll>label")}, "Ragdoll"));
+				r->add(c);
+				r->add(gear);
+			});
+			row->is_visible = !cfg.misc.removals->test(removal_ragdolls);
+			e->add(row);
 		}
 
 		{
@@ -535,11 +549,17 @@ namespace menu::group
 					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
 			};
 
-			ADD_INLINE(
-				"Ragdoll", c,
-				MAKE("visuals>chams>team>ragdoll>settings", settings, [](auto e) { ADD("Primary color", "visuals>chams>team>ragdoll>settings>primary color", color_picker,
-					cfg. visuals.chams.team_rag.col1, true, vec2{}, true); ADD("Secondary color", "visuals>chams>team>ragdoll>settings>secondary color", color_picker, cfg
-					.visuals.chams.team_rag.col2, true, vec2{}, true); })->make_invisible());
+			const auto gear = MAKE("visuals>chams>team>ragdoll>settings", settings, [](auto e) {
+				ADD("Primary color", "visuals>chams>team>ragdoll>settings>primary color", color_picker, cfg.visuals.chams.team_rag.col1, true, vec2{}, true);
+				ADD("Secondary color", "visuals>chams>team>ragdoll>settings>secondary color", color_picker, cfg.visuals.chams.team_rag.col2, true, vec2{}, true);
+			})->make_invisible();
+			const auto row = make_inlined(GUI_HASH("visuals>chams>team>ragdoll>row"), [&](std::shared_ptr<layout> &r) {
+				r->add(std::make_shared<label>(control_id{GUI_HASH("visuals>chams>team>ragdoll>label")}, "Ragdoll"));
+				r->add(c);
+				r->add(gear);
+			});
+			row->is_visible = !cfg.misc.removals->test(removal_ragdolls);
+			e->add(row);
 		}
 
 		{
@@ -673,6 +693,7 @@ namespace menu::group
 		{
 			const auto c = MAKE("visuals>misc>other>removals", combo_box, cfg.misc.removals);
 			c->allow_multiple = true;
+			c->callback = [](bits &v) { update_ragdoll_chams_visibility(v.test(removal_ragdolls)); };
 			const std::array<const char *, 10> names{"Flashbang Effect", "Smoke Rendering", "Particle", "Post Processing", "Water Effects", "Blood Effects", "Decals", "Ragdolls", "Visual punch", "Shadows"};
 			for (int i = 0; i < static_cast<int>(names.size()); ++i) {
 				const auto item = MAKE_RUNTIME(std::string("visuals>misc>other>removals>") + std::to_string(i), selectable, names[i], i);
