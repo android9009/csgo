@@ -824,7 +824,7 @@ namespace menu::group
 			mode->add({MAKE("visuals>world>dof>mode>manual", selectable, "Manual", 0), MAKE("visuals>world>dof>mode>crosshair", selectable, "Crosshair", 1)});
 			ADD_INLINE("Mode", mode);
 			const auto quality = MAKE("visuals>world>dof>quality", combo_box, v.dof_quality);
-			quality->add({MAKE("visuals>world>dof>quality>balanced", selectable, "Balanced", 0)});
+			quality->add(MAKE("visuals>world>dof>quality>balanced", selectable, "Balanced", 0));
 			ADD_INLINE("Quality", quality);
 			const auto distance = make_control("Focus distance", MAKE("visuals>world>dof>distance", slider<float>, 0.f, 100.f, v.focus_distance, "%.0f%%"));
 			const auto speed = make_control("Focus speed", MAKE("visuals>world>dof>speed", slider<float>, 0.f, 20.f, v.focus_speed, "%.0fx"));
