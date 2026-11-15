@@ -138,6 +138,7 @@ void imgui_cacheImage(IDirect3DDevice9* device, std::string textureID, const uns
 void imgui_drawimage(std::string textureID, ImVec2 size) {
     if (!textures[textureID]) {
         ImGui::Text(xorstr("No texture"));
+        return;
     }
     ImGui::Image((ImTextureID)(intptr_t)textures[textureID], size);
 }

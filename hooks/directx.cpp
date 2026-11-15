@@ -59,17 +59,25 @@ long __stdcall EndScene(void* device) {
     menu_key_was_down = menu_key_down;
 
     if (Config::settings.show_menu) {
+        static bool draw_logged = false;
+        if (!draw_logged) { LOG_INFO("draw_menu begin"); draw_logged = true; }
         // SEH: menu code must never crash the game.
         __try {
             draw_menu(dev);  // меню Fatality (CS2-стиль), визуальная копия
         } __except (EXCEPTION_EXECUTE_HANDLER) {
         }
+        static bool draw_done_logged = false;
+        if (!draw_done_logged) { LOG_INFO("draw_menu end"); draw_done_logged = true; }
     }
 
     // IMPORTANT: ImGui::Render() must be called to build the draw data.
     // EndFrame() alone leaves viewport->DrawDataP invalid, GetDrawData()
     // returns NULL and RenderDrawData() silently draws nothing.
     ImGui::Render();
+    {
+        static bool render_logged = false;
+        if (!render_logged) { LOG_INFO("render draw data"); render_logged = true; }
+    }
     ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
 
     if (have_state) {
