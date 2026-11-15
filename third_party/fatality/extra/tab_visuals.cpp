@@ -772,12 +772,13 @@ namespace menu::group
 		auto &w = cfg.visuals.world_effects;
 		ADD_INLINE("Nightmode", MAKE("visuals>world>nightmode", checkbox, w.nightmode), MAKE("visuals>world>nightmode>color", color_picker, w.nightmode_color));
 		ADD_INLINE("Fullbright", MAKE("visuals>world>fullbright", checkbox, w.fullbright), MAKE("visuals>world>fullbright>color", color_picker, w.fullbright_color));
-		ADD_INLINE("Exposure", MAKE("visuals>world>exposure", checkbox, w.exposure_enabled), MAKE("visuals>world>exposure>settings", settings, [](auto e) {
-			ADD("Exposure", "visuals>world>exposure>amount", slider<float>, 0.f, 100.f, cfg.visuals.world_effects.exposure, "%.0f%%");
-		}));
 		ADD_INLINE("Sunlight", MAKE("visuals>world>sunlight", checkbox, w.sunlight), MAKE("visuals>world>sunlight>color", color_picker, w.sunlight_color));
 		ADD_INLINE("Sky", MAKE("visuals>world>sky", checkbox, w.sky), MAKE("visuals>world>sky>color", color_picker, w.sky_color));
 		ADD_INLINE("Fog", MAKE("visuals>world>fog", checkbox, w.fog), MAKE("visuals>world>fog>color", color_picker, w.fog_color));
+		ADD_INLINE("Vignette", MAKE("visuals>world>vignette", checkbox, w.vignette), MAKE("visuals>world>vignette>color", color_picker, w.vignette_color));
+		ADD_INLINE("Exposure", MAKE("visuals>world>exposure", checkbox, w.exposure_enabled), MAKE("visuals>world>exposure>settings", settings, [](auto e) {
+			ADD("Exposure", "visuals>world>exposure>amount", slider<float>, 0.f, 100.f, cfg.visuals.world_effects.exposure, "%.0f%%");
+		}));
 		ADD_INLINE("Bloom", MAKE("visuals>world>bloom", checkbox, w.bloom), MAKE("visuals>world>bloom>settings", settings, [](auto e) {
 			auto &b = cfg.visuals.world_effects;
 			ADD("Strength", "visuals>world>bloom>strength", slider<float>, 0.f, 100.f, b.bloom_strength, "%.0f%%");
@@ -795,7 +796,6 @@ namespace menu::group
 				}));
 			}
 		}));
-		ADD_INLINE("Vignette", MAKE("visuals>world>vignette", checkbox, w.vignette), MAKE("visuals>world>vignette>color", color_picker, w.vignette_color));
 		ADD_INLINE("Local contrast", MAKE("visuals>world>local contrast", checkbox, w.local_contrast), MAKE("visuals>world>local contrast>settings", settings, [](auto e) {
 			auto &v = cfg.visuals.world_effects;
 			ADD("Strength", "visuals>world>local contrast>strength", slider<float>, 0.f, 100.f, v.contrast_strength, "%.0f%%");
