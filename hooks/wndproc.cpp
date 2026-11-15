@@ -7,6 +7,20 @@
 #include "../third_party/fatality/port.hpp"
 
 namespace HooksInternal {
+static int LogGuiInputException(EXCEPTION_POINTERS* info) {
+    if (info && info->ExceptionRecord)
+        LOG_ERROR("Fatality input exception code=0x%08lX address=%p", info->ExceptionRecord->ExceptionCode, info->ExceptionRecord->ExceptionAddress);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static bool ForwardGuiInput(UINT message, WPARAM wparam, LPARAM lparam, bool open) {
+    __try {
+        return FatalityMenu::Input(message, wparam, lparam, open);
+    } __except (LogGuiInputException(GetExceptionInformation())) {
+        return false;
+    }
+}
+
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     // Check the menu key before passing input to the Fatality GUI.
     // Debounce rapid repeated key-up messages to avoid flicker.
@@ -19,7 +33,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam
             LOG_INFO("menu toggled: %s", Config::settings.show_menu ? "open" : "closed");
         }
     }
-    if (FatalityMenu::Input(message, wparam, lparam, Config::settings.show_menu))
+    if (ForwardGuiInput(message, wparam, lparam, Config::settings.show_menu))
         return true;
 
     // While the menu is open, swallow input so the game doesn't react.

@@ -10,6 +10,7 @@
 
 namespace evo::gui
 {
+	class color_picker;
 	class selectable : public control
 	{
 	public:
@@ -68,8 +69,11 @@ namespace evo::gui
 		int value{};
 		int order{};
 		std::optional<ren::color> custom_color{};
+		// Optional color swatch belongs to this list item; the item stays selectable.
+		std::shared_ptr<color_picker> swatch{};
 
 	protected:
+		void position_swatch();
 		marquee scroll_text;
 		std::shared_ptr<anim_float_color> a;
 	};

@@ -1,4 +1,5 @@
 #include <gui/controls/selectable.h>
+#include <gui/controls/color_picker.h>
 
 GUI_NAMESPACE;
 
@@ -20,8 +21,26 @@ void selectable::on_mouse_leave()
 	a->direct(u_fc(0.f, custom_color.value_or(colors.text_mid)));
 }
 
+void selectable::position_swatch()
+{
+	if (!swatch) return;
+	swatch->parent = parent;
+	swatch->margin = {};
+	swatch->pos = pos + margin.mins + vec2{4.f, (size.y - 8.f) * .5f};
+	swatch->size = {16.f, 8.f};
+}
+
 void selectable::on_mouse_down(char key)
 {
+	if (key == m_left && swatch)
+	{
+		position_swatch();
+		if (swatch->area_abs().contains(input.cursor()))
+		{
+			swatch->on_mouse_down(key);
+			return;
+		}
+	}
 	const auto p = get_parent()->as<list>();
 	if (!p || (is_selected && !p->allow_multiple) || key != m_left)
 		return;
@@ -49,6 +68,12 @@ void selectable::render()
 	auto &l = draw.layers[ctx->content_layer];
 
 	vec2 off{};
+	if (swatch)
+	{
+		position_swatch();
+		swatch->render();
+		off.x += 20.f;
+	}
 	if (show_checkbox)
 	{
 		const auto box = rect(r.tl() + vec2{4.f, 2.f}).size({12.f, 12.f});

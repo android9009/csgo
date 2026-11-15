@@ -59,7 +59,6 @@ namespace menu
 		void visuals_models_team(std::shared_ptr<layout> &e);
 		void visuals_misc_local(std::shared_ptr<layout> &e);
 		void visuals_misc_various(std::shared_ptr<layout> &e);
-		void visuals_misc_beams(std::shared_ptr<layout> &e);
 
 		void misc_various(std::shared_ptr<layout> &e);
 		void misc_movement(std::shared_ptr<layout> &e);

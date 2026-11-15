@@ -152,7 +152,7 @@ namespace menu::group
 		area->make_not_clip();
 		area->add(make_groupbox(XOR("visuals>misc>local"), XOR("LOCAL"), group_sz, visuals_misc_local));
 		area->add(make_groupbox(XOR("visuals>misc>various"), XOR("OTHER"), group_sz, visuals_misc_various));
-		area->add(make_groupbox(XOR("visuals>misc>beams"), XOR("BEAMS"), group_sz, visuals_misc_beams));
+		area->add(make_groupbox(XOR("visuals>misc>world"), XOR("WORLD"), group_sz, [](auto) {}));
 
 		e->add(area);
 		//VIRTUALIZER_TIGER_WHITE_END;
@@ -658,29 +658,45 @@ namespace menu::group
 		ADD("Texture transparency", "visuals>misc>other>texture transparency", slider<float>, 0.f, 100.f, cfg.misc.texture_transparency, "%.0f%%");
 		ADD("Prop transparency", "visuals>misc>other>prop transparency", slider<float>, 0.f, 100.f, cfg.visuals.prop_transparency, "%.0f%%");
 		{
-			auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets, vec2{}, vec2{80.f, 20.f});
+			const auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets, vec2{}, vec2{80.f, 20.f});
 			tracer->allow_multiple = true;
-			tracer->expand_popup = true;
-			std::vector<std::shared_ptr<layout>> rows;
-			const std::array<const char *, 3> names{"Local", "Enemy", "Teammates"};
-			for (int i = 0; i < 3; ++i) {
-				const auto key = std::string("visuals>misc>other>tracers>") + std::to_string(i);
-				tracer->add(MAKE_RUNTIME(key, selectable, names[i], i));
-				auto style = MAKE_RUNTIME(key + ">style", combo_box, cfg.misc.tracer_style[i], vec2{}, vec2{70.f, 20.f});
-				style->add({MAKE_RUNTIME(key + ">laser", selectable, "Laser", 0), MAKE_RUNTIME(key + ">line", selectable, "Line", 1)});
-				auto color = MAKE_RUNTIME(key + ">color", color_picker, cfg.misc.tracer_colors[i]);
-				auto row = make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout> &r) { r->add(std::make_shared<label>(control_id{hash(key + ">label")}, "Style")); r->add(style); r->add(color); });
-				row->is_visible = cfg.misc.tracer_targets->test(i);
-				rows.push_back(row);
-				tracer->add(row);
-			}
-			tracer->callback = [rows](bits &v) { for (int i = 0; i < 3; ++i) rows[i]->set_visible(v.test(i)); };
-			ADD_INLINE("Bullet tracers", tracer);
+			tracer->callback = [](bits &v) {
+				for (int i = 0; i < 3; ++i) {
+					const auto id = hash(std::string("visuals>misc>other>tracers>settings>") + std::to_string(i) + ">row");
+					if (const auto row = ctx->find(id)) row->set_visible(v.test(i));
+				}
+			};
+			tracer->add({MAKE("visuals>misc>other>tracers>local", selectable, "Local", 0),
+				MAKE("visuals>misc>other>tracers>enemy", selectable, "Enemy", 1),
+				MAKE("visuals>misc>other>tracers>team", selectable, "Teammates", 2)});
+			const auto gear = MAKE("visuals>misc>other>tracers>settings", settings, [](auto e) {
+				const std::array<const char *, 3> names{"Local", "Enemy", "Teammates"};
+				for (int i = 0; i < 3; ++i) {
+					const auto key = std::string("visuals>misc>other>tracers>settings>") + std::to_string(i);
+					auto style = MAKE_RUNTIME(key + ">style", combo_box, cfg.misc.tracer_style[i], vec2{}, vec2{70.f, 20.f});
+					style->add({MAKE_RUNTIME(key + ">laser", selectable, "Laser", 0), MAKE_RUNTIME(key + ">line", selectable, "Line", 1)});
+					auto color = MAKE_RUNTIME(key + ">color", color_picker, cfg.misc.tracer_colors[i]);
+					const auto row = make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout> &r) {
+						r->add(std::make_shared<label>(control_id{hash(key + ">label")}, names[i]));
+						r->add(style);
+						r->add(color);
+					});
+					row->is_visible = cfg.misc.tracer_targets->test(i);
+					e->add(row);
+				}
+			});
+			ADD_INLINE("Bullet tracers", tracer, gear);
 		}
 		{
 			const auto c = MAKE("visuals>misc>other>hitmarker", combo_box, cfg.misc.hitmarker);
 			c->allow_multiple = true;
-			c->add({MAKE("visuals>misc>other>hitmarker>world", selectable, "World", cfg_t::hitmarker_world), MAKE("visuals>misc>other>hitmarker>crosshair", selectable, "Crosshair", cfg_t::hitmarker_cross)});
+			const auto world = MAKE("visuals>misc>other>hitmarker>world", selectable, "World", cfg_t::hitmarker_world);
+			const auto screen = MAKE("visuals>misc>other>hitmarker>screen", selectable, "Screen", cfg_t::hitmarker_cross);
+			const auto kibit = MAKE("visuals>misc>other>hitmarker>kibit", selectable, "Kibit", cfg_t::hitmarker_kibit);
+			world->swatch = MAKE("visuals>misc>other>hitmarker>world>color", color_picker, cfg.misc.hitmarker_world_color);
+			screen->swatch = MAKE("visuals>misc>other>hitmarker>screen>color", color_picker, cfg.misc.hitmarker_screen_color);
+			kibit->swatch = MAKE("visuals>misc>other>hitmarker>kibit>color", color_picker, cfg.misc.hitmarker_kibit_color);
+			c->add({world, screen, kibit});
 			ADD_INLINE("Hitmarker", c);
 		}
 		ADD_INLINE("Show impacts", MAKE("visuals>misc>other>impacts", checkbox, cfg.misc.impacts),
@@ -705,21 +721,4 @@ namespace menu::group
 		}
 	}
 
-	void visuals_misc_beams(std::shared_ptr<layout> &e)
-	{
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD("Enabled", "visuals>misc>beams>enabled", checkbox, cfg.visuals.beams.enabled);
-		ADD("Width", "visuals>misc>beams>width", slider<float>, 1.f, 20.f, cfg.visuals.beams.width, XOR("%.0f"));
-
-		ADD_INLINE(
-			"Team", MAKE("visuals>misc>beams>team", checkbox, cfg.visuals.beams.team_enabled),
-			MAKE("visuals>misc>beams>team>color", color_picker, cfg.visuals.beams.team_color));
-		ADD_INLINE(
-			"Enemy", MAKE("visuals>misc>beams>enemy", checkbox, cfg.visuals.beams.enemy_enabled),
-			MAKE("visuals>misc>beams>enemy>color", color_picker, cfg.visuals.beams.enemy_color));
-		ADD_INLINE(
-			"Local", MAKE("visuals>misc>beams>local", checkbox, cfg.visuals.beams.local_enabled),
-			MAKE("visuals>misc>beams>local>color", color_picker, cfg.visuals.beams.local_color));
-		//VIRTUALIZER_TIGER_WHITE_END;
-	}
 }

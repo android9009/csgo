@@ -6,7 +6,7 @@ GUI_NAMESPACE;
 
 void list::on_control_added(const std::shared_ptr<control> &c)
 {
-	const auto s = c->as<selectable>();
+	const auto s = c->type == ctrl_selectable ? c->as<selectable>() : nullptr;
 	if (s)
 		s->is_odd = count() % 2 != 0;
 
@@ -15,7 +15,7 @@ void list::on_control_added(const std::shared_ptr<control> &c)
 
 void list::update_selected(std::shared_ptr<control> c)
 {
-	const auto s = c->as<selectable>();
+	const auto s = c->type == ctrl_selectable ? c->as<selectable>() : nullptr;
 	if (!s)
 		return;
 
@@ -26,7 +26,7 @@ void list::update_selected(std::shared_ptr<control> c)
 	for_each_control(
 		[&](std::shared_ptr<control> &m)
 		{
-			const auto m_s = m->as<selectable>();
+			const auto m_s = m->type == ctrl_selectable ? m->as<selectable>() : nullptr;
 			if (!m_s)
 			{
 				++n;
@@ -78,7 +78,7 @@ void list::reset()
 	for_each_control(
 		[&](std::shared_ptr<control> &c)
 		{
-			const auto s = c->as<selectable>();
+			const auto s = c->type == ctrl_selectable ? c->as<selectable>() : nullptr;
 			if (!s)
 				return;
 
@@ -101,7 +101,7 @@ void list::soft_reset()
 	for_each_control(
 		[ & ](std::shared_ptr<control> &c)
 		{
-			const auto s = c->as<selectable>();
+			const auto s = c->type == ctrl_selectable ? c->as<selectable>() : nullptr;
 			if (!s)
 				return;
 
@@ -170,7 +170,8 @@ void list::filter_items(const std::string &str)
 		for_each_control(
 			[&](auto e)
 			{
-				const auto c = e->template as<selectable>();
+				const auto c = e->type == ctrl_selectable ? e->template as<selectable>() : nullptr;
+				if (!c) return;
 
 				std::string lcn{c->text};
 				std::ranges::transform(lcn, lcn.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });

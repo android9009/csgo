@@ -31,7 +31,7 @@ void combo_box::render()
 				for_each_control(
 					[&text, &n, this](std::shared_ptr<control> &m)
 					{
-						const auto m_s = m->as<selectable>();
+						const auto m_s = m->type == ctrl_selectable ? m->as<selectable>() : nullptr;
 						if (!m_s)
 							return;
 
@@ -52,7 +52,7 @@ void combo_box::render()
 			for_each_control_logical(
 				[&](std::shared_ptr<control> &m)
 				{
-					const auto m_s = m->as<selectable>();
+					const auto m_s = m->type == ctrl_selectable ? m->as<selectable>() : nullptr;
 					if (!m_s)
 						return false;
 
@@ -116,7 +116,7 @@ void combo_box::reset()
 	for_each_control(
 		[&](std::shared_ptr<control> &c)
 		{
-			const auto s = c->as<selectable>();
+			const auto s = c->type == ctrl_selectable ? c->as<selectable>() : nullptr;
 			if (!s)
 				return;
 

@@ -225,6 +225,7 @@ struct cfg_t {
 		hitmarker_none,
 		hitmarker_world,
 		hitmarker_cross,
+		hitmarker_kibit,
 		hitmarker_max,
 	};
 
@@ -555,6 +556,7 @@ struct cfg_t {
 		setting<bool> force_second_zoom, force_viewmodel_scope, disable_landing_bob;
 		setting<float> viewmodel_x, viewmodel_y, viewmodel_z, viewmodel_roll, viewmodel_yaw, viewmodel_pitch;
 		setting<color> grenade_warning_color{color::white()};
+		setting<color> hitmarker_world_color{color::white()}, hitmarker_screen_color{color::white()}, hitmarker_kibit_color{color::white()};
 		setting<bitset> removals, tracer_targets;
 		arr_setting<bitset> tracer_style{1};
 		arr_setting<color> tracer_colors{color::white()};

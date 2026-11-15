@@ -45,7 +45,6 @@ namespace evo::gui
 
 		value_param<bits> &value;
 		bool allow_multiple{};
-		bool expand_popup{};
 		std::function<void(bits &)> callback{};
 		bool legacy_mode{};
 
