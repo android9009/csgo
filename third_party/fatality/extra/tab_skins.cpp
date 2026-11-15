@@ -7,6 +7,7 @@
 #include "../../../sdk/skin_icon_file.hpp"
 #include "../../../sdk/skin_catalog.hpp"
 #include "../preview_bridge.hpp"
+#include "../preview_catalog.hpp"
 #include "../../../utils/log.hpp"
 #include <algorithm>
 #include <array>
@@ -196,18 +197,28 @@ namespace menu::group
         {"Daniel Sadowski, Dead Shot", "resource/flash/econ/music_kits/danielsadowski_05.png"},
     };
     const std::vector<EquipmentItem> default_item{{"Default", ""}};
+    std::vector<EquipmentItem> make_agents(bool ct) {
+        std::vector<EquipmentItem> result;
+        for (size_t i = 0; i < PreviewCatalog::AgentCount(ct); ++i) {
+            const auto& a = PreviewCatalog::GetAgent(ct, i);
+            result.push_back({a.name, a.icon});
+        }
+        return result;
+    }
+    const auto ct_agents = make_agents(true), t_agents = make_agents(false);
     const char* equipment_title(Equipment screen) {
         switch (screen) { case Equipment::Agent: return "AGENT"; case Equipment::Knife: return "KNIFE";
             case Equipment::Medal: return "MEDAL"; case Equipment::Gloves: return "GLOVES"; case Equipment::Music: return "MUSIC"; default: return ""; }
     }
-    const std::vector<EquipmentItem>& equipment_items(Equipment screen) {
+    const std::vector<EquipmentItem>& equipment_items(Equipment screen, bool ct) {
+        if (screen == Equipment::Agent) return ct ? ct_agents : t_agents;
         if (screen == Equipment::Knife) return knife_items;
         if (screen == Equipment::Gloves) return glove_items;
         if (screen == Equipment::Music) return music_items;
         return default_item;
     }
     const char* equipment_icon(Equipment screen, const std::string& equipped, bool ct) {
-        if (!equipped.empty() && screen != Equipment::Music) return equipped.c_str();
+        if (!equipped.empty() && screen != Equipment::Music && screen != Equipment::Agent) return equipped.c_str();
         if (screen == Equipment::Knife) return ct ? "weapon_knife" : "weapon_knife_t";
         if (screen == Equipment::Gloves) return ct ? "ct_gloves" : "t_gloves";
         return nullptr;
@@ -229,8 +240,9 @@ namespace menu::group
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
                              bool ct, vec2 center, vec2 bounds, bool& budget) {
         const auto name = equipment_icon(screen, selected, ct);
-        if (name || (screen == Equipment::Music && !selected.empty())) {
-            auto icon = screen == Equipment::Music ? get_asset_icon(selected, budget) : get_weapon_icon(name, {}, budget);
+        if (name || ((screen == Equipment::Music || screen == Equipment::Agent) && !selected.empty())) {
+            const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
+            auto icon = (screen == Equipment::Music || screen == Equipment::Agent) ? get_asset_icon(path, budget) : get_weapon_icon(name, {}, budget);
             if (icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
@@ -263,7 +275,10 @@ namespace menu::group
                 layer->add_rect_filled_rounded(card, equipment_screen == entries[i] ? colors.bg_block_light : colors.bg_bottom, 2.f);
                 const std::string empty;
                 const auto& selected = entries[i] == Equipment::Knife ? equipped_knife[team] : entries[i] == Equipment::Gloves ? equipped_gloves[team] : entries[i] == Equipment::Music ? equipped_music[team] : empty;
-                draw_equipment_icon(layer, entries[i], selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget);
+                const auto& agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
+                if (entries[i] == Equipment::Knife && card.contains(input.cursor()) && equipment_screen == Equipment::None)
+                    FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(selected.empty() ? (ct ? "weapon_knife" : "weapon_knife_t") : selected.c_str()), std::memory_order_relaxed);
+                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget);
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 layer->add_text(pos + vec2{width * .5f, 40.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
                 layer->add_rect_filled(rect{pos + vec2{3.f, 47.f}, pos + vec2{width - 3.f, 49.f}}, colors.outline);
@@ -325,6 +340,8 @@ namespace menu::group
                     const rect cell{vec2{x, y}, vec2{x + cell_width, y + cell_height - gap}};
                     if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                     const auto& weapon = columns[c][i];
+                    if (viewport.contains(input.cursor()) && cell.contains(input.cursor()))
+                        FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(weapon.internal), std::memory_order_relaxed);
                     layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
                     if (auto icon = get_weapon_icon(weapon.internal, selected_paint(weapon.internal), load_budget); icon && icon->obj) {
                         const auto native = icon->get_size();
@@ -362,10 +379,11 @@ namespace menu::group
                 const int col = static_cast<int>(local.x / (cell_width + 6.f));
                 const int row = static_cast<int>((local.y - 42.f + equipment_scroll) / 78.f);
                 if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
-                const auto& items = equipment_items(equipment_screen);
+                const auto& items = equipment_items(equipment_screen, team_ct);
                 const size_t index = static_cast<size_t>(row * 3 + col);
                 if (index >= items.size()) return;
                 const int team = team_ct ? 0 : 1;
+                if (equipment_screen == Equipment::Agent) FatalityPreviewBridge::agent[team].store(static_cast<int>(index), std::memory_order_relaxed);
                 if (equipment_screen == Equipment::Knife) equipped_knife[team] = items[index].icon;
                 if (equipment_screen == Equipment::Gloves) equipped_gloves[team] = items[index].icon;
                 if (equipment_screen == Equipment::Music) equipped_music[team] = items[index].icon;
@@ -439,7 +457,7 @@ namespace menu::group
                 return;
             }
             if (equipment_screen != Equipment::None) {
-                const float rows = static_cast<float>((equipment_items(equipment_screen).size() + 2) / 3);
+                const float rows = static_cast<float>((equipment_items(equipment_screen, team_ct).size() + 2) / 3);
                 const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
                 equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
             } else if (selected_weapon.internal) {
@@ -615,8 +633,8 @@ namespace menu::group
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
-            const auto& items = equipment_items(equipment_screen);
-            if (equipment_screen == Equipment::Agent || equipment_screen == Equipment::Medal)
+            const auto& items = equipment_items(equipment_screen, team_ct);
+            if (equipment_screen == Equipment::Medal)
                 layer->add_text(r.tl() + vec2{0.f, 30.f}, "Only default available", colors.text_dark);
             const float cell_width = (r.width() - 12.f) / 3.f;
             const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
@@ -629,6 +647,8 @@ namespace menu::group
                 const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
                 if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
+                if (equipment_screen == Equipment::Knife && viewport.contains(input.cursor()) && cell.contains(input.cursor()))
+                    FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(items[i].icon[0] ? items[i].icon : (team_ct ? "weapon_knife" : "weapon_knife_t")), std::memory_order_relaxed);
                 draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget);
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 layer->add_text(vec2{x + cell_width * .5f, y + 57.f}, items[i].label, colors.text, text_params::with_vh(align_center, align_center));

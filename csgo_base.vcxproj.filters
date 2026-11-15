@@ -590,6 +590,9 @@
     <ClInclude Include="third_party\fatality\preview_bridge.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\preview_catalog.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\model_preview_render.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

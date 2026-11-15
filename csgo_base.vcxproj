@@ -362,6 +362,7 @@
     <ClInclude Include="sdk\model_preview_render.hpp" />
     <ClInclude Include="features\visuals\model_preview.hpp" />
     <ClInclude Include="third_party\fatality\preview_bridge.hpp" />
+    <ClInclude Include="third_party\fatality\preview_catalog.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\img\click_sfx.hpp" />

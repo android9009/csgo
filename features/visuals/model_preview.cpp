@@ -4,6 +4,8 @@
 #include "../../sdk/model_preview_render.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../third_party/fatality/preview_bridge.hpp"
+#include "../../third_party/fatality/preview_catalog.hpp"
+#include "../../sdk/skin_icon_file.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <d3d9.h>
@@ -18,7 +20,13 @@ template<typename T> T Slot(void* p, int index) { return reinterpret_cast<T>((*r
 void* render_texture{};
 void* cubemap{};
 void* model{};
-void* team_models[2]{}; // CT and T; built lazily on the render thread
+// The engine destructor ABI is not verified. Keep a bounded cache instead of
+// repeatedly destroying merged models while the pointer moves over the grid.
+struct CachedModel { int team, agent, weapon; void* model; };
+CachedModel model_cache[128]{};
+size_t model_count{};
+bool cache_limit_logged{};
+bool missing_models[2][13][sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
 bool failed{}, texture_retained{};
 const char* volatile phase = "not started";
 struct Fault { DWORD code{}; std::uintptr_t instruction{}, address{}; ULONG_PTR operation{}; };
@@ -101,13 +109,22 @@ bool Initialize() {
     return true;
 }
 
-bool InitializeModel(bool ct) {
+bool ModelExists(const char* path) {
+    auto* fs = Interfaces::BaseFileSystem;
+    if (!fs) return true; // Preserve the previously working default when the filesystem is unavailable.
+    using Open = void* (__thiscall*)(void*, const char*, const char*, const char*);
+    using Close = void (__thiscall*)(void*, void*);
+    void* file = SkinIconFile::Slot<Open>(fs, 2)(fs, path, "rb", "GAME");
+    if (!file) return false;
+    SkinIconFile::Slot<Close>(fs, 3)(fs, file);
+    return true;
+}
+bool InitializeModel(bool ct, int agent_index, int weapon_index) {
     auto* alloc = Interfaces::MemAlloc;
     const int team = ct ? 0 : 1;
     phase = "allocate merged model";
     model = Slot<void*(__thiscall*)(void*, size_t)>(alloc, 1)(alloc, 0x75c);
     if (!model) return false;
-    team_models[team] = model;
     std::memset(model, 0, 0x75c);
     phase = "construct merged model";
     reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(model));
@@ -120,24 +137,52 @@ bool InitializeModel(bool ct) {
     phase = "set animation model";
     merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
-    const char* agent = ct ? "models/player/custom_player/legacy/ctm_fbi_variantb.mdl" : "models/player/custom_player/legacy/tm_phoenix_varianta.mdl";
+    const char* agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(agent_index)).model;
     LOG_INFO("model preview: loading %s model %s", ct ? "CT" : "T", agent);
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
     phase = "merge weapon model";
-    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/weapons/w_snip_ssg08.mdl", nullptr, nullptr, false);
+    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), PreviewCatalog::weapons[weapon_index].model, nullptr, nullptr, false);
     *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = 113;
     *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 20.f;
     phase = "setup model bones";
     reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
-    LOG_INFO("model preview %s model initialized (experimental Source 1)", ct ? "CT" : "T");
+    model_cache[model_count++] = {team, agent_index, weapon_index, model};
+    LOG_INFO("model preview %s model initialized agent=%d weapon=%s (experimental Source 1)", ct ? "CT" : "T", agent_index, PreviewCatalog::weapons[weapon_index].id);
     return true;
 }
 
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
     const bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
-    model = team_models[ct ? 0 : 1];
-    if (!model && !InitializeModel(ct)) { failed = true; LOG_WARN("model preview team model initialization failed"); return; }
+    const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
+    const int team = ct ? 0 : 1;
+    int agent_index = skins ? FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed) : 0;
+    int weapon_index = skins ? FatalityPreviewBridge::weapon.load(std::memory_order_relaxed) : 0;
+    if (agent_index < 0 || static_cast<size_t>(agent_index) >= PreviewCatalog::AgentCount(ct)) agent_index = 0;
+    if (weapon_index < 0 || static_cast<size_t>(weapon_index) >= PreviewCatalog::WeaponCount()) weapon_index = 0;
+    model = nullptr;
+    for (size_t i = 0; i < model_count; ++i)
+        if (model_cache[i].team == team && model_cache[i].agent == agent_index && model_cache[i].weapon == weapon_index) { model = model_cache[i].model; break; }
+    if (!model) {
+        // Check availability before asking the engine to merge a potentially absent model.
+        if (missing_models[team][agent_index][weapon_index]) {
+            FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
+            return;
+        }
+        if (!ModelExists(PreviewCatalog::GetAgent(ct, static_cast<size_t>(agent_index)).model) ||
+            !ModelExists(PreviewCatalog::weapons[weapon_index].model)) {
+            missing_models[team][agent_index][weapon_index] = true;
+            LOG_WARN("model preview: requested agent=%d weapon=%s is unavailable", agent_index, PreviewCatalog::weapons[weapon_index].id);
+            FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
+            return;
+        }
+        if (model_count >= sizeof(model_cache)/sizeof(*model_cache)) {
+            if (!cache_limit_logged) { LOG_WARN("model preview: model cache limit reached; restart required"); cache_limit_logged = true; }
+            FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
+            return;
+        }
+        if (!InitializeModel(ct, agent_index, weapon_index)) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
+    }
     auto* ms = Interfaces::MaterialSystem;
     phase = "get render context";
     auto* context = static_cast<MatRenderContextABI*>(Slot<void*(__thiscall*)(void*)>(ms, 115)(ms));
@@ -248,10 +293,13 @@ void Shutdown() {
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
     if (Interfaces::MemAlloc) {
-        for (void*& team_model : team_models) {
-            if (team_model) Slot<void(__thiscall*)(void*, void*)>(Interfaces::MemAlloc, 5)(Interfaces::MemAlloc, team_model);
-            team_model = nullptr;
+        for (size_t i = 0; i < model_count; ++i) {
+            if (model_cache[i].model) Slot<void(__thiscall*)(void*, void*)>(Interfaces::MemAlloc, 5)(Interfaces::MemAlloc, model_cache[i].model);
+            model_cache[i] = {};
         }
+        model_count = 0;
+        cache_limit_logged = false;
+        std::memset(missing_models, 0, sizeof(missing_models));
     }
     if (render_texture && texture_retained) Slot<void(__thiscall*)(void*)>(render_texture, 11)(render_texture);
     texture_retained = false;
