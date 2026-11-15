@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "vars.h"
 #include "texture.hpp"
+#include "../../utils/log.hpp"
 #include "img/vis_preview.hpp"
 #include "img/vis_preview_ent.hpp"
 
@@ -281,6 +282,7 @@ bool img_cached = false;
 
 
 void draw_menu(IDirect3DDevice9* device) {
+    LOG_INFO("draw_menu inside begin");
 	ImGuiStyle& style = ImGui::GetStyle();
     ImGuiIO& io = ImGui::GetIO();
     
@@ -1076,4 +1078,5 @@ void draw_menu(IDirect3DDevice9* device) {
 
 	ImGui::PopStyleColor(27);
 	ImGui::PopStyleVar(11);
+    LOG_INFO("draw_menu inside end");
 }
