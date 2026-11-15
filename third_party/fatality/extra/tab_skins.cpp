@@ -13,6 +13,7 @@
 #include <map>
 #include <vector>
 #include <cstdio>
+#include <cctype>
 #include <ren/misc.h>
 
 using namespace evo::gui;
@@ -378,14 +379,23 @@ namespace menu::group
                     close_skins();
                     return;
                 }
+                if (local.y >= 0.f && local.y < 30.f && local.x >= 0.f && local.x < 240.f) {
+                    editing_search = true; is_taking_text = true; is_taking_keys = true; return;
+                }
+                stop_name_input();
+                if (local.y >= 0.f && local.y < 30.f && local.x >= 246.f && local.x < 400.f) {
+                    reverse_sort = !reverse_sort; skin_scroll = 0.f; return;
+                }
                 if (local.y < 42.f || local.x < 0.f) return;
                 const int col = static_cast<int>(local.x / (cell_width + 6.f));
                 const int row = static_cast<int>((local.y - 42.f + skin_scroll) / 78.f);
                 if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
                 const size_t index = static_cast<size_t>(row * 3 + col);
-                if (index == 0) { selection[team_ct ? 0 : 1].erase(selected_weapon.internal); close_skins(); }
-                else if (index <= paints.size()) {
-                    const auto& paint = paints[index - 1];
+                const auto visible = filtered_paints();
+                if (index >= visible.size()) return;
+                if (visible[index].empty()) { selection[team_ct ? 0 : 1].erase(selected_weapon.internal); close_skins(); }
+                else {
+                    const auto& paint = visible[index];
                     const auto& chosen = selection[team_ct ? 0 : 1];
                     const auto it = chosen.find(selected_weapon.internal);
                     pending = (it != chosen.end() && it->second.paint == paint) ? it->second : SkinChoice{};
@@ -408,7 +418,7 @@ namespace menu::group
             const auto& columns = team_ct ? ct_weapons : t_weapons;
             if (static_cast<size_t>(row) >= columns[col].size()) return;
             selected_weapon = columns[col][row];
-            paints.clear();
+            paints.clear(); search_query.clear(); reverse_sort = false;
             if (load_catalog()) {
                 auto it = catalog.find(selected_weapon.internal);
                 if (it != catalog.end()) paints = it->second;
@@ -433,7 +443,7 @@ namespace menu::group
                 const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
                 equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
             } else if (selected_weapon.internal) {
-                const float rows = static_cast<float>((paints.size() + 3) / 3);
+                const float rows = static_cast<float>((filtered_paints().size() + 2) / 3);
                 const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
                 skin_scroll = std::clamp(skin_scroll - delta * 55.f, 0.f, max_scroll);
             } else {
@@ -457,25 +467,45 @@ namespace menu::group
         }
         void on_mouse_up(char key) override { if (key == m_left) drag_slider = 0; }
         void on_text_input(const std::vector<uint32_t>& text) override {
-            if (!editor_open || !editing_name || input.is_key_down(VK_CONTROL) || input.is_key_down(VK_MENU)) return;
+            if ((!editor_open || !editing_name) && !editing_search) return;
+            if (input.is_key_down(VK_CONTROL) || input.is_key_down(VK_MENU)) return;
+            auto& target = editing_search ? search_query : pending.custom_name;
+            const size_t limit = editing_search ? 64u : 31u;
             for (const auto codepoint : text) {
                 if (codepoint < 0x20 || codepoint == 0x7f || codepoint > 0x10ffff ||
                     (codepoint >= 0xd800 && codepoint <= 0xdfff)) continue;
                 const auto encoded = evo::ren::utf8_encode(codepoint);
-                if (pending.custom_name.size() + encoded.size() <= 31) pending.custom_name += encoded;
+                if (target.size() + encoded.size() <= limit) target += encoded;
             }
+            if (editing_search) skin_scroll = 0.f;
         }
         void on_key_down(uint16_t key) override {
-            if (!editor_open || !editing_name) return;
+            if (!editing_name && !editing_search) return;
             if (key == VK_RETURN || key == VK_ESCAPE) { stop_name_input(); return; }
-            if (key == VK_BACK && !pending.custom_name.empty()) {
-                size_t pos = pending.custom_name.size() - 1;
-                while (pos > 0 && (static_cast<unsigned char>(pending.custom_name[pos]) & 0xc0) == 0x80) --pos;
-                pending.custom_name.erase(pos);
+            auto& target = editing_search ? search_query : pending.custom_name;
+            if (key == VK_BACK && !target.empty()) {
+                size_t pos = target.size() - 1;
+                while (pos > 0 && (static_cast<unsigned char>(target[pos]) & 0xc0) == 0x80) --pos;
+                target.erase(pos);
+                if (editing_search) skin_scroll = 0.f;
             }
         }
     private:
-        void stop_name_input() { editing_name = false; is_taking_text = false; is_taking_keys = false; }
+        void stop_name_input() { editing_name = false; editing_search = false; is_taking_text = false; is_taking_keys = false; }
+        std::vector<std::string> filtered_paints() const {
+            auto lower = [](std::string value) {
+                std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return value;
+            };
+            const auto query = lower(search_query);
+            std::vector<std::string> result;
+            if (query.empty() || std::string("default").find(query) != std::string::npos) result.emplace_back();
+            std::vector<std::string> matches;
+            for (const auto& paint : paints) if (lower(paint).find(query) != std::string::npos) matches.push_back(paint);
+            if (reverse_sort) std::reverse(matches.begin(), matches.end());
+            result.insert(result.end(), matches.begin(), matches.end());
+            return result;
+        }
         void editor_click(const vec2& p) {
             if (p.y >= 0.f && p.y < 30.f && p.x >= size.x - 35.f) { editor_open = false; stop_name_input(); return; }
             if (p.y >= 330.f && p.y < 361.f && p.x >= 165.f && p.x < 460.f) {
@@ -607,7 +637,12 @@ namespace menu::group
         }
         void render_skins(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            layer->add_text(r.tl() + vec2{2.f, 12.f}, std::string(selected_weapon.label) + " - SKINS", colors.text, text_params::with_v(align_center));
+            const rect search{r.tl(), r.tl() + vec2{240.f, 27.f}};
+            const rect sort{r.tl() + vec2{246.f, 0.f}, r.tl() + vec2{400.f, 27.f}};
+            layer->add_rect_filled_rounded(search, colors.bg_bottom, 2.f);
+            layer->add_text(search.tl() + vec2{7.f, 13.f}, search_query.empty() ? (editing_search ? "|" : "Search skins...") : search_query + (editing_search ? "|" : ""), search_query.empty() ? colors.text_dark : colors.text, text_params::with_v(align_center));
+            layer->add_rect_filled_rounded(sort, colors.bg_bottom, 2.f);
+            layer->add_text(sort.center(), reverse_sort ? "Name Z-A  v" : "Name A-Z  v", colors.text, text_params::with_vh(align_center, align_center));
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
@@ -618,12 +653,13 @@ namespace menu::group
             const auto old_clip = layer->g.clip_rect;
             layer->override_clip_rect(viewport);
             bool load_budget = true;
-            for (size_t i = 0; i <= paints.size(); ++i) {
+            const auto visible = filtered_paints();
+            for (size_t i = 0; i < visible.size(); ++i) {
                 const float x = r.mins.x + static_cast<float>(i % 3) * (cell_width + 6.f);
                 const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - skin_scroll;
                 const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
                 if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
-                const std::string paint = i ? paints[i - 1] : std::string{};
+                const std::string& paint = visible[i];
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
                 if (auto icon = get_weapon_icon(selected_weapon.internal, paint, load_budget); icon && icon->obj) {
                     const auto native = icon->get_size();
@@ -636,7 +672,7 @@ namespace menu::group
                     }
                 }
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
-                const auto label = i ? paint : std::string("Default");
+                const auto label = paint.empty() ? std::string("Default") : paint;
                 layer->add_text(vec2{x + 4.f, y + 57.f}, label, colors.text, text_params::with_v(align_center));
             }
             layer->g.clip_rect = old_clip;
@@ -646,7 +682,8 @@ namespace menu::group
         Equipment last_equipment_screen{Equipment::None};
         WeaponIcon selected_weapon{};
         SkinChoice pending{};
-        bool editor_open{}, editing_name{};
+        bool editor_open{}, editing_name{}, editing_search{}, reverse_sort{};
+        std::string search_query;
         int drag_slider{};
         std::vector<std::string> paints;
     };
