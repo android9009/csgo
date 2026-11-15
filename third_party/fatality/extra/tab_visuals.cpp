@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "../cfg.h"
+#include "../preview_bridge.hpp"
 #include "macros.h"
 
 using namespace evo::gui;
@@ -14,14 +15,6 @@ using namespace evo::ren;
 
 namespace menu::group
 {
-	// Camera state is shared between the ESP and Chams preview panels. It does not
-	// own an engine texture or call Source interfaces; the renderer is not ported yet.
-	struct preview_camera_state
-	{
-		float yaw = 180.f;
-		float distance = 329.f;
-	};
-	static preview_camera_state preview_camera;
 
 	class model_preview_viewport final : public control
 	{
@@ -33,9 +26,16 @@ namespace menu::group
 			control::render();
 			if (!is_visible) return;
 			auto &layer = draw.layers[ctx->content_layer];
-			layer->font = draw.fonts[GUI_HASH("gui_main")];
-			layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
-				text_params::with_vh(align_center, align_center));
+			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
+			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
+				layer->g.texture = texture;
+				layer->add_rect_filled(area_abs(), color::white());
+				layer->g.texture = {};
+			} else {
+				layer->font = draw.fonts[GUI_HASH("gui_main")];
+				layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
+					text_params::with_vh(align_center, align_center));
+			}
 		}
 
 		void on_mouse_down(char key) override
@@ -50,13 +50,19 @@ namespace menu::group
 
 		void on_mouse_move(const vec2 &, const vec2 &delta) override
 		{
-			if (is_locked_by_me()) preview_camera.yaw = std::remainder(preview_camera.yaw + delta.x * 0.5f, 360.f);
+			if (is_locked_by_me()) {
+				const auto yaw = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
+				FatalityPreviewBridge::yaw.store(std::remainder(yaw + delta.x * 0.5f, 360.f), std::memory_order_relaxed);
+				const auto pitch = FatalityPreviewBridge::pitch.load(std::memory_order_relaxed);
+				FatalityPreviewBridge::pitch.store(std::clamp(pitch + delta.y * 0.5f, -45.f, 45.f), std::memory_order_relaxed);
+			}
 		}
 
 		void on_mouse_wheel(float delta) override
 		{
 			input.consume_wheel();
-			preview_camera.distance = std::clamp(preview_camera.distance - delta * 15.f, 180.f, 500.f);
+			const auto distance = FatalityPreviewBridge::distance.load(std::memory_order_relaxed);
+			FatalityPreviewBridge::distance.store(std::clamp(distance - delta * 15.f, 180.f, 500.f), std::memory_order_relaxed);
 		}
 	};
 

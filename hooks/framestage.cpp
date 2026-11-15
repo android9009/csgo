@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../features/visuals/model_preview.hpp"
 #include "../context.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../sdk/entity/player.hpp"
@@ -9,6 +10,7 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
+    if (stage == 6) ModelPreview::Paint();
     // SEH: entity/weapon pointers come from the game and may be stale for a
     // frame; never let a bad read crash the process from a hook.
     __try {

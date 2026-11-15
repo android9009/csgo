@@ -158,6 +158,7 @@
     <ClCompile Include="hooks\directx.cpp" />
     <ClCompile Include="hooks\drawmodel.cpp" />
     <ClCompile Include="hooks\framestage.cpp" />
+    <ClCompile Include="features\visuals\model_preview.cpp" />
     <ClCompile Include="hooks\hooks.cpp" />
     <ClCompile Include="hooks\paint.cpp" />
     <ClCompile Include="hooks\sceneend.cpp" />
@@ -355,6 +356,8 @@
     <ClInclude Include="sdk\schema.hpp" />
     <ClInclude Include="sdk\studiohdr.hpp" />
     <ClInclude Include="sdk\model_preview.hpp" />
+    <ClInclude Include="features\visuals\model_preview.hpp" />
+    <ClInclude Include="third_party\fatality\preview_bridge.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\img\click_sfx.hpp" />

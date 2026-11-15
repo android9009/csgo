@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../features/visuals/model_preview.hpp"
 #include "../utils/config.hpp"
 #include "../utils/log.hpp"
 #include "../third_party/fatality/port.hpp"
@@ -25,6 +26,7 @@ long __stdcall EndScene(void* device) {
 long __stdcall Reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* params) {
     auto original = Hooks::GetResetOriginalFor(dev);
     if (!original) return D3DERR_INVALIDCALL;
+    ModelPreview::BeforeReset();
     FatalityMenu::BeforeReset(dev);
     const auto result = original(dev, params);
     FatalityMenu::AfterReset(dev, result);

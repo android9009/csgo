@@ -1,3 +1,4 @@
+#include "preview_bridge.hpp"
 #include <gui/helpers.h>
 #include <gui/values.h>
 #include <gui/controls.h>
@@ -843,6 +844,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     if (device != gui_device || !objects_ready) return;
     auto wnd = main_wnd.lock();
     if (!wnd || !ctx) return;
+    if (!open) FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     if (wnd->is_visible != open) {
         wnd->is_visible = wnd->is_taking_input = open;
         ctx->should_render_cursor = open;
@@ -871,6 +873,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
         wnd->pos.y = std::clamp(wnd->pos.y, 0.f, std::max(0.f, available.y - wnd->size.y));
         for (const auto& p : ctx->active_popups) p->close();
     }
+    FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     draw.begin_frame();
     ctx->render();
     draw.end_frame();

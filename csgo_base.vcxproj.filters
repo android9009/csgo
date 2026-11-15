@@ -171,6 +171,9 @@
     <ClCompile Include="hooks\drawmodel.cpp">
       <Filter>Hooks</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\model_preview.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="hooks\framestage.cpp">
       <Filter>Hooks</Filter>
     </ClCompile>
@@ -580,6 +583,12 @@
     </ClInclude>
     <ClInclude Include="sdk\structs.hpp">
       <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\model_preview.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\preview_bridge.hpp">
+      <Filter>Menu (Fatality)</Filter>
     </ClInclude>
     <ClInclude Include="sdk\model_preview.hpp">
       <Filter>SDK</Filter>

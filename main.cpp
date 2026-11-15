@@ -18,6 +18,7 @@
 #include "utils/log.hpp"
 #include "utils/memory.hpp"
 #include "hooks/hooks.hpp"
+#include "features/visuals/model_preview.hpp"
 
 namespace {
 HANDLE status_mapping{};
@@ -105,6 +106,7 @@ void ProbeModelPreview() {
 }
 void Shutdown() {
     Hooks::Restore();
+    ModelPreview::Shutdown();
     EventListener::Destroy();
     PropManager::Get().Destroy();
 }
