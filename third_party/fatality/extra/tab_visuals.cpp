@@ -64,6 +64,11 @@ namespace menu::group
 		}
 	};
 
+	std::shared_ptr<control> make_model_preview(const char* id, const vec2 &size)
+	{
+		return std::make_shared<model_preview_viewport>(control_id{hash(id), id}, size);
+	}
+
 	constexpr int removal_ragdolls = 7;
 
 	void update_ragdoll_chams_visibility(bool removed)
