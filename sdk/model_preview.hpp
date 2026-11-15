@@ -1,6 +1,7 @@
 #pragma once
 // Experimental Source 1 Win32 ABI declarations for the model-preview port.
 // These declarations are not proof that a particular client build is compatible.
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include "../math/vector.hpp"
@@ -43,6 +44,8 @@ using Frustum = Plane[6];
 constexpr std::uintptr_t reference_model_constructor_rva = 0x009aae50;
 constexpr std::uintptr_t reference_attachment_bones_rva = 0x009ab380;
 constexpr std::uintptr_t reference_set_merged_model_rva = 0x009ab930;
+// Resolved once during DLL initialization, before the frame hook is installed.
+inline std::atomic<std::uintptr_t> model_constructor{0}, attachment_bones{0}, set_merged_model{0};
 
 // C_MergedMDL's size and lifetime are build-specific. Keep it opaque: never
 // allocate or destroy it with guessed offsets or the wrong allocator.

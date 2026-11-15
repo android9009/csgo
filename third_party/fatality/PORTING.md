@@ -14,10 +14,12 @@ The Rage page is based on the fix-master demo and has a reorganized Aimbot layou
 page layouts come from the subsequently supplied Fatality menu sources. The Lua
 page is empty in those sources. Menu values are not connected to this project's feature or config system.
 
-## Player model preview (incomplete)
+## Player model preview (experimental)
 
-The ESP and Chams preview panels have a shared orbit/zoom input state, but no
-model renderer or game texture yet. The viewport explicitly reports that it is
-unavailable. Experimental ABI declarations live in `sdk/model_preview.hpp`. The Source 1 merged-model, render-context and view bindings,
-version checks, render-target lifetime and in-game validation still need to be
-implemented before connecting that state to an actual model.
+The ESP and Chams preview panels share orbit and zoom input. The experimental
+Source 1 renderer in `features/visuals/model_preview.cpp` follows Fatality's
+merged-model and render-target approach, using candidate addresses resolved once
+at startup. It uses a fixed FBI agent and has not been validated in-game; Type,
+ESP overlay and Chams preview are not yet connected to the model rendering.
+The game-specific ABI, reset/unload handling, correctness and performance still
+require runtime testing.

@@ -3,7 +3,6 @@
 #include "../../sdk/model_preview.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../third_party/fatality/preview_bridge.hpp"
-#include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <d3d9.h>
@@ -23,15 +22,10 @@ std::uintptr_t ctor{}, bones{}, merged{};
 constexpr int width = 235, height = 370;
 
 bool Resolve() {
-    if (ctor && bones && merged) return true;
-    const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
-    ctor = MEM::FindPattern("client.dll", "53 8B D9 56 57 8D 4B 04 C7 03 ? ? ? ? E8 ? ? ? ? 6A");
-    bones = MEM::FindPattern("client.dll", "55 8B EC 83 EC 14 83 3D ? ? ? ? ? 53");
-    if (!base || !ctor || !bones) return false;
-    const auto shift = static_cast<std::intptr_t>(ctor - base) - static_cast<std::intptr_t>(reference_model_constructor_rva);
-    if (static_cast<std::intptr_t>(bones - base) - static_cast<std::intptr_t>(reference_attachment_bones_rva) != shift) return false;
-    merged = base + static_cast<std::uintptr_t>(static_cast<std::intptr_t>(reference_set_merged_model_rva) + shift);
-    return true;
+    ctor = model_constructor.load(std::memory_order_relaxed);
+    bones = attachment_bones.load(std::memory_order_relaxed);
+    merged = set_merged_model.load(std::memory_order_relaxed);
+    return ctor && bones && merged;
 }
 
 bool Initialize() {

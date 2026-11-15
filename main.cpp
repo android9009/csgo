@@ -95,6 +95,9 @@ void ProbeModelPreview() {
         if (size >= 16 && constructor_shift == bones_shift && candidate >= 0 && static_cast<std::uintptr_t>(candidate) >= start - base &&
             static_cast<std::uintptr_t>(candidate) <= start - base + size - 16) {
             const auto* bytes = reinterpret_cast<const unsigned char*>(base + static_cast<std::uintptr_t>(candidate));
+            SourceModelPreview::model_constructor.store(base + unique_matches[0], std::memory_order_relaxed);
+            SourceModelPreview::attachment_bones.store(base + unique_matches[1], std::memory_order_relaxed);
+            SourceModelPreview::set_merged_model.store(base + static_cast<std::uintptr_t>(candidate), std::memory_order_relaxed);
             LOG_INFO("preview probe: fatality offline set-merged candidate RVA=%08lX bytes=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X (not validated)",
                 static_cast<unsigned long>(candidate), bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
@@ -102,7 +105,7 @@ void ProbeModelPreview() {
             LOG_WARN("preview probe: fatality offline snapshot does not match located functions");
         }
     }
-    LOG_WARN("preview probe: diagnostics only; model renderer not implemented");
+    LOG_INFO("preview probe: candidate addresses prepared for experimental renderer");
 }
 void Shutdown() {
     Hooks::Restore();
