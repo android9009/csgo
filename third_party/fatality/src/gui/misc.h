@@ -4,7 +4,9 @@
 #include <string>
 #include <cstdint> // Include for uint64_t
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 
 #define GUI_HASH(s) evo::gui::msvc_constexpr<uint64_t, evo::gui::hash(s)>::_

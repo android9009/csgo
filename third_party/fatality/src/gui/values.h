@@ -219,7 +219,7 @@ namespace evo::gui
 			size_t hk_count{};
 			stream.read(reinterpret_cast<char *>(&hk_count), sizeof(hk_count));
 
-			for (auto i = 0; i < hk_count; i++)
+			for (size_t i = 0; i < hk_count; i++)
 			{
 				uint8_t hk_key{};
 				hotkey_info hk_value{};

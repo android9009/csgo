@@ -93,10 +93,10 @@ namespace evo::ren
 		[[nodiscard]] color b(float v) const { return {value.r, value.g, v, value.a}; }
 		[[nodiscard]] color a(float v) const { return {value.r, value.g, value.b, v}; }
 
-		[[nodiscard]] int get_r() const { return value.r * 255.f; }
-		[[nodiscard]] int get_g() const { return value.g * 255.f; }
-		[[nodiscard]] int get_b() const { return value.b * 255.f; }
-		[[nodiscard]] int get_a() const { return value.a * 255.f; }
+		[[nodiscard]] int get_r() const { return static_cast<int>(value.r * 255.f); }
+		[[nodiscard]] int get_g() const { return static_cast<int>(value.g * 255.f); }
+		[[nodiscard]] int get_b() const { return static_cast<int>(value.b * 255.f); }
+		[[nodiscard]] int get_a() const { return static_cast<int>(value.a * 255.f); }
 
 		[[nodiscard]] uint16_t h() const
 		{
@@ -106,7 +106,7 @@ namespace evo::ren
 
 			auto _h = 0U;
 			if (_max == _min)
-				_h = 0U;
+				return 0;
 			if (_max == value.r)
 				_h = (uint16_t)(60 * ((value.g - value.b) / d) + 360) % 360;
 			if (_max == value.g)
@@ -114,7 +114,7 @@ namespace evo::ren
 			if (_max == value.b)
 				_h = (uint16_t)(60 * ((value.r - value.g) / d) + 240) % 360;
 
-			return _h;
+			return static_cast<uint16_t>(_h);
 		}
 
 		[[nodiscard]] float s() const

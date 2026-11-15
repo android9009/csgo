@@ -1,7 +1,9 @@
 #ifndef REN_LINKER_ADAPTER_H
 #define REN_LINKER_ADAPTER_H
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 
 #include <functional>

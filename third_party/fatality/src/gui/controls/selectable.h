@@ -24,7 +24,7 @@ namespace evo::gui
 			init(t, c, v, s);
 		}
 
-		void init(const std::string &t, std::optional<ren::color> c, char v = -1, const ren::vec2 &s = {0.f, 0.f})
+		void init(const std::string &, std::optional<ren::color> c, char = -1, const ren::vec2 & = {0.f, 0.f})
 		{
 			using namespace ren;
 

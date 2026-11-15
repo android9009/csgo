@@ -213,7 +213,7 @@ namespace evo::ren
 		{
 			if (r)
 			{
-				if (g.clip_rect.has_value())
+				if (intersect && g.clip_rect.has_value())
 					g.clip_rect = g.clip_rect->intersect(*r);
 				else
 					g.clip_rect = r;

@@ -5,8 +5,8 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-#define DEG2RAD(x) ((x) * (M_PI / 180.f))
-#define RAD2DEG(x) ((x) * (180.f / M_PI))
+#define DEG2RAD(x) ((x) * (static_cast<float>(M_PI) / 180.f))
+#define RAD2DEG(x) ((x) * (180.f / static_cast<float>(M_PI)))
 
 namespace Math {
 bool Setup() { return true; }

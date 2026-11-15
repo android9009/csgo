@@ -151,7 +151,7 @@ namespace evo::gui
 		virtual void on_first_render_call() { }
 
 		// mouse has been moved
-		virtual void on_mouse_move(const ren::vec2 &p, const ren::vec2 &d) { }
+		virtual void on_mouse_move(const ren::vec2 &, const ren::vec2 &) { }
 
 		// mouse entered the control
 		virtual void on_mouse_enter() { }
@@ -160,31 +160,31 @@ namespace evo::gui
 		virtual void on_mouse_leave() { }
 
 		// mouse button state changed to down
-		virtual void on_mouse_down(char key) { }
+		virtual void on_mouse_down(char) { }
 
 		// mouse button state changed to up
-		virtual void on_mouse_up(char key) { }
+		virtual void on_mouse_up(char) { }
 
 		// mouse wheel has been scrolled (factor is -1 or 1, depending on the scroll direction)
-		virtual void on_mouse_wheel(float factor) { }
+		virtual void on_mouse_wheel(float) { }
 
 		// keyboard key state changed to down
-		virtual void on_key_down(uint16_t key) { }
+		virtual void on_key_down(uint16_t) { }
 
 		// keyboard key state changed to up
-		virtual void on_key_up(uint16_t key) { }
+		virtual void on_key_up(uint16_t) { }
 
 		// input text buffer update
-		virtual void on_text_input(const std::vector<uint32_t> &text) { }
+		virtual void on_text_input(const std::vector<uint32_t> &) { }
 
 		// draw parameter changed
-		virtual void on_draw_param_changed(char w) { }
+		virtual void on_draw_param_changed(char) { }
 
 		// when hotkey table updates, control should update their setting
 		virtual void update_hotkey_table();
 
 		// if hotkey has been toggled, ask control to update its value
-		virtual void update_hotkey_value(hotkey_update upd, hotkey_info v) { }
+		virtual void update_hotkey_value(hotkey_update, hotkey_info) { }
 
 		// used to maintain forcibly set value when saving configuration to avoid issues
 		virtual void preserve_hotkey_state() { }

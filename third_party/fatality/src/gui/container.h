@@ -13,7 +13,7 @@ namespace evo::gui
 	{
 	public:
 		// called when child control is added
-		virtual void on_control_added(const std::shared_ptr<control> &c) { }
+		virtual void on_control_added(const std::shared_ptr<control> &) { }
 
 		// called when child control is removed
 		virtual void on_control_removed() { }

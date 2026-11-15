@@ -30,7 +30,7 @@ namespace evo::gui
 		CALLBACK_TRAIT(container, on_control_removed, ())();
 
 		// called when child received on_draw_param_changed
-		virtual void on_control_draw_param_changed(std::shared_ptr<control> c, char w) { }
+		virtual void on_control_draw_param_changed(std::shared_ptr<control>, char) { }
 
 		void add(const std::shared_ptr<control> &c) override;
 		void remove(const std::shared_ptr<control> &c) override;

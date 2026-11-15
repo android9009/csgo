@@ -52,11 +52,11 @@ namespace evo::gui
 		void on_mouse_up(char key) override;
 		void on_mouse_move(const ren::vec2 &p, const ren::vec2 &d) override;
 
-		void on_control_added(const std::shared_ptr<control> &c) override { reset_stack(); }
+		void on_control_added(const std::shared_ptr<control> &) override { reset_stack(); }
 
 		void on_control_removed() override { reset_stack(); }
 
-		void on_control_draw_param_changed(std::shared_ptr<control> c, char w) override { reset_stack(); }
+		void on_control_draw_param_changed(std::shared_ptr<control>, char) override { reset_stack(); }
 
 		void on_first_render_call() override { reset_stack(); }
 

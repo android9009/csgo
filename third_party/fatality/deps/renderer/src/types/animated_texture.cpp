@@ -2,6 +2,11 @@
 #include <ren/types/animated_texture.h>
 
 #include <fstream>
+// Animated textures need their own GIF decoder: the regular decoder is static
+// to avoid collisions with the legacy menu's stb_image implementation.
+#define STB_IMAGE_STATIC
+#define STBI_ONLY_GIF
+#define STB_IMAGE_IMPLEMENTATION
 #include <lib/image.h>
 
 namespace evo::ren

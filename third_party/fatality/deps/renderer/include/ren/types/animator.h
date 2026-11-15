@@ -183,7 +183,7 @@ namespace evo::ren
 				value.value.a = i(start.value.a, end.value.a);
 			}
 			else
-				value = value.hsv(i(start.h(), end.h()), i(start.s(), end.s()), i(start.v(), end.v())).a(i(start.value.a, end.value.a));
+				value = value.hsv(static_cast<uint16_t>(i(start.h(), end.h())), i(start.s(), end.s()), i(start.v(), end.v())).a(i(start.value.a, end.value.a));
 		}
 
 		char type{};
