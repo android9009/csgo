@@ -307,6 +307,9 @@ namespace menu::group
 			  progress_(shown ? 1.f : 0.f), target_(shown) {
 			size_to_parent_w = true;
 			disable_scroll = true;
+		}
+
+		void initialize() {
 			add(content_);
 			process_queues();
 		}
@@ -341,6 +344,7 @@ namespace menu::group
 		const std::shared_ptr<checkbox>& toggle, const std::shared_ptr<layout>& row, bool visible)
 	{
 		const auto animated = std::make_shared<dependent_row>(control_id{row->id ^ hash("dependent")}, row, visible);
+		animated->initialize();
 		toggle->callback = [weak = std::weak_ptr<dependent_row>(animated)](bool value) {
 			if (const auto target = weak.lock()) target->show(value);
 		};

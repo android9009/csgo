@@ -165,6 +165,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 					sel->custom_color = real_sel->custom_color;
 
 					val_casted->add(sel);
+					++i;
 				});
 
 			val->reset();
