@@ -164,7 +164,8 @@ bool Setup() {
         client_hook.is_hooked(), view_render_hook.is_hooked(), model_render_hook.is_hooked());
     // The cheat stays loaded as long as the menu can be toggled; feature hooks
     // are optional until features land.
-    return original_wndproc != nullptr;
+    return original_wndproc != nullptr &&
+        (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
     if (game_window && original_wndproc)

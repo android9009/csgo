@@ -35,7 +35,7 @@
   <PropertyGroup>
     <OutDir>$(ProjectDir)build\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)build\obj\$(Configuration)\</IntDir>
-    <TargetName>csgo_base</TargetName>
+    <TargetName>pastavar</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

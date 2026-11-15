@@ -27,7 +27,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: csgo-base-win32
-          path: build/Release/csgo_base.dll
+          path: build/Release/pastavar.dll
           if-no-files-found: error
 
   fatality-port-check:
@@ -59,3 +59,12 @@ jobs:
             Get-Content vs-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
           exit $code
+
+  debug-build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+      - name: Build Debug DLL and injector
+        run: cmake --build build --config Debug

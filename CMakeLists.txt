@@ -17,6 +17,7 @@ file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
 # The old ImGui menu is retained as reference, but is no longer used by the DLL.
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/features/menu/")
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/injector/")
 
 # Vendored MinHook (Win32).
 set(THIRDPARTY_SOURCES
@@ -37,7 +38,7 @@ target_include_directories(csgo_base PRIVATE
 target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc /utf-8)
 target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
-set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
+set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "pastavar" SUFFIX ".dll")
 
 # The original GUI and DX9 renderer are built as a C++20 library.
   file(GLOB_RECURSE FATALITY_GUI_SOURCES CONFIGURE_DEPENDS
@@ -65,3 +66,9 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUF
   target_compile_options(fatality_port_check PRIVATE /utf-8)
   target_link_libraries(fatality_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
   target_link_libraries(csgo_base PRIVATE fatality_port_check d3dcompiler)
+
+# Standalone x86 injector. The DLL and executable are produced in the same configuration directory.
+add_executable(pastavar_injector WIN32 injector/main.cpp injector/status.hpp)
+target_compile_definitions(pastavar_injector PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_compile_options(pastavar_injector PRIVATE /W4 /permissive- /EHsc /utf-8)
+target_link_libraries(pastavar_injector PRIVATE user32)
