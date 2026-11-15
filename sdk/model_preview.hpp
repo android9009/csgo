@@ -38,6 +38,12 @@ static_assert(offsetof(ViewSetup, near_z) == 0xd0, "Source 1 view near plane off
 struct Plane { Vector normal{}; float distance{}; };
 using Frustum = Plane[6];
 
+// Decoded offline (NO_NETOFFSETS) snapshot in reversed2603/fatality_source.
+// These belong to that snapshot, not necessarily the running client.dll.
+constexpr std::uintptr_t reference_model_constructor_rva = 0x009aae50;
+constexpr std::uintptr_t reference_attachment_bones_rva = 0x009ab380;
+constexpr std::uintptr_t reference_set_merged_model_rva = 0x009ab930;
+
 // C_MergedMDL's size and lifetime are build-specific. Keep it opaque: never
 // allocate or destroy it with guessed offsets or the wrong allocator.
 struct MergedModel;

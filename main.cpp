@@ -69,7 +69,9 @@ void ProbeModelPreview() {
         {"merged model constructor candidate", "53 8B D9 56 57 8D 4B 04 C7 03 ? ? ? ? E8 ? ? ? ? 6A"},
         {"attachment bone setup candidate", "55 8B EC 83 EC 14 83 3D ? ? ? ? ? 53"}
     };
-    for (const auto& probe : probes) {
+    std::uintptr_t unique_matches[2]{};
+    for (std::size_t index = 0; index < 2; ++index) {
+        const auto& probe = probes[index];
         const auto first = MEM::FindPattern(reinterpret_cast<const std::uint8_t*>(start), size, probe.signature);
         if (!first) {
             LOG_WARN("preview probe: %s not found", probe.name);
@@ -79,6 +81,25 @@ void ProbeModelPreview() {
         const auto second = MEM::FindPattern(reinterpret_cast<const std::uint8_t*>(first + 1), remaining, probe.signature);
         LOG_INFO("preview probe: %s RVA=%08lX match=%s", probe.name,
                  static_cast<unsigned long>(first - base), second ? "multiple" : "unique");
+        if (!second) unique_matches[index] = first - base;
+    }
+    // Both independently located functions must agree with the offline snapshot's
+    // relative spacing. This yields a diagnostic candidate, not a callable address.
+    if (unique_matches[0] && unique_matches[1]) {
+        const auto constructor_shift = static_cast<std::intptr_t>(unique_matches[0]) -
+            static_cast<std::intptr_t>(SourceModelPreview::reference_model_constructor_rva);
+        const auto bones_shift = static_cast<std::intptr_t>(unique_matches[1]) -
+            static_cast<std::intptr_t>(SourceModelPreview::reference_attachment_bones_rva);
+        const auto candidate = static_cast<std::intptr_t>(SourceModelPreview::reference_set_merged_model_rva) + constructor_shift;
+        if (size >= 16 && constructor_shift == bones_shift && candidate >= 0 && static_cast<std::uintptr_t>(candidate) >= start - base &&
+            static_cast<std::uintptr_t>(candidate) <= start - base + size - 16) {
+            const auto* bytes = reinterpret_cast<const unsigned char*>(base + static_cast<std::uintptr_t>(candidate));
+            LOG_INFO("preview probe: fatality offline set-merged candidate RVA=%08lX bytes=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X (not validated)",
+                static_cast<unsigned long>(candidate), bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
+        } else {
+            LOG_WARN("preview probe: fatality offline snapshot does not match located functions");
+        }
     }
     LOG_WARN("preview probe: diagnostics only; model renderer not implemented");
 }
