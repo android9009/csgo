@@ -605,11 +605,12 @@ namespace menu::group
 
 		ADD_INLINE(
 			"Fov changer", MAKE("visuals>misc>local>fov changer", checkbox, cfg.misc.fov_enabled),
-			MAKE("visuals>misc>local>fov changer>settings", settings, [](auto e) { ADD("Fov", "visuals>misc>local>fov changer>settings>fov", slider<float>, 60.f, 140.f,
-				cfg.misc. fov, XOR("%.0f")); ADD("Remove zoom", "visuals>misc>local>fov changer>settings>remove zoom", slider<float>, 0.f, 100.f, cfg.misc.fov_scope, XOR("%.0f%%"));
+			MAKE("visuals>misc>local>fov changer>settings", settings, [](auto e) {
+				ADD("Aspect ratio", "visuals>misc>local>fov>aspect", slider<float>, 0.f, 200.f, cfg.misc.aspect, "%.0f%%");
+				ADD("Fov", "visuals>misc>local>fov changer>settings>fov", slider<float>, 60.f, 140.f, cfg.misc.fov, XOR("%.0f"));
+				ADD("Remove zoom", "visuals>misc>local>fov changer>settings>remove zoom", slider<float>, 0.f, 100.f, cfg.misc.fov_scope, XOR("%.0f%%"));
 				ADD("Force second zoom", "visuals>misc>local>fov>second zoom", checkbox, cfg.misc.force_second_zoom);
-				ADD("Force viewmodel in scope", "visuals>misc>local>fov>viewmodel scope", checkbox, cfg.misc.force_viewmodel_scope);
-				ADD("Aspect ratio", "visuals>misc>local>fov>aspect", slider<float>, 0.f, 200.f, cfg.misc.aspect, "%.0f%%"); }));
+				ADD("Force viewmodel in scope", "visuals>misc>local>fov>viewmodel scope", checkbox, cfg.misc.force_viewmodel_scope); }));
 
 		ADD_INLINE("Viewmodel changer", MAKE("visuals>misc>local>viewmodel", checkbox, cfg.misc.vm_fov_enabled),
 			MAKE("visuals>misc>local>viewmodel>settings", settings, [](auto e) {
