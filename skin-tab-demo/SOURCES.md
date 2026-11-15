@@ -16,3 +16,5 @@ existing Fatality GUI resources in this repository.
 The animated agent and weapon preview is a 2D web mock, not a Source engine
 model renderer. The web page has its own temporary selection state and never
 changes the game or the DLL's settings.
+
+Agent patch catalogue: `public/api/en/patches.json` from ByMykel/CSGO-API (MIT); images hosted by Steam. The catalog includes CS2-era items and the 2D patch positions are illustrative.
