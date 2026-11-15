@@ -430,7 +430,7 @@ struct cfg_t {
 		bitset autostop_mode, baim, extra_safety, force_safe, hitboxes, pointscales, fallback_mode;
 
 		int get_true_mindmg( ) const {
-			return mindmg_override_enabled ? mindmg_override : mindmg;
+			return static_cast<int>(mindmg_override_enabled ? mindmg_override : mindmg);
 		}
 
 		//int get_mindmg(C_CSPlayer *player = nullptr, int highest_damage = 0) const;

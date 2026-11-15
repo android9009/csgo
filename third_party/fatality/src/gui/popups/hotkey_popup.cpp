@@ -60,7 +60,7 @@ void hotkey_popup::on_first_render_call()
 	// insert existing ones
 	for (const auto &[k, i] : remote->hotkeys)
 	{
-		insert_hotkey(hotkey_temp_t{k, value_param<bits>{1 << i.beh}, i.value});
+		insert_hotkey(hotkey_temp_t{k, value_param<bits>{uint64_t{1} << i.beh}, i.value});
 	}
 
 	ctx->active_popups.emplace_back(as<popup>());

@@ -42,7 +42,7 @@ target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json"
 )
 target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS IMGUI_DISABLE_ASSERT)
-target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc)
+target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc /utf-8)
 target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
 
@@ -69,5 +69,6 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUF
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src"
     "${FATALITY_RENDERER_DIR}/include")
   target_compile_definitions(fatality_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(fatality_port_check PRIVATE /utf-8)
   target_link_libraries(fatality_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
   target_link_libraries(csgo_base PRIVATE fatality_port_check d3dcompiler)
