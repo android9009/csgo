@@ -97,7 +97,7 @@ namespace evo::ren
 		g.vc = 1;
 		g.ic = 0;
 
-		const auto seg_scaled = std::max(1, static_cast<int>(std::ceil(segments * draw.scale)));
+		const auto seg_scaled = (std::max)(1, static_cast<int>(std::ceil(segments * draw.scale)));
 		const auto delta = (pi * fill) * 2.f / seg_scaled;
 		vb->write(vertex{center.x, center.y, 0.f, c.abgr(), uv.center().x, uv.center().y, skip_dpi});
 
@@ -154,7 +154,7 @@ namespace evo::ren
 		vb->write(vertex{tl.x, tl.y, 0.f, c.abgr(), .0f, .0f, skip_dpi});
 
 		// begin rendering quarter of the circle. going from bl to tr. br will be circle anchor.
-		const auto seg_scaled = std::max(1, static_cast<int>(std::ceil(segments * draw.scale)));
+		const auto seg_scaled = (std::max)(1, static_cast<int>(std::ceil(segments * draw.scale)));
 		const auto delta = h_pi / seg_scaled;
 		const auto radius = (r.width() + r.height()) * .5f;
 
@@ -267,7 +267,7 @@ namespace evo::ren
 		g.vc = 1;
 		g.ic = 0;
 
-		const auto seg_scaled = std::max(1, static_cast<int>(std::ceil(segments * draw.scale)));
+		const auto seg_scaled = (std::max)(1, static_cast<int>(std::ceil(segments * draw.scale)));
 		const auto delta = (pi * fill) * 2.f / seg_scaled;
 		vb->write(vertex{center.x, center.y, 0.f, cols[0].abgr(), uv.center().x, uv.center().y, skip_dpi});
 
@@ -517,28 +517,28 @@ namespace evo::ren
 			g.uv_rect = {
 				uv.mins.x + (r.width() - amount * 2.f) / r.width() * uv.width(), uv.mins.y + (r.height() - amount * 2.f) / r.height() * uv.height(), uv.maxs.x,
 				uv.maxs.y};
-			add_circle_filled(br - vec2{amount, amount}, amount, c, std::max(12, int(amount * 4.f)), .25f);
+			add_circle_filled(br - vec2{amount, amount}, amount, c, (std::max)(12, int(amount * 4.f)), .25f);
 		}
 
 		if (rbl)
 		{
 			g.rotation = 90.f;
 			g.uv_rect = {uv.mins.x, uv.mins.y + (r.height() - amount * 2.f) / r.height() * uv.height(), uv.mins.x + amount * 2.f / r.width() * uv.width(), uv.maxs.y};
-			add_circle_filled(bl - vec2{-amount, amount}, amount, c, std::max(12, int(amount * 4.f)), .25f);
+			add_circle_filled(bl - vec2{-amount, amount}, amount, c, (std::max)(12, int(amount * 4.f)), .25f);
 		}
 
 		if (rtl)
 		{
 			g.rotation = 180.f;
 			g.uv_rect = {uv.mins.x, uv.mins.y, uv.mins.x + amount * 2.f / r.width() * uv.width(), uv.mins.y + amount * 2.f / r.height() * uv.height()};
-			add_circle_filled(tl + vec2{amount, amount}, amount, c, std::max(12, int(amount * 4.f)), .25f);
+			add_circle_filled(tl + vec2{amount, amount}, amount, c, (std::max)(12, int(amount * 4.f)), .25f);
 		}
 
 		if (rtr)
 		{
 			g.rotation = 270.f;
 			g.uv_rect = {uv.mins.x + (r.width() - amount * 2.f) / r.width() * uv.width(), uv.mins.y, uv.maxs.x, uv.mins.y + amount * 2.f / r.height() * uv.height()};
-			add_circle_filled(tr + vec2{-amount, amount}, amount, c, std::max(12, int(amount * 4.f)), .25f);
+			add_circle_filled(tr + vec2{-amount, amount}, amount, c, (std::max)(12, int(amount * 4.f)), .25f);
 		}
 
 		ignore_checks = false;
@@ -740,7 +740,7 @@ namespace evo::ren
 
 		center = center.floor();
 
-		const auto seg_scaled = std::max(1, static_cast<int>(std::ceil(segments * draw.scale)));
+		const auto seg_scaled = (std::max)(1, static_cast<int>(std::ceil(segments * draw.scale)));
 		const auto delta = (pi * fill) * 2.f / seg_scaled;
 		if (g.alpha != 1.f)
 			c = c.mod_a(g.alpha);
