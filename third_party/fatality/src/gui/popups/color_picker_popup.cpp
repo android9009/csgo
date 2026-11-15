@@ -3,6 +3,8 @@
 #include <gui/gui.h>
 #include <gui/controls/button.h>
 #include <gui/controls/text_input.h>
+#include <gui/controls/checkbox.h>
+#include <gui/controls/label.h>
 
 GUI_NAMESPACE;
 
@@ -14,8 +16,8 @@ void color_picker_popup::on_first_render_call()
 
 	// create hsv picker
 	const auto p = std::make_shared<hsv_slider>(control_id{GUI_HASH("cpp_hsv")}, picker->value, picker->allow_alpha);
-	if (picker->gradient_color && picker->gradient_style && picker->gradient_style->get().test(picker->gradient_bit))
-		p->enable_gradient(*picker->gradient_color);
+	if (*picker->gradient_enabled)
+		p->enable_gradient(picker->second_color());
 	p->pos = {8.f, 8.f};
 	p->callback = picker->callback;
 	p->universal_callbacks = picker->universal_callbacks;
@@ -77,6 +79,20 @@ void color_picker_popup::on_first_render_call()
 	add(copy);
 	add(paste);
 	add(txt);
+
+	const float gradient_y = picker->allow_alpha ? 237.f : 197.f;
+	const auto gradient = std::make_shared<checkbox>(control_id{GUI_HASH("cpp_gradient")}, picker->gradient_enabled, vec2{8.f, gradient_y});
+	gradient->callback = [this, p, txt](bool enabled) {
+		if (enabled) p->enable_gradient(picker->second_color());
+		else p->disable_gradient();
+		const auto old = txt->callback;
+		txt->callback = {};
+		txt->set_value(color_to_string(p->active_value().get()));
+		txt->move_caret_to_end();
+		txt->callback = old;
+	};
+	add(gradient);
+	add(std::make_shared<label>(control_id{GUI_HASH("cpp_gradient_label")}, "Gradient", colors.text, false, vec2{26.f, gradient_y - 2.f}));
 
 	ctx->top_sort = sort;
 	ctx->active_popups.emplace_back(as<popup>());

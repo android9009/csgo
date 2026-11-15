@@ -251,6 +251,15 @@ void hsv_slider::enable_gradient(value_param<ren::color> &second)
 	mix_positions[1] = find_mix_position(second.get());
 }
 
+void hsv_slider::disable_gradient()
+{
+	secondary = nullptr;
+	secondary_selected = false;
+	fake_hue = value->h();
+	fake_saturation = value->s();
+	fake_brightness = value->v();
+}
+
 void hsv_slider::reset()
 {
 	// Explicit edits (hex/paste) update the circle, never the gradient handles.

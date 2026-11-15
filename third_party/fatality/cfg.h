@@ -552,12 +552,19 @@ struct cfg_t {
 		setting<bitset> hitsound_select{ 1 << hitsound_none }, autostrafe, buybot_primary{ 0 }, buybot_pistol{ 0 }, noscope{ 1 << noscope_none }, buybot_kevlar_helmet{ 0 },
 			hitmarker{};
 
-		setting<bitset> dpi_scale{ 1 << dpi_automatic }; ;
+		setting<bool> force_second_zoom, force_viewmodel_scope, disable_landing_bob;
+		setting<float> viewmodel_x, viewmodel_y, viewmodel_z, viewmodel_roll, viewmodel_yaw, viewmodel_pitch;
+		setting<color> grenade_warning_color{color::white()};
+		setting<bitset> removals, tracer_targets;
+		arr_setting<bitset> tracer_style{1};
+		arr_setting<color> tracer_colors{color::white()};
+		setting<float> texture_transparency;
+		setting<bitset> dpi_scale{ 1 << dpi_automatic };
 		bool in_peek_assist( );
 	} misc;
 
 	struct visuals_t {
-		setting<bool> disable_postprocessing, dark, out_of_fov, autowall_crosshair;
+		setting<bool> disable_postprocessing, dark, out_of_fov, autowall_crosshair, force_spread;
 		setting<float> darkness, prop_transparency, out_of_fov_dst{ 50.f }, out_of_fov_size{ 24.f }, ragdoll_thrust{ 100.f };
 		setting<color> skybox_color{ color::white( ) }, dark_color{ color::white( ) }, prop_color{ color::white( ) }, spread_circle_color1{ color::white( ) }, spread_circle_color2
 		{ color::white( ) }, out_of_fov_col{ color::white( ) };

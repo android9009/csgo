@@ -1,6 +1,7 @@
 #include "menu.h"
 
 #include <gui/controls/image.h>
+#include <array>
 
 #include "../cfg.h"
 #include "macros.h"
@@ -142,7 +143,7 @@ namespace menu::group
 		area->is_visible = false;
 		area->make_not_clip();
 		area->add(make_groupbox(XOR("visuals>misc>local"), XOR("LOCAL"), group_sz, visuals_misc_local));
-		area->add(make_groupbox(XOR("visuals>misc>various"), XOR("VARIOUS"), group_sz, visuals_misc_various));
+		area->add(make_groupbox(XOR("visuals>misc>various"), XOR("OTHER"), group_sz, visuals_misc_various));
 		area->add(make_groupbox(XOR("visuals>misc>beams"), XOR("BEAMS"), group_sz, visuals_misc_beams));
 
 		e->add(area);
@@ -175,15 +176,7 @@ namespace menu::group
 		{
 			const auto picker = MAKE("visuals>esp>player>health>color 1", color_picker, cfg.visuals.esp.health_color_1, false);
 			picker->gradient_color = &cfg.visuals.esp.health_color_2;
-			picker->gradient_style = &cfg.visuals.esp.health_style;
-			picker->gradient_bit = cfg_t::healthbar_gradient;
-			ADD_INLINE("Health", MAKE("visuals>esp>player>health", checkbox, cfg.visuals.esp.health), picker,
-				MAKE("visuals>esp>player>health>settings", settings, [](auto e) {
-					const auto c = MAKE("visuals>esp>player>health>settings>health style", combo_box, cfg.visuals.esp.health_style);
-					c->add({MAKE("visuals>esp>player>health>settings>health style>solid", selectable, "Solid", cfg_t::healthbar_solid),
-						MAKE("visuals>esp>player>health>settings>health style>gradient", selectable, "Gradient", cfg_t::healthbar_gradient)});
-					ADD_INLINE("Health style", c);
-				}));
+			ADD_INLINE("Health", MAKE("visuals>esp>player>health", checkbox, cfg.visuals.esp.health), picker);
 		}
 
 
@@ -593,130 +586,98 @@ namespace menu::group
 		ADD_INLINE(
 			"Fov changer", MAKE("visuals>misc>local>fov changer", checkbox, cfg.misc.fov_enabled),
 			MAKE("visuals>misc>local>fov changer>settings", settings, [](auto e) { ADD("Fov", "visuals>misc>local>fov changer>settings>fov", slider<float>, 60.f, 140.f,
-				cfg.misc. fov, XOR("%.0f")); ADD("Remove zoom", "visuals>misc>local>fov changer>settings>remove zoom", slider<float>, 0.f, 100.f, cfg.misc.fov_scope, XOR(
-				"%.0f%%")); }));
+				cfg.misc. fov, XOR("%.0f")); ADD("Remove zoom", "visuals>misc>local>fov changer>settings>remove zoom", slider<float>, 0.f, 100.f, cfg.misc.fov_scope, XOR("%.0f%%"));
+				ADD("Force second zoom", "visuals>misc>local>fov>second zoom", checkbox, cfg.misc.force_second_zoom);
+				ADD("Force viewmodel in scope", "visuals>misc>local>fov>viewmodel scope", checkbox, cfg.misc.force_viewmodel_scope);
+				ADD("Aspect ratio", "visuals>misc>local>fov>aspect", slider<float>, 0.f, 200.f, cfg.misc.aspect, "%.0f%%"); }));
 
-		ADD_INLINE(
-			"Viewmodel fov changer", MAKE("visuals>misc>local>viewmodel fov changer", checkbox, cfg.misc.vm_fov_enabled),
-			MAKE("visuals>misc>local>fov changer>settings", settings, [](auto e) { ADD("Fov", "visuals>misc>local>viewmodel fov changer>settings>fov", slider<float>, 60.f
-				, 140.f, cfg.misc.vm_fov, XOR("%.0f")); }));
+		ADD_INLINE("Viewmodel changer", MAKE("visuals>misc>local>viewmodel", checkbox, cfg.misc.vm_fov_enabled),
+			MAKE("visuals>misc>local>viewmodel>settings", settings, [](auto e) {
+				ADD("FOV", "visuals>misc>local>viewmodel>fov", slider<float>, 60.f, 140.f, cfg.misc.vm_fov, "%.0f");
+				ADD("X", "visuals>misc>local>viewmodel>x", slider<float>, -30.f, 30.f, cfg.misc.viewmodel_x, "%.1f", .1f);
+				ADD("Y", "visuals>misc>local>viewmodel>y", slider<float>, -30.f, 30.f, cfg.misc.viewmodel_y, "%.1f", .1f);
+				ADD("Z", "visuals>misc>local>viewmodel>z", slider<float>, -30.f, 30.f, cfg.misc.viewmodel_z, "%.1f", .1f);
+				ADD("Roll", "visuals>misc>local>viewmodel>roll", slider<float>, -180.f, 180.f, cfg.misc.viewmodel_roll, "%.0f deg");
+				ADD("Yaw", "visuals>misc>local>viewmodel>yaw", slider<float>, -180.f, 180.f, cfg.misc.viewmodel_yaw, "%.0f deg");
+				ADD("Pitch", "visuals>misc>local>viewmodel>pitch", slider<float>, -180.f, 180.f, cfg.misc.viewmodel_pitch, "%.0f deg");
+				ADD("Disable landing bob", "visuals>misc>local>viewmodel>landing bob", checkbox, cfg.misc.disable_landing_bob);
+			}));
 
-		ADD("Goblin mode", "visuals>misc>local>goblin mode", checkbox, cfg.misc.goblin_mode);
 		ADD_INLINE(
 			"Grenade prediction", MAKE("visuals>misc>local>grenade prediction", checkbox, cfg.misc.grenade_tracer),
 			MAKE("visuals>misc>local>grenade prediction>hit color", color_picker, cfg.misc.tracer_color)-> make_tooltip(XOR("Hit color")),
 			MAKE("visuals>misc>local>grenade prediction>miss color", color_picker, cfg.misc.box_color)-> make_tooltip(XOR("Miss color")));
-		ADD("Grenade proximity warning", "visuals>misc>local>grenade proximity warning", checkbox, cfg.misc.grenade_helper);
-		ADD("Remove visual punch", "visuals>misc>local>remove visual punch", checkbox, cfg.aim.punch);
+		ADD_INLINE("Grenade proximity warning", MAKE("visuals>misc>local>grenade proximity warning", checkbox, cfg.misc.grenade_helper),
+			MAKE("visuals>misc>local>grenade proximity warning>color", color_picker, cfg.misc.grenade_warning_color));
 
 		{
 			const auto c = MAKE("visuals>misc>local>remove scope", combo_box, cfg.misc.noscope);
-			c->add(
-			{MAKE("visuals>misc>local>remove scope>none", selectable, XOR("None"), cfg_t::noscope_none), MAKE(
-				 "visuals>misc>local>remove scope>static", selectable, XOR("Static"), cfg_t::noscope_static),
-			 MAKE("visuals>misc>local>remove scope>dynamic", selectable, XOR("Dynamic"), cfg_t::noscope_dynamic),
-			 MAKE("visuals>misc>local>remove scope>gradient static", selectable, XOR("Gradient static"), cfg_t::noscope_gradient_static), MAKE(
-				 "visuals>misc>local>remove scope>gradient dynamic", selectable, XOR("Gradient dynamic"), cfg_t::noscope_gradient_dynamic),});
-
-			c->callback = [](bits &v)
-			{
-				FIND_SAFE(rss, "visuals>misc>local>remove scope>settings");
-				rss->set_visible(v.test(cfg_t::noscope_gradient_static) || v.test(cfg_t::noscope_gradient_dynamic));
-			};
-
-			ADD_INLINE(
-				"Remove scope", c,
-				MAKE("visuals>misc>local>remove scope>settings", settings, [](auto e) { ADD("Line color", "visuals>misc>local>remove scope>settings>line color",
-					color_picker, cfg. misc.scope_line_color); ADD("Line size", "visuals>misc>local>remove scope>settings>line size", slider<float>, 5.f, 100.f, cfg.misc.
-					scope_line_size, XOR("%.0f%%")); ADD("Invert", "visuals>misc>local>remove scope>settings>invert", checkbox, cfg.misc. scope_invert); })->
-				make_invisible());
+			c->add({MAKE("visuals>misc>local>remove scope>none", selectable, "None", cfg_t::noscope_none),
+				MAKE("visuals>misc>local>remove scope>static", selectable, "Static", cfg_t::noscope_static),
+				MAKE("visuals>misc>local>remove scope>dynamic", selectable, "Dynamic", cfg_t::noscope_dynamic)});
+			ADD_INLINE("Remove scope", c, MAKE("visuals>misc>local>remove scope>settings", settings, [](auto e) {
+				ADD("Line color", "visuals>misc>local>remove scope>settings>line color", color_picker, cfg.misc.scope_line_color);
+				ADD("Line size", "visuals>misc>local>remove scope>settings>line size", slider<float>, 5.f, 100.f, cfg.misc.scope_line_size, "%.0f%%");
+				ADD("Invert", "visuals>misc>local>remove scope>settings>invert", checkbox, cfg.misc.scope_invert);
+			}));
 		}
-
 		ADD("Penetration crosshair", "visuals>misc>local>penetration crosshair", checkbox, cfg.visuals.autowall_crosshair);
 		ADD("Force crosshair", "visuals>misc>local>force crosshair", checkbox, cfg.misc.force_crosshair);
-
 		{
-			const auto c = MAKE("visuals>misc>local>spread", combo_box, cfg.visuals.spread_circle_type);
-			c->add(
-			{MAKE("visuals>misc>local>spread>none", selectable, XOR("None"), cfg_t::spread_circle_off), MAKE(
-				 "visuals>misc>local>spread>gradient", selectable, XOR("Gradient"), cfg_t::spread_circle_gradient),});
-
-			ADD_INLINE(
-				"Spread", c, MAKE("visuals>misc>local>spread>color 1", color_picker, cfg.visuals.spread_circle_color1),
-				MAKE("visuals>misc>local>spread>color 2", color_picker, cfg.visuals.spread_circle_color2));
+			const auto spread = MAKE("visuals>misc>local>spread", checkbox, cfg.visuals.force_spread);
+			const auto picker = MAKE("visuals>misc>local>spread>color", color_picker, cfg.visuals.spread_circle_color1);
+			picker->gradient_color = &cfg.visuals.spread_circle_color2;
+			ADD_INLINE("Spread", spread, picker);
 		}
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
 	void visuals_misc_various(std::shared_ptr<layout> &e)
 	{
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD("Aspect ratio", "visuals>misc>various>aspect ratio", slider<float>, 0.f, 200.f, cfg.misc.aspect, XOR("%.0f%%"));
-
-		ADD_INLINE(
-			"Darkmode", MAKE("visuals>misc>various>darkmode", checkbox, cfg.visuals.dark),
-			MAKE("visuals>misc>various>darkmode>world color", color_picker, cfg.visuals.dark_color)->make_tooltip (XOR("World color")),
-			MAKE("visuals>misc>various>darkmode>prop color", color_picker, cfg.visuals.prop_color, false)-> make_tooltip(XOR("Prop color")),
-			MAKE("visuals>misc>various>darkmode>settings", settings, [](auto e) { ADD("Amount", "visuals>misc>various>darkmode>settings>amount", slider<float>, 0.f, 100.f
-				, cfg. visuals.darkness, XOR("%.0f%%")); }));
-
-		ADD("Prop transparency", "visuals>misc>various>prop transparency", slider<float>, 0.f, 100.f, cfg.visuals.prop_transparency, XOR("%.0f%%"));
-
+		ADD("Texture transparency", "visuals>misc>other>texture transparency", slider<float>, 0.f, 100.f, cfg.misc.texture_transparency, "%.0f%%");
+		ADD("Prop transparency", "visuals>misc>other>prop transparency", slider<float>, 0.f, 100.f, cfg.visuals.prop_transparency, "%.0f%%");
 		{
-			const auto c = MAKE("visuals>misc>various>skybox", combo_box, cfg.visuals.skybox);
-			c->legacy_mode = true;
-			c->add(
-			{MAKE("visuals>misc>various>skybox>default", selectable, XOR("Default"), 0), MAKE(
-				 "visuals>misc>various>skybox>sky_csgo_cloudy01", selectable, XOR("sky_csgo_cloudy01"), 1),
-			 MAKE("visuals>misc>various>skybox>sky_csgo_night02", selectable, XOR("sky_csgo_night02"), 2),
-			 MAKE("visuals>misc>various>skybox>sky_csgo_night02b", selectable, XOR("sky_csgo_night02b"), 3),
-			 MAKE("visuals>misc>various>skybox>cs_baggage_skybox", selectable, XOR("cs_baggage_skybox"), 4),
-			 MAKE("visuals>misc>various>skybox>cs_tibet", selectable, XOR("cs_tibet"), 5), MAKE("visuals>misc>various>skybox>vietnam", selectable, XOR("vietnam"), 6),
-			 MAKE("visuals>misc>various>skybox>sky_lunacy", selectable, XOR("sky_lunacy"), 7), MAKE("visuals>misc>various>skybox>embassy", selectable, XOR("embassy"), 8),
-			 MAKE("visuals>misc>various>skybox>italy", selectable, XOR("italy"), 9), MAKE("visuals>misc>various>skybox>jungle", selectable, XOR("jungle"), 10),
-			 MAKE("visuals>misc>various>skybox>office", selectable, XOR("office"), 11),
-			 MAKE("visuals>misc>various>skybox>sky_cs15_daylight01_hdr", selectable, XOR("sky_cs15_daylight01_hdr"), 12),
-			 MAKE("visuals>misc>various>skybox>sky_cs15_daylight02_hdr", selectable, XOR("sky_cs15_daylight02_hdr"), 13),
-			 MAKE("visuals>misc>various>skybox>sky_day02_05", selectable, XOR("sky_day02_05"), 14),
-			 MAKE("visuals>misc>various>skybox>nukeblank", selectable, XOR("nukeblank"), 15),
-			 MAKE("visuals>misc>various>skybox>dustblank", selectable, XOR("dustblank"), 16),
-			 MAKE("visuals>misc>various>skybox>sky_venice", selectable, XOR("sky_venice"), 17),
-			 MAKE("visuals>misc>various>skybox>sky_cs15_daylight03_hdr", selectable, XOR("sky_cs15_daylight03_hdr"), 18),
-			 MAKE("visuals>misc>various>skybox>sky_cs15_daylight04_hdr", selectable, XOR("sky_cs15_daylight04_hdr"), 19),
-			 MAKE("visuals>misc>various>skybox>vertigo", selectable, XOR("vertigo"), 20),
-			 MAKE("visuals>misc>various>skybox>vertigoblue_hdr", selectable, XOR("vertigoblue_hdr"), 21),
-			 MAKE("visuals>misc>various>skybox>sky_dust", selectable, XOR("sky_dust"), 22), MAKE(
-				 "visuals>misc>various>skybox>sky_hr_aztec", selectable, XOR("sky_hr_aztec"), 23),});
-
-			ADD_INLINE("Skybox", c, MAKE("visuals>misc>various>skybox>color", color_picker, cfg.visuals.skybox_color));
+			auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets, vec2{}, vec2{80.f, 20.f});
+			tracer->allow_multiple = true;
+			tracer->expand_popup = true;
+			std::vector<std::shared_ptr<layout>> rows;
+			const std::array<const char *, 3> names{"Local", "Enemy", "Teammates"};
+			for (int i = 0; i < 3; ++i) {
+				const auto key = std::string("visuals>misc>other>tracers>") + std::to_string(i);
+				tracer->add(MAKE_RUNTIME(key, selectable, names[i], i));
+				auto style = MAKE_RUNTIME(key + ">style", combo_box, cfg.misc.tracer_style[i], vec2{}, vec2{70.f, 20.f});
+				style->add({MAKE_RUNTIME(key + ">laser", selectable, "Laser", 0), MAKE_RUNTIME(key + ">line", selectable, "Line", 1)});
+				auto color = MAKE_RUNTIME(key + ">color", color_picker, cfg.misc.tracer_colors[i]);
+				auto row = make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout> &r) { r->add(std::make_shared<label>(control_id{hash(key + ">label")}, "Style")); r->add(style); r->add(color); });
+				row->is_visible = cfg.misc.tracer_targets->test(i);
+				rows.push_back(row);
+				tracer->add(row);
+			}
+			tracer->callback = [rows](bits &v) { for (int i = 0; i < 3; ++i) rows[i]->set_visible(v.test(i)); };
+			ADD_INLINE("Bullet tracers", tracer);
 		}
-
-		ADD("Disable post-processing", "visuals>misc>various>disable post-processing", checkbox, cfg.visuals.disable_postprocessing);
-
 		{
-			const auto c = MAKE("visuals>misc>various>hitmarker", combo_box, cfg.misc.hitmarker);
+			const auto c = MAKE("visuals>misc>other>hitmarker", combo_box, cfg.misc.hitmarker);
 			c->allow_multiple = true;
-			c->add(
-			{MAKE("visuals>misc>various>hitmarker>world", selectable, XOR("World"), cfg_t::hitmarker_world), MAKE(
-				 "visuals>misc>various>hitmarker>crosshair", selectable, XOR("Crosshair"), cfg_t::hitmarker_cross),});
-
+			c->add({MAKE("visuals>misc>other>hitmarker>world", selectable, "World", cfg_t::hitmarker_world), MAKE("visuals>misc>other>hitmarker>crosshair", selectable, "Crosshair", cfg_t::hitmarker_cross)});
 			ADD_INLINE("Hitmarker", c);
 		}
-
-		ADD_INLINE(
-			"Show impacts", MAKE("visuals>misc>various>show impacts", checkbox, cfg.misc.impacts),
-			MAKE("visuals>misc>various>show impacts>color 1", color_picker, cfg.misc.impacts_color),
-			MAKE("visuals>misc>various>show impacts>color 2", color_picker, cfg.misc.impacts_color2));
-
-		ADD("Remove blur", "visuals>misc>various>remove blur", checkbox, cfg.misc.remove_blur);
-		ADD("Remove smoke", "visuals>misc>various>remove smoke", checkbox, cfg.misc.remove_smoke);
-		ADD("Remove flash", "visuals>misc>various>remove flash", checkbox, cfg.misc.remove_flash);
-		ADD_INLINE(
-			"Out of fov", MAKE("visuals>misc>various>out of fov", checkbox, cfg.visuals.out_of_fov),
-			MAKE("visuals>misc>various>out of fov>settings", settings, [](auto e) { ADD("Color", "visuals>misc>various>out of fov>settings>color", color_picker, cfg.
-				visuals. out_of_fov_col); ADD("Distance", "visuals>misc>various>out of fov>settings>distance", slider<float>, 1.f, 100.f, cfg.visuals.out_of_fov_dst, XOR(
-				"%.0f%%")); ADD("Size", "visuals>misc>various>out of fov>settings>size", slider<float>, 1.f, 50.f, cfg. visuals.out_of_fov_size, XOR("%.0fpx")); }));
-		//VIRTUALIZER_TIGER_WHITE_END;
+		ADD_INLINE("Show impacts", MAKE("visuals>misc>other>impacts", checkbox, cfg.misc.impacts),
+			MAKE("visuals>misc>other>impacts>color1", color_picker, cfg.misc.impacts_color), MAKE("visuals>misc>other>impacts>color2", color_picker, cfg.misc.impacts_color2));
+		ADD_INLINE("Out of FOV", MAKE("visuals>misc>other>out of fov", checkbox, cfg.visuals.out_of_fov),
+			MAKE("visuals>misc>other>out of fov>settings", settings, [](auto e) {
+				ADD("Color", "visuals>misc>other>out of fov>color", color_picker, cfg.visuals.out_of_fov_col);
+				ADD("Distance", "visuals>misc>other>out of fov>distance", slider<float>, 1.f, 100.f, cfg.visuals.out_of_fov_dst, "%.0f%%");
+				ADD("Size", "visuals>misc>other>out of fov>size", slider<float>, 1.f, 50.f, cfg.visuals.out_of_fov_size, "%.0fpx");
+			}));
+		{
+			const auto c = MAKE("visuals>misc>other>removals", combo_box, cfg.misc.removals);
+			c->allow_multiple = true;
+			const std::array<const char *, 10> names{"Flashbang Effect", "Smoke Rendering", "Particle", "Post Processing", "Water Effects", "Blood Effects", "Decals", "Ragdolls", "Visual punch", "Shadows"};
+			for (int i = 0; i < static_cast<int>(names.size()); ++i)
+				c->add(MAKE_RUNTIME(std::string("visuals>misc>other>removals>") + std::to_string(i), selectable, names[i], i));
+			ADD_INLINE("Removals", c);
+		}
 	}
 
 	void visuals_misc_beams(std::shared_ptr<layout> &e)

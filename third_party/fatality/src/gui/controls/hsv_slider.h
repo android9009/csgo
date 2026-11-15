@@ -35,6 +35,7 @@ namespace evo::gui
 		void reset() override;
 		void render() override;
 		void enable_gradient(value_param<ren::color> &second);
+		void disable_gradient();
 
 		value_param<ren::color> &active_value() { return secondary_selected && secondary ? *secondary : value; }
 		value_param<ren::color> &value;

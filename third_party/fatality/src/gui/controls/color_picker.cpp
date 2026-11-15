@@ -12,10 +12,10 @@ void color_picker::render()
 
 	auto &d = draw.layers[ctx->content_layer];
 	d->g.anti_alias = true;
-	if (gradient_color && gradient_style && gradient_style->get().test(gradient_bit))
+	if (*gradient_enabled)
 	{
 		const auto first = value.get();
-		const auto second = gradient_color->get();
+		const auto second = second_color().get();
 		d->add_rect_filled_multicolor(r, {first, second, second, first});
 		d->add_fake_rounding(r, colors.bg_block, 2.f);
 	}

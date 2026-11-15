@@ -10,7 +10,7 @@ namespace evo::gui
 	{
 	public:
 		color_picker_popup(control_id id, const std::shared_ptr<color_picker> &picker) :
-			popup(id, picker->pos_abs(), {214.f, picker->allow_alpha ? 240.f : 200.f}, true), picker(picker) { }
+			popup(id, picker->pos_abs(), {214.f, picker->allow_alpha ? 266.f : 226.f}, true), picker(picker) { }
 
 		void on_first_render_call() override;
 		void render() override;

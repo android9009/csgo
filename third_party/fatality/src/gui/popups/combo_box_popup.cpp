@@ -7,7 +7,7 @@ void combo_box_popup::on_first_render_call()
 {
 	popup::on_first_render_call();
 
-	const auto target_size = custom_size.value_or(vec2{160.f, 100.f});
+	const auto target_size = custom_size.value_or(vec2{160.f, combo->expand_popup ? 220.f : 100.f});
 
 	// create list
 	const auto l = std::make_shared<list>(id + 1, combo->value, vec2{}, target_size);
@@ -61,6 +61,15 @@ void combo_box_popup::render()
 	if (!is_visible)
 		return;
 
+	if (combo->expand_popup)
+	{
+		if (const auto l = find<list>(id + 1))
+		{
+			l->on_control_draw_param_changed(nullptr, 0);
+			size.y = std::clamp(l->calc_max_y(), 0.f, 220.f);
+			l->size.y = size.y;
+		}
+	}
 	begin_render();
 
 	auto &d = draw.layers[ctx->content_layer];
