@@ -46,10 +46,7 @@ target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc)
 target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")
 
-# The original Fatality GUI is being ported separately; it is not linked into
-# the DLL until the renderer, input and device-reset integration are tested.
-option(BUILD_FATALITY_PORT_CHECK "Compile the Fatality GUI and DX9 renderer" OFF)
-if(TRUE)
+# The original GUI and DX9 renderer are built as a C++20 library.
   file(GLOB_RECURSE FATALITY_GUI_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src/gui/*.cpp")
   set(FATALITY_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/deps/renderer")
@@ -73,4 +70,3 @@ if(TRUE)
   target_compile_definitions(fatality_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
   target_link_libraries(fatality_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
   target_link_libraries(csgo_base PRIVATE fatality_port_check d3dcompiler)
-endif()

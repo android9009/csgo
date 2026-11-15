@@ -24,13 +24,12 @@ jobs:
           if-no-files-found: error
 
   fatality-port-check:
-    # This staged port is not yet used by the DLL. Keep its compilation
-    # separate so a porting failure does not block the existing release.
+    # Compile the GUI library independently in addition to the DLL build.
     runs-on: windows-2022
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Configure staged Win32 GUI
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32 -DBUILD_FATALITY_PORT_CHECK=ON
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
       - name: Compile staged GUI and DX9 renderer
         run: cmake --build build --config Release --target fatality_port_check

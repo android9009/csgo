@@ -9,6 +9,13 @@ namespace evo::ren
 {
 struct device_backup_t
 {
+    ~device_backup_t()
+    {
+        if (pixel_shader) pixel_shader->Release();
+        if (vertex_shader) vertex_shader->Release();
+        if (vertex_buffer) vertex_buffer->Release();
+        if (index_buffer) index_buffer->Release();
+    }
 	void backup(IDirect3DDevice9 *device)
 	{
 		device->GetTransform(D3DTS_WORLD, &world);
@@ -225,12 +232,12 @@ void adapter_dx9::render()
 				D3DSURFACE_DESC sd;
 				tex->GetLevelDesc(0, &sd);
 
-				float tex_sz[2] = {(float)sd.Width, (float)sd.Height};
-				float time[1] = {draw.time};
-				float alpha[1] = {cmd.alpha};
+				float tex_sz[4] = {(float)sd.Width, (float)sd.Height, 0.f, 0.f};
+				float time[4] = {draw.time, 0.f, 0.f, 0.f};
+				float alpha[4] = {cmd.alpha, 0.f, 0.f, 0.f};
 
 				device->SetPixelShader((IDirect3DPixelShader9 *)cmd.frag_shader);
-				device->SetPixelShaderConstantF(0, tex_sz, 2);
+				device->SetPixelShaderConstantF(0, tex_sz, 1);
 				device->SetPixelShaderConstantF(1, time, 1);
 				device->SetPixelShaderConstantF(2, alpha, 1);
 			}

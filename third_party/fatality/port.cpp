@@ -75,6 +75,7 @@
 #include <chrono>
 #include <mutex>
 #include <exception>
+#include <cstring>
 #include "../../utils/log.hpp"
 using namespace evo;
 using namespace evo::ren;
@@ -714,6 +715,14 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (gui_device) return gui_device == device && objects_ready;
     if (!device || !hwnd) return false;
+    // EndScene is also hooked on temporary probe devices during hook setup.
+    // Do not bind the GUI to a probe rather than the actual game device.
+    D3DDEVICE_CREATION_PARAMETERS params{};
+    if (FAILED(device->GetCreationParameters(&params))) return false;
+    if (params.hFocusWindow && !IsWindow(params.hFocusWindow)) return false;
+    char class_name[64]{};
+    if (params.hFocusWindow && GetClassNameA(params.hFocusWindow, class_name, sizeof(class_name)) &&
+        std::strcmp(class_name, "csgo_base_dummy") == 0) return false;
     try {
                 draw.adapter = std::make_shared<adapter_dx9>( hwnd, device );
                 // draw.create_layer( dx_adapter::esp_layer );
