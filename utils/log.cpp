@@ -3,16 +3,40 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 namespace Log {
 static void WriteFile(const char* text) {
-    char path[MAX_PATH]{};
-    DWORD length = GetTempPathA(MAX_PATH, path);
-    if (!length || length >= MAX_PATH - 16) return;
-    std::strncat(path, "csgo_base.log", MAX_PATH - std::strlen(path) - 1);
-    FILE* file = nullptr;
-    if (fopen_s(&file, path, "a") != 0 || !file) return;
-    std::fputs(text, file);
-    std::fclose(file);
+    // The injector loads its DLL from the same directory as pastavar_debug.log.
+    // Resolve the DLL module, not the host executable (csgo.exe).
+    static const std::wstring path = [] {
+        HMODULE module = nullptr;
+        if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<LPCWSTR>(&WriteFile), &module)) return std::wstring{};
+        std::vector<wchar_t> filename(32768);
+        const DWORD length = GetModuleFileNameW(module, filename.data(), static_cast<DWORD>(filename.size()));
+        if (!length || length >= filename.size()) return std::wstring{};
+        std::wstring result(filename.data(), length);
+        const auto separator = result.find_last_of(L"\\/");
+        if (separator == std::wstring::npos) return std::wstring{};
+        result.resize(separator + 1);
+        return result + L"csgo_base.log";
+    }();
+    if (path.empty()) {
+        OutputDebugStringA("[csgo-base] Cannot determine DLL directory for csgo_base.log\n");
+        return;
+    }
+    HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        OutputDebugStringA("[csgo-base] Cannot open csgo_base.log beside DLL\n");
+        return;
+    }
+    DWORD written = 0;
+    const auto length = static_cast<DWORD>(std::strlen(text));
+    if (!::WriteFile(file, text, length, &written, nullptr) || written != length)
+        OutputDebugStringA("[csgo-base] Failed to write csgo_base.log\n");
+    CloseHandle(file);
 }
 void Print(Level level, const char* format, ...) {
     char text[1024]{};
