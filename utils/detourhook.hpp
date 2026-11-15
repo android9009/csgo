@@ -50,11 +50,11 @@ public:
         }();
         return ok;
     }
-    bool attach(void* target, void* detour, void** original) {
-        if (!target || !detour || hooked || !ensure_init()) return false;
-        if (MH_CreateHook(target, detour, original) != MH_OK) return false;
-        if (MH_EnableHook(target) != MH_OK) { MH_RemoveHook(target); return false; }
-        this->target = target;
+    bool attach(void* target_addr, void* detour, void** original) {
+        if (!target_addr || !detour || hooked || !ensure_init()) return false;
+        if (MH_CreateHook(target_addr, detour, original) != MH_OK) return false;
+        if (MH_EnableHook(target_addr) != MH_OK) { MH_RemoveHook(target_addr); return false; }
+        this->target = target_addr;
         hooked = true;
         return true;
     }

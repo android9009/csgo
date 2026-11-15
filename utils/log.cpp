@@ -8,7 +8,7 @@ static void WriteFile(const char* text) {
     char path[MAX_PATH]{};
     DWORD length = GetTempPathA(MAX_PATH, path);
     if (!length || length >= MAX_PATH - 16) return;
-    std::strcat_s(path, "csgo_base.log");
+    std::strncat(path, "csgo_base.log", MAX_PATH - std::strlen(path) - 1);
     FILE* file = nullptr;
     if (fopen_s(&file, path, "a") != 0 || !file) return;
     std::fputs(text, file);
