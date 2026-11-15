@@ -18,6 +18,7 @@ template<typename T> T Slot(void* p, int index) { return reinterpret_cast<T>((*r
 void* render_texture{};
 void* cubemap{};
 void* model{};
+void* team_models[2]{}; // CT and T; built lazily on the render thread
 bool failed{}, texture_retained{};
 const char* volatile phase = "not started";
 struct Fault { DWORD code{}; std::uintptr_t instruction{}, address{}; ULONG_PTR operation{}; };
@@ -96,9 +97,17 @@ bool Initialize() {
     texture_retained = true;
     phase = "find cubemap";
     cubemap = Slot<void*(__thiscall*)(void*, const char*, const char*, bool, int)>(ms, 91)(ms, "editor/cubemap.hdr", "CubeMap textures", true, 0);
+    LOG_INFO("model preview render target initialized");
+    return true;
+}
+
+bool InitializeModel(bool ct) {
+    auto* alloc = Interfaces::MemAlloc;
+    const int team = ct ? 0 : 1;
     phase = "allocate merged model";
     model = Slot<void*(__thiscall*)(void*, size_t)>(alloc, 1)(alloc, 0x75c);
     if (!model) return false;
+    team_models[team] = model;
     std::memset(model, 0, 0x75c);
     phase = "construct merged model";
     reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(model));
@@ -111,20 +120,24 @@ bool Initialize() {
     phase = "set animation model";
     merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
-    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/player/custom_player/legacy/ctm_fbi_variantb.mdl", nullptr, nullptr, false);
+    const char* agent = ct ? "models/player/custom_player/legacy/ctm_fbi_variantb.mdl" : "models/player/custom_player/legacy/tm_phoenix_varianta.mdl";
+    LOG_INFO("model preview: loading %s model %s", ct ? "CT" : "T", agent);
+    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
     phase = "merge weapon model";
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), "models/weapons/w_snip_ssg08.mdl", nullptr, nullptr, false);
     *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = 113;
     *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 20.f;
     phase = "setup model bones";
     reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
-    LOG_INFO("model preview initialized (experimental Source 1)");
+    LOG_INFO("model preview %s model initialized (experimental Source 1)", ct ? "CT" : "T");
     return true;
 }
 
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
-    if (!model) { failed = true; return; }
+    const bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
+    model = team_models[ct ? 0 : 1];
+    if (!model && !InitializeModel(ct)) { failed = true; LOG_WARN("model preview team model initialization failed"); return; }
     auto* ms = Interfaces::MaterialSystem;
     phase = "get render context";
     auto* context = static_cast<MatRenderContextABI*>(Slot<void*(__thiscall*)(void*)>(ms, 115)(ms));
@@ -234,7 +247,12 @@ void BeforeReset() { FatalityPreviewBridge::texture.store(nullptr, std::memory_o
 void Shutdown() {
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
-    if (model && Interfaces::MemAlloc) Slot<void(__thiscall*)(void*, void*)>(Interfaces::MemAlloc, 5)(Interfaces::MemAlloc, model);
+    if (Interfaces::MemAlloc) {
+        for (void*& team_model : team_models) {
+            if (team_model) Slot<void(__thiscall*)(void*, void*)>(Interfaces::MemAlloc, 5)(Interfaces::MemAlloc, team_model);
+            team_model = nullptr;
+        }
+    }
     if (render_texture && texture_retained) Slot<void(__thiscall*)(void*)>(render_texture, 11)(render_texture);
     texture_retained = false;
     model = render_texture = cubemap = nullptr;

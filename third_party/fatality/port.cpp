@@ -760,7 +760,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                                 make_groupbox("skins>preview", "PREVIEW", vec2{group_sz.x, 318.f}, [](auto e) {
                                     e->add(menu::group::make_model_preview("skins>preview>viewport", vec2{220.f, 280.f}));
                                 }),
-                                make_groupbox("skins>agents", "AGENTS", vec2{group_sz.x, group_sz.y - 328.f}, menu::group::skins_agents)}));
+                                make_groupbox("skins>equipment", "EQUIPMENT", vec2{group_sz.x, group_sz.y - 328.f}, menu::group::skins_equipment_tiles)}));
                             e->add(make_groupbox("skins>weapon grid", "WEAPONS", vec2{group_sz.x * 2.f + 16.f, group_sz.y}, menu::group::skins_weapon_grid));
                         }));
                         }, [ & ]( std::shared_ptr<layout>& e) {

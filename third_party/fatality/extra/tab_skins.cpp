@@ -91,6 +91,105 @@ namespace menu::group
         return catalog_loaded;
     }
     std::map<std::string, std::string> selection[2]; // independent CT/T menu state
+    enum class Equipment { None, Agent, Knife, Medal, Gloves };
+    Equipment equipment_screen = Equipment::None;
+    std::string equipped_knife[2], equipped_gloves[2];
+    struct EquipmentItem { const char* label; const char* icon; };
+    const std::vector<EquipmentItem> knife_items = {
+        {"Default", ""}, {"Bayonet", "weapon_bayonet"}, {"Classic Knife", "weapon_knife_css"},
+        {"Flip Knife", "weapon_knife_flip"}, {"Gut Knife", "weapon_knife_gut"}, {"Karambit", "weapon_knife_karambit"},
+        {"M9 Bayonet", "weapon_knife_m9_bayonet"}, {"Huntsman", "weapon_knife_tactical"}, {"Falchion", "weapon_knife_falchion"},
+        {"Bowie", "weapon_knife_survival_bowie"}, {"Butterfly", "weapon_knife_butterfly"}, {"Shadow Daggers", "weapon_knife_push"},
+        {"Ursus", "weapon_knife_ursus"}, {"Navaja", "weapon_knife_gypsy_jackknife"}, {"Stiletto", "weapon_knife_stiletto"},
+        {"Talon", "weapon_knife_widowmaker"}, {"Skeleton", "weapon_knife_skeleton"}, {"Survival", "weapon_knife_canis"},
+        {"Paracord", "weapon_knife_cord"}, {"Nomad", "weapon_knife_outdoor"}
+    };
+    const std::vector<EquipmentItem> glove_items = {
+        {"Default", ""}, {"Bloodhound", "studded_bloodhound_gloves"}, {"Sport", "sporty_gloves"},
+        {"Driver", "slick_gloves"}, {"Hand Wraps", "leather_handwraps"}, {"Moto", "motorcycle_gloves"},
+        {"Specialist", "specialist_gloves"}, {"Hydra", "studded_hydra_gloves"}
+    };
+    const std::vector<EquipmentItem> default_item{{"Default", ""}};
+    const char* equipment_title(Equipment screen) {
+        switch (screen) { case Equipment::Agent: return "AGENT"; case Equipment::Knife: return "KNIFE";
+            case Equipment::Medal: return "MEDAL"; case Equipment::Gloves: return "GLOVES"; default: return ""; }
+    }
+    const std::vector<EquipmentItem>& equipment_items(Equipment screen) {
+        if (screen == Equipment::Knife) return knife_items;
+        if (screen == Equipment::Gloves) return glove_items;
+        return default_item;
+    }
+    const char* equipment_icon(Equipment screen, const std::string& equipped, bool ct) {
+        if (!equipped.empty()) return equipped.c_str();
+        if (screen == Equipment::Knife) return ct ? "weapon_knife" : "weapon_knife_t";
+        if (screen == Equipment::Gloves) return ct ? "ct_gloves" : "t_gloves";
+        return nullptr;
+    }
+    void draw_symbol(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, vec2 center) {
+        if (screen == Equipment::Agent) {
+            layer->add_circle(center + vec2{0.f, -7.f}, 6.f, colors.text_dark, 24, 1.f, 2.f);
+            layer->add_line(center + vec2{-12.f, 14.f}, center + vec2{-8.f, 3.f}, colors.text_dark, 3.f);
+            layer->add_line(center + vec2{-8.f, 3.f}, center + vec2{8.f, 3.f}, colors.text_dark, 3.f);
+            layer->add_line(center + vec2{8.f, 3.f}, center + vec2{12.f, 14.f}, colors.text_dark, 3.f);
+        } else if (screen == Equipment::Medal) {
+            layer->add_circle(center, 11.f, colors.text_dark, 24, 1.f, 2.f);
+            layer->add_circle(center, 4.f, colors.text_dark, 24, 1.f, 2.f);
+        }
+    }
+    void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
+                             bool ct, vec2 center, vec2 bounds, bool& budget) {
+        const auto name = equipment_icon(screen, selected, ct);
+        if (name) {
+            if (auto icon = get_weapon_icon(name, {}, budget); icon && icon->obj) {
+                const auto native = icon->get_size();
+                if (native.x > 0.f && native.y > 0.f) {
+                    const auto scale = (std::min)(bounds.x / native.x, bounds.y / native.y);
+                    const auto size = native * scale;
+                    layer->g.texture = icon->obj;
+                    layer->add_rect_filled(rect{center - size * .5f, center + size * .5f}, color::white());
+                    layer->g.texture = {};
+                }
+            }
+        } else draw_symbol(layer, screen, center);
+    }
+    class equipment_tiles final : public control {
+    public:
+        equipment_tiles(control_id id, const vec2& size) : control(id, {}, size) {}
+        void render() override {
+            control::render();
+            if (!is_visible) return;
+            trim_icons(); // before the grid submits its draw commands
+            auto& layer = draw.layers[ctx->content_layer];
+            const auto r = area_abs();
+            const bool ct = FatalityPreviewBridge::skins_team_ct.load(std::memory_order_relaxed);
+            const int team = ct ? 0 : 1;
+            const Equipment entries[] = {Equipment::Agent, Equipment::Knife, Equipment::Medal, Equipment::Gloves};
+            const float width = (r.width() - 18.f) / 4.f;
+            bool budget = true;
+            for (int i = 0; i < 4; ++i) {
+                const auto pos = r.tl() + vec2{static_cast<float>(i) * (width + 6.f), 0.f};
+                const rect card{pos, pos + vec2{width, 86.f}};
+                layer->add_rect_filled_rounded(card, equipment_screen == entries[i] ? colors.bg_block_light : colors.bg_bottom, 2.f);
+                const std::string empty;
+                const auto& selected = entries[i] == Equipment::Knife ? equipped_knife[team] : entries[i] == Equipment::Gloves ? equipped_gloves[team] : empty;
+                draw_equipment_icon(layer, entries[i], selected, ct, pos + vec2{width * .5f, 30.f}, vec2{width - 6.f, 44.f}, budget);
+                layer->font = draw.fonts[GUI_HASH("gui_main")];
+                layer->add_text(pos + vec2{width * .5f, 70.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
+                layer->add_rect_filled(rect{pos + vec2{3.f, 82.f}, pos + vec2{width - 3.f, 84.f}}, colors.outline);
+            }
+        }
+        void on_mouse_down(char key) override {
+            if (key != m_left) return;
+            const auto local = input.cursor() - area_abs().tl();
+            const float width = (size.x - 18.f) / 4.f;
+            if (local.y < 0.f || local.y >= 86.f || local.x < 0.f) return;
+            const int index = static_cast<int>(local.x / (width + 6.f));
+            if (index < 0 || index >= 4 || local.x - index * (width + 6.f) >= width) return;
+            const Equipment entries[] = {Equipment::Agent, Equipment::Knife, Equipment::Medal, Equipment::Gloves};
+            equipment_screen = entries[index];
+            FatalityPreviewBridge::skins_selecting.store(true, std::memory_order_relaxed);
+        }
+    };
 
     class weapon_grid final : public control {
     public:
@@ -98,9 +197,13 @@ namespace menu::group
         void render() override {
             control::render();
             if (!is_visible) return;
-            trim_icons();
             auto& layer = draw.layers[ctx->content_layer];
             const auto r = area_abs();
+            if (equipment_screen != last_equipment_screen) {
+                equipment_scroll = 0.f;
+                last_equipment_screen = equipment_screen;
+            }
+            if (equipment_screen != Equipment::None) { selected_weapon = {}; render_equipment(layer, r); return; }
             if (selected_weapon.internal) { render_skins(layer, r); return; }
             const auto ct = rect(r.tl(), r.tl() + vec2{72.f, 25.f});
             const auto t = rect(r.tl() + vec2{78.f, 0.f}, r.tl() + vec2{150.f, 25.f});
@@ -151,6 +254,27 @@ namespace menu::group
             if (key != m_left) return;
             const auto local = input.cursor() - area_abs().tl();
             const float cell_width = (size.x - 12.f) / 3.f;
+            if (equipment_screen != Equipment::None) {
+                if (local.y >= 0.f && local.y < 30.f && local.x >= size.x - 35.f) {
+                    equipment_screen = Equipment::None;
+                    FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
+                    return;
+                }
+                if (local.y < 42.f || local.x < 0.f) return;
+                const int col = static_cast<int>(local.x / (cell_width + 6.f));
+                const int row = static_cast<int>((local.y - 42.f + equipment_scroll) / 78.f);
+                if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+                const auto& items = equipment_items(equipment_screen);
+                const size_t index = static_cast<size_t>(row * 3 + col);
+                if (index >= items.size()) return;
+                const int team = team_ct ? 0 : 1;
+                if (equipment_screen == Equipment::Knife) equipped_knife[team] = items[index].icon;
+                if (equipment_screen == Equipment::Gloves) equipped_gloves[team] = items[index].icon;
+                equipment_screen = Equipment::None;
+                equipment_scroll = 0.f;
+                FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
+                return;
+            }
             if (selected_weapon.internal) {
                 if (local.y >= 0.f && local.y < 30.f && local.x >= size.x - 35.f) {
                     close_skins();
@@ -171,6 +295,7 @@ namespace menu::group
             if (local.y >= 0.f && local.y < 25.f) {
                 if (local.x >= 0.f && local.x < 72.f) { team_ct = true; scroll = 0.f; }
                 else if (local.x >= 78.f && local.x < 150.f) { team_ct = false; scroll = 0.f; }
+                FatalityPreviewBridge::skins_team_ct.store(team_ct, std::memory_order_relaxed);
                 return;
             }
             if (local.y < 55.f || local.x < 0.f) return;
@@ -190,7 +315,11 @@ namespace menu::group
         }
         void on_mouse_wheel(float delta) override {
             input.consume_wheel();
-            if (selected_weapon.internal) {
+            if (equipment_screen != Equipment::None) {
+                const float rows = static_cast<float>((equipment_items(equipment_screen).size() + 2) / 3);
+                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
+                equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
+            } else if (selected_weapon.internal) {
                 const float rows = static_cast<float>((paints.size() + 3) / 3);
                 const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
                 skin_scroll = std::clamp(skin_scroll - delta * 55.f, 0.f, max_scroll);
@@ -210,6 +339,32 @@ namespace menu::group
         void close_skins() {
             selected_weapon = {};
             FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
+        }
+        void render_equipment(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
+            layer->font = draw.fonts[GUI_HASH("gui_main")];
+            layer->add_text(r.tl() + vec2{2.f, 12.f}, equipment_title(equipment_screen), colors.text, text_params::with_v(align_center));
+            const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
+            layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
+            layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
+            const auto& items = equipment_items(equipment_screen);
+            if (equipment_screen == Equipment::Agent || equipment_screen == Equipment::Medal)
+                layer->add_text(r.tl() + vec2{0.f, 30.f}, "Only default available", colors.text_dark);
+            const float cell_width = (r.width() - 12.f) / 3.f;
+            const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
+            const auto old_clip = layer->g.clip_rect;
+            layer->override_clip_rect(viewport);
+            bool budget = true;
+            for (size_t i = 0; i < items.size(); ++i) {
+                const float x = r.mins.x + static_cast<float>(i % 3) * (cell_width + 6.f);
+                const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - equipment_scroll;
+                const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
+                if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
+                layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
+                draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget);
+                layer->font = draw.fonts[GUI_HASH("gui_main")];
+                layer->add_text(vec2{x + cell_width * .5f, y + 57.f}, items[i].label, colors.text, text_params::with_vh(align_center, align_center));
+            }
+            layer->g.clip_rect = old_clip;
         }
         void render_skins(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
             layer->font = draw.fonts[GUI_HASH("gui_main")];
@@ -248,12 +403,16 @@ namespace menu::group
             layer->g.clip_rect = old_clip;
         }
         bool team_ct{true};
-        float scroll{}, skin_scroll{};
+        float scroll{}, skin_scroll{}, equipment_scroll{};
+        Equipment last_equipment_screen{Equipment::None};
         WeaponIcon selected_weapon{};
         std::vector<std::string> paints;
     };
     }
 
+    void skins_equipment_tiles(std::shared_ptr<layout>& e) {
+        e->add(MAKE("skins>equipment>tiles", equipment_tiles, vec2{220.f, 105.f}));
+    }
     void skins_weapon_grid(std::shared_ptr<layout>& e) {
         e->add(MAKE("skins>weapon_grid", weapon_grid, vec2{490.f, 440.f}));
     }

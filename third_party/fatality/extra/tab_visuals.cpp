@@ -26,6 +26,7 @@ namespace menu::group
 			control::render();
 			if (!is_visible) return;
 			auto &layer = draw.layers[ctx->content_layer];
+			FatalityPreviewBridge::render_ct.store(!skins_preview || FatalityPreviewBridge::skins_team_ct.load(std::memory_order_relaxed), std::memory_order_relaxed);
 			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
 			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
 				layer->g.texture = texture;
