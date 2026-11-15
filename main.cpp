@@ -49,6 +49,12 @@ void OpenStatus() {
 // Read-only compatibility probe for the unfinished Source 1 model preview.
 // A signature match is diagnostic only, never permission to call the address.
 void ProbeModelPreview() {
+    // Availability only: capturing an interface does not validate its ABI.
+    LOG_INFO("preview probe: interfaces MaterialSystem=%s RenderView=%s ModelRender=%s ModelInfo=%s StudioRender=%s MDLCache=%s MemAlloc=%s",
+        Interfaces::MaterialSystem ? "present" : "missing", Interfaces::RenderView ? "present" : "missing",
+        Interfaces::ModelRender ? "present" : "missing", Interfaces::ModelInfo ? "present" : "missing",
+        Interfaces::StudioRender ? "present" : "missing", Interfaces::MDLCache ? "present" : "missing",
+        Interfaces::MemAlloc ? "present" : "missing");
     const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     std::uintptr_t start = 0, size = 0;
     if (!base || !MEM::GetSection(base, ".text", &start, &size) || !size) {
