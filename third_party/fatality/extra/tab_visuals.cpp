@@ -674,8 +674,11 @@ namespace menu::group
 			const auto c = MAKE("visuals>misc>other>removals", combo_box, cfg.misc.removals);
 			c->allow_multiple = true;
 			const std::array<const char *, 10> names{"Flashbang Effect", "Smoke Rendering", "Particle", "Post Processing", "Water Effects", "Blood Effects", "Decals", "Ragdolls", "Visual punch", "Shadows"};
-			for (int i = 0; i < static_cast<int>(names.size()); ++i)
-				c->add(MAKE_RUNTIME(std::string("visuals>misc>other>removals>") + std::to_string(i), selectable, names[i], i));
+			for (int i = 0; i < static_cast<int>(names.size()); ++i) {
+				const auto item = MAKE_RUNTIME(std::string("visuals>misc>other>removals>") + std::to_string(i), selectable, names[i], i);
+				item->show_checkbox = true;
+				c->add(item);
+			}
 			ADD_INLINE("Removals", c);
 		}
 	}

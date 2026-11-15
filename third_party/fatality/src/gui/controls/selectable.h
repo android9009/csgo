@@ -64,6 +64,7 @@ namespace evo::gui
 		bool is_highlighted{};
 		bool is_loaded{};
 		bool is_selected{};
+		bool show_checkbox{};
 		int value{};
 		int order{};
 		std::optional<ren::color> custom_color{};

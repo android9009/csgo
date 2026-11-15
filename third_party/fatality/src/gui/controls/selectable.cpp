@@ -49,6 +49,18 @@ void selectable::render()
 	auto &l = draw.layers[ctx->content_layer];
 
 	vec2 off{};
+	if (show_checkbox)
+	{
+		const auto box = rect(r.tl() + vec2{4.f, 2.f}).size({12.f, 12.f});
+		l->add_rect_filled_rounded(box, colors.bg_block, 2.f);
+		l->add_rect_rounded(box, colors.outline, 2.f);
+		if (is_selected)
+		{
+			l->add_line(box.tl() + vec2{2.f, 6.f}, box.tl() + vec2{5.f, 9.f}, colors.accent, 2.f);
+			l->add_line(box.tl() + vec2{4.f, 9.f}, box.tl() + vec2{10.f, 3.f}, colors.accent, 2.f);
+		}
+		off.x += 16.f;
+	}
 	if (is_loaded)
 	{
 		l->g.anti_alias = true;
