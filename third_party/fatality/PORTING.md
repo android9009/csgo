@@ -10,6 +10,6 @@ built from source; its shader compilation uses Windows SDK `D3DCompile` rather
 than legacy `D3DXCompileShader`. The D3D9 Reset hook releases and recreates
 resources. Runtime behavior and appearance in CS:GO still require testing.
 
-The archive's demo creates tab buttons for Rage, Legit, Visuals, Misc, Lua and
-Skins, but only supplies the Rage tab content. Its demo configuration values
-are not connected to this project's feature or config system.
+The Rage page comes from the fix-master demo. Legit, Visuals, Misc and Skins
+page layouts come from the subsequently supplied Fatality menu sources. The Lua
+page is empty in those sources. Menu values are not connected to this project's feature or config system.

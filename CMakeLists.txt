@@ -15,7 +15,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Base sources (everything except vendored third-party code).
 file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
-list(FILTER BASE_SOURCES EXCLUDE REGEX "/меню фатала/")
 
 # Vendored: Dear ImGui + MinHook.
 set(THIRDPARTY_SOURCES
