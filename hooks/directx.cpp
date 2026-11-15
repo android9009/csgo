@@ -64,7 +64,7 @@ long __stdcall EndScene(void* device) {
     dev->SetRenderState(D3DRS_COLORWRITEENABLE, colorwrite);
     dev->SetRenderState(D3DRS_SRGBWRITEENABLE, srgbwrite);
 
-    auto original = Hooks::GetEndSceneOriginal();
+    auto original = Hooks::GetEndSceneOriginalFor(dev);
     return original ? original(dev) : D3D_OK;
 }
 }

@@ -13,6 +13,7 @@ namespace Hooks {
     PaintTraverseFn GetPaintTraverseOriginal();
     using EndSceneFn = long (__stdcall*)(IDirect3DDevice9*);
     EndSceneFn GetEndSceneOriginal();
+    EndSceneFn GetEndSceneOriginalFor(void* device);
     using FrameStageNotifyFn = void (__thiscall*)(void*, int);
     using SceneEndFn = void (__thiscall*)(void*);
     using DrawModelExecuteFn = void (__thiscall*)(void*, void*, const DrawModelState_t&, const ModelRenderInfo_t&, matrix3x4_t*);
