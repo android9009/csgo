@@ -191,7 +191,13 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 	setup->add(beh);
 	setup->add(hk);
 	setup->add(set);
-	const auto remove = std::make_shared<button>(control_id{GUI_HASH("hotkeys>list>k>remove") + tmp_s}, "X", nullptr, vec2{}, vec2{18.f, 20.f});
+	const auto back_icon = ctx->res.icons.keys.find(VK_BACK);
+	const auto remove = std::make_shared<button>(control_id{GUI_HASH("hotkeys>list>k>remove") + tmp_s},
+		back_icon == ctx->res.icons.keys.end() ? "<" : "", back_icon != ctx->res.icons.keys.end() ? back_icon->second : nullptr, vec2{}, vec2{18.f, 20.f});
+	// Textured buttons normally reserve extra space for a label; this is icon-only.
+	remove->size = {18.f, 20.f};
+	remove->icon_size = {16.f, 16.f};
+	remove->color = ren::color(235, 65, 75);
 	remove->callback = [this, tmp_s]() {
 		// Keep the backing entries alive until the popup closes: controls hold references to them.
 		temp[tmp_s - 1].key = 0;

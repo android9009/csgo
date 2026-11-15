@@ -97,6 +97,9 @@ struct cfg_t {
 		autostop_lethal,
 		autostop_inbetween,
 		autostop_predictive,
+		autostop_duck,
+		autostop_air,
+		autostop_land,
 		autostop_max,
 	};
 

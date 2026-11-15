@@ -357,13 +357,13 @@ namespace menu::group
 			ADD("Dormant aimbot", "rage>aimbot>general>target dormant", checkbox, cfg.aim.dormant);
 			ADD("Anti-exploit", "rage>aimbot>general>anti-exploit", checkbox, cfg.aim.anti_exploit);
 			ADD("Auto fire", "rage>aimbot>general>autofire", checkbox, cfg.aim.autofire);
+			const auto extrapolation = MAKE("rage>aimbot>general>extrapolation", checkbox, cfg.aim.force_extrapolation);
+			e->add(make_control("Force extrapolation", extrapolation));
+			const auto ticks = make_control("Extrapolation ticks", MAKE("rage>aimbot>general>extrapolation>ticks", slider<float>, 0.f, 24.f, cfg.aim.extrapolation_ticks, "%.0f ticks"));
+			add_dependent_row(e, extrapolation, ticks, *cfg.aim.force_extrapolation);
+			ADD("Max FOV", "rage>aimbot>general>maximum fov", slider<float>, 0.f, 180.f, cfg.aim.fov, "%.0f deg", 1.f, vec2{80.f, 14.f});
 		}));
 
-		const auto extrapolation = MAKE("rage>aimbot>general>extrapolation", checkbox, cfg.aim.force_extrapolation);
-		e->add(make_control("Force extrapolation", extrapolation));
-		const auto ticks = make_control("Extrapolation ticks", MAKE("rage>aimbot>general>extrapolation>ticks", slider<float>, 0.f, 24.f, cfg.aim.extrapolation_ticks, "%.0f ticks"));
-		add_dependent_row(e, extrapolation, ticks, *cfg.aim.force_extrapolation);
-		ADD("Max FOV", "rage>aimbot>general>maximum fov", slider<float>, 0.f, 180.f, cfg.aim.fov, "%.0f deg", 1.f, vec2{80.f, 14.f});
 		ADD_INLINE("Visualization of aimbot", MAKE("rage>aimbot>general>visualize aimbot", checkbox, cfg.aim.visualize), MAKE("rage>aimbot>general>visualize aimbot>settings", settings, [](auto e) {
 			ADD("Safe color", "rage>aimbot>general>visualize aimbot>settings>safe color", color_picker, cfg.aim.visualize_color_safe);
 			ADD("Aim color", "rage>aimbot>general>visualize aimbot>settings>aim color", color_picker, cfg.aim.visualize_color);
@@ -375,12 +375,6 @@ namespace menu::group
 			MAKE("rage>aimbot>general>defensive lag>air", selectable, "In air", cfg_t::def_in_air),
 			MAKE("rage>aimbot>general>defensive lag>always", selectable, "Always on", cfg_t::def_always_on)});
 		ADD_INLINE("Defensive lag", defensive);
-		const auto delay = MAKE("rage>aimbot>general>delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
-		delay->allow_multiple = true;
-		delay->add({MAKE("rage>aimbot>delay>damage", selectable, "Wait damage", 0),
-			MAKE("rage>aimbot>delay>hitchance", selectable, "Wait hitchance", 1),
-			MAKE("rage>aimbot>delay>safe", selectable, "Wait safe point or resolved", 2)});
-		ADD_INLINE("Delay shot", delay);
 	}
 
 	void rage_antiaim_custom(std::shared_ptr<layout>& e) { }
@@ -422,23 +416,15 @@ namespace menu::group
 			ADD_RUNTIME("Double tap hitchance", id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%"); }
 		ADD_INLINE("Hitchance", MAKE_RUNTIME(id + "hit chance", slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[grp], "%.0f%%", 1.f, vec2{80.f, 14.f}), hc_settings);
 		ADD_RUNTIME("Min damage", id + "min damage", slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[grp], (ssa<float>{ssv<float>{101.f, "HP + %.0f"}, ssv<float>{0.f, "%.0f hp"}}), 1.f, vec2{80.f, 14.f});
+		const auto delay = MAKE("rage>aimbot>general>delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
+		delay->allow_multiple = true;
+		delay->add({MAKE("rage>aimbot>delay>damage", selectable, "Wait damage", 0),
+			MAKE("rage>aimbot>delay>hitchance", selectable, "Wait hitchance", 1),
+			MAKE("rage>aimbot>delay>safe", selectable, "Wait safe point or resolved", 2)});
+		ADD_INLINE("Delay shot", delay);
 	}
 
 	void rage_aimbot_extra(std::shared_ptr<layout>& e, uint32_t grp, const std::string& id) {
-		auto autostop_settings = MAKE_RUNTIME(id + "autostop>settings", settings, nullptr);
-		{ auto e = autostop_settings;
-			auto mode = MAKE_RUNTIME(id + "autostop>mode", combo_box, cfg.weapon_config.autostop_mode[grp]);
-			mode->allow_multiple = true;
-			mode->add({MAKE_RUNTIME(id + "autostop>between", selectable, "Between shots", cfg_t::autostop_inbetween), MAKE_RUNTIME(id + "autostop>early", selectable, "Early", cfg_t::autostop_predictive), MAKE_RUNTIME(id + "autostop>lethal", selectable, "Only when lethal", cfg_t::autostop_lethal)});
-			ADD_INLINE("Mode", mode);
-			ADD_RUNTIME("Duck", id + "autostop>duck", checkbox, cfg.weapon_config.autostop_duck[grp]);
-			ADD_RUNTIME("In air", id + "autostop>air", checkbox, cfg.weapon_config.autostop_air[grp]);
-			ADD_RUNTIME("On land", id + "autostop>land", checkbox, cfg.weapon_config.autostop_land[grp]); }
-		ADD_INLINE("Autostop", MAKE_RUNTIME(id + "autostop", checkbox, cfg.weapon_config.autostop[grp]), autostop_settings);
-		ADD("Force extra safety", "rage>aimbot>general>force extra safety", checkbox, cfg.aim.fallback_on_key);
-		ADD("Force body aim", "rage>aimbot>general>force bodyaim", checkbox, cfg.aim.baim_on_key);
-		ADD("Headshot only", "rage>aimbot>general>headshot only", checkbox, cfg.aim.hsmode);
-
 		auto add_mode = [&](const char* name, const std::string& key, value_param<bits>& mode_value, value_param<bits>& disabled, value_param<bool>& peek) {
 			auto mode = MAKE_RUNTIME(key, combo_box, mode_value, vec2{}, vec2{80.f, 20.f});
 			mode->add({MAKE_RUNTIME(key + ">off", selectable, "Off", 0), MAKE_RUNTIME(key + ">prefer", selectable, "Prefer", 1), MAKE_RUNTIME(key + ">force", selectable, "Force", 2)});
@@ -455,6 +441,25 @@ namespace menu::group
 		};
 		add_mode("Safe point", id + "safe point", cfg.weapon_config.safe_mode[grp], cfg.weapon_config.safe_disablers[grp], cfg.weapon_config.safe_on_peek[grp]);
 		add_mode("Body aim", id + "body aim", cfg.weapon_config.body_mode[grp], cfg.weapon_config.body_disablers[grp], cfg.weapon_config.body_on_peek[grp]);
+		ADD("Force extra safety", "rage>aimbot>general>force extra safety", checkbox, cfg.aim.fallback_on_key);
+		ADD("Force body aim", "rage>aimbot>general>force bodyaim", checkbox, cfg.aim.baim_on_key);
+		ADD("Headshot only", "rage>aimbot>general>headshot only", checkbox, cfg.aim.hsmode);
+
+		auto autostop_settings = MAKE_RUNTIME(id + "autostop>settings", settings, nullptr);
+		{
+			auto e = autostop_settings;
+			auto mode = MAKE_RUNTIME(id + "autostop>mode", combo_box, cfg.weapon_config.autostop_mode[grp]);
+			mode->allow_multiple = true;
+			mode->add({
+				MAKE_RUNTIME(id + "autostop>between", selectable, "Between shots", cfg_t::autostop_inbetween),
+				MAKE_RUNTIME(id + "autostop>early", selectable, "Early", cfg_t::autostop_predictive),
+				MAKE_RUNTIME(id + "autostop>lethal", selectable, "Only when lethal", cfg_t::autostop_lethal),
+				MAKE_RUNTIME(id + "autostop>duck", selectable, "Duck", cfg_t::autostop_duck),
+				MAKE_RUNTIME(id + "autostop>air", selectable, "In air", cfg_t::autostop_air),
+				MAKE_RUNTIME(id + "autostop>land", selectable, "On land", cfg_t::autostop_land)});
+			ADD_INLINE("Mode", mode);
+		}
+		ADD_INLINE("Autostop", MAKE_RUNTIME(id + "autostop", checkbox, cfg.weapon_config.autostop[grp]), autostop_settings);
 	}
 
 	void rage_aimbot_weapon_extra( const std::shared_ptr<layout>& e, uint32_t grp, const std::string& id, bool vis = false ) {
