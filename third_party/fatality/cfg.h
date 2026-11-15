@@ -573,6 +573,18 @@ struct cfg_t {
 		{ color::white( ) }, out_of_fov_col{ color::white( ) };
 		setting<bitset> skybox{ 0 }, spread_circle_type{ 1 << spread_circle_off }, model_t, model_ct, mask_t, mask_ct, disablers, preview{ 0 };
 
+		struct world_effects_t {
+			setting<bool> nightmode, fullbright, exposure_enabled, sunlight, sky, fog, bloom, vignette, local_contrast, color_correction, depth_of_field, grayscale;
+			setting<color> nightmode_color{color::white()}, fullbright_color{color::white()}, sunlight_color{color::white()}, sky_color{color::white()}, fog_color{color::white()}, vignette_color{color::white()};
+			arr_setting<color> weather_colors{color::white()}, bloom_weight_colors{color::white()};
+			setting<bitset> weather{1}, tone_curve{1}, dof_mode{1}, dof_quality{1};
+			setting<float> exposure{50.f}, bloom_strength{50.f}, bloom_screen_strength{50.f}, bloom_blur_strength, bloom_threshold, bloom_threshold_width;
+			arr_setting<float> bloom_weights{20.f};
+			setting<float> contrast_strength{50.f}, contrast_edge_strength{50.f}, contrast_vignette_start{25.f}, contrast_vignette_end{75.f}, contrast_vignette_blur{50.f};
+			setting<float> correction_contrast, highlights, shadows, saturation, vibrance, temperature, tint;
+			setting<float> focus_distance, focus_speed{9.f}, focus_range;
+		} world_effects;
+
 		struct {
 			struct cham_t {
 				setting<bitset> mat{ 0 };
