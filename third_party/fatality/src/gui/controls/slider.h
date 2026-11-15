@@ -89,6 +89,7 @@ namespace evo::gui
 	private:
 		bool show_val{}, handling_hotkey{};
 		T old_value{};
+		float wheel_remainder{};
 
 		void determine_type();
 		void update_value();

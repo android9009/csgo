@@ -116,8 +116,8 @@ void layout::on_mouse_wheel(float factor)
 	if (grip.is_zero() || input.is_key_down(VK_CONTROL))
 		return;
 
-	// animate scroll
-	an->direct(std::clamp(scroll + factor * 60.f, -outage, 0.f));
+	// Descendants get first refusal (e.g. a hovered slider). Apply after refresh.
+	pending_wheel = factor;
 }
 
 void layout::on_mouse_down(char key)
@@ -154,6 +154,7 @@ void layout::on_mouse_move(const ren::vec2 &p, const ren::vec2 &d)
 
 void layout::refresh()
 {
+	pending_wheel = 0.f;
 	if (grip.mins.len_sqr() != 0.f)
 	{
 		control::refresh();
@@ -173,6 +174,9 @@ void layout::refresh()
 	}
 	else
 		control_container::refresh();
+
+	if (pending_wheel != 0.f && input.wheel_delta() != 0.f)
+		an->direct(std::clamp(scroll + pending_wheel * 60.f, -outage, 0.f));
 }
 
 void layout::reset_stack()

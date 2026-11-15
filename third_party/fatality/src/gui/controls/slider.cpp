@@ -1,5 +1,7 @@
 #include <gui/controls/slider.h>
 #include <algorithm>
+#include <cmath>
+#include <type_traits>
 
 GUI_NAMESPACE;
 
@@ -66,13 +68,18 @@ void slider<T>::on_key_down(uint16_t key)
 template <typename T>
 void slider<T>::on_mouse_wheel(float factor)
 {
-	// don't do anything if control is down.
-	if (!input.is_key_down(VK_CONTROL))
-		return;
-
+	// Consume even at a limit: scrolling over a slider must not move its panel.
+	input.consume_wheel();
+	if constexpr (std::is_integral_v<T>)
+	{
+		wheel_remainder += factor;
+		factor = std::trunc(wheel_remainder);
+		wheel_remainder -= factor;
+	}
 	const auto o = *value;
-	*value += step * factor;
-	*value = std::clamp(*value, low, high);
+	const auto next = std::clamp(static_cast<double>(o) + static_cast<double>(step) * factor,
+		static_cast<double>(low), static_cast<double>(high));
+	*value = static_cast<T>(next);
 
 	if (o != *value)
 	{

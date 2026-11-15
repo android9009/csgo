@@ -105,6 +105,7 @@ namespace evo::gui
 
 		ren::rect grip{};
 		float scroll{};
+		float pending_wheel{};
 		float outage{};
 		float outage_factor{};
 		std::shared_ptr<ren::anim_float> an;

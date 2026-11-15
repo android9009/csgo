@@ -93,6 +93,9 @@ namespace evo::gui
 			return wheel;
 		}
 
+		// A hovered control can consume the event so its ancestors do not scroll.
+		void consume_wheel() { wheel = 0.f; }
+
 		bool is_mouse_up(char m)
 		{
 			return mouse_states[m].hold_state == key_state::up;
