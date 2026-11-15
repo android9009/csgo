@@ -849,15 +849,6 @@ namespace menu::group
 			weather->add({none, thunder, rain, snow});
 			ADD_INLINE("Weather", weather);
 		}
-		{
-			const auto removals = MAKE("visuals>world>removals", combo_box, cfg.misc.removals);
-			removals->allow_multiple = true;
-			removals->callback = [](bits &v) { update_ragdoll_chams_visibility(v.test(removal_ragdolls)); };
-			const std::array<const char *, 10> names{"Flashbang Effect", "Smoke Rendering", "Particle", "Post Processing", "Water Effects", "Blood Effects", "Decals", "Ragdolls", "Visual punch", "Shadows"};
-			for (int i = 0; i < static_cast<int>(names.size()); ++i)
-				removals->add(MAKE_RUNTIME(std::string("visuals>world>removals>") + std::to_string(i), selectable, names[i], i));
-			ADD_INLINE("Removals", removals);
-		}
 	}
 
 }
