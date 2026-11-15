@@ -9,6 +9,11 @@
 
 namespace {
 constexpr UINT kMessage = WM_APP + 1;
+#ifdef _DEBUG
+constexpr wchar_t kDllName[] = L"csgo_debug.dll";
+#else
+constexpr wchar_t kDllName[] = L"csgo_release.dll";
+#endif
 HWND window{}, status_text{}, log_view{};
 HANDLE stop_event{}, worker{};
 std::wstring dll_path, log_path;
@@ -93,7 +98,7 @@ bool CheckArchitecture(HANDLE process, std::wstring& error) {
     if (game != self) { error = L"CS:GO must be a 32-bit process"; return false; }
     return true;
 }
-void Monitor(DWORD pid, HANDLE process, PastavarStatus::Shared* shared, bool already_injected = false) {
+void Monitor(DWORD pid, HANDLE process, PastavarStatus::Shared* shared, const std::wstring& module_name, bool already_injected = false) {
     LONG previous = -1;
     DWORD since = GetTickCount();
     while (!Wait(200)) {
@@ -126,7 +131,7 @@ void Monitor(DWORD pid, HANDLE process, PastavarStatus::Shared* shared, bool alr
         }
         if (state == PastavarStatus::Ready) {
             std::vector<Module> modules; DWORD error{};
-            if (Modules(pid, modules, error) && !FindModule(modules, L"pastavar.dll")) { Emit(L"Status: Unloaded"); return; }
+            if (Modules(pid, modules, error) && !FindModule(modules, module_name.c_str())) { Emit(L"Status: Unloaded"); return; }
         }
     }
 }
@@ -162,11 +167,15 @@ DWORD WINAPI Run(LPVOID) {
             if (error == ERROR_BAD_LENGTH || error == ERROR_PARTIAL_COPY) continue;
             Emit(L"Status: Failed - module enumeration: " + Error(error)); return 0;
         }
-        if (FindModule(modules, L"pastavar.dll")) {
-            Emit(L"pastavar.dll is already injected");
+        const Module* loaded = FindModule(modules, L"csgo_release.dll");
+        if (!loaded) loaded = FindModule(modules, L"csgo_debug.dll");
+        // Avoid injecting a second copy into a session started with an older build.
+        if (!loaded) loaded = FindModule(modules, L"pastavar.dll");
+        if (loaded) {
+            Emit(loaded->name + L" is already injected");
             if (new_mapping || shared->state == PastavarStatus::Unknown)
                 Emit(L"Status: Unknown - loaded DLL did not provide status");
-            else Monitor(pid, process.value, shared, true);
+            else Monitor(pid, process.value, shared, loaded->name, true);
             return 0;
         }
         if (FindModule(modules, L"client.dll") && FindModule(modules, L"engine.dll") &&
@@ -175,7 +184,7 @@ DWORD WINAPI Run(LPVOID) {
     if (Wait(0)) return 0;
     if (!Alive(process.value)) { Emit(L"Status: Failed - CS:GO exited before injection"); return 0; }
 
-    if (GetFileAttributesW(dll_path.c_str()) == INVALID_FILE_ATTRIBUTES) { Emit(L"Status: Failed - pastavar.dll not found next to the injector"); return 0; }
+    if (GetFileAttributesW(dll_path.c_str()) == INVALID_FILE_ATTRIBUTES) { Emit(std::wstring(L"Status: Failed - ") + kDllName + L" not found next to the injector"); return 0; }
 
     auto load = GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW");
     HMODULE owner{};
@@ -197,7 +206,7 @@ DWORD WINAPI Run(LPVOID) {
         const DWORD error = GetLastError(); VirtualFreeEx(process.value, remote_path, 0, MEM_RELEASE);
         Emit(L"Status: Failed - WriteProcessMemory: " + Error(error)); return 0;
     }
-    Emit(L"Injecting pastavar.dll...");
+    Emit(std::wstring(L"Injecting ") + kDllName + L"...");
     Handle thread(CreateRemoteThread(process.value, nullptr, 0, remote_load, remote_path, 0, nullptr));
     if (!thread.value) { const DWORD error = GetLastError(); VirtualFreeEx(process.value, remote_path, 0, MEM_RELEASE); Emit(L"Status: Failed - CreateRemoteThread: " + Error(error)); return 0; }
     DWORD start = GetTickCount();
@@ -211,7 +220,7 @@ DWORD WINAPI Run(LPVOID) {
     VirtualFreeEx(process.value, remote_path, 0, MEM_RELEASE);
     if (!result) { Emit(L"Status: Failed - LoadLibraryW returned null; Windows did not provide a remote error code"); return 0; }
     Emit(L"Injected successfully");
-    Monitor(pid, process.value, shared);
+    Monitor(pid, process.value, shared, kDllName);
     return 0;
 }
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
@@ -246,12 +255,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     std::wstring directory(path, length);
     const auto slash = directory.find_last_of(L"\\/");
     directory = slash == std::wstring::npos ? L".\\" : directory.substr(0, slash + 1);
-    dll_path = directory + L"pastavar.dll"; log_path = directory + L"pastavar_debug.log";
+    dll_path = directory + kDllName; log_path = directory + L"pastavar_debug.log";
     stop_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!stop_event) { MessageBoxW(nullptr, L"Cannot create stop event", L"Pastavar", MB_OK | MB_ICONERROR); return 1; }
     WNDCLASSW wc{}; wc.lpfnWndProc = WindowProc; wc.hInstance = instance; wc.lpszClassName = L"PastavarInjector"; wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     if (!RegisterClassW(&wc)) { CloseHandle(stop_event); return 1; }
-    window = CreateWindowW(wc.lpszClassName, L"Pastavar Injector", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+    window = CreateWindowW(wc.lpszClassName, L"Injector", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 480, 280, nullptr, nullptr, instance, nullptr);
     if (!window) { CloseHandle(stop_event); return 1; }
     status_text = CreateWindowW(L"STATIC", L"Please open CS:GO", WS_CHILD | WS_VISIBLE, 20, 18, 430, 42, window, nullptr, instance, nullptr);

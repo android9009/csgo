@@ -23,13 +23,20 @@ jobs:
           }
           exit $code
 
-      - name: Upload DLL
+      - name: Verify Release filenames
+        shell: pwsh
+        run: |
+          foreach ($file in @('build/Release/csgo_release.dll', 'build/Release/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
+
+      - name: Upload Release
         uses: actions/upload-artifact@v4
         with:
-          name: pastavar-win32
+          name: csgo-release-win32
           path: |
-            build/Release/pastavar.dll
-            build/Release/pastavar_injector.exe
+            build/Release/csgo_release.dll
+            build/Release/injector.exe
           if-no-files-found: error
 
   fatality-port-check:
@@ -60,7 +67,24 @@ jobs:
           if ($code -ne 0) {
             Get-Content vs-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
+          if ($code -eq 0) {
+            foreach ($file in @('build/Release/csgo_release.dll', 'build/Release/injector.exe')) {
+              if (!(Test-Path $file)) { throw "Missing $file" }
+            }
+          }
           exit $code
+      - name: Build Visual Studio solution (Debug Win32)
+        shell: pwsh
+        run: |
+          msbuild csgo_base.sln /m /t:Rebuild /p:Configuration=Debug /p:Platform=Win32 /verbosity:minimal 2>&1 | Tee-Object -FilePath vs-debug-build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content vs-debug-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            exit $code
+          }
+          foreach ($file in @('build/Debug/csgo_debug.dll', 'build/Debug/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
 
   debug-build:
     runs-on: windows-2022
@@ -70,3 +94,17 @@ jobs:
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
       - name: Build Debug DLL and injector
         run: cmake --build build --config Debug
+      - name: Verify Debug filenames
+        shell: pwsh
+        run: |
+          foreach ($file in @('build/Debug/csgo_debug.dll', 'build/Debug/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
+      - name: Upload Debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: csgo-debug-win32
+          path: |
+            build/Debug/csgo_debug.dll
+            build/Debug/injector.exe
+          if-no-files-found: error

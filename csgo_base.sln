@@ -4,7 +4,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "csgo_base", "csgo_base.vcxproj", "{7E2A9C41-5B3D-4E8F-A1C6-9D0F2B4E7A31}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pastavar_injector", "injector.vcxproj", "{A6A5D6F9-26B0-4DF2-B8C4-79C9FCE22B13}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "injector", "injector.vcxproj", "{A6A5D6F9-26B0-4DF2-B8C4-79C9FCE22B13}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
