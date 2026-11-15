@@ -356,6 +356,7 @@
     <ClInclude Include="sdk\schema.hpp" />
     <ClInclude Include="sdk\studiohdr.hpp" />
     <ClInclude Include="sdk\model_preview.hpp" />
+    <ClInclude Include="sdk\model_preview_render.hpp" />
     <ClInclude Include="features\visuals\model_preview.hpp" />
     <ClInclude Include="third_party\fatality\preview_bridge.hpp" />
     <ClInclude Include="sdk\structs.hpp" />

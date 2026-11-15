@@ -60,13 +60,8 @@ struct MergedModel : RenderToTargetHelper {
     virtual void SetMDL(const char*, void* = nullptr, void* = nullptr) = 0;
 };
 struct Texture;
-struct RenderContext;
 using ConstructModelFn = void (__thiscall*)(MergedModel*);
 using SetMergedModelFn = void (__thiscall*)(MergedModel*, const char*, void*, void*, bool);
 using SetupAttachmentBonesFn = void (__thiscall*)(MergedModel*);
-using Push3DViewFn = void (__thiscall*)(void*, RenderContext*, const ViewSetup&, int, Texture*, Plane*);
-using PopViewFn = void (__thiscall*)(void*, RenderContext*, Plane*);
-constexpr std::size_t push_3d_view_slot = 43;
-constexpr std::size_t pop_view_slot = 45;
 constexpr int clear_color_depth_stencil = 0x1 | 0x2 | 0x20;
 } // namespace SourceModelPreview

@@ -1,6 +1,7 @@
 // Experimental Source 1 preview, based on Fatality's entity_rendering::paint.
 #include "model_preview.hpp"
 #include "../../sdk/model_preview.hpp"
+#include "../../sdk/model_preview_render.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../third_party/fatality/preview_bridge.hpp"
 #include "../../utils/log.hpp"
@@ -34,7 +35,32 @@ int CaptureFault(EXCEPTION_POINTERS* info) {
     return EXCEPTION_EXECUTE_HANDLER;
 }
 std::uintptr_t ctor{}, bones{}, merged{};
+struct RenderState {
+    MatRenderContextABI* context{};
+    RenderViewABI* view{};
+    Frustum frustum{};
+    bool begun{}, target_pushed{}, view_pushed{}, lighting_suppressed{}, cubemap_bound{};
+};
+RenderState active{};
 constexpr int width = 235, height = 370;
+
+// Restore only state whose corresponding push/bind completed successfully.
+// A second engine exception is contained; preview stays disabled afterwards.
+void RestoreAfterFault() {
+    __try {
+        if (active.lighting_suppressed && Interfaces::ModelRender)
+            Slot<void(__thiscall*)(void*, bool)>(Interfaces::ModelRender, 24)(Interfaces::ModelRender, false);
+        if (active.view_pushed && active.view && active.context)
+            active.view->PopView(active.context, active.frustum);
+        if (active.cubemap_bound && active.context) active.context->BindLocalCubemap(nullptr);
+        if (active.target_pushed && active.context) active.context->PopRenderTargetAndViewport();
+        if (active.begun && active.context) active.context->EndRender();
+        if (active.context) active.context->Release();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG_ERROR("model preview: failed to restore render state after exception");
+    }
+    active = {};
+}
 
 bool Resolve() {
     ctor = model_constructor.load(std::memory_order_relaxed);
@@ -99,37 +125,43 @@ void PaintImpl() {
     if (!model) { failed = true; return; }
     auto* ms = Interfaces::MaterialSystem;
     phase = "get render context";
-    void* context = Slot<void*(__thiscall*)(void*)>(ms, 115)(ms);
+    auto* context = static_cast<MatRenderContextABI*>(Slot<void*(__thiscall*)(void*)>(ms, 115)(ms));
     if (!context) return;
+    active = {};
+    active.context = context;
     phase = "begin context";
-    Slot<void(__thiscall*)(void*)>(context, 2)(context);
+    context->BeginRender();
+    active.begun = true;
     phase = "push render target and viewport";
-    Slot<void(__thiscall*)(void*)>(context, 116)(context);
+    context->PushRenderTargetAndViewport();
+    active.target_pushed = true;
     phase = "bind render target";
-    Slot<void(__thiscall*)(void*, void*)>(context, 6)(context, render_texture);
+    context->SetRenderTarget(static_cast<Texture*>(render_texture));
     phase = "bind cubemap";
-    Slot<void(__thiscall*)(void*, void*)>(context, 5)(context, cubemap);
+    context->BindLocalCubemap(static_cast<Texture*>(cubemap));
+    active.cubemap_bound = true;
     phase = "set lighting origin";
-    Slot<void(__thiscall*)(void*, Vector)>(context, 158)(context, Vector{-65.f, 10.f, 100.f});
+    context->SetLightingOrigin(Vector{-65.f, 10.f, 100.f});
     phase = "set rendering parameter";
-    Slot<void(__thiscall*)(void*, int, int)>(context, 126)(context, 10, 0);
+    context->SetIntRenderingParameter(10, 0);
     ViewSetup view{};
     view.width = width; view.height = height;
     view.fov = 12.f; view.origin = Vector{-FatalityPreviewBridge::distance.load(std::memory_order_relaxed), 0.f, 52.f};
     view.angles = QAngle{2.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
     view.flags = 4; // bloom and tone mapping, as in Fatality
-    Frustum frustum{};
-    auto* rv = Interfaces::RenderView;
+    auto* rv = reinterpret_cast<RenderViewABI*>(Interfaces::RenderView);
+    active.view = rv;
     phase = "push 3D view";
-    Slot<Push3DViewFn>(rv, static_cast<int>(push_3d_view_slot))(rv, static_cast<RenderContext*>(context), view, clear_color_depth_stencil, static_cast<Texture*>(render_texture), frustum);
+    rv->Push3DView(context, view, clear_color_depth_stencil, static_cast<Texture*>(render_texture), active.frustum);
+    active.view_pushed = true;
     phase = "clear color";
-    Slot<void(__thiscall*)(void*, unsigned char, unsigned char, unsigned char, unsigned char)>(context, 79)(context, 0, 0, 0, 0);
+    context->ClearColor4ub(0, 0, 0, 0);
     phase = "clear buffers";
-    Slot<void(__thiscall*)(void*, bool, bool, bool)>(context, 12)(context, true, true, true);
+    context->ClearBuffers(true, true, true);
     struct Light { float x,y,z,w; };
     Light light[6]; for (auto& l : light) l = {0.68f, 1.53f, 1.7f, 1.f};
     phase = "set ambient light";
-    Slot<void(__thiscall*)(void*, Light*)>(context, 18)(context, light);
+    context->SetAmbientLightCube(light);
     phase = "set studio ambient light";
     Slot<void(__thiscall*)(void*, const Light*)>(Interfaces::StudioRender, 20)(Interfaces::StudioRender, light);
     phase = "set studio local lights";
@@ -151,20 +183,27 @@ void PaintImpl() {
     auto* mr = Interfaces::ModelRender;
     phase = "suppress engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, true);
+    active.lighting_suppressed = true;
     phase = "draw merged model";
     static_cast<MergedModel*>(model)->Draw(matrix);
     phase = "restore engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, false);
+    active.lighting_suppressed = false;
     phase = "pop 3D view";
-    Slot<PopViewFn>(rv, static_cast<int>(pop_view_slot))(rv, static_cast<RenderContext*>(context), frustum);
+    rv->PopView(context, active.frustum);
+    active.view_pushed = false;
     phase = "unbind cubemap";
-    Slot<void(__thiscall*)(void*, void*)>(context, 5)(context, nullptr);
+    context->BindLocalCubemap(nullptr);
+    active.cubemap_bound = false;
     phase = "pop render target";
-    Slot<void(__thiscall*)(void*)>(context, 120)(context);
+    context->PopRenderTargetAndViewport();
+    active.target_pushed = false;
     phase = "end context";
-    Slot<void(__thiscall*)(void*)>(context, 3)(context);
+    context->EndRender();
+    active.begun = false;
     phase = "release context";
-    Slot<int(__thiscall*)(void*)>(context, 1)(context);
+    context->Release();
+    active.context = nullptr;
     phase = "read texture handles";
     auto handles = *reinterpret_cast<void***>(reinterpret_cast<std::uintptr_t>(render_texture) + 0x50);
     void* texture = handles && handles[0] ? *reinterpret_cast<void**>(reinterpret_cast<std::uintptr_t>(handles[0]) + 0x0c) : nullptr;
@@ -176,6 +215,7 @@ void Paint() {
     __try { PaintImpl(); }
     __except (CaptureFault(GetExceptionInformation())) {
         failed = true; FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
+        RestoreAfterFault();
         HMODULE owner = nullptr;
         char module[MAX_PATH]{};
         std::uintptr_t offset = 0;
