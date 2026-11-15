@@ -4,6 +4,16 @@
 #include <cstdio>
 #include <cstring>
 namespace Log {
+static void WriteFile(const char* text) {
+    char path[MAX_PATH]{};
+    DWORD length = GetTempPathA(MAX_PATH, path);
+    if (!length || length >= MAX_PATH - 16) return;
+    std::strcat_s(path, "csgo_base.log");
+    FILE* file = nullptr;
+    if (fopen_s(&file, path, "a") != 0 || !file) return;
+    std::fputs(text, file);
+    std::fclose(file);
+}
 void Print(Level level, const char* format, ...) {
     char text[1024]{};
     const char* tag = level == Level::Error ? "[error] " : level == Level::Warning ? "[warn] " : "[info] ";
@@ -14,6 +24,7 @@ void Print(Level level, const char* format, ...) {
     const size_t len = std::strlen(text);
     if (len + 2 < sizeof(text)) { text[len] = '\n'; text[len + 1] = '\0'; }
     OutputDebugStringA(text);
+    WriteFile(text);
 #ifdef _DEBUG
     std::fputs(text, stderr);
 #endif

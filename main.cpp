@@ -24,10 +24,12 @@ static DWORD WINAPI Entry(LPVOID parameter) {
     // Discover addresses first, then capture interfaces that depend on them.
     if (!Patterns::Init()) { LOG_ERROR("signature scan failed"); FreeLibraryAndExitThread(self, 1); }
     if (!offsets::Init()) { LOG_ERROR("offset setup failed"); FreeLibraryAndExitThread(self, 2); }
-    if (!Interfaces::Setup()) { LOG_ERROR("interface setup failed"); FreeLibraryAndExitThread(self, 3); }
-    if (!PropManager::Get().Create()) { LOG_ERROR("RecvTable setup failed"); FreeLibraryAndExitThread(self, 4); }
+    // Non-fatal: the menu only needs the game window + D3D9 device, so a
+    // partial interface capture must not unload the cheat before Hooks::Setup.
+    if (!Interfaces::Setup()) LOG_ERROR("interface setup incomplete; menu hooks will still be attempted");
+    if (!PropManager::Get().Create()) LOG_ERROR("RecvTable setup failed; netvars unavailable");
     Displacement::Init();
-    if (!Math::Setup()) { FreeLibraryAndExitThread(self, 5); }
+    if (!Math::Setup()) LOG_ERROR("math setup failed");
 
     Render::CreateFonts();
     EventListener::Setup({"bullet_impact", "round_start", "player_hurt", "weapon_fire", "player_death"});

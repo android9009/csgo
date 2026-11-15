@@ -23,33 +23,43 @@ FrameStageNotifyFn GetFrameStageNotifyOriginal() { return client_hook.get_origin
 SceneEndFn GetSceneEndOriginal() { return view_render_hook.get_original<SceneEndFn>(); }
 DrawModelExecuteFn GetDrawModelExecuteOriginal() { return model_render_hook.get_original<DrawModelExecuteFn>(); }
 bool Setup() {
-    if (!Interfaces::ClientMode || !Interfaces::Panel) return false;
-    if (!client_mode_hook.attach(Interfaces::ClientMode, 24, reinterpret_cast<void*>(&HooksInternal::CreateMove))) return false;
-    if (!panel_hook.attach(Interfaces::Panel, 41, reinterpret_cast<void*>(&HooksInternal::PaintTraverse))) {
-        client_mode_hook.detach(); return false;
-    }
+    // Menu hooks first: the menu only needs the game window (WndProc) and the
+    // D3D9 device (EndScene), so it must work even if other interfaces fail.
+    // CS:GO's top-level window class is "Valve001"; no vfunc needed.
+    game_window = FindWindowA("Valve001", nullptr);
+    if (game_window)
+        original_wndproc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(game_window, GWLP_WNDPROC,
+            reinterpret_cast<LONG_PTR>(&HooksInternal::WndProc)));
+    else
+        LOG_ERROR("game window not found (Valve001); menu toggle unavailable");
     if (Interfaces::DirectDevice)
         device_hook.attach(Interfaces::DirectDevice, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
-    // FrameStageNotify (IBaseClientDll idx 37), SceneEnd (IViewRender idx 6) and
-    // DrawModelExecute (IVModelRender idx 21) are best-effort: the core hooks
-    // above are enough for the menu, these unlock features/visuals + rage.
+    else
+        LOG_ERROR("DirectDevice is null; EndScene hook not installed, menu will not render");
+
+    // Feature hooks are best-effort: missing interfaces only disable features.
+    if (Interfaces::ClientMode)
+        client_mode_hook.attach(Interfaces::ClientMode, 24, reinterpret_cast<void*>(&HooksInternal::CreateMove));
+    else
+        LOG_WARN("ClientMode is null; CreateMove not hooked");
+    if (Interfaces::Panel)
+        panel_hook.attach(Interfaces::Panel, 41, reinterpret_cast<void*>(&HooksInternal::PaintTraverse));
+    else
+        LOG_WARN("Panel is null; PaintTraverse not hooked");
     if (Interfaces::Client)
         client_hook.attach(Interfaces::Client, 37, reinterpret_cast<void*>(&HooksInternal::FrameStageNotify));
     if (Interfaces::ViewRender)
         view_render_hook.attach(Interfaces::ViewRender, 6, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
-    // CS:GO's top-level window class is "Valve001"; no vfunc needed.
-    game_window = FindWindowA("Valve001", nullptr);
-    if (game_window)
-        original_wndproc = reinterpret_cast<WNDPROC>(SetWindowLongPtrA(game_window, GWLP_WNDPROC,
-            reinterpret_cast<LONG_PTR>(&HooksInternal::WndProc)));
-    LOG_INFO("hooks installed (CreateMove, PaintTraverse%s%s%s%s)",
-        device_hook.is_hooked() ? ", EndScene" : "",
-        client_hook.is_hooked() ? ", FrameStageNotify" : "",
-        view_render_hook.is_hooked() ? ", SceneEnd" : "",
-        model_render_hook.is_hooked() ? ", DrawModelExecute" : "");
-    return true;
+
+    LOG_INFO("hooks installed (WndProc=%d EndScene=%d CreateMove=%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
+        original_wndproc != nullptr, device_hook.is_hooked(), client_mode_hook.is_hooked(),
+        panel_hook.is_hooked(), client_hook.is_hooked(), view_render_hook.is_hooked(),
+        model_render_hook.is_hooked());
+    // The cheat stays loaded as long as the menu can be toggled; feature hooks
+    // are optional until features land.
+    return original_wndproc != nullptr;
 }
 void Restore() {
     if (game_window && original_wndproc)

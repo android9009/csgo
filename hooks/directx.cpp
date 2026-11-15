@@ -1,5 +1,6 @@
 #include "hooks.hpp"
 #include "../utils/detourhook.hpp"
+#include "../utils/log.hpp"
 #include "../utils/config.hpp"
 #include "../context.hpp"
 #include "../features/menu/menu.h"
@@ -41,6 +42,7 @@ long __stdcall EndScene(void* device) {
         ImGui_ImplDX9_Init(dev);
         load_fonts();  // Fatality-шрифты (Josefin Sans + Font Awesome), один раз
         g_imgui_ready = true;
+        LOG_INFO("ImGui initialized (EndScene firing)");
     }
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
