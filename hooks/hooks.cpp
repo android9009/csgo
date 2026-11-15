@@ -122,6 +122,8 @@ bool Setup() {
         if (ex_vtable != direct_vtable && ex_vtable != d3d9_vtable)
             device_ex_hook.attach(dummy_ex, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
         LOG_INFO("dummy D3D9Ex vtable=%p hooked=%d", ex_vtable, device_ex_hook.is_hooked());
+    } else {
+        LOG_WARN("dummy D3D9Ex device creation failed");
     }
     if (!device_hook.is_hooked() && !device_d3d9_hook.is_hooked() && !device_ex_hook.is_hooked())
         LOG_ERROR("no EndScene hook installed; menu will not render");
