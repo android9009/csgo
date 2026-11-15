@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include <resources/josefin_sans.h>
+#include <resources/josefin_sans_bold.h>
 
 GUI_NAMESPACE;
 
@@ -45,10 +47,10 @@ context::context(float text_size)
 
 	std::string win_dir{win_dir_arr};
 	draw.fonts[GUI_HASH("gui_debug")] = std::make_shared<font>((win_dir + ("/fonts/verdana.ttf")).c_str(), 14.f, 0, 0, 0x45F);
-	draw.fonts[GUI_HASH("gui_title")] = std::make_shared<font>((win_dir + "/fonts/segoeuib.ttf").c_str(), 18.f);
-	draw.fonts[GUI_HASH("gui_main")] = std::make_shared<font>((win_dir + "/fonts/segoeui.ttf").c_str(), text_size, 0, 0, 0x45F);
+	draw.fonts[GUI_HASH("gui_title")] = std::make_shared<font>(josefin_sans_bold, sizeof(josefin_sans_bold), 18.f);
+	draw.fonts[GUI_HASH("gui_main")] = std::make_shared<font>(josefin_sans.data(), josefin_sans.size(), text_size, 0, 0, 0x45F);
 	draw.fonts[GUI_HASH("gui_infinity")] = std::make_shared<font>((win_dir + "/fonts/segoeui.ttf").c_str(), text_size, 0, 0x221E, 0x221E);
-	draw.fonts[GUI_HASH("gui_bold")] = std::make_shared<font>((win_dir + "/fonts/segoeuib.ttf").c_str(), text_size, 0, 0, 0x45F);
+	draw.fonts[GUI_HASH("gui_bold")] = std::make_shared<font>(josefin_sans_bold, sizeof(josefin_sans_bold), text_size, 0, 0, 0x45F);
 
 	draw.shaders[GUI_HASH("blur_f")] = std::make_shared<shader>(
 		(
