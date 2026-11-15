@@ -233,7 +233,7 @@ namespace menu::group
 		const std::string key = category == 0 ? "visuals>esp>weapon>" : category == 1 ? "visuals>esp>grenades>" : "visuals>esp>c4>";
 		auto &enabled = category == 0 ? world.weapon_enabled : category == 1 ? world.grenade_enabled : world.c4_enabled;
 		auto &base_color = category == 0 ? world.weapon_color : category == 1 ? world.grenade_color : world.c4_color;
-		auto &icons = category == 0 ? world.weapon_icons : category == 1 ? world.grenade_icons : world.c4_icons;
+		auto &icons = category == 0 ? world.weapon_icons : world.grenade_icons;
 		auto &visual = category == 0 ? world.weapon_visuals : category == 1 ? world.grenade_visuals : world.c4_visuals;
 		const char *icon_label = category == 0 ? "Weapon icons" : category == 1 ? "Grenade icons" : "C4 icons";
 		auto add_inline = [&](const std::string &suffix, const char *label_text, const std::vector<std::shared_ptr<control>> &controls) {
@@ -243,9 +243,17 @@ namespace menu::group
 			}));
 		};
 		add_inline("enable", "Enable", {MAKE_RUNTIME(key + "enable", checkbox, enabled), MAKE_RUNTIME(key + "color", color_picker, base_color)});
-		e->add(make_control(icon_label, MAKE_RUNTIME(key + "icons", checkbox, icons)));
-		if (category == 2)
-			add_inline("timer", "Timer enable", {MAKE_RUNTIME(key + "timer", checkbox, world.c4_timer), MAKE_RUNTIME(key + "timer>color", color_picker, world.c4_timer_color)});
+		if (category != 2)
+			e->add(make_control(icon_label, MAKE_RUNTIME(key + "icons", checkbox, icons)));
+		else {
+			auto options = MAKE_RUNTIME(key + "options", combo_box, world.c4_options, vec2{}, vec2{80.f, 20.f});
+			options->allow_multiple = true;
+			options->add({MAKE_RUNTIME(key + "options>timer", selectable, "Timer", 0),
+				MAKE_RUNTIME(key + "options>damage", selectable, "Damage", 1),
+				MAKE_RUNTIME(key + "options>defuse", selectable, "Defusing", 2),
+				MAKE_RUNTIME(key + "options>icons", selectable, "C4 icons", 3)});
+			add_inline("options", "Options", {options, MAKE_RUNTIME(key + "timer>color", color_picker, world.c4_timer_color)});
+		}
 		auto material = MAKE_RUNTIME(key + "chams", combo_box, visual.material, vec2{}, vec2{80.f, 20.f});
 		insert_chams(key + "chams>", material);
 		e->add(make_control("Chams", material));
@@ -402,10 +410,20 @@ namespace menu::group
 		{
 			const auto c = MAKE("visuals>chams>enemy>history", combo_box, cfg.visuals.chams.enemy_backtrack.mat);
 			insert_chams("visuals>chams>enemy>history>", c);
+			c->callback = [](bits &v) {
+				FIND_SAFE(gear, "visuals>chams>enemy>history>settings");
+				const bool enabled = !v.none() && !v.test(cfg_t::cham_none);
+				gear->set_visible(enabled);
+				FIND_SAFE(secondary, "visuals>chams>enemy>history>settings>secondary color");
+				secondary->get_parent()->set_visible(enabled && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+			};
 			ADD_INLINE("Backtrack", c, MAKE("visuals>chams>enemy>history>settings", settings, [](auto e) {
-				ADD("Primary color", "visuals>chams>enemy>history>color", color_picker, cfg.visuals.chams.enemy_his_col, true, vec2{}, true);
-				ADD("Secondary color", "visuals>chams>enemy>history>secondary color", color_picker, cfg.visuals.chams.enemy_backtrack.col2, true, vec2{}, true);
-			}));
+				ADD("Primary color", "visuals>chams>enemy>history>settings>primary color", color_picker, cfg.visuals.chams.enemy_backtrack.col1, true, vec2{}, true);
+				const auto secondary = make_control("Secondary color", MAKE("visuals>chams>enemy>history>settings>secondary color", color_picker, cfg.visuals.chams.enemy_backtrack.col2, true, vec2{}, true));
+				const auto &v = *cfg.visuals.chams.enemy_backtrack.mat;
+				secondary->set_visible(!v.none() && !v.test(cfg_t::cham_none) && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+				e->add(secondary);
+			})->make_invisible());
 		}
 
 		{

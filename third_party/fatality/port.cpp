@@ -61,6 +61,7 @@
 #include "resources/loading.h"
 #include "resources/hotkey_icons.h"
 
+#include "src/gui/popups/action_list_popup.h"
 #include "src/gui/popups/about_popup.h"
 #include "src/gui/popups/search_popup.h"
 #include "src/gui/popups/configs_popup.h"
@@ -416,11 +417,11 @@ namespace menu::group
 			ADD_RUNTIME("Double tap hitchance", id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%"); }
 		ADD_INLINE("Hitchance", MAKE_RUNTIME(id + "hit chance", slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[grp], "%.0f%%", 1.f, vec2{80.f, 14.f}), hc_settings);
 		ADD_RUNTIME("Min damage", id + "min damage", slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[grp], (ssa<float>{ssv<float>{101.f, "HP + %.0f"}, ssv<float>{0.f, "%.0f hp"}}), 1.f, vec2{80.f, 14.f});
-		const auto delay = MAKE("rage>aimbot>general>delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
+		const auto delay = MAKE_RUNTIME(id + "delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
 		delay->allow_multiple = true;
-		delay->add({MAKE("rage>aimbot>delay>damage", selectable, "Wait damage", 0),
-			MAKE("rage>aimbot>delay>hitchance", selectable, "Wait hitchance", 1),
-			MAKE("rage>aimbot>delay>safe", selectable, "Wait safe point or resolved", 2)});
+		delay->add({MAKE_RUNTIME(id + "delay>damage", selectable, "Wait damage", 0),
+			MAKE_RUNTIME(id + "delay>hitchance", selectable, "Wait hitchance", 1),
+			MAKE_RUNTIME(id + "delay>safe", selectable, "Wait safe point or resolved", 2)});
 		ADD_INLINE("Delay shot", delay);
 	}
 
@@ -441,9 +442,9 @@ namespace menu::group
 		};
 		add_mode("Safe point", id + "safe point", cfg.weapon_config.safe_mode[grp], cfg.weapon_config.safe_disablers[grp], cfg.weapon_config.safe_on_peek[grp]);
 		add_mode("Body aim", id + "body aim", cfg.weapon_config.body_mode[grp], cfg.weapon_config.body_disablers[grp], cfg.weapon_config.body_on_peek[grp]);
-		ADD("Force extra safety", "rage>aimbot>general>force extra safety", checkbox, cfg.aim.fallback_on_key);
-		ADD("Force body aim", "rage>aimbot>general>force bodyaim", checkbox, cfg.aim.baim_on_key);
-		ADD("Headshot only", "rage>aimbot>general>headshot only", checkbox, cfg.aim.hsmode);
+		ADD_RUNTIME("Force extra safety", id + "force extra safety", checkbox, cfg.aim.fallback_on_key);
+		ADD_RUNTIME("Force body aim", id + "force bodyaim", checkbox, cfg.aim.baim_on_key);
+		ADD_RUNTIME("Headshot only", id + "headshot only", checkbox, cfg.aim.hsmode);
 
 		auto autostop_settings = MAKE_RUNTIME(id + "autostop>settings", settings, nullptr);
 		{
@@ -511,103 +512,67 @@ namespace menu::group
 
 
 
-	void rebuild_rage_layout( bool skip_adjust ) {
-		//VIRTUALIZER_TIGER_WHITE_START;
-		const auto wp_tabs = ctx->find<tabs_layout>( GUI_HASH( "rage>weapons" ) );
-		const auto wp_area = ctx->find<layout>( GUI_HASH( "rage>tab>aimbot" ) );
+	// Item-definition IDs match CS:GO; group IDs occupy a separate range.
+	const std::unordered_map<uint32_t, std::string> rage_groups = {
+		{256, "Pistols"}, {257, "Heavy pistols"}, {258, "SMGs"}, {259, "Rifles"},
+		{260, "Shotguns"}, {261, "Machine guns"}, {262, "Scout"}, {263, "AWP"}, {264, "Auto snipers"}};
+	const std::unordered_map<uint32_t, std::string> rage_weapons = {
+		{1,"Desert Eagle"},{2,"Dual Berettas"},{3,"Five-SeveN"},{4,"Glock-18"},{7,"AK-47"},{8,"AUG"},
+		{9,"AWP"},{10,"FAMAS"},{11,"G3SG1"},{13,"Galil AR"},{14,"M249"},{16,"M4A4"},
+		{17,"MAC-10"},{19,"P90"},{23,"MP5-SD"},{24,"UMP-45"},{25,"XM1014"},{26,"PP-Bizon"},
+		{27,"MAG-7"},{28,"Negev"},{29,"Sawed-Off"},{30,"Tec-9"},{32,"P2000"},{33,"MP7"},
+		{34,"MP9"},{35,"Nova"},{36,"P250"},{38,"SCAR-20"},{39,"SG 553"},{40,"SSG 08"},
+		{60,"M4A1-S"},{61,"USP-S"},{63,"CZ75-Auto"},{64,"R8 Revolver"}};
 
-		// remove spacers
-		wp_tabs->remove( GUI_HASH( "rage>weapons>spacer" ) );
-		wp_tabs->remove( GUI_HASH( "rage>weapons>spacer2" ) );
-
-		bool any_added{};
-		std::vector<uint32_t> to_add_grp, to_add_wep;
-		//for (auto &[i, v] : cfg.weapon_config.cfgs)
-		//{
-		//	const auto &name = i >= group_id ? grp_to_name[i] : wpn_to_name[i];
-		//	any_added = any_added || v;
-
-		//	// erase everything!
-		//	wp_tabs->remove(hash(XOR("rage>weapons>") + name));
-		//	wp_area->remove(hash(XOR("rage>weapon>") + name));
-
-		//	// add new ones
-		//	if (v)
-		//		i >= group_id ? to_add_grp.push_back(i) : to_add_wep.push_back(i);
-		//}
-
-		// process queues here so it doesnt delete controls right after they are created
-		wp_tabs->process_queues( );
-		wp_area->process_queues( );
-
-		if ( to_add_grp.empty( ) && to_add_wep.empty( ) )
-			return;
-
-		// sort both arrays ascending
-		std::sort( to_add_grp.begin( ), to_add_grp.end( ) );
-		std::sort( to_add_wep.begin( ), to_add_wep.end( ) );
-
-		// add spacer
-		wp_tabs->add( MAKE( "rage>weapons>spacer", spacer, vec2{ 0.f, 0.f }, vec2{ 0.f, 8.f } )->make_width_automatic( ) );
-
-		//for (auto &i : to_add_grp)
-		//{
-		//	const auto &name = grp_to_name[i];
-
-		//	// make tab
-		//	const auto tb = MAKE_RUNTIME("rage>weapons>" + name, child_tab, name, hash(XOR("rage>weapon>") + name))->
-		//		make_vertical();
-		//	if (!skip_adjust)
-		//		tb->margin.maxs.y = -8.f;
-
-		//	wp_tabs->add(tb);
-		//	rage_aimbot_weapon_extra(wp_area, i, XOR("rage>weapon>") + name);
-		//}
-
-		if ( !to_add_grp.empty( ) && !to_add_wep.empty( ) )
-			wp_tabs->add( MAKE( "rage>weapons>spacer2", spacer, vec2{ 0.f, 0.f }, vec2{ 0.f, 8.f } )->make_width_automatic( ) );
-
-		/*for (auto &i : to_add_wep)
-		{
-			const auto &name = wpn_to_name[i];
-
-			const auto tb = MAKE_RUNTIME("rage>weapons>" + name, child_tab, name, hash(XOR("rage>weapon>") + name))->
-				make_vertical();
-			if (!skip_adjust)
-				tb->margin.maxs.y = -8.f;
-
-			wp_tabs->add(tb);
-			rage_aimbot_weapon_extra(wp_area, i, XOR("rage>weapon>") + name);
-		}*/
-
-		wp_tabs->process_queues( );
-		wp_area->process_queues( );
-
-		// force select general no matter what
-		ctx->find<child_tab>( GUI_HASH( "rage>weapons>general" ) )->select( );
-		//VIRTUALIZER_TIGER_WHITE_END;
+	void update_rage_override(uint32_t index, bool enabled) {
+		const auto tabs = ctx->find<tabs_layout>(GUI_HASH("rage>weapons"));
+		const auto area = ctx->find<layout>(GUI_HASH("rage>aimbot>content"));
+		if (!tabs || !area) return;
+		const auto &names = index >= 256 ? rage_groups : rage_weapons;
+		const auto found = names.find(index);
+		if (found == names.end()) return;
+		const auto key = std::to_string(index);
+		if (enabled) {
+			cfg.weapon_config.copy(0, index);
+			rage_aimbot_weapon_extra(area, index, "rage>weapon>" + key);
+			area->process_queues();
+			tabs->add(MAKE_RUNTIME("rage>weapons>" + key, child_tab, found->second, hash("rage>weapon>" + key))->make_vertical());
+			tabs->process_queues();
+		} else {
+			const auto general = ctx->find<child_tab>(GUI_HASH("rage>weapons>general"));
+			if (general) tabs->update_selected(general);
+			tabs->remove(hash("rage>weapons>" + key));
+			area->remove(hash("rage>weapon>" + key));
+			tabs->process_queues();
+			area->process_queues();
+		}
 	}
 
-	
-	void rage_aimbot( std::shared_ptr<layout>& e ) {
-		//VIRTUALIZER_TIGER_WHITE_START;
-		auto group_sz = window_size_to_groupbox_size( 848.f, 588.f, 4.f ) - vec2{ 0.f, 36.f };
-
-		const auto tabs = MAKE( "rage>weapons", tabs_layout, vec2{ 0.f, 36.f }, vec2{ group_sz.x * .5f, 406.f }, td_vertical );
-		tabs->add( MAKE( "rage>weapons>general", child_tab, XOR( "General" ), GUI_HASH( "rage>weapon>general" ) )->make_vertical( )->make_selected( ) );
-
-		auto area = MAKE( "rage>tab>aimbot", layout, vec2{ group_sz.x * .5f + 16.f, 36.f }, vec2{ 800.f - ( group_sz.x * .5f + 16.f ), 446.f }, s_none );
-		area->make_not_clip( );
-
+	void rage_aimbot(std::shared_ptr<layout>& e) {
+		auto group_sz = window_size_to_groupbox_size(848.f, 588.f, 4.f) - vec2{0.f, 36.f};
+		const auto page = MAKE("rage>tab>aimbot", layout, vec2{0.f, 36.f}, vec2{800.f, 446.f}, s_none);
+		page->make_not_clip();
+		const auto tabs = MAKE("rage>weapons", tabs_layout, vec2{0.f, 0.f}, vec2{group_sz.x * .5f, 406.f}, td_vertical);
+		tabs->add(MAKE("rage>weapons>general", child_tab, "General", GUI_HASH("rage>weapon>general"))->make_vertical()->make_selected());
+		auto area = MAKE("rage>aimbot>content", layout, vec2{group_sz.x * .5f + 16.f, 0.f}, vec2{800.f - (group_sz.x * .5f + 16.f), 446.f}, s_none);
+		area->make_not_clip();
 		group_sz.x = 218.f;
-		rage_aimbot_weapon_extra( area, 0, XOR( "rage>weapon>general" ), true );
-
-		area->add( make_groupbox( XOR( "rage>aimbot>general" ), XOR( "GENERAL" ), { group_sz.x * 2 + 32.f, 0.f }, group_sz, rage_aimbot_general ) );
-
-
-		e->add( tabs );
-		e->add( area );
-		//VIRTUALIZER_TIGER_WHITE_END;
+		rage_aimbot_weapon_extra(area, 0, "rage>weapon>general", true);
+		area->add(make_groupbox("rage>aimbot>general", "GENERAL", {group_sz.x * 2 + 32.f, 0.f}, group_sz, rage_aimbot_general));
+		const auto button = MAKE("rage>override", button, "Add override", nullptr, vec2{0.f, 426.f}, vec2{group_sz.x * .5f - 16.f, 20.f});
+		button->margin = {};
+		button->center_text = false;
+		button->callback = [] {
+			const auto anchor = ctx->find(GUI_HASH("rage>override"));
+			if (!anchor) return;
+			auto popup = std::make_shared<action_list_popup>(control_id{GUI_HASH("rage>override>popup")}, action_list_popup::params_t{rage_groups, rage_weapons}, cfg.weapon_config.cfgs, anchor->area_abs().bl() + vec2{0.f, 4.f});
+			popup->callback = [](uint32_t id, bool enabled) { update_rage_override(id, enabled); };
+			popup->open();
+		};
+		page->add(tabs);
+		page->add(area);
+		page->add(button);
+		e->add(page);
 	}
 
 
