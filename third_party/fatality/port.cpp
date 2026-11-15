@@ -61,7 +61,6 @@
 #include "resources/loading.h"
 #include "resources/hotkey_icons.h"
 
-#include "src/gui/popups/action_list_popup.h"
 #include "src/gui/popups/about_popup.h"
 #include "src/gui/popups/search_popup.h"
 #include "src/gui/popups/configs_popup.h"
@@ -512,42 +511,6 @@ namespace menu::group
 
 
 
-	// Item-definition IDs match CS:GO; group IDs occupy a separate range.
-	const std::unordered_map<uint32_t, std::string> rage_groups = {
-		{256, "Pistols"}, {257, "Heavy pistols"}, {258, "SMGs"}, {259, "Rifles"},
-		{260, "Shotguns"}, {261, "Machine guns"}, {262, "Scout"}, {263, "AWP"}, {264, "Auto snipers"}};
-	const std::unordered_map<uint32_t, std::string> rage_weapons = {
-		{1,"Desert Eagle"},{2,"Dual Berettas"},{3,"Five-SeveN"},{4,"Glock-18"},{7,"AK-47"},{8,"AUG"},
-		{9,"AWP"},{10,"FAMAS"},{11,"G3SG1"},{13,"Galil AR"},{14,"M249"},{16,"M4A4"},
-		{17,"MAC-10"},{19,"P90"},{23,"MP5-SD"},{24,"UMP-45"},{25,"XM1014"},{26,"PP-Bizon"},
-		{27,"MAG-7"},{28,"Negev"},{29,"Sawed-Off"},{30,"Tec-9"},{32,"P2000"},{33,"MP7"},
-		{34,"MP9"},{35,"Nova"},{36,"P250"},{38,"SCAR-20"},{39,"SG 553"},{40,"SSG 08"},
-		{60,"M4A1-S"},{61,"USP-S"},{63,"CZ75-Auto"},{64,"R8 Revolver"}};
-
-	void update_rage_override(uint32_t index, bool enabled) {
-		const auto tabs = ctx->find<tabs_layout>(GUI_HASH("rage>weapons"));
-		const auto area = ctx->find<layout>(GUI_HASH("rage>aimbot>content"));
-		if (!tabs || !area) return;
-		const auto &names = index >= 256 ? rage_groups : rage_weapons;
-		const auto found = names.find(index);
-		if (found == names.end()) return;
-		const auto key = std::to_string(index);
-		if (enabled) {
-			cfg.weapon_config.copy(0, index);
-			rage_aimbot_weapon_extra(area, index, "rage>weapon>" + key);
-			area->process_queues();
-			tabs->add(MAKE_RUNTIME("rage>weapons>" + key, child_tab, found->second, hash("rage>weapon>" + key))->make_vertical());
-			tabs->process_queues();
-		} else {
-			const auto general = ctx->find<child_tab>(GUI_HASH("rage>weapons>general"));
-			if (general) tabs->update_selected(general);
-			tabs->remove(hash("rage>weapons>" + key));
-			area->remove(hash("rage>weapon>" + key));
-			tabs->process_queues();
-			area->process_queues();
-		}
-	}
-
 	void rage_aimbot(std::shared_ptr<layout>& e) {
 		auto group_sz = window_size_to_groupbox_size(848.f, 588.f, 4.f) - vec2{0.f, 36.f};
 		const auto page = MAKE("rage>tab>aimbot", layout, vec2{0.f, 36.f}, vec2{800.f, 446.f}, s_none);
@@ -559,19 +522,12 @@ namespace menu::group
 		group_sz.x = 218.f;
 		rage_aimbot_weapon_extra(area, 0, "rage>weapon>general", true);
 		area->add(make_groupbox("rage>aimbot>general", "GENERAL", {group_sz.x * 2 + 32.f, 0.f}, group_sz, rage_aimbot_general));
-		const auto button = MAKE("rage>override", button, "Add override", nullptr, vec2{0.f, 426.f}, vec2{group_sz.x * .5f - 16.f, 20.f});
-		button->margin = {};
-		button->center_text = false;
-		button->callback = [] {
-			const auto anchor = ctx->find(GUI_HASH("rage>override"));
-			if (!anchor) return;
-			auto popup = std::make_shared<action_list_popup>(control_id{GUI_HASH("rage>override>popup")}, action_list_popup::params_t{rage_groups, rage_weapons}, cfg.weapon_config.cfgs, anchor->area_abs().bl() + vec2{0.f, 4.f});
-			popup->callback = [](uint32_t id, bool enabled) { update_rage_override(id, enabled); };
-			popup->open();
-		};
+		const auto ovr = MAKE("rage>override", button, "Add override", nullptr, vec2{0.f, 426.f}, vec2{group_sz.x * .5f - 16.f, 20.f});
+		ovr->margin = {};
+		ovr->center_text = false;
 		page->add(tabs);
 		page->add(area);
-		page->add(button);
+		page->add(ovr);
 		e->add(page);
 	}
 
