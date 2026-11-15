@@ -15,6 +15,7 @@
 #include "utils/render.hpp"
 #include "utils/event_listener.hpp"
 #include "utils/log.hpp"
+#include "utils/memory.hpp"
 #include "hooks/hooks.hpp"
 
 namespace {
@@ -44,6 +45,36 @@ void OpenStatus() {
     }
     Publish(PastavarStatus::Initializing);
 }
+// Read-only compatibility probe for the unfinished Source 1 model preview.
+// A signature match is diagnostic only, never permission to call the address.
+void ProbeModelPreview() {
+    const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    std::uintptr_t start = 0, size = 0;
+    if (!base || !MEM::GetSection(base, ".text", &start, &size) || !size) {
+        LOG_WARN("preview probe: client.dll .text unavailable; renderer remains disabled");
+        return;
+    }
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    LOG_INFO("preview probe: client.dll timestamp=%08lX image_size=%08lX", nt->FileHeader.TimeDateStamp, nt->OptionalHeader.SizeOfImage);
+    struct Probe { const char* name; const char* signature; };
+    const Probe probes[] = {
+        {"merged model constructor candidate", "53 8B D9 56 57 8D 4B 04 C7 03 ? ? ? ? E8 ? ? ? ? 6A"},
+        {"attachment bone setup candidate", "55 8B EC 83 EC 14 83 3D ? ? ? ? ? 53"}
+    };
+    for (const auto& probe : probes) {
+        const auto first = MEM::FindPattern(reinterpret_cast<const std::uint8_t*>(start), size, probe.signature);
+        if (!first) {
+            LOG_WARN("preview probe: %s not found", probe.name);
+            continue;
+        }
+        const auto remaining = start + size - (first + 1);
+        const auto second = MEM::FindPattern(reinterpret_cast<const std::uint8_t*>(first + 1), remaining, probe.signature);
+        LOG_INFO("preview probe: %s RVA=%08lX match=%s", probe.name,
+                 static_cast<unsigned long>(first - base), second ? "multiple" : "unique");
+    }
+    LOG_WARN("preview probe: diagnostics only; model renderer not implemented");
+}
 void Shutdown() {
     Hooks::Restore();
     EventListener::Destroy();
@@ -60,6 +91,8 @@ DWORD InitializeAndRun(HMODULE self) {
         if (!offsets::Init()) { Publish(PastavarStatus::Failed, "Offset setup failed"); return 2; }
         current_stage = "Interface setup";
         if (!Interfaces::Setup()) { LOG_ERROR("interface setup incomplete; menu hooks will still be attempted"); warnings += "Interface setup incomplete; "; }
+        current_stage = "Preview compatibility probe";
+        ProbeModelPreview();
         current_stage = "Netvar setup";
         if (!PropManager::Get().Create()) { LOG_ERROR("RecvTable setup failed; netvars unavailable"); warnings += "Netvar setup failed; "; }
         current_stage = "Displacement setup";
