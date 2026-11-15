@@ -3,6 +3,7 @@
 #include <ren/types/color.h>
 #include <ren/types/pos.h>
 #include <fstream>
+#include <chrono>
 
 namespace group {
 	using namespace evo::gui;
