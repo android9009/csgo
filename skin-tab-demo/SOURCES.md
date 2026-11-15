@@ -3,7 +3,7 @@
 The browser demo's `data.js` is a reduced snapshot of the English
 [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) data (MIT licence),
 retrieved 2026-11-15. It contains names, identifiers, rarity colours, team
-metadata and image URLs only, including music kit entries. The dataset also contains Counter-Strike 2 items
+metadata and image URLs only, including music kit and sticker entries. The dataset also contains Counter-Strike 2 items
 and is not the live CS:GO item schema used by the DLL.
 
 The referenced inventory images are delivered remotely by Steam; they are
