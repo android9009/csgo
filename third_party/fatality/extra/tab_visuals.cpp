@@ -658,7 +658,7 @@ namespace menu::group
 		ADD("Texture transparency", "visuals>misc>other>texture transparency", slider<float>, 0.f, 100.f, cfg.misc.texture_transparency, "%.0f%%");
 		ADD("Prop transparency", "visuals>misc>other>prop transparency", slider<float>, 0.f, 100.f, cfg.visuals.prop_transparency, "%.0f%%");
 		{
-			const auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets, vec2{}, vec2{80.f, 20.f});
+			const auto tracer = MAKE("visuals>misc>other>tracers", combo_box, cfg.misc.tracer_targets);
 			tracer->allow_multiple = true;
 			tracer->callback = [](bits &v) {
 				for (int i = 0; i < 3; ++i) {
@@ -666,20 +666,22 @@ namespace menu::group
 					if (const auto row = ctx->find(id)) row->set_visible(v.test(i));
 				}
 			};
-			tracer->add({MAKE("visuals>misc>other>tracers>local", selectable, "Local", 0),
-				MAKE("visuals>misc>other>tracers>enemy", selectable, "Enemy", 1),
-				MAKE("visuals>misc>other>tracers>team", selectable, "Teammates", 2)});
+			const auto local = MAKE("visuals>misc>other>tracers>local", selectable, "Local", 0);
+			const auto enemy = MAKE("visuals>misc>other>tracers>enemy", selectable, "Enemy", 1);
+			const auto team = MAKE("visuals>misc>other>tracers>team", selectable, "Teammates", 2);
+			local->swatch = MAKE("visuals>misc>other>tracers>local>color", color_picker, cfg.misc.tracer_colors[0]);
+			enemy->swatch = MAKE("visuals>misc>other>tracers>enemy>color", color_picker, cfg.misc.tracer_colors[1]);
+			team->swatch = MAKE("visuals>misc>other>tracers>team>color", color_picker, cfg.misc.tracer_colors[2]);
+			tracer->add({local, enemy, team});
 			const auto gear = MAKE("visuals>misc>other>tracers>settings", settings, [](auto e) {
 				const std::array<const char *, 3> names{"Local", "Enemy", "Teammates"};
 				for (int i = 0; i < 3; ++i) {
 					const auto key = std::string("visuals>misc>other>tracers>settings>") + std::to_string(i);
 					auto style = MAKE_RUNTIME(key + ">style", combo_box, cfg.misc.tracer_style[i], vec2{}, vec2{70.f, 20.f});
 					style->add({MAKE_RUNTIME(key + ">laser", selectable, "Laser", 0), MAKE_RUNTIME(key + ">line", selectable, "Line", 1)});
-					auto color = MAKE_RUNTIME(key + ">color", color_picker, cfg.misc.tracer_colors[i]);
 					const auto row = make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout> &r) {
 						r->add(std::make_shared<label>(control_id{hash(key + ">label")}, names[i]));
 						r->add(style);
-						r->add(color);
 					});
 					row->is_visible = cfg.misc.tracer_targets->test(i);
 					e->add(row);
