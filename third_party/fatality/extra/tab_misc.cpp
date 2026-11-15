@@ -9,29 +9,17 @@ using namespace evo::ren;
 
 namespace menu
 {
-	void on_dpi_change(bits &b)
+	float dpi_scale(const bits &b, float display_height)
 	{
-		if (b.test(cfg_t::dpi_50))
-			draw.scale = .5f;
-		else if (b.test(cfg_t::dpi_75))
-			draw.scale = .75f;
-		else if (b.test(cfg_t::dpi_100))
-			draw.scale = 1.f;
-		else if (b.test(cfg_t::dpi_125))
-			draw.scale = 1.25f;
-		else if (b.test(cfg_t::dpi_150))
-			draw.scale = 1.5f;
-		else if (b.test(cfg_t::dpi_200))
-			draw.scale = 2.f;
-		else
-			draw.scale = std::clamp(draw.display.y, 1.f, FLT_MAX) / 1080.f;
-
-		if (const auto wnd = men.main_wnd.lock(); wnd && wnd->is_out_of_clip(wnd->pos))
-			wnd->pos = {50.f, 50.f};
-
-		men.font_reset = true;
-		//entity_rendering::reset();
+		if (b.test(cfg_t::dpi_50)) return .5f;
+		if (b.test(cfg_t::dpi_75)) return .75f;
+		if (b.test(cfg_t::dpi_100)) return 1.f;
+		if (b.test(cfg_t::dpi_125)) return 1.25f;
+		if (b.test(cfg_t::dpi_150)) return 1.5f;
+		if (b.test(cfg_t::dpi_200)) return 2.f;
+		return display_height > 0.f ? std::clamp(display_height / 1080.f, .5f, 2.f) : 1.f;
 	}
+
 }
 
 namespace menu::group
@@ -100,7 +88,6 @@ namespace menu::group
 			 MAKE("misc>various>dpi scale>150%", selectable, XOR("150%"), cfg_t::dpi_150),
 			 MAKE("misc>various>dpi scale>200%", selectable, XOR("200%"), cfg_t::dpi_200),});
 
-			c->callback = on_dpi_change;
 
 			ADD_INLINE("DPI scale", c);
 		}

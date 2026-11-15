@@ -965,6 +965,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                 }
 
                 draw.refresh( );
+                draw.scale = menu::dpi_scale(*cfg.misc.dpi_scale, draw.display.y);
                 draw.create_objects( );
 
 
@@ -996,6 +997,21 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     draw.time = std::chrono::duration<float>(now - start).count();
     previous = now;
     draw.refresh();
+    const float new_scale = menu::dpi_scale(*cfg.misc.dpi_scale, draw.display.y);
+    if (new_scale != draw.scale) {
+        // Apply geometry, input and font metrics together, before building a frame.
+        for (const auto& [id, font] : draw.fonts) {
+            if (font) font->destroy();
+        }
+        draw.scale = new_scale;
+        for (const auto& [id, font] : draw.fonts) {
+            if (font) font->create();
+        }
+        const auto available = draw.display / draw.scale;
+        wnd->pos.x = std::clamp(wnd->pos.x, 0.f, std::max(0.f, available.x - wnd->size.x));
+        wnd->pos.y = std::clamp(wnd->pos.y, 0.f, std::max(0.f, available.y - wnd->size.y));
+        for (const auto& p : ctx->active_popups) p->close();
+    }
     draw.begin_frame();
     ctx->render();
     draw.end_frame();

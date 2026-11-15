@@ -34,7 +34,7 @@ void text_input::render()
 
 	if (is_locked_by_me())
 	{
-		const auto caret_offset = (r.tl() + vec2{base_offset.x, 4.f}) * draw.scale + vec2{cursor_offset + 2.f, 0.f};
+		const auto caret_offset = (r.tl() + vec2{base_offset.x + cursor_offset + 2.f, 4.f}) * draw.scale;
 		const auto caret_size = vec2{0.f, r.height() - 8.f} * draw.scale;
 
 		d->skip_dpi = true;
@@ -374,7 +374,7 @@ void text_input::update()
 	calc_total_width();
 }
 
-float text_input::calc_text_width(const std::string &v) { return cur_font->get_text_size(v, true).x; }
+float text_input::calc_text_width(const std::string &v) { return cur_font->get_text_size(v).x; }
 
 bool text_input::does_text_exceed_width() { return total_width > size.x - 10.f; }
 

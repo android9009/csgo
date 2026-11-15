@@ -6,6 +6,7 @@
 
 namespace menu
 {
+	float dpi_scale(const evo::gui::bits &value, float display_height);
 	namespace tools
 	{
 		using namespace evo;

@@ -286,6 +286,7 @@ namespace evo::ren
 
 		texture.fill({});
 		glyphs = {};
+		kerning.clear();
 
 		if (is_from_file)
 			free(data);
