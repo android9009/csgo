@@ -15,22 +15,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Base sources (everything except vendored third-party code).
 file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
+# The old ImGui menu is retained as reference, but is no longer used by the DLL.
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/features/menu/")
 
-# Vendored: Dear ImGui + MinHook.
+# Vendored MinHook (Win32).
 set(THIRDPARTY_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_demo.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_draw.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_tables.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_widgets.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_impl_dx9.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_impl_win32.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_stdlib.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/buffer.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/hook.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/trampoline.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/hde/hde32.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/hde/hde64.c
 )
 
 add_library(csgo_base SHARED ${BASE_SOURCES} ${THIRDPARTY_SOURCES})
@@ -41,7 +34,7 @@ target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json"
 )
-target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS IMGUI_DISABLE_ASSERT)
+target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc /utf-8)
 target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi winmm)
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "csgo_base" SUFFIX ".dll")

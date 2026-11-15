@@ -41,7 +41,7 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;IMGUI_DISABLE_ASSERT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -61,7 +61,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;IMGUI_DISABLE_ASSERT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;WIN32_LEAN_AND_MEAN;NOMINMAX;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -78,11 +78,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="features\menu\fonts\FontIcon.cpp" />
-    <ClCompile Include="features\menu\fonts\JosefinSansBold.cpp" />
-    <ClCompile Include="features\menu\fonts\JosefinSansRegular.cpp" />
-    <ClCompile Include="features\menu\menu.cpp" />
-    <ClCompile Include="features\menu\text_editor\TextEditor.cpp" />
+    <ClCompile Include="features\menu\fonts\FontIcon.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="features\menu\fonts\JosefinSansBold.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="features\menu\fonts\JosefinSansRegular.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="features\menu\menu.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="features\menu\text_editor\TextEditor.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\anim.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\container.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\control.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
@@ -170,17 +170,17 @@
     <ClCompile Include="sdk\entity\weapon.cpp" />
     <ClCompile Include="sdk\interfaces\interfaces.cpp" />
     <ClCompile Include="sdk\netvars.cpp" />
-    <ClCompile Include="third_party\imgui\imgui.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_demo.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_impl_dx9.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_stdlib.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_tables.cpp" />
-    <ClCompile Include="third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="third_party\imgui\imgui.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_demo.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_impl_dx9.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_stdlib.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
     <ClCompile Include="third_party\minhook\buffer.c" />
     <ClCompile Include="third_party\minhook\hde\hde32.c" />
-    <ClCompile Include="third_party\minhook\hde\hde64.c" />
+    <ClCompile Include="third_party\minhook\hde\hde64.c"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
     <ClCompile Include="third_party\minhook\hook.c" />
     <ClCompile Include="third_party\minhook\trampoline.c" />
     <ClCompile Include="utils\config.cpp" />

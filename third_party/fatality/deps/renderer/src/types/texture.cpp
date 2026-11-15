@@ -1,7 +1,6 @@
 #include <ren/renderer.h>
 #include <ren/types/texture.h>
 
-#define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/image.h>
 

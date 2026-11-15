@@ -8,9 +8,8 @@
 
 namespace HooksInternal {
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
-    // Toggle first: ImGui's handler may swallow key events, so the menu key
-    // must be checked before it sees the message. Debounced: rapid toggles
-    // (key bounce / double delivery) must not flicker the menu every frame.
+    // Check the menu key before passing input to the Fatality GUI.
+    // Debounce rapid repeated key-up messages to avoid flicker.
     if (message == WM_KEYUP && wparam == static_cast<WPARAM>(Config::settings.menu_key)) {
         static DWORD last_toggle = 0;
         const DWORD now = GetTickCount();
