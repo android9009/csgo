@@ -408,7 +408,6 @@ void context_debug::render(const std::shared_ptr<control> &c)
 	const auto &d = draw.layers[l_last];
 	if (c->is_mouse_on_me)
 	{
-		const auto &fnt = draw.fonts[GUI_HASH("gui_debug")];
 
 		//const auto buffer = tfm::format(
 		//	("%.0f:%.0f <%.0f:%.0f> : <%.0f:%.0f> / %s / %i"), c->pos_abs().x, c->pos_abs().y, c->pos.x, c->pos.y, c->size.x, c->size.y,

@@ -18,7 +18,7 @@ void public_software_popup::on_first_render_call()
 
 	popup::on_first_render_call();
 
-	auto offset = 30.f;
+	// auto offset = 30.f;
 	//for (const auto &[name, license, url] : links)
 	//{
 	//	//DEC(name_str, name);

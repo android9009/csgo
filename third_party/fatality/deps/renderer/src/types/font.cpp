@@ -379,6 +379,7 @@ namespace evo::ren
 			return false;
 
 		off = false;
+		xo = yo = 0;
 		gw = abc.abcB;
 		gh = (int)height;
 
@@ -443,7 +444,7 @@ namespace evo::ren
 		REN_DBG("gdi font destroyed");
 	}
 
-	float font_gdi::get_kerning(uint32_t left, uint32_t right) { return kerning_gap; }
+	float font_gdi::get_kerning(uint32_t, uint32_t) { return kerning_gap; }
 
 	bool font_gdi::codepoint_exists(uint32_t codepoint)
 	{

@@ -122,7 +122,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 	beh->hotkey_type = hkt_none;
 
 	const auto hk = std::make_shared<hotkey>(control_id{GUI_HASH("hotkeys>list>k>key") + tmp_s}, &b->key);
-	hk->callback = [this](uint8_t _) { update_key_table(); };
+	hk->callback = [this](uint8_t) { update_key_table(); };
 
 	std::shared_ptr<control> val;
 	switch (remote->hotkey_type)
@@ -131,7 +131,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 		bv[tmp_s - 1] = true;
 		val = std::make_shared<checkbox>(control_id{GUI_HASH("hotkeys>list>k>settings>val") + tmp_s}, bv[tmp_s - 1]);
 		val->reset();
-		val->as<checkbox>()->callback = [this](bool v) { update_key_table(); };
+		val->as<checkbox>()->callback = [this](bool) { update_key_table(); };
 		break;
 	case hkt_slider:
 		fv[tmp_s - 1].set(*(float *)&b->val);
@@ -141,7 +141,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 			val = std::make_shared<slider<float>>(
 				control_id{GUI_HASH("hotkeys>list>k>settings>val") + tmp_s}, real->low, real->high, fv[tmp_s - 1], real->format, real->step);
 			val->reset();
-			val->as<slider<float>>()->callback = [this](float a, float b) { update_key_table(); };
+			val->as<slider<float>>()->callback = [this](float, float) { update_key_table(); };
 		}
 		break;
 
@@ -168,7 +168,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 				});
 
 			val->reset();
-			val_casted->callback = [this](bits &v) { update_key_table(); };
+			val_casted->callback = [this](bits &) { update_key_table(); };
 		}
 		break;
 	default:

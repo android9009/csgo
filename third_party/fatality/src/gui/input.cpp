@@ -4,7 +4,7 @@
 
 GUI_NAMESPACE;
 
-bool context_input::on_input(uint32_t msg, uint32_t w, uint32_t l)
+bool context_input::on_input(uint32_t msg, uint32_t w, uint32_t)
 {
 	static const auto update_state = [](key_state &s, bool d) -> void
 	{

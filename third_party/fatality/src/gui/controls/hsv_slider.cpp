@@ -106,7 +106,7 @@ void hsv_slider::on_mouse_down(char key)
 	}
 }
 
-void hsv_slider::on_mouse_move(const vec2 &p, const vec2 &d)
+void hsv_slider::on_mouse_move(const vec2 &p, const vec2 &)
 {
 	if (!is_locked_by_me() || current_edit == e_none || (current_edit == e_alpha && !allow_alpha))
 		return;

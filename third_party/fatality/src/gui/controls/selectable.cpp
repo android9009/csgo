@@ -31,7 +31,7 @@ void selectable::on_mouse_down(char key)
 	lock_input();
 }
 
-void selectable::on_mouse_up(char key)
+void selectable::on_mouse_up(char)
 {
 	unlock_input();
 }

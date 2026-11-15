@@ -16,7 +16,7 @@ void slider<T>::on_mouse_down(char key)
 }
 
 template <typename T>
-void slider<T>::on_mouse_move(const vec2 &p, const vec2 &d)
+void slider<T>::on_mouse_move(const vec2 &, const vec2 &)
 {
 	if (is_locked_by_me())
 		update_value();

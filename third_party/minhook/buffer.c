@@ -218,6 +218,7 @@ static PMEMORY_BLOCK GetMemoryBlock(LPVOID pOrigin)
         }
     }
 #else
+    (void)pOrigin; // A 32-bit process has no relative-address range constraint.
     // In x86 mode, a memory block can be placed anywhere.
     pBlock = (PMEMORY_BLOCK)VirtualAlloc(
         NULL, MEMORY_BLOCK_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);

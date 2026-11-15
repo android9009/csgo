@@ -41,7 +41,7 @@ void label::on_mouse_down(char key)
 		});
 }
 
-void label::on_mouse_up(char key)
+void label::on_mouse_up(char)
 {
 	// do the same meme here again! but only if it's locked
 	const auto par = get_parent();

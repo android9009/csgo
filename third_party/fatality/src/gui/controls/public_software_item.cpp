@@ -36,7 +36,7 @@ void public_software_item::on_mouse_leave()
 	an->direct(colors.text);
 }
 
-void public_software_item::on_mouse_down(char key)
+void public_software_item::on_mouse_down(char)
 {
 	ctx->do_tick_sound();
 	

@@ -391,7 +391,7 @@ void *adapter_dx9::create_texture(char *data, uint32_t w, uint32_t h, uint32_t p
 	return tex;
 }
 
-void adapter_dx9::update_texture(void *tex, char *data, uint32_t w, uint32_t h, uint32_t p)
+void adapter_dx9::update_texture(void *tex, char *data, uint32_t, uint32_t h, uint32_t p)
 {
 	D3DLOCKED_RECT rect;
 	if (FAILED(((IDirect3DTexture9 *)tex)->LockRect(0, &rect, nullptr, D3DLOCK_DISCARD)))

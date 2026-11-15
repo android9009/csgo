@@ -37,7 +37,7 @@ namespace menu::group
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
-	void rebuild_legit_layout(bool skip_adjust)
+	void rebuild_legit_layout(bool)
 	{
 		//VIRTUALIZER_TIGER_WHITE_START;
 		const auto wp_tabs = ctx->find<tabs_layout>(GUI_HASH("legit>weapons"));
@@ -47,7 +47,7 @@ namespace menu::group
 		wp_tabs->remove(GUI_HASH("legit>weapons>spacer"));
 		wp_tabs->remove(GUI_HASH("legit>weapons>spacer2"));
 
-		bool any_added{};
+		// bool any_added{};
 		std::vector<uint32_t> to_add_grp, to_add_wep;
 		//for (auto &[i, v] : cfg.legit.weapon_config.cfgs)
 		//{

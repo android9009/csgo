@@ -50,7 +50,7 @@ namespace evo::gui
 		lock_input();
 	}
 
-	void widget::on_mouse_move(const ren::vec2 &p, const ren::vec2 &d)
+	void widget::on_mouse_move(const ren::vec2 &, const ren::vec2 &d)
 	{
 		if (!is_locked_by_me())
 			return;

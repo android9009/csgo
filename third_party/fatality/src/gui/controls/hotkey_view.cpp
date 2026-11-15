@@ -46,7 +46,7 @@ namespace evo::gui
 		d->add_text(key_rect.tr() + vec2{4.f, 2.f}, key, colors.text);
 	}
 
-	void hotkey_view::on_mouse_move(const ren::vec2 &p, const ren::vec2 &d)
+	void hotkey_view::on_mouse_move(const ren::vec2 &p, const ren::vec2 &)
 	{
 		if (!is_cut)
 			return;

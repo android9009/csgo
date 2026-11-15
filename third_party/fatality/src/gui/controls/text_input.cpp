@@ -78,7 +78,7 @@ void text_input::on_mouse_down(char key)
 	}
 }
 
-void text_input::on_mouse_move(const ren::vec2 &p, const ren::vec2 &d)
+void text_input::on_mouse_move(const ren::vec2 &, const ren::vec2 &)
 {
 	if (!is_mouse_on_me || !is_locked_by_me())
 		return;

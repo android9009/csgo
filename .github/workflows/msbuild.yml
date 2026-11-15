@@ -54,6 +54,7 @@ jobs:
           $warnings = @(Get-Content vs-build.log | Select-String ': warning C\d+')
           Write-Output "::notice::Visual Studio compiler warning lines: $($warnings.Count)"
           $warnings | Select-Object -Unique | Select-Object -First 20 | ForEach-Object { Write-Output "::notice::$_" }
+          $warnings | Select-String 'warning C(4100|4189|4505)' | Select-Object -Unique | Select-Object -First 80 | ForEach-Object { Write-Output "::notice::$_" }
           if ($code -ne 0) {
             Get-Content vs-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
