@@ -276,7 +276,7 @@ namespace menu::group
             const int col = static_cast<int>(local.x / (width + 6.f));
             const int row = static_cast<int>(local.y / 54.f);
             const int index = row * 3 + col;
-            if (col < 0 || col >= 3 || index >= 5 || local.x - col * (width + 6.f) >= width || local.y - row * 54.f >= 50.f) return;
+            if (col < 0 || col >= 3 || index >= 5 || local.x - static_cast<float>(col) * (width + 6.f) >= width || local.y - static_cast<float>(row) * 54.f >= 50.f) return;
             const Equipment entries[] = {Equipment::Agent, Equipment::Gloves, Equipment::Knife, Equipment::Medal, Equipment::Music};
             equipment_screen = entries[index];
             FatalityPreviewBridge::skins_selecting.store(true, std::memory_order_relaxed);
@@ -360,7 +360,7 @@ namespace menu::group
                 if (local.y < 42.f || local.x < 0.f) return;
                 const int col = static_cast<int>(local.x / (cell_width + 6.f));
                 const int row = static_cast<int>((local.y - 42.f + equipment_scroll) / 78.f);
-                if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+                if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
                 const auto& items = equipment_items(equipment_screen);
                 const size_t index = static_cast<size_t>(row * 3 + col);
                 if (index >= items.size()) return;
@@ -381,7 +381,7 @@ namespace menu::group
                 if (local.y < 42.f || local.x < 0.f) return;
                 const int col = static_cast<int>(local.x / (cell_width + 6.f));
                 const int row = static_cast<int>((local.y - 42.f + skin_scroll) / 78.f);
-                if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+                if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
                 const size_t index = static_cast<size_t>(row * 3 + col);
                 if (index == 0) { selection[team_ct ? 0 : 1].erase(selected_weapon.internal); close_skins(); }
                 else if (index <= paints.size()) {
@@ -404,7 +404,7 @@ namespace menu::group
             if (local.y < 55.f || local.x < 0.f) return;
             const int col = static_cast<int>(local.x / (cell_width + 6.f));
             const int row = static_cast<int>((local.y - 55.f + scroll) / 78.f);
-            if (col < 0 || col >= 3 || row < 0 || local.x - col * (cell_width + 6.f) >= cell_width) return;
+            if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
             const auto& columns = team_ct ? ct_weapons : t_weapons;
             if (static_cast<size_t>(row) >= columns[col].size()) return;
             selected_weapon = columns[col][row];
@@ -449,7 +449,7 @@ namespace menu::group
         }
         void on_mouse_up(char key) override { if (key == m_left) drag_slider = 0; }
         void on_text_input(const std::vector<uint32_t>& text) override {
-            if (!editor_open || !editing_name) return;
+            if (!editor_open || !editing_name || input.is_key_down(VK_CONTROL) || input.is_key_down(VK_MENU)) return;
             for (const auto codepoint : text) {
                 if (codepoint < 0x20 || codepoint == 0x7f || codepoint > 0x10ffff ||
                     (codepoint >= 0xd800 && codepoint <= 0xdfff)) continue;
