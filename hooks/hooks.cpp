@@ -60,8 +60,13 @@ static void* CreateDummyDevice(bool ex) {
     params.Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
     void* device = nullptr;
     if (ex) {
+        IDirect3D9* d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
+        if (!d3d9) { DestroyWindow(wnd); return nullptr; }
         IDirect3D9Ex* d3d = nullptr;
-        if (FAILED(D3D9Create9Ex(D3D_SDK_VERSION, &d3d)) || !d3d) { DestroyWindow(wnd); return nullptr; }
+        if (FAILED(d3d9->QueryInterface(__uuidof(IDirect3D9Ex), reinterpret_cast<void**>(&d3d))) || !d3d) {
+            d3d9->Release(); DestroyWindow(wnd); return nullptr;
+        }
+        d3d9->Release();
         IDirect3DDevice9Ex* dev = nullptr;
         if (FAILED(d3d->CreateDeviceEx(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, wnd,
                 D3DCREATE_SOFTWARE_VERTEXPROCESSING, &params, nullptr, &dev)) || !dev) {
