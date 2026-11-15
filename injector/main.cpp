@@ -139,7 +139,6 @@ DWORD WINAPI Run(LPVOID) {
     if (!process.value) { Emit(L"Status: Failed - OpenProcess: " + Error(GetLastError())); return 0; }
     std::wstring architecture_error;
     if (!CheckArchitecture(process.value, architecture_error)) { Emit(L"Status: Failed - " + architecture_error); return 0; }
-    if (GetFileAttributesW(dll_path.c_str()) == INVALID_FILE_ATTRIBUTES) { Emit(L"Status: Failed - pastavar.dll not found next to the injector"); return 0; }
 
     wchar_t mutex_name[64]{};
     swprintf_s(mutex_name, L"Local\\PastavarInjector_%lu", static_cast<unsigned long>(pid));
@@ -175,6 +174,8 @@ DWORD WINAPI Run(LPVOID) {
     }
     if (Wait(0)) return 0;
     if (!Alive(process.value)) { Emit(L"Status: Failed - CS:GO exited before injection"); return 0; }
+
+    if (GetFileAttributesW(dll_path.c_str()) == INVALID_FILE_ATTRIBUTES) { Emit(L"Status: Failed - pastavar.dll not found next to the injector"); return 0; }
 
     auto load = GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW");
     HMODULE owner{};
@@ -223,6 +224,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
         SendMessageW(log_view, EM_SETSEL, length, length);
         const std::wstring line = *text + L"\r\n";
         SendMessageW(log_view, EM_REPLACESEL, FALSE, reinterpret_cast<LPARAM>(line.c_str()));
+#else
+        SetWindowTextW(log_view, text->c_str());
 #endif
         return 0;
     }
@@ -252,10 +255,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         CW_USEDEFAULT, CW_USEDEFAULT, 480, 280, nullptr, nullptr, instance, nullptr);
     if (!window) { CloseHandle(stop_event); return 1; }
     status_text = CreateWindowW(L"STATIC", L"Please open CS:GO", WS_CHILD | WS_VISIBLE, 20, 18, 430, 42, window, nullptr, instance, nullptr);
-#ifdef _DEBUG
     log_view = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL,
         20, 64, 424, 115, window, nullptr, instance, nullptr);
-#endif
     CreateWindowW(L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 354, 192, 90, 30, window, reinterpret_cast<HMENU>(1), instance, nullptr);
     ShowWindow(window, show); UpdateWindow(window);
     worker = CreateThread(nullptr, 0, Run, nullptr, 0, nullptr);
