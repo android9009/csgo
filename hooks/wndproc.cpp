@@ -13,10 +13,16 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 namespace HooksInternal {
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     // Toggle first: ImGui's handler may swallow key events, so the menu key
-    // must be checked before it sees the message.
+    // must be checked before it sees the message. Debounced: rapid toggles
+    // (key bounce / double delivery) must not flicker the menu every frame.
     if (message == WM_KEYUP && wparam == static_cast<WPARAM>(Config::settings.menu_key)) {
-        Config::settings.show_menu = !Config::settings.show_menu;
-        LOG_INFO("menu toggled: %s", Config::settings.show_menu ? "open" : "closed");
+        static DWORD last_toggle = 0;
+        const DWORD now = GetTickCount();
+        if (now - last_toggle >= 200) {
+            last_toggle = now;
+            Config::settings.show_menu = !Config::settings.show_menu;
+            LOG_INFO("menu toggled: %s", Config::settings.show_menu ? "open" : "closed");
+        }
     }
     // Feed input to ImGui so the menu is interactive when open.
     if (ImGui::GetCurrentContext() &&

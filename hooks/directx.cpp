@@ -48,16 +48,6 @@ long __stdcall EndScene(void* device) {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // Fallback toggle via key polling: WndProc may miss the key if the game
-    // window is not focused, so EndScene watches the menu key edge directly.
-    static bool menu_key_was_down = false;
-    const bool menu_key_down = (GetAsyncKeyState(Config::settings.menu_key) & 0x8000) != 0;
-    if (menu_key_down && !menu_key_was_down) {
-        Config::settings.show_menu = !Config::settings.show_menu;
-        LOG_INFO("menu toggled (poll): %s", Config::settings.show_menu ? "open" : "closed");
-    }
-    menu_key_was_down = menu_key_down;
-
     if (Config::settings.show_menu) {
         LOG_INFO("draw_menu begin");
         // SEH: menu code must never crash the game.
