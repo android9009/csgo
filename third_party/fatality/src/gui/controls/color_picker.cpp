@@ -12,7 +12,15 @@ void color_picker::render()
 
 	auto &d = draw.layers[ctx->content_layer];
 	d->g.anti_alias = true;
-	d->add_rect_filled_rounded(r, *value, 2.f);
+	if (gradient_color && gradient_style && gradient_style->get().test(gradient_bit))
+	{
+		const auto first = value.get();
+		const auto second = gradient_color->get();
+		d->add_rect_filled_multicolor(r, {first, second, second, first});
+		d->add_fake_rounding(r, colors.bg_block, 2.f);
+	}
+	else
+		d->add_rect_filled_rounded(r, *value, 2.f);
 	d->g.anti_alias = {};
 }
 

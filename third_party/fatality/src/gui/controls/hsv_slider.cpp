@@ -178,7 +178,7 @@ void hsv_slider::on_mouse_move(const vec2 &p, const vec2 &)
 		// Keep both gradient stops at their positions as the palette changes.
 		const auto first = mix_positions[0], second = mix_positions[1];
 		value = mix_color(first.x, first.y).a(value->value.a);
-		*secondary = mix_color(second.x, second.y).a(secondary->value.a);
+		*secondary = mix_color(second.x, second.y).a((*secondary)->value.a);
 	}
 	else if (secondary && current_edit == e_sb)
 	{
