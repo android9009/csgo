@@ -1,4 +1,5 @@
 #include "interfaces.hpp"
+#include "../skin_icon_file.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
 #include "../../offsets/offsets.hpp"
@@ -62,6 +63,7 @@ bool Setup() {
     Panel = Capture<IVPanel>("vgui2.dll", "VGUI_Panel");
     Localize = Capture<ILocalize>("localize.dll", "Localize_");
     FileSystem = Capture<void>("filesystem_stdio.dll", "VFileSystem");
+    BaseFileSystem = Capture<void>("filesystem_stdio.dll", "VBaseFileSystem");
     NetworkContainer = Capture<void>("engine.dll", "VEngineClientStringTable");
 
     ClientState = static_cast<IClientState*>(ReadModulePointer("engine.dll", offsets::Get("dwClientState")));

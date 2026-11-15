@@ -593,6 +593,12 @@
     <ClInclude Include="sdk\model_preview_render.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\skin_icon_path.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\skin_icon_file.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\model_preview.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

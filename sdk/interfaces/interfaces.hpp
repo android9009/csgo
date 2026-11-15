@@ -220,5 +220,6 @@ namespace Interfaces {
     inline void* MemAlloc = nullptr;
     inline void* KeyValuesSystem = nullptr;
     inline void* FileSystem = nullptr;
+    inline void* BaseFileSystem = nullptr;
     inline void* NetworkContainer = nullptr;
 }

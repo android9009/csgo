@@ -355,6 +355,8 @@
     <ClInclude Include="sdk\recv.hpp" />
     <ClInclude Include="sdk\schema.hpp" />
     <ClInclude Include="sdk\studiohdr.hpp" />
+    <ClInclude Include="sdk\skin_icon_path.hpp" />
+    <ClInclude Include="sdk\skin_icon_file.hpp" />
     <ClInclude Include="sdk\model_preview.hpp" />
     <ClInclude Include="sdk\model_preview_render.hpp" />
     <ClInclude Include="features\visuals\model_preview.hpp" />
