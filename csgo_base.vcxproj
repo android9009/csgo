@@ -354,6 +354,7 @@
     <ClInclude Include="sdk\recv.hpp" />
     <ClInclude Include="sdk\schema.hpp" />
     <ClInclude Include="sdk\studiohdr.hpp" />
+    <ClInclude Include="sdk\model_preview.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\img\click_sfx.hpp" />

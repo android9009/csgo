@@ -7,6 +7,7 @@
 #include "injector/status.hpp"
 #include "context.hpp"
 #include "sdk/interfaces/interfaces.hpp"
+#include "sdk/model_preview.hpp"
 #include "sdk/netvars.hpp"
 #include "patterns/patterns.hpp"
 #include "offsets/offsets.hpp"

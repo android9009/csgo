@@ -18,6 +18,6 @@ page is empty in those sources. Menu values are not connected to this project's 
 
 The ESP and Chams preview panels have a shared orbit/zoom input state, but no
 model renderer or game texture yet. The viewport explicitly reports that it is
-unavailable. The Source 1 merged-model, render-context and view interfaces,
+unavailable. Experimental ABI declarations live in `sdk/model_preview.hpp`. The Source 1 merged-model, render-context and view bindings,
 version checks, render-target lifetime and in-game validation still need to be
 implemented before connecting that state to an actual model.

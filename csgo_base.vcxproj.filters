@@ -581,6 +581,9 @@
     <ClInclude Include="sdk\structs.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\model_preview.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\studiohdr.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
