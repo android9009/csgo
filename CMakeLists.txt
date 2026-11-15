@@ -18,6 +18,9 @@ list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
 # The old ImGui menu is retained as reference, but is no longer used by the DLL.
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/features/menu/")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/injector/")
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/tests/")
+# In-source build trees contain CMake compiler-ID programs, not DLL sources.
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/build/")
 
 # Vendored MinHook (Win32).
 set(THIRDPARTY_SOURCES
