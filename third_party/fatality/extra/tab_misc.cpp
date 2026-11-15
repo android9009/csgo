@@ -42,7 +42,7 @@ namespace menu::group
 		return c;
 	}
 
-	static void misc_main(std::shared_ptr<layout> &e)
+	void misc_various(std::shared_ptr<layout> &e)
 	{
 		const auto scoreboard = make_multi("misc>main>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
 		ADD_INLINE("Scoreboard", scoreboard);
@@ -99,7 +99,7 @@ namespace menu::group
 		}));
 	}
 
-	static void misc_other(std::shared_ptr<layout> &e)
+	void misc_other(std::shared_ptr<layout> &e)
 	{
 		ADD("Bypass SV Pure", "misc>various>bypass sv_pure", checkbox, cfg.misc.sv_pure);
 		ADD("Bypass SV Cheats", "misc>other>bypass sv_cheats", checkbox, cfg.misc.sv_cheats);
@@ -120,9 +120,8 @@ namespace menu::group
 		}
 	}
 
-	static void movement_main(std::shared_ptr<layout> &e)
+	void misc_movement(std::shared_ptr<layout> &e)
 	{
-		ADD("Bhop", "misc>movement>bhop", checkbox, cfg.misc.bhop);
 		const auto c = MAKE("misc>movement>autostrafer", combo_box, cfg.misc.autostrafe);
 		c->allow_multiple = true;
 		c->add({MAKE("misc>movement>autostrafer>viewangles", selectable, "Viewangles", cfg_t::autostrafe_viewangles),
@@ -133,55 +132,21 @@ namespace menu::group
 			ADD("Smoothing", "misc>movement>smoothing", slider<float>, 0.f, 100.f, cfg.misc.autostrafe_smoothing, "%.0f");
 			ADD("Avoid walls", "misc>movement>avoid walls", checkbox, cfg.misc.avoid_walls);
 		}));
+		ADD("Bhop", "misc>movement>bhop", checkbox, cfg.misc.bhop);
 		ADD("Instant duck", "misc>movement>instant unduck", checkbox, cfg.misc.instant_unduck);
 		ADD("Edge jump", "misc>movement>edge jump", checkbox, cfg.misc.edge_jump);
 		ADD("Edge stop", "misc>movement>edge stop", checkbox, cfg.misc.edge_stop);
 		ADD("Quick stop", "misc>movement>standalone quick stop", checkbox, cfg.legit.quick_stop);
 	}
 
-	static void movement_extra(std::shared_ptr<layout> &e)
+	void misc_movement_extra(std::shared_ptr<layout> &e)
 	{
 		ADD("Edge bugs", "misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug);
 		ADD("Pixel surf", "misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf);
 		ADD("Jump bug", "misc>movement>extra>jump bug", checkbox, cfg.misc.jump_bug);
 		ADD("Long jump", "misc>movement>extra>long jump", checkbox, cfg.misc.long_jump);
 		ADD("Ladder jump", "misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump);
-		ADD_INLINE("Peek assist", MAKE("misc>movement>peek assist", checkbox, cfg.misc.peek_assist),
-			MAKE("misc>movement>peek assist>col 1", color_picker, cfg.misc.peek_assist_col),
-			MAKE("misc>movement>peek assist>col 2", color_picker, cfg.misc.peek_assist_col2),
-			MAKE("misc>movement>peek assist>settings", settings, [](auto e) {
-				ADD("Retreat on release", "misc>movement>retreat on release", checkbox, cfg.misc.peek_assist_retreat_on_release);
-			}));
-	}
 
-	static void add_vertical_sections(std::shared_ptr<layout> &e, const std::string &id,
-		const char *first, const char *second, const std::function<void(std::shared_ptr<layout> &)> &first_content,
-		const std::function<void(std::shared_ptr<layout> &)> &second_content)
-	{
-		const vec2 content_size{e->size.x - 32.f, e->size.y};
-		const auto shell = MAKE_RUNTIME(id + ">shell", layout, vec2{}, content_size, s_none);
-		shell->make_not_clip();
-		const auto tabs = MAKE_RUNTIME(id + ">tabs", tabs_layout, vec2{}, vec2{content_size.x, 50.f}, td_vertical);
-		tabs->add(MAKE_RUNTIME(id + ">first tab", child_tab, first, hash(id + ">first"))->make_vertical()->make_selected());
-		tabs->add(MAKE_RUNTIME(id + ">second tab", child_tab, second, hash(id + ">second"))->make_vertical());
-		const auto page_size = vec2{content_size.x, content_size.y - 52.f};
-		auto page1 = MAKE_RUNTIME(id + ">first", layout, vec2{0.f, 52.f}, page_size, s_vertical);
-		auto page2 = MAKE_RUNTIME(id + ">second", layout, vec2{0.f, 52.f}, page_size, s_vertical);
-		page1->margin = {}; page2->margin = {};
-		page2->is_visible = false;
-		first_content(page1); second_content(page2);
-		shell->add(tabs); shell->add(page1); shell->add(page2);
-		e->add(shell);
-	}
-
-	void misc_various(std::shared_ptr<layout> &e)
-	{
-		add_vertical_sections(e, "misc>sections", "Misc", "Other", misc_main, misc_other);
-	}
-
-	void misc_movement(std::shared_ptr<layout> &e)
-	{
-		add_vertical_sections(e, "misc>movement>sections", "Movement", "Movement extra", movement_main, movement_extra);
 	}
 
 	void misc_buybot(std::shared_ptr<layout> &e)

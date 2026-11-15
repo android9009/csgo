@@ -78,6 +78,7 @@ namespace evo::gui
 		T high{};
 		value_param<T> &value;
 		float step{};
+		bool infinite_at_min{};
 		fmt_step_array format{};
 
 		// old, new

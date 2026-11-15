@@ -61,7 +61,9 @@ namespace menu
 		void visuals_misc_various(std::shared_ptr<layout> &e);
 
 		void misc_various(std::shared_ptr<layout> &e);
+		void misc_other(std::shared_ptr<layout> &e);
 		void misc_movement(std::shared_ptr<layout> &e);
+		void misc_movement_extra(std::shared_ptr<layout> &e);
 		void misc_buybot(std::shared_ptr<layout> &e);
 
 		void lua_general(std::shared_ptr<layout> &e);

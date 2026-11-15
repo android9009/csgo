@@ -368,9 +368,22 @@ namespace menu::group
 			ADD("Safe color", "rage>aimbot>general>visualize aimbot>settings>safe color", color_picker, cfg.aim.visualize_color_safe);
 			ADD("Aim color", "rage>aimbot>general>visualize aimbot>settings>aim color", color_picker, cfg.aim.visualize_color);
 		}));
+		ADD("Fake duck", "rage>aimbot>general>fake duck", checkbox, cfg.aim.fake_duck);
+		ADD_INLINE("Peek assist", MAKE("rage>aimbot>general>peek assist", checkbox, cfg.misc.peek_assist),
+			MAKE("rage>aimbot>general>peek assist>color1", color_picker, cfg.misc.peek_assist_col),
+			MAKE("rage>aimbot>general>peek assist>color2", color_picker, cfg.misc.peek_assist_col2),
+			MAKE("rage>aimbot>general>peek assist>settings", settings, [](auto e) {
+				ADD("Retreat on release", "rage>aimbot>general>peek assist>retreat", checkbox, cfg.misc.peek_assist_retreat_on_release);
+				const auto mode = MAKE("rage>aimbot>general>peek assist>mode", combo_box, cfg.misc.peek_assist_visual);
+				mode->add({MAKE("rage>aimbot>general>peek assist>mode>glow", selectable, "Glow", 0),
+					MAKE("rage>aimbot>general>peek assist>mode>filled", selectable, "Filled", 1)});
+				ADD_INLINE("Visual mode", mode);
+				const auto distance = MAKE("rage>aimbot>general>peek assist>distance", slider<float>, -1.f, 240.f, cfg.misc.peek_assist_distance, "%.0f units");
+				distance->infinite_at_min = true;
+				e->add(make_control("Distance", distance));
+			}));
 		ADD("Hide shots", "rage>aimbot>general>hide shot", checkbox, cfg.aim.hideshot);
 		ADD("Double tap", "rage>aimbot>general>double tap", checkbox, cfg.aim.doubletap);
-		ADD("Fake duck", "rage>aimbot>general>fake duck", checkbox, cfg.aim.fake_duck);
 		const auto defensive = MAKE("rage>aimbot>general>defensive lag", combo_box, cfg.aim.dt_exploit, vec2{}, vec2{80.f, 20.f});
 		defensive->add({MAKE("rage>aimbot>general>defensive lag>none", selectable, "None", cfg_t::def_none),
 			MAKE("rage>aimbot>general>defensive lag>air", selectable, "In air", cfg_t::def_in_air),
@@ -732,8 +745,12 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                         e->add(make_tab_area(GUI_HASH("legit_container"), false, s_none, menu::group::legit_tab));
                         e->add(make_tab_area(GUI_HASH("visuals_container"), false, s_none, menu::group::visuals_tab));
                         e->add(make_tab_area(GUI_HASH("misc_container"), false, [&](const std::shared_ptr<layout>& e) {
-                            e->add(make_groupbox("misc>various", "MISC", group_sz, menu::group::misc_various));
-                            e->add(make_groupbox("misc>movement", "MOVEMENT", group_sz, menu::group::misc_movement));
+                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>main,other"), group_sz, {
+                                make_groupbox("misc>various", "MISC", half + vec2{0.f, 20.f}, menu::group::misc_various),
+                                make_groupbox("misc>other", "OTHER", half - vec2{0.f, 20.f}, menu::group::misc_other)}));
+                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>movement,extra"), group_sz, {
+                                make_groupbox("misc>movement", "MOVEMENT", half, menu::group::misc_movement),
+                                make_groupbox("misc>movement>extra", "MOVEMENT EXTRA", half, menu::group::misc_movement_extra)}));
                             e->add(make_groupbox("misc>buy bot", "BUY BOT", group_sz, menu::group::misc_buybot));
                         }));
                         e->add(make_tab_area(GUI_HASH("scripts_container"), false, [](const std::shared_ptr<layout>&) {}));
