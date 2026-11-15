@@ -416,7 +416,9 @@ struct cfg_t {
 		setting<bool> enabled, autofire, anti_exploit, fallback_on_key, hsmode, knife_bot, zeus_bot, slide, fake_duck, punch, doubletap, hideshot, silent, dormant,
 			extend_peek{ true }, visualize, baim_on_key, stop_in_air;
 
-		setting<float> zeus_hc, fov, ping_spike_amt{ 0.f };
+		setting<float> zeus_hc, fov, ping_spike_amt{ 0.f }, extrapolation_ticks;
+		setting<bool> force_extrapolation;
+		setting<bitset> delay_shot;
 		setting<bitset> low_perf, resolver_mode{ 1 << res_roll }, dt_exploit{ 1 << def_none };
 
 		setting<color> visualize_color_safe{ color::white( ) }, visualize_color{ color::white( ) };
@@ -438,6 +440,9 @@ struct cfg_t {
 
 	struct weapon_config_t {
 		arr_setting<float> hitchance, pointscale, mindmg, mindmg_override;
+		arr_setting<float> head_scale{-1.f}, body_scale{-1.f}, minimum_hitchance, doubletap_hitchance;
+		arr_setting<bool> center_multipoint, force_shot, autostop_duck, autostop_air, autostop_land, safe_on_peek, body_on_peek;
+		arr_setting<bitset> safe_mode{1}, body_mode{1}, safe_disablers, body_disablers;
 		arr_setting<bool> mindmg_override_enabled, autostop, autorevolver, scout_jumpshot, autoscope, ignore_limbs;
 		arr_setting<bitset> autostop_mode, baim, extra_safety, force_safe, hitboxes, pointscales, fallback_mode{ 1 << fallback_off };
 
@@ -448,6 +453,13 @@ struct cfg_t {
 
 		void copy( uint32_t from, uint32_t to ) {
 			hitchance[ from ].copy( hitchance[ to ] );
+			head_scale[from].copy(head_scale[to]); body_scale[from].copy(body_scale[to]);
+			minimum_hitchance[from].copy(minimum_hitchance[to]); doubletap_hitchance[from].copy(doubletap_hitchance[to]);
+			center_multipoint[from].copy(center_multipoint[to]); force_shot[from].copy(force_shot[to]);
+			autostop_duck[from].copy(autostop_duck[to]); autostop_air[from].copy(autostop_air[to]); autostop_land[from].copy(autostop_land[to]);
+			safe_mode[from].copy(safe_mode[to]); body_mode[from].copy(body_mode[to]);
+			safe_disablers[from].copy(safe_disablers[to]); body_disablers[from].copy(body_disablers[to]);
+			safe_on_peek[from].copy(safe_on_peek[to]); body_on_peek[from].copy(body_on_peek[to]);
 			pointscale[ from ].copy( pointscale[ to ] );
 			mindmg[ from ].copy( mindmg[ to ] );
 			mindmg_override[ from ].copy( mindmg_override[ to ] );

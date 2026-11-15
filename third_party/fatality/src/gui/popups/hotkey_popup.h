@@ -19,7 +19,7 @@ namespace evo::gui
 
 	public:
 		hotkey_popup(control_id id, const std::shared_ptr<control> &c) :
-			popup(id, c->pos_abs(), {160.f, 48.f}, true), remote(c)
+			popup(id, c->pos_abs(), {190.f, 48.f}, true), remote(c)
 		{
 			p_type = pt_hotkey_popup;
 		}

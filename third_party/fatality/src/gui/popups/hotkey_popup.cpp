@@ -164,7 +164,7 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 					sel->value = real_sel->value;
 					sel->custom_color = real_sel->custom_color;
 
-					val_casted->add(real_sel);
+					val_casted->add(sel);
 				});
 
 			val->reset();
@@ -190,6 +190,15 @@ void hotkey_popup::insert_hotkey(const std::optional<hotkey_temp_t> &hki)
 	setup->add(beh);
 	setup->add(hk);
 	setup->add(set);
+	const auto remove = std::make_shared<button>(control_id{GUI_HASH("hotkeys>list>k>remove") + tmp_s}, "X", nullptr, vec2{}, vec2{18.f, 20.f});
+	remove->callback = [this, tmp_s]() {
+		// Keep the backing entries alive until the popup closes: controls hold references to them.
+		temp[tmp_s - 1].key = 0;
+		update_key_table();
+		if (const auto list = ctx->find<layout>(GUI_HASH("hotkeys>list")))
+			list->remove(GUI_HASH("hotkeys>list>k") + tmp_s);
+	};
+	setup->add(remove);
 	setup->process_queues();
 
 	const auto list = ctx->find<layout>(GUI_HASH("hotkeys>list"));

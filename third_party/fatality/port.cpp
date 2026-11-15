@@ -299,224 +299,158 @@ namespace menu::group
 		}
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
-	void rage_aimbot_general( std::shared_ptr<layout>& e ) {
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD( "Aimbot", "rage>aimbot>general>aimbot", checkbox, cfg.aim.enabled );
-		ADD( "Silent", "rage>aimbot>general>silent", checkbox, cfg.aim.silent );
-		ADD( "Maximum fov", "rage>aimbot>general>maximum fov", slider<float>, 0.f, 180.f, cfg.aim.fov, XOR( "%.0f deg" ), 1.f, vec2{ 80.f, 14.f } );
-		ADD_INLINE(
-			"Visualize aimbot", MAKE( "rage>aimbot>general>visualize aimbot", checkbox, cfg.aim.visualize ),
-			MAKE( "rage>aimbot>general>visualize aimbot>settings", settings, [ ]( auto e ) { ADD( "Safe color", "rage>aimbot>general>visualize aimbot>settings>safe color",
-																								  color_picker, cfg.aim.visualize_color_safe ); ADD( "Aim color", "rage>aimbot>general>visualize aimbot>settings>aim color", color_picker, cfg.aim .
-																																					 visualize_color ); } ) );
-
-		ADD( "Anti-exploit", "rage>aimbot>general>anti-exploit", checkbox, cfg.aim.anti_exploit );
-		ADD( "Target dormant", "rage>aimbot>general>target dormant", checkbox, cfg.aim.dormant );
-		ADD( "Autofire", "rage>aimbot>general>autofire", checkbox, cfg.aim.autofire );
-		ADD( "Hide shot", "rage>aimbot>general>hide shot", checkbox, cfg.aim.hideshot );
-		ADD( "Double tap", "rage>aimbot>general>double tap", checkbox, cfg.aim.doubletap );
-
-		{
-			const auto c = MAKE( "rage>aimbot>general>defensive lag", combo_box, cfg.aim.dt_exploit, vec2{}, vec2{ 80.f, 20.f } );
-			c->add(
-				{ MAKE( "rage>aimbot>general>defensive lag>none", selectable, XOR( "None" ), cfg_t::def_none ), MAKE(
-					 "rage>aimbot>general>defensive lag>in air", selectable, XOR( "In air" ), cfg_t::def_in_air ), MAKE(
-					 "rage>aimbot>general>defensive lag>always on", selectable, XOR( "Always on" ), cfg_t::def_always_on ), } );
-
-			ADD_INLINE( "Defensive lag", c );
+	// A clipped, animated row preserves the control and its binds while collapsed.
+	class dependent_row final : public layout {
+	public:
+		dependent_row(control_id id, std::shared_ptr<layout> content, bool shown)
+			: layout(id, {}, {0.f, shown ? 24.f : 0.f}, s_none), content_(std::move(content)),
+			  progress_(shown ? 1.f : 0.f), target_(shown) {
+			size_to_parent_w = true;
+			disable_scroll = true;
+			add(content_);
+			process_queues();
 		}
 
-		{
-			const auto c = MAKE( "rage>aimbot>general>defensive fake", combo_box, cfg.aa.dt_exploit_angles, vec2{}, vec2{ 80.f, 20.f } );
-			c->add(
-				{ MAKE( "rage>aimbot>general>defensive fake>none", selectable, XOR( "None" ), cfg_t::dfake_none ), MAKE(
-					 "rage>aimbot>general>defensive fake>yaw", selectable, XOR( "Yaw" ), cfg_t::dfake_yaw ),
-				 MAKE( "rage>aimbot>general>defensive fake>yaw flip", selectable, XOR( "Yaw flip" ), cfg_t::dfake_yaw_flip ),
-				 MAKE( "rage>aimbot>general>defensive fake>quick yaw", selectable, XOR( "Quick yaw" ), cfg_t::dfake_quick_yaw ), MAKE(
-					 "rage>aimbot>general>defensive fake>quick yaw flip", selectable, XOR( "Quick yaw flip" ), cfg_t::dfake_quick_yaw_flip ), } );
-
-			ADD_INLINE( "Defensive fake", c );
+		void show(bool shown) { target_ = shown; }
+		void refresh() override {
+			if (target_ && progress_ >= .99f) layout::refresh();
 		}
-
-		ADD( "Delay shot", "rage>aimbot>general>delay shot", checkbox, cfg.aim.extend_peek );
-		ADD( "Force extra safety", "rage>aimbot>general>force extra safety", checkbox, cfg.aim.fallback_on_key );
-		ADD( "Force bodyaim", "rage>aimbot>general>force bodyaim", checkbox, cfg.aim.baim_on_key );
-		ADD( "Headshot only", "rage>aimbot>general>headshot only", checkbox, cfg.aim.hsmode );
-		ADD( "Knife bot", "rage>aimbot>general>knife bot", checkbox, cfg.aim.knife_bot );
-
-		ADD_INLINE(
-			"Zeus bot", MAKE( "rage>aimbot>general>zeus bot", checkbox, cfg.aim.zeus_bot ),
-			MAKE( "rage>aimbot>general>zeus bot>settings", settings, [ ]( auto e ) { ADD( "Hitchance", "rage>aimbot>general>zeus bot>settings>hitchance", slider<float>, 0.f,
-																						  100.f, cfg.aim.zeus_hc, XOR( "%.0f%%" ) ); } ) );
-
-		{
-			const auto c = MAKE( "rage>aimbot>general>resolver mode", combo_box, cfg.aim.resolver_mode, vec2{}, vec2{ 80.f, 20.f } );
-			c->add(
-				{ MAKE( "rage>aimbot>general>resolver mode>roll", selectable, XOR( "Roll" ), cfg_t::res_roll ), MAKE(
-					 "rage>aimbot>general>resolver mode>roll disabled", selectable, XOR( "Roll disabled" ), cfg_t::res_roll_disabled ), } );
-
-			ADD_INLINE( "Resolver mode", c );
+		void render() override {
+			const float step = std::min(draw.frame_time / .18f, 1.f);
+			progress_ = target_ ? std::min(1.f, progress_ + step) : std::max(0.f, progress_ - step);
+			if (content_->size.x != size.x) {
+				content_->size.x = size.x;
+				content_->on_control_draw_param_changed(nullptr, 0);
+			}
+			const float new_height = 24.f * progress_;
+			if (size.y != new_height) {
+				size.y = new_height;
+				if (const auto actual_parent = parent.lock(); actual_parent && actual_parent->is_container)
+					actual_parent->as<control_container>()->on_control_draw_param_changed(shared_from_this(), dp_size);
+			}
+			content_->pos.y = size.y - 24.f;
+			if (size.y > 0.f) layout::render();
 		}
+	private:
+		std::shared_ptr<layout> content_;
+		float progress_;
+		bool target_;
+	};
 
-		{
-			const auto c = MAKE( "rage>aimbot>general>low perf. mode", combo_box, cfg.aim.low_perf, vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE( "rage>aimbot>general>low perf. mode>limit targets", selectable, XOR( "Limit targets" ), cfg_t::low_perf_targets ), MAKE(
-					 "rage>aimbot>general>low perf. mode>limit scan accuracy", selectable, XOR( "Limit scan accuracy" ), cfg_t::low_perf_scan_accuracy ), } );
-
-			ADD_INLINE( "Low perf. mode", c );
-		}
-		//VIRTUALIZER_TIGER_WHITE_END;
+	static void add_dependent_row(const std::shared_ptr<control_container>& parent,
+		const std::shared_ptr<checkbox>& toggle, const std::shared_ptr<layout>& row, bool visible)
+	{
+		const auto animated = std::make_shared<dependent_row>(control_id{row->id ^ hash("dependent")}, row, visible);
+		toggle->callback = [weak = std::weak_ptr<dependent_row>(animated)](bool value) {
+			if (const auto target = weak.lock()) target->show(value);
+		};
+		parent->add(animated);
 	}
 
+	void rage_aimbot_general(std::shared_ptr<layout>& e) {
+		ADD_INLINE("Aimbot", MAKE("rage>aimbot>general>aimbot", checkbox, cfg.aim.enabled), MAKE("rage>aimbot>general>aimbot>settings", settings, [](auto e) {
+			ADD("Silent", "rage>aimbot>general>silent", checkbox, cfg.aim.silent);
+			ADD("Dormant aimbot", "rage>aimbot>general>target dormant", checkbox, cfg.aim.dormant);
+			ADD("Anti-exploit", "rage>aimbot>general>anti-exploit", checkbox, cfg.aim.anti_exploit);
+			ADD("Auto fire", "rage>aimbot>general>autofire", checkbox, cfg.aim.autofire);
+		}));
 
-
-	
-	void rage_antiaim_custom( std::shared_ptr<layout>& e ) { }
-
-	void rage_aimbot_weapon( std::shared_ptr<layout>& e, uint32_t grp, const std::string& id ) {
-		//VIRTUALIZER_TIGER_WHITE_START;
-		ADD_RUNTIME( "Hit chance", id + XOR( "hit chance" ), slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[ ( int )grp ], XOR( "%.0f%%" ), 1.f, vec2{ 80.f, 14.f } );
-		ADD_RUNTIME( "Pointscale", id + XOR( "pointscale" ), slider<float>, 0.f, 100.f, cfg.weapon_config.pointscale[ ( int )grp ], XOR( "%.0f%%" ), 1.f, vec2{ 80.f, 14.f } );
-		ADD_RUNTIME(
-			"Min damage", id + XOR( "min damage" ), slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[ ( int )grp ], ssa<float>{ ssv<float>{101.f, XOR( "HP + %.0f" )},
-			ssv<float>{0.f, XOR( "%.0f hp" )} }, 1.f, vec2{ 80.f, 14.f } );
-
-		{
-			std::shared_ptr<settings> e_unshadow;
-			{
-				// shadow e
-				auto e = MAKE_RUNTIME( id + XOR( "override>settings" ), settings, nullptr );
-				ADD_RUNTIME( "Value", id + XOR( "override>settings>value" ), slider<float>, 0.f, 100.f, cfg.weapon_config.mindmg_override[ ( int )grp ], XOR( "%.0f hp" ) );
-				e_unshadow = e;
-			}
-
-			ADD_INLINE( "Override", MAKE_RUNTIME( id + XOR( "override" ), checkbox, cfg.weapon_config.mindmg_override_enabled[ ( int )grp ] ), e_unshadow );
-		}
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "hitboxes" ), combo_box, cfg.weapon_config.hitboxes[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "hitboxes>head" ), selectable, XOR( "Head" ), cfg_t::hitboxes_head ), MAKE_RUNTIME(
-					 id + XOR( "hitboxes>chest" ), selectable, XOR( "Chest" ), cfg_t::hitboxes_chest ),
-				 MAKE_RUNTIME( id + XOR( "hitboxes>stomach" ), selectable, XOR( "Stomach" ), cfg_t::hitboxes_stomach ),
-				 MAKE_RUNTIME( id + XOR( "hitboxes>arms" ), selectable, XOR( "Arms" ), cfg_t::hitboxes_arms ),
-				 MAKE_RUNTIME( id + XOR( "hitboxes>legs" ), selectable, XOR( "Legs" ), cfg_t::hitboxes_legs ),
-				 MAKE_RUNTIME( id + XOR( "hitboxes>feet" ), selectable, XOR( "Feet" ), cfg_t::hitboxes_feet ), } );
-
-			ADD_INLINE( "Hitboxes", c );
-		}
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "multipoint" ), combo_box, cfg.weapon_config.pointscales[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "multipoint>head" ), selectable, XOR( "Head" ), cfg_t::hitboxes_head ), MAKE_RUNTIME(
-					 id + XOR( "multipoint>chest" ), selectable, XOR( "Chest" ), cfg_t::hitboxes_chest ),
-				 MAKE_RUNTIME( id + XOR( "multipoint>stomach" ), selectable, XOR( "Stomach" ), cfg_t::hitboxes_stomach ),
-				 MAKE_RUNTIME( id + XOR( "multipoint>arms" ), selectable, XOR( "Arms" ), cfg_t::hitboxes_arms ),
-				 MAKE_RUNTIME( id + XOR( "multipoint>legs" ), selectable, XOR( "Legs" ), cfg_t::hitboxes_legs ), MAKE_RUNTIME(
-					 id + XOR( "multipoint>feet" ), selectable, XOR( "Feet" ), cfg_t::hitboxes_feet ), } );
-
-			ADD_INLINE( "Multipoint", c );
-		}
-		//VIRTUALIZER_TIGER_WHITE_END;
+		const auto extrapolation = MAKE("rage>aimbot>general>extrapolation", checkbox, cfg.aim.force_extrapolation);
+		e->add(make_control("Force extrapolation", extrapolation));
+		const auto ticks = make_control("Extrapolation ticks", MAKE("rage>aimbot>general>extrapolation>ticks", slider<float>, 0.f, 24.f, cfg.aim.extrapolation_ticks, "%.0f ticks"));
+		add_dependent_row(e, extrapolation, ticks, *cfg.aim.force_extrapolation);
+		ADD("Max FOV", "rage>aimbot>general>maximum fov", slider<float>, 0.f, 180.f, cfg.aim.fov, "%.0f deg", 1.f, vec2{80.f, 14.f});
+		ADD_INLINE("Visualization of aimbot", MAKE("rage>aimbot>general>visualize aimbot", checkbox, cfg.aim.visualize), MAKE("rage>aimbot>general>visualize aimbot>settings", settings, [](auto e) {
+			ADD("Safe color", "rage>aimbot>general>visualize aimbot>settings>safe color", color_picker, cfg.aim.visualize_color_safe);
+			ADD("Aim color", "rage>aimbot>general>visualize aimbot>settings>aim color", color_picker, cfg.aim.visualize_color);
+		}));
+		ADD("Hide shots", "rage>aimbot>general>hide shot", checkbox, cfg.aim.hideshot);
+		ADD("Double tap", "rage>aimbot>general>double tap", checkbox, cfg.aim.doubletap);
+		const auto defensive = MAKE("rage>aimbot>general>defensive lag", combo_box, cfg.aim.dt_exploit, vec2{}, vec2{80.f, 20.f});
+		defensive->add({MAKE("rage>aimbot>general>defensive lag>none", selectable, "None", cfg_t::def_none),
+			MAKE("rage>aimbot>general>defensive lag>air", selectable, "In air", cfg_t::def_in_air),
+			MAKE("rage>aimbot>general>defensive lag>always", selectable, "Always on", cfg_t::def_always_on)});
+		ADD_INLINE("Defensive lag", defensive);
+		const auto delay = MAKE("rage>aimbot>general>delay shot", combo_box, cfg.aim.delay_shot, vec2{}, vec2{80.f, 20.f});
+		delay->allow_multiple = true;
+		delay->add({MAKE("rage>aimbot>delay>damage", selectable, "Wait damage", 0),
+			MAKE("rage>aimbot>delay>hitchance", selectable, "Wait hitchance", 1),
+			MAKE("rage>aimbot>delay>safe", selectable, "Wait safe point or resolved", 2)});
+		ADD_INLINE("Delay shot", delay);
 	}
 
-	void rage_aimbot_extra( std::shared_ptr<layout>& e, uint32_t grp, const std::string& id ) {
-		//VIRTUALIZER_TIGER_WHITE_START;
-		{
-			std::shared_ptr<settings> e_unshadow;
-			{
-				auto e = MAKE_RUNTIME( id + XOR( "autostop>settings" ), settings, nullptr );
+	void rage_antiaim_custom(std::shared_ptr<layout>& e) { }
 
-				const auto c = MAKE_RUNTIME( id + XOR( "autostop>settings>mode" ), combo_box, cfg.weapon_config.autostop_mode[ ( int )grp ] );
-				c->allow_multiple = true;
-				c->add(
-					{ MAKE_RUNTIME( id + XOR( "autostop>settings>mode>between shots" ), selectable, XOR( "Between shots" ), cfg_t::autostop_inbetween ), MAKE_RUNTIME(
-						 id + XOR( "autostop>settings>mode>early" ), selectable, XOR( "Early" ), cfg_t::autostop_predictive ), MAKE_RUNTIME(
-						 id + XOR( "autostop>settings>mode>only when lethal" ), selectable, XOR( "Only when lethal" ), cfg_t::autostop_lethal ), } );
+	void rage_aimbot_weapon(std::shared_ptr<layout>& e, uint32_t grp, const std::string& id) {
+		auto hitboxes = MAKE_RUNTIME(id + "hitboxes", combo_box, cfg.weapon_config.hitboxes[grp], vec2{}, vec2{80.f, 20.f});
+		hitboxes->allow_multiple = true;
+		hitboxes->add({MAKE_RUNTIME(id + "hitboxes>head", selectable, "Head", cfg_t::hitboxes_head),
+			MAKE_RUNTIME(id + "hitboxes>chest", selectable, "Chest", cfg_t::hitboxes_chest),
+			MAKE_RUNTIME(id + "hitboxes>stomach", selectable, "Stomach", cfg_t::hitboxes_stomach),
+			MAKE_RUNTIME(id + "hitboxes>arms", selectable, "Arms", cfg_t::hitboxes_arms),
+			MAKE_RUNTIME(id + "hitboxes>legs", selectable, "Legs", cfg_t::hitboxes_legs),
+			MAKE_RUNTIME(id + "hitboxes>feet", selectable, "Feet", cfg_t::hitboxes_feet)});
+		auto hitbox_settings = MAKE_RUNTIME(id + "hitboxes>settings", settings, nullptr);
+		{ auto e = hitbox_settings; ADD_RUNTIME("Ignore limbs in moving", id + "hitboxes>ignore limbs", checkbox, cfg.weapon_config.ignore_limbs[grp]); }
+		ADD_INLINE("Hitboxes", hitboxes, hitbox_settings);
 
-				ADD_INLINE( "Mode", c );
+		auto multipoint = MAKE_RUNTIME(id + "multipoint", combo_box, cfg.weapon_config.pointscales[grp], vec2{}, vec2{80.f, 20.f});
+		multipoint->allow_multiple = true;
+		multipoint->add({MAKE_RUNTIME(id + "multipoint>head", selectable, "Head", cfg_t::hitboxes_head),
+			MAKE_RUNTIME(id + "multipoint>chest", selectable, "Chest", cfg_t::hitboxes_chest),
+			MAKE_RUNTIME(id + "multipoint>stomach", selectable, "Stomach", cfg_t::hitboxes_stomach),
+			MAKE_RUNTIME(id + "multipoint>arms", selectable, "Arms", cfg_t::hitboxes_arms),
+			MAKE_RUNTIME(id + "multipoint>legs", selectable, "Legs", cfg_t::hitboxes_legs),
+			MAKE_RUNTIME(id + "multipoint>feet", selectable, "Feet", cfg_t::hitboxes_feet)});
+		auto mp_settings = MAKE_RUNTIME(id + "multipoint>settings", settings, nullptr);
+		{ auto e = mp_settings;
+			ADD_RUNTIME("Head scale", id + "multipoint>head scale", slider<float>, -1.f, 100.f, cfg.weapon_config.head_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}));
+			ADD_RUNTIME("Body scale", id + "multipoint>body scale", slider<float>, -1.f, 100.f, cfg.weapon_config.body_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}));
+			ADD_RUNTIME("Prefer center points", id + "multipoint>center", checkbox, cfg.weapon_config.center_multipoint[grp]); }
+		ADD_INLINE("Multipoint", multipoint, mp_settings);
 
-				e_unshadow = e;
-			}
+		auto hc_settings = MAKE_RUNTIME(id + "hit chance>settings", settings, nullptr);
+		{ auto e = hc_settings;
+			auto force = MAKE_RUNTIME(id + "hit chance>force", checkbox, cfg.weapon_config.force_shot[grp]);
+			e->add(make_control("Force shot", force));
+			auto minimum = make_control("Minimum hitchance", MAKE_RUNTIME(id + "hit chance>minimum", slider<float>, 0.f, 100.f, cfg.weapon_config.minimum_hitchance[grp], "%.0f%%"));
+			add_dependent_row(e, force, minimum, *cfg.weapon_config.force_shot[grp]);
+			ADD_RUNTIME("Double tap hitchance", id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%"); }
+		ADD_INLINE("Hitchance", MAKE_RUNTIME(id + "hit chance", slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[grp], "%.0f%%", 1.f, vec2{80.f, 14.f}), hc_settings);
+		ADD_RUNTIME("Min damage", id + "min damage", slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[grp], (ssa<float>{ssv<float>{101.f, "HP + %.0f"}, ssv<float>{0.f, "%.0f hp"}}), 1.f, vec2{80.f, 14.f});
+	}
 
-			ADD_INLINE( "Autostop", MAKE_RUNTIME( id + XOR( "autostop" ), checkbox, cfg.weapon_config.autostop[ ( int )grp ] ), e_unshadow );
-		}
+	void rage_aimbot_extra(std::shared_ptr<layout>& e, uint32_t grp, const std::string& id) {
+		auto autostop_settings = MAKE_RUNTIME(id + "autostop>settings", settings, nullptr);
+		{ auto e = autostop_settings;
+			auto mode = MAKE_RUNTIME(id + "autostop>mode", combo_box, cfg.weapon_config.autostop_mode[grp]);
+			mode->allow_multiple = true;
+			mode->add({MAKE_RUNTIME(id + "autostop>between", selectable, "Between shots", cfg_t::autostop_inbetween), MAKE_RUNTIME(id + "autostop>early", selectable, "Early", cfg_t::autostop_predictive), MAKE_RUNTIME(id + "autostop>lethal", selectable, "Only when lethal", cfg_t::autostop_lethal)});
+			ADD_INLINE("Mode", mode);
+			ADD_RUNTIME("Duck", id + "autostop>duck", checkbox, cfg.weapon_config.autostop_duck[grp]);
+			ADD_RUNTIME("In air", id + "autostop>air", checkbox, cfg.weapon_config.autostop_air[grp]);
+			ADD_RUNTIME("On land", id + "autostop>land", checkbox, cfg.weapon_config.autostop_land[grp]); }
+		ADD_INLINE("Autostop", MAKE_RUNTIME(id + "autostop", checkbox, cfg.weapon_config.autostop[grp]), autostop_settings);
+		ADD("Force extra safety", "rage>aimbot>general>force extra safety", checkbox, cfg.aim.fallback_on_key);
+		ADD("Force body aim", "rage>aimbot>general>force bodyaim", checkbox, cfg.aim.baim_on_key);
+		ADD("Headshot only", "rage>aimbot>general>headshot only", checkbox, cfg.aim.hsmode);
 
-		/*const auto should_add_autoscope = util::in_array(grp, {
-															 general_id, group_id + 4, group_id + 6, group_id + 7,
-															 WEAPON_AUG, WEAPON_SG556, WEAPON_AWP, WEAPON_G3SG1,
-															 WEAPON_SCAR20, WEAPON_SSG08
-														 });
-
-		if (should_add_autoscope)
-		{
-			ADD_RUNTIME("Autoscope", id + XOR("autoscope"), checkbox, cfg.weapon_config.autoscope[(int)grp]);
-		}*/
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "safepoint mode" ), combo_box, cfg.weapon_config.fallback_mode[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "safepoint mode>none" ), selectable, XOR( "None" ), cfg_t::fallback_off ), MAKE_RUNTIME(
-					 id + XOR( "safepoint mode>adaptive" ), selectable, XOR( "Adaptive" ), cfg_t::fallback_adaptive ), MAKE_RUNTIME(
-					 id + XOR( "safepoint mode>prefer safepoint" ), selectable, XOR( "Prefer safepoint" ), cfg_t::fallback_prefer_safepoint ), } );
-
-			ADD_INLINE( "Safepoint mode", c );
-		}
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "safety" ), combo_box, cfg.weapon_config.force_safe[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "safety>lethal" ), selectable, XOR( "Lethal" ), cfg_t::safety_lethal ), MAKE_RUNTIME(
-					 id + XOR( "safety>in air target" ), selectable, XOR( "In air target" ), cfg_t::safety_air ),
-				 MAKE_RUNTIME( id + XOR( "safety>moving target" ), selectable, XOR( "Moving target" ), cfg_t::safety_moving ),
-				 MAKE_RUNTIME( id + XOR( "safety>standing target" ), selectable, XOR( "Standing target" ), cfg_t::safety_standing ),
-				 MAKE_RUNTIME( id + XOR( "safety>limbs" ), selectable, XOR( "Limbs" ), cfg_t::safety_limbs ), MAKE_RUNTIME(
-					 id + XOR( "safety>on override damage" ), selectable, XOR( "On override damage" ), cfg_t::safety_override ), } );
-
-			ADD_INLINE( "Safety", c );
-		}
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "extra safety" ), combo_box, cfg.weapon_config.extra_safety[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "extra safety>lethal" ), selectable, XOR( "Lethal" ), cfg_t::safety_lethal ), MAKE_RUNTIME(
-					 id + XOR( "extra safety>in air target" ), selectable, XOR( "In air target" ), cfg_t::safety_air ),
-				 MAKE_RUNTIME( id + XOR( "extra safety>moving target" ), selectable, XOR( "Moving target" ), cfg_t::safety_moving ),
-				 MAKE_RUNTIME( id + XOR( "extra safety>standing target" ), selectable, XOR( "Standing target" ), cfg_t::safety_standing ),
-				 MAKE_RUNTIME( id + XOR( "extra safety>limbs" ), selectable, XOR( "Limbs" ), cfg_t::safety_limbs ), MAKE_RUNTIME(
-					 id + XOR( "extra safety>on override damage" ), selectable, XOR( "On override damage" ), cfg_t::safety_override ), } );
-
-			ADD_INLINE( "Extra safety", c );
-		}
-
-		{
-			const auto c = MAKE_RUNTIME( id + XOR( "bodyaim" ), combo_box, cfg.weapon_config.baim[ ( int )grp ], vec2{}, vec2{ 80.f, 20.f } );
-			c->allow_multiple = true;
-			c->add(
-				{ MAKE_RUNTIME( id + XOR( "bodyaim>lethal" ), selectable, XOR( "Lethal" ), cfg_t::safety_lethal ), MAKE_RUNTIME(
-					 id + XOR( "bodyaim>in air target" ), selectable, XOR( "In air target" ), cfg_t::safety_air ),
-				 MAKE_RUNTIME( id + XOR( "bodyaim>moving target" ), selectable, XOR( "Moving target" ), cfg_t::safety_moving ),
-				 MAKE_RUNTIME( id + XOR( "bodyaim>standing target" ), selectable, XOR( "Standing target" ), cfg_t::safety_standing ), MAKE_RUNTIME(
-					 id + XOR( "bodyaim>high risk" ), selectable, XOR( "High risk" ), cfg_t::safety_risky ), } );
-
-			ADD_INLINE( "Bodyaim", c );
-		}
-
-		ADD_RUNTIME( "Ignore limbs on moving", id + XOR( "ignore limbs on moving" ), checkbox, cfg.weapon_config.ignore_limbs[ ( int )grp ] );
-
-		/*if (util::in_array(grp, {general_id, group_id + 7, WEAPON_SSG08}))
-			ADD_RUNTIME("Jumpscout", id + XOR("jumpscout"), checkbox, cfg.weapon_config.scout_jumpshot[(int)grp]);
-		if (util::in_array(grp, {general_id, group_id + 2, WEAPON_REVOLVER}))
-			ADD_RUNTIME("Autorevolver", id + XOR("autorevolver"), checkbox, cfg.weapon_config.autorevolver[(int)grp]);*/
-
-			//VIRTUALIZER_TIGER_WHITE_END;
+		auto add_mode = [&](const char* name, const std::string& key, value_param<bits>& mode_value, value_param<bits>& disabled, value_param<bool>& peek) {
+			auto mode = MAKE_RUNTIME(key, combo_box, mode_value, vec2{}, vec2{80.f, 20.f});
+			mode->add({MAKE_RUNTIME(key + ">off", selectable, "Off", 0), MAKE_RUNTIME(key + ">prefer", selectable, "Prefer", 1), MAKE_RUNTIME(key + ">force", selectable, "Force", 2)});
+			auto gear = MAKE_RUNTIME(key + ">settings", settings, nullptr);
+			{ auto e = gear;
+				auto disablers = MAKE_RUNTIME(key + ">disablers", combo_box, disabled);
+				disablers->allow_multiple = true;
+				disablers->add({MAKE_RUNTIME(key + ">shot", selectable, "Target shot", 0), MAKE_RUNTIME(key + ">resolved", selectable, "Target resolved", 1), MAKE_RUNTIME(key + ">safe", selectable, "Target safe point", 2), MAKE_RUNTIME(key + ">damage", selectable, "Low damage", 3)});
+				e->add(make_control("Disablers", disablers));
+				ADD_RUNTIME("Force on peek", key + ">peek", checkbox, peek); }
+			e->add(make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout>& row) {
+				row->add(std::make_shared<label>(control_id{hash(key + ">label")}, name)); row->add(mode); row->add(gear);
+			}));
+		};
+		add_mode("Safe point", id + "safe point", cfg.weapon_config.safe_mode[grp], cfg.weapon_config.safe_disablers[grp], cfg.weapon_config.safe_on_peek[grp]);
+		add_mode("Body aim", id + "body aim", cfg.weapon_config.body_mode[grp], cfg.weapon_config.body_disablers[grp], cfg.weapon_config.body_on_peek[grp]);
 	}
 
 	void rage_aimbot_weapon_extra( const std::shared_ptr<layout>& e, uint32_t grp, const std::string& id, bool vis = false ) {
@@ -662,32 +596,9 @@ namespace menu::group
 
 		area->add( make_groupbox( XOR( "rage>aimbot>general" ), XOR( "GENERAL" ), { group_sz.x * 2 + 32.f, 0.f }, group_sz, rage_aimbot_general ) );
 
-		const auto ovr = MAKE( "rage>override", button, XOR( "Add override" ), nullptr, vec2{ 0.f, 462.f }, vec2{ group_sz.x * .5f - 16.f, 20.f } );
-		ovr->margin = {};
-		ovr->center_text = false;
-		//ovr->callback = []()
-		//{
-		//	const auto ovr = ctx->find(GUI_HASH("rage>override"));
-
-		//	const auto ovr_pick = std::make_shared<action_list_popup>(control_id{GUI_HASH("action_list_popup")},
-		//															  action_list_popup::params_t{
-		//																  grp_to_name, wpn_to_name},
-		//															  cfg.weapon_config.cfgs,
-		//															  ovr->area_abs().bl() + vec2{0.f, 4.f});
-		//	ovr_pick->open();
-		//	ovr_pick->callback = [](auto i, auto v)
-		//	{
-		//		// only derive if enabled
-		//		if (v)
-		//			derive_weapon_setting(i);
-
-		//		rebuild_rage_layout();
-		//	};
-		//};
 
 		e->add( tabs );
 		e->add( area );
-		e->add( ovr );
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 

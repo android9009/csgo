@@ -53,6 +53,13 @@ void settings_popup::render()
 	if (!is_visible)
 		return;
 
+	// Dependent controls may be shown or hidden while this popup is open.
+	if (const auto content = find<layout>(GUI_HASH("settings>area")))
+	{
+		content->on_control_draw_param_changed(nullptr, 0);
+		size.y = content->calc_max_y() + 8.f;
+		content->size.y = size.y;
+	}
 	begin_render();
 
 	auto &d = draw.layers[ctx->content_layer];
