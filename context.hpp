@@ -26,6 +26,7 @@ struct cheat_ctx_t {
     bool in_createmove = false;
     int tickbase = 0;
     int command_number = 0;
+    int frame_stage = -1;
     float curtime = 0.f;
     float frametime = 0.f;
     float lerp_time = 0.f;
@@ -43,7 +44,7 @@ struct cheat_ctx_t {
     void reset() {
         local = nullptr; weapon = nullptr; weapon_data = nullptr;
         in_game = false; send_packet = true; in_createmove = false;
-        tickbase = 0; command_number = 0;
+        tickbase = 0; command_number = 0; frame_stage = -1;
     }
     void save_pred() {
         if (!local) return;

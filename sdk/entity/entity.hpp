@@ -1,7 +1,9 @@
 #pragma once
 #include "../netvars.hpp"
 #include "../clientclass.hpp"
+#include "../studiohdr.hpp"
 #include "../../math/vector.hpp"
+#include "../../math/matrix.hpp"
 #include "../../offsets/offsets.hpp"
 #include <cstdint>
 
@@ -18,6 +20,7 @@ public:
     NETVAR_FALLBACK(int, m_nTickBase, "DT_BasePlayer", "m_nTickBase", offsets::netvars::m_nTickBase)
     NETVAR_FALLBACK(float, m_flSimulationTime, "DT_BaseEntity", "m_flSimulationTime", offsets::netvars::m_flSimulationTime)
     NETVAR(float, m_flDuckAmount, "DT_CSPlayer", "m_flDuckAmount")
+    NETVAR_FALLBACK(int, m_nModelIndex, "DT_BaseEntity", "m_nModelIndex", offsets::netvars::m_nModelIndex)
 
     bool IsDormant() const;
     bool IsAlive() const { return m_lifeState() == 0 && m_iHealth() > 0; }
@@ -25,4 +28,15 @@ public:
     Vector GetEyePosition() const { return m_vecOrigin() + m_vecViewOffset(); }
     ClientClass* GetClientClass();
     int GetIndex() const;
+
+    // Bones / model / hitboxes (studiohdr via IVModelInfo, bone cache via m_dwBoneMatrix).
+    matrix3x4_t* GetBoneMatrix() const;
+    bool GetBonePosition(int bone_index, Vector& out) const;
+    void* GetModel() const;
+    const char* GetModelName() const;
+    studiohdr_t* GetStudioHdr() const;
+    int GetHitboxSetCount() const;
+    int GetHitboxCount(int set) const;
+    mstudiobbox_t* GetHitbox(int set, int index) const;
+    bool GetHitboxPosition(int set, int index, Vector& out) const;
 };

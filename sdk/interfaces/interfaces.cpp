@@ -51,6 +51,8 @@ bool Setup() {
     Effects = Capture<IVEffects>("engine.dll", "VEngineEffects");
     ModelInfo = Capture<IVModelInfo>("engine.dll", "VModelInfoClient");
     ModelRender = Capture<IVModelRender>("engine.dll", "VEngineModel");
+    ViewRender = Capture<IViewRender>("client.dll", "VViewRender");
+    WeaponSystem = Capture<IWeaponSystem>("client.dll", "VWeaponSystem");
     MDLCache = Capture<IMDLCache>("datacache.dll", "MDLCache");
     StudioRender = Capture<IStudioRender>("studiorender.dll", "VStudioRender");
     ConVar = Capture<IConVar>("vstdlib.dll", "VEngineCvar");

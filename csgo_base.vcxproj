@@ -84,8 +84,11 @@
     <ClCompile Include="hooks\client.cpp" />
     <ClCompile Include="hooks\detours.cpp" />
     <ClCompile Include="hooks\directx.cpp" />
+    <ClCompile Include="hooks\drawmodel.cpp" />
+    <ClCompile Include="hooks\framestage.cpp" />
     <ClCompile Include="hooks\hooks.cpp" />
     <ClCompile Include="hooks\paint.cpp" />
+    <ClCompile Include="hooks\sceneend.cpp" />
     <ClCompile Include="hooks\wndproc.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="math\math.cpp" />
@@ -93,6 +96,7 @@
     <ClCompile Include="patterns\patterns.cpp" />
     <ClCompile Include="sdk\entity\entity.cpp" />
     <ClCompile Include="sdk\entity\player.cpp" />
+    <ClCompile Include="sdk\entity\weapon.cpp" />
     <ClCompile Include="sdk\interfaces\interfaces.cpp" />
     <ClCompile Include="sdk\netvars.cpp" />
     <ClCompile Include="third_party\imgui\imgui.cpp" />
@@ -143,10 +147,13 @@
     <ClInclude Include="sdk\entity\entity.hpp" />
     <ClInclude Include="sdk\entity\player.hpp" />
     <ClInclude Include="sdk\entity\weapon.hpp" />
+    <ClInclude Include="sdk\glow.hpp" />
     <ClInclude Include="sdk\interfaces\interfaces.hpp" />
+    <ClInclude Include="sdk\material.hpp" />
     <ClInclude Include="sdk\netvars.hpp" />
     <ClInclude Include="sdk\recv.hpp" />
     <ClInclude Include="sdk\schema.hpp" />
+    <ClInclude Include="sdk\studiohdr.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\img\click_sfx.hpp" />

@@ -6,7 +6,12 @@
 #include "../clientclass.hpp"
 #include "../../math/vector.hpp"
 #include "../../math/qangle.hpp"
+#include "../../math/matrix.hpp"
 #include "../trace_ray.hpp"
+#include "../studiohdr.hpp"
+
+class IMaterial;
+class CCSWeaponData;
 
 class IClientEntityList {
 public:
@@ -28,6 +33,10 @@ public:
     ClientClass* GetAllClasses() {
         using Fn = ClientClass* (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[8])(this);
+    }
+    void FrameStageNotify(int stage) {
+        using Fn = void (__thiscall*)(void*, int);
+        reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[37])(this, stage);
     }
 };
 class IEngineClient {
@@ -94,8 +103,24 @@ class IVPanel : public InterfaceView {
 public:
     const char* GetName(unsigned int panel) { using Fn = const char* (__thiscall*)(void*, unsigned int); auto fn = VFunc<Fn>(36); return fn ? fn(this, panel) : ""; }
 };
-class IVModelRender : public InterfaceView {};
-class IVModelInfo : public InterfaceView {};
+class IVModelRender : public InterfaceView {
+public:
+    void ForcedMaterialOverride(IMaterial* material, int override_type = 0, int overrides = 0) {
+        using Fn = void (__thiscall*)(void*, IMaterial*, int, int);
+        if (auto fn = VFunc<Fn>(1)) fn(this, material, override_type, overrides);
+    }
+    void DrawModelExecute(void* context, const DrawModelState_t& state, const ModelRenderInfo_t& info, matrix3x4_t* bone_to_world = nullptr) {
+        using Fn = void (__thiscall*)(void*, void*, const DrawModelState_t&, const ModelRenderInfo_t&, matrix3x4_t*);
+        if (auto fn = VFunc<Fn>(21)) fn(this, context, state, info, bone_to_world);
+    }
+};
+class IVModelInfo : public InterfaceView {
+public:
+    void* GetModel(int index) { using Fn = void* (__thiscall*)(void*, int); auto fn = VFunc<Fn>(1); return fn ? fn(this, index) : nullptr; }
+    int GetModelIndex(const char* name) { using Fn = int (__thiscall*)(void*, const char*); auto fn = VFunc<Fn>(2); return fn ? fn(this, name) : -1; }
+    const char* GetModelName(const void* model) { using Fn = const char* (__thiscall*)(void*, const void*); auto fn = VFunc<Fn>(3); return fn ? fn(this, model) : nullptr; }
+    studiohdr_t* GetStudioModel(const void* model) { using Fn = studiohdr_t* (__thiscall*)(void*, const void*); auto fn = VFunc<Fn>(32); return fn ? fn(this, model) : nullptr; }
+};
 class IVDebugOverlay : public InterfaceView {};
 class IEngineTrace : public InterfaceView {
 public:
@@ -104,7 +129,20 @@ public:
         if (auto fn = VFunc<Fn>(5)) fn(this, ray, mask, filter, trace);
     }
 };
-class IMaterialSystem : public InterfaceView {};
+class IMaterialSystem : public InterfaceView {
+public:
+    IMaterial* CreateMaterial(const char* name, void* key_values) {
+        using Fn = IMaterial* (__thiscall*)(void*, const char*, void*);
+        auto fn = VFunc<Fn>(83);
+        return fn ? fn(this, name, key_values) : nullptr;
+    }
+    IMaterial* FindMaterial(const char* material_name, const char* group_name, bool complain = true, const char* complain_prefix = nullptr) {
+        using Fn = IMaterial* (__thiscall*)(void*, const char*, const char*, bool, const char*);
+        auto fn = VFunc<Fn>(84);
+        return fn ? fn(this, material_name, group_name, complain, complain_prefix) : nullptr;
+    }
+    void* GetRenderContext() { using Fn = void* (__thiscall*)(void*); auto fn = VFunc<Fn>(115); return fn ? fn(this) : nullptr; }
+};
 class ISurface : public InterfaceView {
 public:
     void SetDrawColor(int r, int g, int b, int a) { using Fn = void (__thiscall*)(void*, int, int, int, int); if (auto fn = VFunc<Fn>(15)) fn(this, r, g, b, a); }
@@ -115,10 +153,20 @@ public:
 class IConVar;
 class IGameEventManager2;
 class IPhysicsSurfaceProps;
-class IViewRender;
 class IViewRenderBeams;
-class IWeaponSystem;
 class IGlowObjectManager;
+class IViewRender : public InterfaceView {
+public:
+    void SceneEnd() { using Fn = void (__thiscall*)(void*); if (auto fn = VFunc<Fn>(6)) fn(this); }
+};
+class IWeaponSystem : public InterfaceView {
+public:
+    CCSWeaponData* GetWeaponData(std::uint32_t item_definition_index) {
+        using Fn = CCSWeaponData* (__thiscall*)(void*, std::uint32_t);
+        auto fn = VFunc<Fn>(2);
+        return fn ? fn(this, item_definition_index) : nullptr;
+    }
+};
 class IStudioRender;
 class IMDLCache;
 class ILocalize;
