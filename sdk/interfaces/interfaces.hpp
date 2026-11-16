@@ -145,6 +145,7 @@ public:
 };
 class ISurface : public InterfaceView {
 public:
+    void UnlockCursor() { using Fn = void (__thiscall*)(void*); if (auto fn = VFunc<Fn>(66)) fn(this); }
     void SetDrawColor(int r, int g, int b, int a) { using Fn = void (__thiscall*)(void*, int, int, int, int); if (auto fn = VFunc<Fn>(15)) fn(this, r, g, b, a); }
     void DrawFilledRect(int x0, int y0, int x1, int y1) { using Fn = void (__thiscall*)(void*, int, int, int, int); if (auto fn = VFunc<Fn>(16)) fn(this, x0, y0, x1, y1); }
     void DrawOutlinedRect(int x0, int y0, int x1, int y1) { using Fn = void (__thiscall*)(void*, int, int, int, int); if (auto fn = VFunc<Fn>(18)) fn(this, x0, y0, x1, y1); }

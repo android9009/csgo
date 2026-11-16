@@ -39,15 +39,16 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam
             LOG_INFO("menu toggled: %s", Config::settings.show_menu ? "open" : "closed");
         }
     }
-    if (ForwardGuiInput(message, wparam, lparam, Config::settings.show_menu))
-        return true;
-
-    // While the menu is open, swallow input so the game doesn't react.
-    if (Config::settings.show_menu &&
-        (message == WM_KEYDOWN || message == WM_KEYUP ||
-         message == WM_MOUSEMOVE || message == WM_LBUTTONDOWN ||
-         message == WM_LBUTTONUP || message == WM_RBUTTONDOWN ||
-         message == WM_RBUTTONUP || message == WM_MOUSEWHEEL))
+    const bool consumed = ForwardGuiInput(message, wparam, lparam, Config::settings.show_menu);
+    // Always deliver releases: a key/button may have gone down before opening
+    // the menu. Dropping its up event leaves the engine's +command latched.
+    const bool release = message == WM_KEYUP || message == WM_SYSKEYUP ||
+        message == WM_LBUTTONUP || message == WM_RBUTTONUP ||
+        message == WM_MBUTTONUP || message == WM_XBUTTONUP;
+    const bool keyboard = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+    if (!release && Config::settings.show_menu &&
+        ((keyboard && consumed) || message == WM_CHAR ||
+         (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST)))
         return true;
 
     if (auto original = Hooks::GetOriginalWndProc()) return CallWindowProcA(original, window, message, wparam, lparam);

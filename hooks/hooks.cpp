@@ -4,11 +4,31 @@
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../utils/memory.hpp"
 #include "../context.hpp"
+#include "../utils/config.hpp"
 #include <d3d9.h>
 #include "../sdk/structs.hpp"
 namespace Hooks {
 static VMT_Hook client_mode_hook;
+static VMT_Hook mouse_input_hook;
+static void __fastcall OverrideMouseInput(void* instance, void*, float* x, float* y) {
+    using Fn = void (__thiscall*)(void*, float*, float*);
+    if (auto original = mouse_input_hook.get_original<Fn>()) original(instance, x, y);
+    // Block only camera deltas, never the keyboard/input system as a whole.
+    if (Config::settings.show_menu) {
+        if (x) *x = 0.f;
+        if (y) *y = 0.f;
+    }
+}
 static VMT_Hook panel_hook;
+static VMT_Hook cursor_hook;
+static void __fastcall LockCursor(void* surface, void*) {
+    if (Config::settings.show_menu) {
+        static_cast<ISurface*>(surface)->UnlockCursor();
+        return;
+    }
+    using Fn = void (__thiscall*)(void*);
+    if (auto original = cursor_hook.get_original<Fn>()) original(surface);
+}
 static VMT_Hook device_hook;
 static VMT_Hook device_d3d9_hook;
 static VMT_Hook device_ex_hook;
@@ -142,9 +162,16 @@ bool Setup() {
     if (!device_hook.is_hooked() && !device_d3d9_hook.is_hooked() && !device_ex_hook.is_hooked())
         LOG_ERROR("no EndScene hook installed; menu will not render");
 
+    if (Interfaces::Surface) {
+        cursor_hook.attach(Interfaces::Surface, 67, reinterpret_cast<void*>(&LockCursor));
+        LOG_INFO("surface cursor hook=%d", cursor_hook.is_hooked());
+    }
+
     // Feature hooks are best-effort: missing interfaces only disable features.
-    if (Interfaces::ClientMode)
+    if (Interfaces::ClientMode) {
         client_mode_hook.attach(Interfaces::ClientMode, 24, reinterpret_cast<void*>(&HooksInternal::CreateMove));
+        mouse_input_hook.attach(Interfaces::ClientMode, 23, reinterpret_cast<void*>(&OverrideMouseInput));
+    }
     else
         LOG_WARN("ClientMode is null; CreateMove not hooked");
     if (Interfaces::Panel)
@@ -174,7 +201,7 @@ void Restore() {
     model_render_hook.detach(); view_render_hook.detach(); client_hook.detach();
     reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
-    panel_hook.detach(); client_mode_hook.detach();
+    cursor_hook.detach(); panel_hook.detach(); mouse_input_hook.detach(); client_mode_hook.detach();
     LOG_INFO("hooks restored");
 }
 }

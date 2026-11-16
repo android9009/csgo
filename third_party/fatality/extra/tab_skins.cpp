@@ -297,11 +297,11 @@ namespace menu::group
         }
     }
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
-                             bool ct, vec2 center, vec2 bounds, bool& budget) {
+                             bool ct, vec2 center, vec2 bounds, bool& budget, const std::string& paint = {}) {
         const auto name = equipment_icon(screen, selected, ct);
         if (name || ((screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) && !selected.empty())) {
             const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
-            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, {}, budget);
+            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, paint, budget);
             if (icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
@@ -337,7 +337,7 @@ namespace menu::group
                 const auto& agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
                 if (entries[i] == Equipment::Knife && card.contains(input.cursor()) && equipment_screen == Equipment::None)
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(selected.empty() ? (ct ? "weapon_knife" : "weapon_knife_t") : selected.c_str()), std::memory_order_relaxed);
-                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget);
+                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget, entries[i] == Equipment::Knife ? selected_paint(selected.c_str()) : std::string{});
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 layer->add_text(pos + vec2{width * .5f, 40.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
                 layer->add_rect_filled(rect{pos + vec2{3.f, 47.f}, pos + vec2{width - 3.f, 49.f}}, colors.outline);
@@ -849,7 +849,7 @@ namespace menu::group
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
                 if (equipment_screen == Equipment::Knife && viewport.contains(input.cursor()) && cell.contains(input.cursor()))
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(items[i].icon[0] ? items[i].icon : (team_ct ? "weapon_knife" : "weapon_knife_t")), std::memory_order_relaxed);
-                draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget);
+                draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget, equipment_screen == Equipment::Knife ? selected_paint(items[i].icon) : std::string{});
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 std::string label = items[i].label;
                 if (layer->font->get_text_size(label).x > cell_width - 10.f) {

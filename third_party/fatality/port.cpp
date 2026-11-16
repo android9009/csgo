@@ -884,7 +884,11 @@ bool Input(UINT msg, WPARAM wp, LPARAM lp, bool open) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (!ctx || !gui_device) return false;
     ctx->should_process_hotkeys = !open;
-    return ctx->refresh(msg, static_cast<uint32_t>(wp), static_cast<uint32_t>(lp)) && open;
+    const bool capture_keys = ctx->active && ctx->active->is_visible &&
+        (ctx->active->is_taking_keys || ctx->active->is_taking_text);
+    const bool consumed = ctx->refresh(msg, static_cast<uint32_t>(wp), static_cast<uint32_t>(lp));
+    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) return open && capture_keys;
+    return consumed && open;
 }
 void BeforeReset(IDirect3DDevice9* device) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
