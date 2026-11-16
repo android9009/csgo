@@ -32,13 +32,16 @@ Physics CapturePhysics(){
     p.friction=ConVarFloat("sv_friction",5.2f);p.stop_speed=ConVarFloat("sv_stopspeed",80.f);p.accelerate=ConVarFloat("sv_accelerate",5.5f);
     return p;
 }
-CGameTrace Hull(const Vector& start,const Vector& end,const Vector& mins,const Vector& maxs,unsigned mask=0x200400Bu){
+class WorldFilter : public ITraceFilter {
+public: bool ShouldHitEntity(void*,int) override{return false;}int GetTraceType() const override{return 0;}
+};
+CGameTrace Hull(const Vector& start,const Vector& end,const Vector& mins,const Vector& maxs,unsigned mask=0x200400Bu,bool world_only=false){
     Ray_t ray;ray.Init(start,end,mins,maxs);
     // Ray_t's existing SDK helper stores the center with the wrong sign.
     // Correct only this local ray, without changing any World consumers.
     ray.m_StartOffset.x=-ray.m_StartOffset.x;ray.m_StartOffset.y=-ray.m_StartOffset.y;ray.m_StartOffset.z=-ray.m_StartOffset.z;
-    CTraceFilterSimple filter(ctx.local);CGameTrace trace;
-    Interfaces::EngineTrace->TraceRay(ray,mask,&filter,&trace);return trace;
+    CTraceFilterSimple filter(ctx.local);WorldFilter world;CGameTrace trace;
+    Interfaces::EngineTrace->TraceRay(ray,mask,world_only ? static_cast<ITraceFilter*>(&world) : &filter,&trace);return trace;
 }
 VMT_Hook accept_event_hook,accept_destroy_hook;
 void* accept_receiver{};
@@ -229,7 +232,7 @@ void MoveImpl(CUserCmd* cmd){
         }
         if(options.no_fall && !ground){
             Vector start=position;if(!(ctx.local->m_fFlags()&2))start.z+=9.f;
-            const auto floor=Hull(start,start-Vector{0,0,1000},{-16,-16,0},{16,16,54},1u);
+            const auto floor=Hull(start,start-Vector{0,0,1000},{-16,-16,0},{16,16,54},1u,true);
             if(floor.fraction<1.f && !floor.startsolid && !floor.allsolid && floor.plane.normal.z>=.7f)
                 FallButtons(*cmd,floor.fraction*1000.f,velocity.z,ConVarFloat("sv_gravity",800.f),physics.interval);
         }

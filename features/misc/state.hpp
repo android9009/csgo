@@ -90,6 +90,7 @@ inline void Move(CUserCmd& cmd,const Settings& s,bool ground,int type,int water,
     }
     if(!(s.strafe&3u) || (cmd.buttons&speed_key) || (!wants_jump && !(s.strafe&8u)))return;
     const float original_forward=cmd.forwardmove,original_side=cmd.sidemove;
+    if((s.strafe&1u) && !(s.strafe&2u) && ((cmd.buttons&16) || original_side!=0.f))return;
     float desired=cmd.viewangles.y;
     if((s.strafe&2u) && (std::abs(original_forward)>1.f || std::abs(original_side)>1.f))desired+=std::atan2(-original_side,original_forward)/radians;
     else if(!(s.strafe&1u))return;
