@@ -1,0 +1,47 @@
+# Weapon preview material investigation
+
+The input DLLs are kept outside Git in `received-binaries/`. They were inspected
+as data, not loaded or executed. `preview-abi-inspection.json` records hashes and
+RTTI candidates so future work can identify the exact builds. Run:
+
+```
+python -m venv /tmp/preview-analysis
+/tmp/preview-analysis/bin/pip install pefile
+/tmp/preview-analysis/bin/python tools/inspect_preview_abi.py \
+  received-binaries/client.dll received-binaries/materialsystem.dll
+```
+
+## Established from these binaries
+
+- Client timestamp: `0x65272025`; material system timestamp: `0x63dc3de4`.
+- `CCustomMaterialOwner` RTTI locates a vtable at client RVA `0xb95300`.
+  Its destructor at `0x1de6b0` uses a delete size of **0x18**, not the 0x14
+  suggested by the reference Fatality header comment. Its vector starts at +4;
+  count is at +0x10 and cached element pointer at +0x14.
+- Owner slot 1 (`0x1de6f0`) accesses the vector and takes material/index arguments;
+  slot 3 (`0x1ac360`) iterates materials and calls destination slot 1.
+- `CCSWeaponVisualsDataProcessor` RTTI locates vtable `0xc0969c`.
+  Its deleting destructor at `0x4086d0` uses allocation size **0xc18**.
+- A processor method at `0x408e10` calls material-system virtual byte offset
+  **0x260** (slot 152 on x86). This is evidence of a material-system dependency,
+  not sufficient proof of a callable manager getter signature.
+- `CCustomMaterialManager` RTTI locates a vtable at materialsystem RVA `0xa0d64`.
+
+## Still required before calling into the engine
+
+Resolve and validate the item-view constructor/destructor, attribute setters,
+paint schema access, generated-material entry point, asynchronous readiness and
+custom-material lifetime. Confirm the processor constructor argument structures
+and matching model material indices. Sticker materials require their own path;
+they cannot be represented by paint-kit parameters alone.
+
+Do not create a fake item view by zeroing a guessed structure, copy vectors with
+memcpy, use borrowed materials without refcount ownership, or call these RVAs in
+other builds. RTTI is identification evidence, not ABI compatibility proof.
+
+## Current runtime behavior
+
+The inline viewport renders the base model and supports rotation/panning. It does
+**not** render selected paint, seed, wear or stickers. No new unverified engine
+calls were introduced by this investigation. Runtime verification in CS:GO is
+still necessary after implementing the missing interfaces.

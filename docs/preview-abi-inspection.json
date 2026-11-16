@@ -1,0 +1,70 @@
+[
+  {
+    "file": "client.dll",
+    "sha256": "183d42fac8a4ecc24dc02edf5f09122f37fe9e7533ca093a867718b25cfdeb03",
+    "timestamp": "0x65272025",
+    "classes": {
+      "CCustomMaterialOwner": [
+        {
+          "type_rva": "0xe1bb0c",
+          "locator_rva": "0xd4b66c",
+          "subobject_offset": "0x0",
+          "vtable_rva": "0xb95300",
+          "method_rvas": [
+            "0x1de6b0",
+            "0x1de6f0",
+            "0xbc890",
+            "0x1ac360"
+          ]
+        }
+      ],
+      "CCSWeaponVisualsDataProcessor": [
+        {
+          "type_rva": "0xe25fec",
+          "locator_rva": "0xd623c0",
+          "subobject_offset": "0x0",
+          "vtable_rva": "0xc0969c",
+          "method_rvas": [
+            "0x4086d0",
+            "0xb6e40",
+            "0x408e10",
+            "0x4090b0",
+            "0x212180",
+            "0x409880",
+            "0x4098b0",
+            "0x409890",
+            "0x4085d0",
+            "0x408760",
+            "0x407a40",
+            "0x408770"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "file": "materialsystem.dll",
+    "sha256": "011e6fb57fa1856ae946a442a2aa2c930d5b15447b03c7e67a64337571f92cce",
+    "timestamp": "0x63dc3de4",
+    "classes": {
+      "CCustomMaterialManager": [
+        {
+          "type_rva": "0xc6f94",
+          "locator_rva": "0xb653c",
+          "subobject_offset": "0x0",
+          "vtable_rva": "0xa0d64",
+          "method_rvas": [
+            "0x4a870",
+            "0x4aaa0",
+            "0x4aa10",
+            "0x4ac90",
+            "0x4a810",
+            "0x4ae20",
+            "0x4ae90",
+            "0x4a2a0"
+          ]
+        }
+      ]
+    }
+  }
+]
