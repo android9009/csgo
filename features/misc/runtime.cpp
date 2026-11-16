@@ -4,6 +4,8 @@
 #include "../../sdk/entity/player.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/detourhook.hpp"
+#include <atomic>
 #include "../../third_party/fatality/resources/misc_sounds.h"
 #include <windows.h>
 #include <mmsystem.h>
@@ -15,6 +17,74 @@ bool registered{},pending_buy{};ULONGLONG pending_since{},last_buy{};
 struct RadarEntry {void* entity{};bool original{},written{};};
 std::array<RadarEntry,65> radar;
 std::ptrdiff_t spotted{};
+PeekState peek_state;
+std::atomic<bool> peek_shot{};
+void* movement_player{};int last_command{};
+float ConVarFloat(const char* name,float fallback){
+    if(!Interfaces::ConVar)return fallback;
+    void* var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,name);
+    if(!var)return fallback;
+    const float result=MEM::GetVFunc<float(__thiscall*)(void*)>(var,12)(var);
+    return std::isfinite(result) ? result : fallback;
+}
+Physics CapturePhysics(){
+    Physics p;if(Interfaces::Globals)p.interval=Interfaces::Globals->interval_per_tick;
+    p.friction=ConVarFloat("sv_friction",5.2f);p.stop_speed=ConVarFloat("sv_stopspeed",80.f);p.accelerate=ConVarFloat("sv_accelerate",5.5f);
+    return p;
+}
+CGameTrace Hull(const Vector& start,const Vector& end,const Vector& mins,const Vector& maxs,unsigned mask=0x200400Bu){
+    Ray_t ray;ray.Init(start,end,mins,maxs);
+    // Ray_t's existing SDK helper stores the center with the wrong sign.
+    // Correct only this local ray, without changing any World consumers.
+    ray.m_StartOffset.x=-ray.m_StartOffset.x;ray.m_StartOffset.y=-ray.m_StartOffset.y;ray.m_StartOffset.z=-ray.m_StartOffset.z;
+    CTraceFilterSimple filter(ctx.local);CGameTrace trace;
+    Interfaces::EngineTrace->TraceRay(ray,mask,&filter,&trace);return trace;
+}
+VMT_Hook accept_event_hook,accept_destroy_hook;
+void* accept_receiver{};
+using ReadyFn=char(__stdcall*)(const char*);
+ReadyFn ready{};
+using AcceptEventFn=std::uint32_t(__thiscall*)(void*,const char*,std::uintptr_t,std::uintptr_t,std::uintptr_t,std::uintptr_t,std::uintptr_t,std::uintptr_t);
+using AcceptDestroyFn=std::uint32_t(__thiscall*)(void*,std::uintptr_t);
+AcceptEventFn accept_original{};AcceptDestroyFn accept_destroy_original{};
+ULONGLONG accepted_at{};
+bool AcceptName(const char* name){
+    if(!name)return false;
+    std::uint32_t hash=0x811c9dc5;std::size_t i=0;
+    for(;i<256 && name[i];++i)hash=(hash^static_cast<unsigned char>(name[i]))*0x1000193;
+    return i<256 && ((hash^0x92ca5df1u)==0xe8bb3240u || !std::strcmp(name,"UIPanorama.popup_accept_match_beep"));
+}
+void TryAccept(void* receiver,const char* name){
+    if(receiver!=accept_receiver || !AcceptName(name) || !ready || !Get().autoaccept || !Interfaces::Engine || Interfaces::Engine->IsInGame())return;
+    const auto now=GetTickCount64();if(accepted_at && now-accepted_at<5000)return;
+    accepted_at=now;const char result=ready("accept");LOG_INFO("misc autoaccept: ready callback returned %d",static_cast<int>(result));
+}
+void SafeAccept(void* receiver,const char* name){__try{TryAccept(receiver,name);}__except(EXCEPTION_EXECUTE_HANDLER){}}
+std::uint32_t __fastcall AcceptEvent(void* receiver,void*,const char* name,std::uintptr_t a,std::uintptr_t b,std::uintptr_t c,std::uintptr_t d,std::uintptr_t e,std::uintptr_t f){
+    SafeAccept(receiver,name);return accept_original ? accept_original(receiver,name,a,b,c,d,e,f) : 0;
+}
+std::uint32_t __fastcall AcceptDestroy(void* receiver,void*,std::uintptr_t argument){
+    const auto original=accept_destroy_original;
+    if(receiver==accept_receiver){accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;}
+    return original ? original(receiver,argument) : 0;
+}
+void InstallAcceptImpl(){
+    // Match the full callback body and its deferred string, not a foreign RVA.
+    const auto address=MEM::FindPattern("client.dll","55 8B EC 83 E4 F8 8B 4D 08 BA ? ? ? ? E8 ? ? ? ? 85 C0 75 12 8D 50 02 33 C9 E8 ? ? ? ? B0 01 8B E5 5D C2 04 00 83 3D ? ? ? ? 00 74 0C 51 E8 ? ? ? ? 8B E5 5D C2 04 00 32 C0 8B E5 5D C2 04 00");
+    if(!address){LOG_WARN("misc autoaccept: verified ready callback not found");return;}
+    std::uint32_t text{};std::memcpy(&text,reinterpret_cast<void*>(address+10),4);
+    if(std::strcmp(reinterpret_cast<const char*>(text),"deferred"))return;
+    void* panorama=Interfaces::CaptureRaw("panorama.dll","PanoramaUIEngine001");if(!panorama)return;
+    void* engine=MEM::GetVFunc<void*(__thiscall*)(void*)>(panorama,11)(panorama);if(!engine)return;
+    void* receiver=MEM::GetVFunc<void*(__thiscall*)(void*)>(engine,25)(engine);if(!receiver)return;
+    accept_original=MEM::GetVFunc<AcceptEventFn>(receiver,1);accept_destroy_original=MEM::GetVFunc<AcceptDestroyFn>(receiver,0);
+    if(!accept_original || !accept_destroy_original)return;
+    ready=reinterpret_cast<ReadyFn>(address);accept_receiver=receiver;
+    if(!accept_event_hook.attach(receiver,1,reinterpret_cast<void*>(&AcceptEvent)) || !accept_destroy_hook.attach(receiver,0,reinterpret_cast<void*>(&AcceptDestroy))){accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;return;}
+    LOG_INFO("misc autoaccept: Panorama event receiver installed, ready RVA=%p",reinterpret_cast<void*>(address-reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"))));
+}
+void InstallAccept(){__try{InstallAcceptImpl();}__except(EXCEPTION_EXECUTE_HANDLER){accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;LOG_WARN("misc autoaccept: receiver validation failed");}}
+
 struct Event {
     const char* Name(){return MEM::GetVFunc<const char*(__thiscall*)(void*)>(this,1)(this);}
     int Int(const char* key){return MEM::GetVFunc<int(__thiscall*)(void*,const char*,int)>(this,6)(this,key,0);}
@@ -47,6 +117,7 @@ void OnEvent(Event* event){
     if(!event || !Interfaces::Engine || !ctx.in_game)return;
     const char* name=event->Name();if(!name)return;
     const auto options=Get();const int local=Interfaces::Engine->GetLocalPlayer();
+    if(!std::strcmp(name,"weapon_fire")){if(User(event->Int("userid"))==local)peek_shot.store(true);return;}
     if(!std::strcmp(name,"round_start")){pending_buy=true;pending_since=GetTickCount64();return;}
     if(!std::strcmp(name,"player_spawn")){if(User(event->Int("userid"))==local){pending_buy=true;pending_since=GetTickCount64();}return;}
     if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"round_end")){pending_buy=false;return;}
@@ -114,7 +185,9 @@ void FrameImpl(){
     }
 }
 void MoveImpl(CUserCmd* cmd){
-    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive())return;
+    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();movement_player=nullptr;peek_shot.store(false);return;}
+    if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();peek_shot.store(false);}
+    movement_player=ctx.local;last_command=cmd->command_number;
     const auto options=Get();const auto velocity=ctx.local->m_vecVelocity();
     // Datamap entries in the supplied client.dll: m_MoveType=0x25C,
     // m_nWaterLevel=0x25E. Both are byte fields, not 32-bit NETVAR reads.
@@ -125,11 +198,45 @@ void MoveImpl(CUserCmd* cmd){
         static void* variable=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_autobunnyhopping");
         if(variable)server_bhop=MEM::GetVFunc<int(__thiscall*)(void*)>(variable,13)(variable)!=0;
     }
-    Move(*cmd,options,ground,type,water,velocity.x,velocity.y,server_bhop);
+    auto physics=CapturePhysics();
+    if(!Walkable(type,water)){peek_state.Reset();peek_shot.store(false);return;}
+    Move(*cmd,options,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
+    const auto position=ctx.local->m_vecOrigin();
+    const bool shot=peek_shot.exchange(false);
+    peek_state.Update(*cmd,options.peek,options.retreat_on_release,ground,position,velocity,shot,physics,options.peek_distance);
+    if(Interfaces::EngineTrace){
+        if(peek_state.returning && ground){
+            const float yaw=cmd->viewangles.y*.01745329252f,c=std::cos(yaw),sn=std::sin(yaw);
+            const Vector direction{cmd->forwardmove*c+cmd->sidemove*sn,cmd->forwardmove*sn-cmd->sidemove*c,0};
+            const float length=direction.Length2D();
+            if(length>.1f){const auto trace=Hull(position+Vector{0,0,2},position+Vector{0,0,2}+direction*((std::min)(24.f,length*physics.interval)/length),{-16,-16,0},{16,16,54});
+                if(trace.startsolid || trace.allsolid || trace.fraction<.15f){cmd->forwardmove=cmd->sidemove=0.f;}
+                else if(trace.fraction<1.f){
+                    const float dot=direction.x*trace.plane.normal.x+direction.y*trace.plane.normal.y;
+                    const float x=direction.x-(std::min)(dot,0.f)*trace.plane.normal.x,y=direction.y-(std::min)(dot,0.f)*trace.plane.normal.y;
+                    cmd->forwardmove=std::clamp(x*c+y*sn,-450.f,450.f);cmd->sidemove=std::clamp(x*sn-y*c,-450.f,450.f);
+                }
+            }
+        }
+        // A conservative one-command hull forecast. This is NOT full engine
+        // prediction; the portable transition rule itself matches edge_jump.cpp.
+        if(options.edge_jump && ground && !(cmd->buttons&2) && velocity.Length2D()>5.f && physics.interval>=.001f && physics.interval<=.1f){
+            const auto ahead=Hull(position,position+Vector{velocity.x*physics.interval,velocity.y*physics.interval,0},{-16,-16,0},{16,16,54});
+            if(!ahead.startsolid && !ahead.allsolid && ahead.fraction>.99f){
+                const auto support=Hull(ahead.endpos+Vector{0,0,2},ahead.endpos-Vector{0,0,2},{-16,-16,0},{16,16,2});
+                EdgeJump(*cmd,true,true,support.startsolid || support.allsolid || (support.fraction<1.f && support.plane.normal.z>=.7f));
+            }
+        }
+        if(options.no_fall && !ground){
+            Vector start=position;if(!(ctx.local->m_fFlags()&2))start.z+=9.f;
+            const auto floor=Hull(start,start-Vector{0,0,1000},{-16,-16,0},{16,16,54},1u);
+            if(floor.fraction<1.f && !floor.startsolid && !floor.allsolid && floor.plane.normal.z>=.7f)
+                FallButtons(*cmd,floor.fraction*1000.f,velocity.z,ConVarFloat("sv_gravity",800.f),physics.interval);
+        }
+    }
     if(options.avoid_walls && options.strafe && !ground && Walkable(type,water) && Interfaces::EngineTrace && velocity.Length2D()>20.f){
-        const auto start=ctx.local->m_vecOrigin()+Vector{0,0,2};Ray_t ray;
-        ray.Init(start,start+velocity*.1f,{-16,-16,0},{16,16,54});CTraceFilterSimple filter(ctx.local);CGameTrace trace;
-        Interfaces::EngineTrace->TraceRay(ray,0x200400Bu,&filter,&trace);
+        const auto start=ctx.local->m_vecOrigin()+Vector{0,0,2};
+        const auto trace=Hull(start,start+velocity*.1f,{-16,-16,0},{16,16,54});
         if(trace.fraction<1.f && !trace.startsolid && trace.plane.normal.z<.7f){
             const float yaw=cmd->viewangles.y*.01745329252f,c=std::cos(yaw),sn=std::sin(yaw);
             float x=cmd->forwardmove*c+cmd->sidemove*sn,y=cmd->forwardmove*sn-cmd->sidemove*c;
@@ -140,13 +247,16 @@ void MoveImpl(CUserCmd* cmd){
 }
 }
 void Initialize(){
+    if(!accept_receiver)InstallAccept();
     if(registered || !Interfaces::GameEvent)return;
     auto add=MEM::GetVFunc<bool(__thiscall*)(void*,void*,const char*,bool)>(Interfaces::GameEvent,3);
-    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","player_hurt","player_death","item_purchase"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
+    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","weapon_fire","player_hurt","player_death","item_purchase"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
     if(!ok){MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);LOG_WARN("misc: event listener unavailable");return;}
     registered=true;LOG_INFO("misc: event listener registered");
 }
 void Shutdown(){
+    accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;
+    peek_state.Reset();peek_shot.store(false);
     if(registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);
     registered=false;pending_buy=false;PlaySoundA(nullptr,nullptr,0);
     __try{RestoreRadar();}__except(EXCEPTION_EXECUTE_HANDLER){}
