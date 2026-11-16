@@ -8,6 +8,7 @@
 #include "../utils/config.hpp"
 #include "../features/skins/local_inventory.hpp"
 #include "../features/visuals/shot_chams.hpp"
+#include "../features/misc/runtime.hpp"
 #include <d3d9.h>
 #include "../sdk/structs.hpp"
 namespace Hooks {
@@ -189,6 +190,7 @@ bool Setup() {
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
     ShotChams::Initialize();
+    MiscRuntime::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d CreateMove=%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
         device_ex_hook.is_hooked(), client_mode_hook.is_hooked(), panel_hook.is_hooked(),
@@ -199,6 +201,7 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    MiscRuntime::Shutdown();
     ShotChams::Shutdown();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();

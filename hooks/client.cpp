@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../features/misc/runtime.hpp"
 #include "../context.hpp"
 #include "../sdk/structs.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
@@ -22,8 +23,9 @@ bool __fastcall CreateMove(void* ecx, void* /*edx*/, float sample_time, CUserCmd
             ? static_cast<int>(1.f / Interfaces::Globals->interval_per_tick) : 64;
     }
     if (ctx.local && ctx.local->IsAlive()) {
-        // TODO: features/misc, features/rage entry points go here
+        MiscRuntime::CreateMove(cmd);
     }
+    MiscRuntime::Frame();
     ctx.view_angles = cmd->viewangles;
     return result;
 }
