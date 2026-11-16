@@ -24,11 +24,19 @@ inline int Score(std::string name,std::string_view weapon) {
     for (auto bad : {"crouch","duck","sit","intro","outro","walk","run","jump","death","inspect","arrival"})
         if (name.find(bad)!=name.npos) return -1;
     if (weapon=="unarmed") {
-        for (auto armed : {"pistol","rifle","sniper","shotgun","smg","knife","grenade","c4","weapon"})
-            if (name.find(armed)!=name.npos) return -1;
+        // Unarmed labels may also describe attacks/transitions. Require an
+        // explicit standing idle, not merely a mention of fists/unarmed.
+        const bool idle = name.find("idle") != name.npos;
+        const bool stand = name.find("stand") != name.npos;
+        for (auto bad : {"attack", "punch", "deploy", "draw", "equip", "lower", "prone", "kneel", "ladder"})
+            if (name.find(bad) != name.npos) return -1;
+        if (!idle || !stand) return -1;
         if (name.find("unarmed")!=name.npos || name.find("fist")!=name.npos || name.find("barehand")!=name.npos) return 200;
-        if (name.find("stand")!=name.npos && name.find("idle")!=name.npos) return 50;
-        return -1;
+        // A standing weapon idle is preferable to an arbitrary numeric sequence.
+        // No weapon model is merged, so the hands remain empty.
+        for (auto armed : {"pistol","rifle","sniper","shotgun","smg","knife","grenade","c4","weapon"})
+            if (name.find(armed)!=name.npos) return 25;
+        return 100;
     }
     if (name.find("idle")==name.npos && name.find("stand")==name.npos && name.find("aim")==name.npos) return -1;
     const auto family=Family(weapon);

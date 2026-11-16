@@ -155,8 +155,11 @@ int AgentSequence() {
         const auto bytes=SkinIconFile::Read(Interfaces::BaseFileSystem,
             "models/player/custom_player/uiplayer/animset_uiplayer.mdl",32u*1024u*1024u);
         const int selected=PreviewSequence::Select(bytes,"unarmed");
-        sequence=selected<0 ? 113 : selected;
-        LOG_INFO("agent preview: unarmed static pose sequence=%d matched=%d; weapon merging disabled",sequence,selected>=0 ? 1 : 0);
+        // Never fall back to 113: it is not a verified standing pose.
+        // Sequence zero is the model's reference pose if no named standing
+        // idle exists; do not choose an arbitrary seated cinematic instead.
+        sequence=selected<0 ? 0 : selected;
+        LOG_INFO("agent preview: standing empty-handed static pose sequence=%d matched=%d; weapon merging disabled",sequence,selected>=0 ? 1 : 0);
     }
     return sequence;
 }
