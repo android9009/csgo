@@ -7,6 +7,9 @@
     <Filter Include="Features">
       <UniqueIdentifier>{B5256A3E-E4B1-501D-9F99-0EB69F6B038E}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Features\skins">
+      <UniqueIdentifier>{6D58DD9C-96BD-4A8A-94D9-1F32F528645F}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Features\menu">
       <UniqueIdentifier>{3B8D28AD-38E6-5A43-978D-E95549C7452E}</UniqueIdentifier>
     </Filter>
@@ -170,6 +173,9 @@
     </ClCompile>
     <ClCompile Include="hooks\drawmodel.cpp">
       <Filter>Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="features\skins\skin_changer.cpp">
+      <Filter>Features\skins</Filter>
     </ClCompile>
     <ClCompile Include="features\visuals\model_preview.cpp">
       <Filter>Features</Filter>
@@ -583,6 +589,12 @@
     </ClInclude>
     <ClInclude Include="sdk\structs.hpp">
       <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="features\skins\skin_changer.hpp">
+      <Filter>Features\skins</Filter>
+    </ClInclude>
+    <ClInclude Include="features\skins\skin_state.hpp">
+      <Filter>Features\skins</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\model_preview.hpp">
       <Filter>Features</Filter>

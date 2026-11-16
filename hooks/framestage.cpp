@@ -1,5 +1,6 @@
 #include "hooks.hpp"
 #include "../features/visuals/model_preview.hpp"
+#include "../features/skins/skin_changer.hpp"
 #include "../context.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../sdk/entity/player.hpp"
@@ -11,6 +12,14 @@ namespace HooksInternal {
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 6) ModelPreview::Paint();
+    static bool skins_failed = false;
+    if (stage == 2 && !skins_failed) {
+        __try { SkinChanger::FrameStage(); }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            skins_failed = true;
+            LOG_ERROR("skins: frame-stage exception 0x%08lX; skin application disabled", GetExceptionCode());
+        }
+    }
     // SEH: entity/weapon pointers come from the game and may be stale for a
     // frame; never let a bad read crash the process from a hook.
     __try {

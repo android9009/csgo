@@ -7,6 +7,7 @@
 #include "../../../sdk/skin_icon_file.hpp"
 #include "../../../sdk/skin_catalog.hpp"
 #include "../../../sdk/skin_schema.hpp"
+#include "../../../features/skins/skin_state.hpp"
 #include "../preview_bridge.hpp"
 #include "../preview_catalog.hpp"
 #include "../../../utils/log.hpp"
@@ -441,7 +442,11 @@ namespace menu::group
                 const size_t index = static_cast<size_t>(row * 3 + col);
                 const auto visible = filtered_paints();
                 if (index >= visible.size()) return;
-                if (visible[index].empty()) { selection[team_ct ? 0 : 1].erase(selected_weapon.internal); close_skins(); }
+                if (visible[index].empty()) {
+                    selection[team_ct ? 0 : 1].erase(selected_weapon.internal);
+                    SkinState::Remove(team_ct, SkinState::Definition(selected_weapon.internal));
+                    close_skins();
+                }
                 else {
                     const auto& paint = visible[index];
                     const auto& chosen = selection[team_ct ? 0 : 1];
@@ -662,6 +667,19 @@ namespace menu::group
                 if (p.x >= 165.f && p.x < 300.f) { editor_open = false; return; }
                 if (p.x >= 315.f && p.x < 460.f) {
                     selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
+                    const auto id = schema_metadata.paint_ids.find(pending.paint);
+                    const int definition = SkinState::Definition(selected_weapon.internal);
+                    if (id != schema_metadata.paint_ids.end() && definition) {
+                        SkinState::Choice choice{};
+                        choice.paint_kit = id->second; choice.seed = pending.seed; choice.wear = pending.wear;
+                        choice.stattrak = pending.stattrak ? pending.stattrak_count : -1;
+                        choice.souvenir = pending.souvenir;
+                        std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
+                        if (!SkinState::Set(team_ct, definition, choice)) LOG_WARN("skins: invalid choice for %s", selected_weapon.internal);
+                    } else {
+                        SkinState::Remove(team_ct, definition);
+                        LOG_WARN("skins: missing paint kit ID or weapon definition for %s / %s", selected_weapon.internal, pending.paint.c_str());
+                    }
                     editor_open = false;
                     close_skins();
                 }

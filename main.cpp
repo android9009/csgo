@@ -19,6 +19,7 @@
 #include "utils/memory.hpp"
 #include "hooks/hooks.hpp"
 #include "features/visuals/model_preview.hpp"
+#include "features/skins/skin_changer.hpp"
 
 namespace {
 HANDLE status_mapping{};
@@ -109,6 +110,8 @@ void ProbeModelPreview() {
 }
 void Shutdown() {
     Hooks::Restore();
+    __try { SkinChanger::Shutdown(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("skins: exception while restoring weapons at shutdown"); }
     ModelPreview::Shutdown();
     EventListener::Destroy();
     PropManager::Get().Destroy();
