@@ -85,7 +85,10 @@ public:
                 add(slot);
             }
         }
-        process_queues();pos=calc_perfect_position(pos);
+        // This popup builds children inside its own first-render callback,
+        // AFTER context::render already raised child initialization. Initialize
+        // the newly queued subtree now, before label::render dereferences fnt.
+        process_queues();raise_first_render_call();pos=calc_perfect_position(pos);
         ctx->active_popups.emplace_back(as<popup>());ctx->top_sort=sort;
     }
     void render() override {
@@ -106,8 +109,9 @@ public:
     }
 private:
     void row(const char* text,const std::shared_ptr<control>& c,float y) {
-        add(std::make_shared<label>(control_id{c->id+100},text,colors.text,false,vec2{12.f,y+3.f}));
-        c->pos={128.f,y};if(c->type!=ctrl_checkbox)c->size.x=size.x-142.f;c->margin={};add(c);
+        auto row=std::make_shared<control_container>(control_id{c->id+200},vec2{12.f,y},vec2{size.x-24.f,26.f});
+        row->add(std::make_shared<label>(control_id{c->id+100},text,colors.text,false,vec2{0.f,3.f}));
+        c->pos={116.f,0.f};if(c->type!=ctrl_checkbox)c->size.x=size.x-142.f;c->margin={};row->add(c);add(row);
     }
     void publish() {
         auto& c=values->choice;c.seed=values->seed.get();c.wear=values->wear.get();c.souvenir=values->souvenir.get();
@@ -122,4 +126,42 @@ private:
     std::shared_ptr<combo_box> mode;
     std::shared_ptr<slider<int>> count;
 };
+class CatalogPanel final : public popup {
+public:
+    CatalogPanel(control_id id,const vec2& anchor,const std::array<bool,4>& initial,std::function<void(int,bool)> changed)
+        :popup(id,anchor,{236.f,156.f},true),changed(std::move(changed)) {
+        for(size_t i=0;i<4;++i)values[i]=std::make_shared<value_param<bool>>(initial[i]);
+    }
+    void on_first_render_call() override {
+        popup::on_first_render_call();
+        std::weak_ptr<CatalogPanel> self=as<CatalogPanel>();
+        add(std::make_shared<label>(control_id{id+1},"Weapons",colors.text,false,vec2{10.f,10.f}));
+        auto close_button=std::make_shared<button>(control_id{id+2},"X",nullptr,vec2{210.f,4.f},vec2{22.f,22.f});
+        close_button->callback=[self]{if(auto p=self.lock())p->close();};add(close_button);
+        const char* names[]={"Show all skins","Show all weapons","Share to inventory","Allow weapon skins"};
+        for(int i=0;i<4;++i) {
+            auto row=std::make_shared<control_container>(control_id{id+10+static_cast<std::uint64_t>(i)},vec2{12.f,38.f+28.f*static_cast<float>(i)},vec2{212.f,24.f});
+            const auto keep=values[i];
+            auto check=std::make_shared<checkbox>(control_id{id+20+static_cast<std::uint64_t>(i)},*keep);
+            check->pos={194.f,0.f};check->margin={};
+            check->callback=[self,keep,i](bool value){if(auto p=self.lock())if(p->changed)p->changed(i,value);};
+            row->add(std::make_shared<label>(control_id{id+30+static_cast<std::uint64_t>(i)},names[i]));
+            row->add(check);add(row);
+        }
+        process_queues();raise_first_render_call();pos=calc_perfect_position(pos);
+        ctx->active_popups.emplace_back(as<popup>());ctx->top_sort=sort;
+    }
+    void render() override {
+        if(!is_visible)return;
+        begin_render();auto& d=draw.layers[ctx->content_layer];
+        d->add_shadow_rect(area_abs(),8.f,true);
+        d->add_rect_filled_rounded(area_abs(),colors.bg_block,3.f);
+        d->add_rect_rounded(area_abs(),colors.outline,3.f);
+        popup::render();
+    }
+private:
+    std::array<std::shared_ptr<value_param<bool>>,4> values;
+    std::function<void(int,bool)> changed;
+};
+
 }

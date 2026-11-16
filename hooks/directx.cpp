@@ -7,6 +7,14 @@
 bool Menu_IsOpen() { return Config::settings.show_menu; }
 
 namespace HooksInternal {
+static int LogRenderException(EXCEPTION_POINTERS* info) {
+    static bool logged=false;
+    if(!logged && info && info->ExceptionRecord) {
+        logged=true;
+        LOG_ERROR("Fatality render exception code=0x%08lX address=%p",info->ExceptionRecord->ExceptionCode,info->ExceptionRecord->ExceptionAddress);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
 long __stdcall EndScene(void* device) {
     auto* dev = static_cast<IDirect3DDevice9*>(device);
     if (!dev) return D3D_OK;
@@ -15,9 +23,7 @@ long __stdcall EndScene(void* device) {
     if (SUCCEEDED(dev->CreateStateBlock(D3DSBT_ALL, &state)) && state) state->Capture();
     __try {
         FatalityMenu::Render(dev, FindWindowA("Valve001", nullptr), Config::settings.show_menu);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        static bool logged = false;
-        if (!logged) { LOG_ERROR("Fatality render raised a structured exception"); logged = true; }
+    } __except (LogRenderException(GetExceptionInformation())) {
     }
     if (state) { state->Apply(); state->Release(); }
     auto original = Hooks::GetEndSceneOriginalFor(dev);

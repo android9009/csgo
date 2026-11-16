@@ -441,22 +441,7 @@ namespace menu::group
                 }
             }
             layer->g.clip_rect = old_clip;
-            if (catalog_settings_open) {
-                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 156.f}};
-                layer->add_rect_filled_rounded(popup, colors.bg_block_light, 3.f);
-                const rect check{popup.mins + vec2{10.f, 12.f}, popup.mins + vec2{22.f, 24.f}};
-                layer->add_rect_filled(check, show_all_paints ? colors.accent : colors.outline);
-                layer->add_text(popup.mins + vec2{32.f, 19.f}, "Show all skins", colors.text, text_params::with_v(align_center));
-                const rect weapons{popup.mins + vec2{10.f, 42.f}, popup.mins + vec2{22.f, 54.f}};
-                layer->add_rect_filled(weapons, show_all_weapons ? colors.accent : colors.outline);
-                layer->add_text(popup.mins + vec2{32.f, 49.f}, "Show all weapons", colors.text, text_params::with_v(align_center));
-                const rect share{popup.mins + vec2{10.f, 72.f}, popup.mins + vec2{22.f, 84.f}};
-                layer->add_rect_filled(share, LocalInventory::enabled.load() ? colors.accent : colors.outline);
-                layer->add_text(popup.mins + vec2{32.f, 79.f}, "Share to inventory", colors.text, text_params::with_v(align_center));
-                const rect allow{popup.mins + vec2{10.f, 102.f}, popup.mins + vec2{22.f, 114.f}};
-                layer->add_rect_filled(allow, SkinState::AllowWeaponSkins() ? colors.accent : colors.outline);
-                layer->add_text(popup.mins + vec2{32.f, 109.f}, "Allow weapon skins", colors.text, text_params::with_v(align_center));
-            }
+
         }
         void on_mouse_down(char key) override {
             const auto local = input.cursor() - area_abs().tl();
@@ -531,22 +516,7 @@ namespace menu::group
             }
             if (selected_weapon.internal) { weapon_screen_click(local); return; }
             if (local.y >= 0.f && local.y < 25.f && local.x >= size.x - 28.f) {
-                catalog_settings_open = !catalog_settings_open;
-                return;
-            }
-            if (catalog_settings_open) {
-                if (local.x >= size.x - 210.f && local.x <= size.x) {
-                    if (local.y >= 28.f && local.y < 66.f) show_all_paints = !show_all_paints;
-                    else if (local.y >= 66.f && local.y < 96.f) {show_all_weapons=!show_all_weapons;scroll=0.f;}
-                    else if (local.y >= 96.f && local.y < 126.f) {
-                        const bool share=!LocalInventory::enabled.load();
-                        if(share) publish_existing_inventory();
-                        LocalInventory::enabled.store(share);
-                    }
-                    else if (local.y >= 126.f && local.y < 156.f)
-                        SkinState::AllowWeaponSkins(!SkinState::AllowWeaponSkins());
-                }
-                catalog_settings_open = false;
+                open_catalog_settings();
                 return;
             }
             if (local.y >= 0.f && local.y < 25.f) {
@@ -727,6 +697,22 @@ namespace menu::group
             choice.souvenir = pending.souvenir;
             std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
             if (!SkinState::Set(team_ct, definition, choice)) LOG_WARN("skins: invalid choice for %s", selected_weapon.internal);
+        }
+        void open_catalog_settings() {
+            if(auto existing=catalog_options.lock()){existing->close();return;}
+            static std::uint64_t next_id=GUI_HASH("skins>catalog native settings");next_id+=512;
+            std::weak_ptr<weapon_grid> self=as<weapon_grid>();
+            auto panel=std::make_shared<SkinOptions::CatalogPanel>(control_id{next_id},area_abs().tr()+vec2{-236.f,28.f},
+                std::array<bool,4>{show_all_paints,show_all_weapons,LocalInventory::enabled.load(),SkinState::AllowWeaponSkins()},
+                [self](int option,bool value) {
+                    if(auto grid=self.lock()) {
+                        if(option==0)show_all_paints=value;
+                        else if(option==1){show_all_weapons=value;grid->scroll=0.f;}
+                        else if(option==2){if(value)grid->publish_existing_inventory();LocalInventory::enabled.store(value);}
+                        else if(option==3)SkinState::AllowWeaponSkins(value);
+                    }
+                });
+            catalog_options=panel;panel->open();
         }
         void open_native_options() {
             if(!agent_editor && !selected_weapon.internal) return;
@@ -971,7 +957,7 @@ namespace menu::group
             return columns;
         }
         std::weak_ptr<SkinOptions::Panel> native_options;
-        bool catalog_settings_open{};
+        std::weak_ptr<SkinOptions::CatalogPanel> catalog_options;
         bool team_ct{true};
         float scroll{}, skin_scroll{}, equipment_scroll{};
         Equipment last_equipment_screen{Equipment::None};
