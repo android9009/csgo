@@ -12,7 +12,7 @@ void color_picker::render()
 
 	auto &d = draw.layers[ctx->content_layer];
 	d->g.anti_alias = true;
-	if (*gradient_enabled)
+	if (gradient_setting().get())
 	{
 		const auto first = value.get();
 		const auto second = second_color().get();

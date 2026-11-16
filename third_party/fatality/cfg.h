@@ -611,6 +611,8 @@ struct cfg_t {
 				, name_color{ color::white( ) }, weapon_color{ color::white( ) }, weapon_icon_color{ color::white( ) }, box_color{ color::white( ) }, skeleton_color
 				{ color::white( ) }, history_skeleton_color{ color::white( ) }, sound_esp_color{ color::white( ) };
 			setting<bitset> health_style{ 1 << healthbar_solid }, flags;
+			setting<bool> health_gradient,armor_gradient,ammo_gradient;
+			setting<color> armor_color_2{color::white()},ammo_color_2{color::white()};
 		};
 		struct esp_t : esp_player_t {
 			std::array<esp_player_t,3> profiles{};

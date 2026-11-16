@@ -11,10 +11,10 @@ int main(){
     assert(destination.count==1 && destination.items[0].health==87);
     ClearPlayers();CopyPlayers(destination);assert(destination.count==0);
     Settings config;config.esp[Enemy].show[Enabled]=true;config.esp[Enemy].colors[BoxColor]=0xffff0000;
-    config.esp[Local].layout[VisualPreview::Health]={.25f,.5f};Publish(config);
+    config.esp[Local].layout[VisualPreview::Health]={EspDock::Right,2};Publish(config);
     auto copy=Get();assert(copy.esp[Enemy].show[Enabled]);assert(!copy.esp[Team].show[Enabled]);
-    assert(copy.esp[Local].layout[VisualPreview::Health].x==.25f);
-    assert(copy.esp[Team].layout[VisualPreview::Health].x==0.f);
+    assert(copy.esp[Local].layout[VisualPreview::Health].side==EspDock::Right);
+    assert(copy.esp[Team].layout[VisualPreview::Health].side==EspDock::Left);
     assert(!any_material.load());config.objects[0].enabled=true;config.objects[0].kind=2;Publish(config);assert(any_material.load());
     config.objects[0].enabled=false;config.players[Local].kind=1;Publish(config);assert(!any_material.load());
     config.chams_enabled=true;Publish(config);assert(any_material.load());

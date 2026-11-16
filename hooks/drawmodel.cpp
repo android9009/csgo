@@ -49,14 +49,14 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
         }
     } else return false;
     if(!choice.enabled || choice.kind<=0)return false;
-    if(choice.ignore_z && PreviewMaterial::Apply(choice.kind,choice.hidden,true)) {
+    if(choice.ignore_z && PreviewMaterial::Apply(choice.kind,choice.hidden,true,choice.secondary)) {
         original(ecx,context,state,info,bones);PreviewMaterial::Restore();
     }
-    if(!PreviewMaterial::Apply(choice.kind,choice.primary,false))return false;
+    if((choice.kind==3 || choice.kind==7) && PreviewMaterial::Apply(2,choice.primary,false)) {
+        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
+    }
+    if(!PreviewMaterial::Apply(choice.kind,choice.primary,false,choice.secondary))return false;
     original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    if((choice.kind==3 || choice.kind==4) && PreviewMaterial::Apply(3,choice.secondary,false)) {
-        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    }
     return true;
 }
 }

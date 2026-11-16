@@ -3,6 +3,7 @@
 #include "../cfg.h"
 #include "../../../sdk/world_esp_state.hpp"
 #include <cstdio>
+#include "../../../sdk/weapon_glyph.hpp"
 namespace WorldEspOverlay {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -30,14 +31,12 @@ inline void Render() {
         const vec2 p{x*screen.x,y*screen.y};const auto c=color{options.colors[item.category]};
         float row=0.f;
         if(options.icons[item.category]) {
-            // Lightweight vector markers remain readable without font fallbacks.
-            if(item.category==WorldEsp::Weapon) {
-                d->add_line(p-vec2{12.f,4.f},p+vec2{12.f,-4.f},c,3.f);
-                d->add_line(p,p+vec2{3.f,6.f},c,3.f);
-            } else if(item.category==WorldEsp::Grenade) {
-                d->add_circle(p,5.f,c,16);d->add_line(p-vec2{2.f,6.f},p+vec2{3.f,-6.f},c,2.f);
-            } else d->add_rect({p-vec2{8.f,5.f},p+vec2{8.f,5.f}},c);
-            row=9.f;
+            const auto glyph=WeaponGlyph::Get(item.label);
+            if(glyph[0]){
+                d->font=draw.fonts[GUI_HASH("weapon_icons")];text(p,glyph,c);
+                d->font=draw.fonts[GUI_HASH("gui_main")];
+            }
+            row=18.f;
         }
         if(item.category!=WorldEsp::C4 || !item.planted || options.icons[WorldEsp::C4]) {
             text(p+vec2{0.f,row},item.label,c);row+=13.f;

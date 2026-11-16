@@ -15,13 +15,29 @@ bool CBaseEntity::IsPlayer() const {
     return std::strstr(cls->m_pNetworkName, "Player") != nullptr;
 }
 ClientClass* CBaseEntity::GetClientClass() {
-    using Fn = ClientClass* (__thiscall*)(void*);
-    // IClientNetworkable is the third x86 base interface (+8), not the
-    // entity's IClientUnknown vtable (whose slot 2 is a different method).
-    auto* networkable = reinterpret_cast<unsigned char*>(this) + 8;
-    auto fn = MEM::GetVFunc<Fn>(networkable, 2);
-    return fn ? fn(networkable) : nullptr;
+    // Pinned Source 1 client class getters are `mov eax, &ClientClass; ret`.
+    // Resolve this read-only getter instead of invoking arbitrary virtual code
+    // while scanning non-player entity slots. Fail closed on another ABI.
+    __try {
+        static const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+        const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+        const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS*>(base+dos->e_lfanew);
+        const auto end=base+nt->OptionalHeader.SizeOfImage;
+        auto** table=*reinterpret_cast<unsigned char***>(reinterpret_cast<unsigned char*>(this)+8);
+        auto* code=table[2];
+        for(int jump=0;jump<2 && code && code[0]==0xe9;++jump)code+=5+*reinterpret_cast<std::int32_t*>(code+1);
+        const auto address=reinterpret_cast<std::uintptr_t>(code);
+        if(address<base || address+6>end || code[0]!=0xb8 || code[5]!=0xc3)return nullptr;
+        auto* cls=*reinterpret_cast<ClientClass**>(code+1);
+        const auto value=reinterpret_cast<std::uintptr_t>(cls);
+        if(value<base || value+sizeof(ClientClass)>end || (value&3u))return nullptr;
+        const auto name=reinterpret_cast<std::uintptr_t>(cls->m_pNetworkName);
+        if(name<base || name+128>end)return nullptr;
+        for(int i=0;i<128;++i)if(!cls->m_pNetworkName[i])return cls;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    return nullptr;
 }
+
 int CBaseEntity::GetIndex() const {
     if (!Interfaces::EntityList) return -1;
     const int highest = Interfaces::EntityList->GetHighestEntityIndex();

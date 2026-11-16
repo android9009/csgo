@@ -26,6 +26,8 @@ namespace evo::gui
 		value_param<ren::color> &value;
 		value_param<ren::color> *gradient_color{};
 		value_param<bool> gradient_enabled{};
+		value_param<bool>* gradient_state{};
+		value_param<bool>& gradient_setting(){return gradient_state ? *gradient_state : gradient_enabled;}
 		value_param<ren::color> gradient_secondary;
 		value_param<ren::color> &second_color() { return gradient_color ? *gradient_color : gradient_secondary; }
 

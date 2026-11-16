@@ -37,6 +37,8 @@ void CaptureImpl() {
     static const auto defuser=net.GetOffset("DT_PlantedC4","m_hBombDefuser");
     const auto now=GetTickCount();
     if(now>=next_scan || options.enabled!=previous.enabled) {
+        const bool trace=options.enabled!=previous.enabled;
+        if(trace)LOG_INFO("world ESP: category scan activated weapon=%d grenade=%d c4=%d",options.enabled[0],options.enabled[1],options.enabled[2]);
         cached.count=0;next_scan=now+100;previous=options;
         const int highest=(std::min)(Interfaces::EntityList->GetHighestEntityIndex(),4096);
         for(int i=1;i<=highest && cached.count<cached.items.size();++i) {
@@ -68,6 +70,7 @@ void CaptureImpl() {
             }
             cached.items[cached.count++]=item;
         }
+        if(trace)LOG_INFO("world ESP: read-only class scan complete highest=%d labels=%u",highest,static_cast<unsigned>(cached.count));
     }
     // A single view-matrix read per rendered frame; no matrix/entity access in GUI.
     const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));

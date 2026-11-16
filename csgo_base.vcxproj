@@ -251,6 +251,7 @@
     <ClInclude Include="third_party\fatality\resources\icon_up.h" />
     <ClInclude Include="third_party\fatality\resources\icon_visuals.h" />
     <ClInclude Include="third_party\fatality\resources\josefin_sans.h" />
+    <ClInclude Include="third_party\fatality\resources\weapon_icons.h" />
     <ClInclude Include="third_party\fatality\resources\josefin_sans_bold.h" />
     <ClInclude Include="third_party\fatality\resources\loading.h" />
     <ClInclude Include="third_party\fatality\resources\logo_head.h" />
@@ -343,8 +344,12 @@
     <ClInclude Include="sdk\preview_framing.hpp" />
     <ClInclude Include="sdk\preview_subject.hpp" />
     <ClInclude Include="features\visuals\preview_material.hpp" />
+    <ClInclude Include="features\visuals\fatality_material_definitions.hpp" />
+    <ClInclude Include="features\visuals\fatality_material_factory.hpp" />
     <ClInclude Include="sdk\world_esp_state.hpp" />
     <ClInclude Include="sdk\visual_preview_state.hpp" />
+    <ClInclude Include="sdk\weapon_glyph.hpp" />
+    <ClInclude Include="sdk\esp_docking.hpp" />
     <ClInclude Include="sdk\visual_runtime_state.hpp" />
     <ClInclude Include="sdk\skin_icon_path.hpp" />
     <ClInclude Include="sdk\skin_icon_file.hpp" />
@@ -367,6 +372,7 @@
     <ClInclude Include="third_party\fatality\extra\skin_options_popup.hpp" />
     <ClInclude Include="third_party\fatality\extra\world_esp_overlay.hpp" />
     <ClInclude Include="third_party\fatality\extra\esp_preview.hpp" />
+    <ClInclude Include="third_party\fatality\extra\esp_drawing.hpp" />
     <ClInclude Include="third_party\fatality\extra\player_esp_overlay.hpp" />
     <ClInclude Include="third_party\fatality\extra\visual_runtime.hpp" />
     <ClInclude Include="sdk\structs.hpp" />

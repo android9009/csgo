@@ -5,7 +5,7 @@
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
-inline std::array<VisualPreview::Layout,3> layouts{};
+inline std::array<VisualPreview::Layout,3> layouts{EspDock::Defaults(),EspDock::Defaults(),EspDock::Defaults()};
 inline void SyncProfile() {
     auto& esp=cfg.visuals.esp;
     const int selected=std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2);
@@ -21,6 +21,8 @@ inline VisualRuntime::Esp ReadEsp(cfg_t::visuals_t::esp_player_t& e,int subject)
     VisualRuntime::Esp s;
     s.show={e.enabled.get(),e.box.get(),e.skeleton.get(),e.history_skeleton.get(),e.name.get(),e.health.get(),e.armor.get(),e.ammo.get(),e.weapon.get(),e.weapon_icon.get(),e.sound_esp.get()};
     s.colors={e.box_color.get().rgba(),e.skeleton_color.get().rgba(),e.history_skeleton_color.get().rgba(),e.name_color.get().rgba(),e.health_color_1.get().rgba(),e.health_color_2.get().rgba(),e.armor_color.get().rgba(),e.ammo_color.get().rgba(),e.weapon_color.get().rgba(),e.weapon_icon_color.get().rgba(),e.sound_esp_color.get().rgba()};
+    s.gradient={e.health_gradient.get(),e.armor_gradient.get(),e.ammo_gradient.get()};
+    s.gradient_end={e.health_color_2.get().rgba(),e.armor_color_2.get().rgba(),e.ammo_color_2.get().rgba()};
     s.flags=static_cast<std::uint64_t>(e.flags.get());s.layout=subject==cfg.visuals.esp.active_profile ? VisualPreview::GetLayout() : layouts[subject];return s;
 }
 template<class T> inline VisualRuntime::Material Material(T& c) {

@@ -563,6 +563,9 @@
     <ClInclude Include="third_party\fatality\extra\esp_preview.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\esp_drawing.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
     <ClInclude Include="third_party\fatality\extra\player_esp_overlay.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
@@ -590,10 +593,22 @@
     <ClInclude Include="features\visuals\preview_material.hpp">
       <Filter>Features</Filter>
     </ClInclude>
+    <ClInclude Include="features\visuals\fatality_material_definitions.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\fatality_material_factory.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\world_esp_state.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_preview_state.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\weapon_glyph.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\esp_docking.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_runtime_state.hpp">
@@ -804,6 +819,9 @@
       <Filter>Menu (Fatality)\Resources</Filter>
     </ClInclude>
     <ClInclude Include="third_party\fatality\resources\josefin_sans.h">
+      <Filter>Menu (Fatality)\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\resources\weapon_icons.h">
       <Filter>Menu (Fatality)\Resources</Filter>
     </ClInclude>
     <ClInclude Include="third_party\fatality\resources\josefin_sans_bold.h">

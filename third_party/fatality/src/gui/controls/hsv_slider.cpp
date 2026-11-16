@@ -249,6 +249,10 @@ void hsv_slider::enable_gradient(value_param<ren::color> &second)
 	mix_right_hue = second->h();
 	mix_positions[0] = find_mix_position(value.get());
 	mix_positions[1] = find_mix_position(second.get());
+    if((mix_positions[0]-mix_positions[1]).len() < .06f) {
+        // Identical stops still need two independently selectable handles.
+        mix_positions[1].x=std::clamp(mix_positions[0].x>.5f ? mix_positions[0].x-.12f : mix_positions[0].x+.12f,0.f,1.f);
+    }
 }
 
 void hsv_slider::disable_gradient()

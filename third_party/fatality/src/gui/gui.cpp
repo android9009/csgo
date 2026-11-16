@@ -5,6 +5,7 @@
 
 #include <resources/josefin_sans.h>
 #include <resources/josefin_sans_bold.h>
+#include <resources/weapon_icons.h>
 
 GUI_NAMESPACE;
 
@@ -63,6 +64,9 @@ context::context(float text_size)
         "c+=(tex2D(s0,uv+d)+tex2D(s0,uv-d)+tex2D(s0,uv+float2(d.x,-d.y))"
         "+tex2D(s0,uv+float2(-d.x,d.y)))*0.0625; c.a*=alpha; return c; }", shader_frag);
 
+    draw.fonts[GUI_HASH("weapon_icons")]=std::make_shared<font>(fatality_weapon_icons,sizeof(fatality_weapon_icons),18.f,font_flag_anti_alias,32,127);
+    draw.shaders[GUI_HASH("preview_silhouette")]=std::make_shared<shader>(
+        "sampler s0; float4 main(float2 uv:TEXCOORD0,float4 col:COLOR0):COLOR0 { return float4(col.rgb,tex2D(s0,uv).a*col.a); }",shader_frag);
 	accent_prev = colors.accent;
 }
 

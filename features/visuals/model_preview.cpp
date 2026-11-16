@@ -14,6 +14,7 @@
 #include "../../sdk/entity/entity.hpp"
 #include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/detourhook.hpp"
 #include <windows.h>
 #include <d3d9.h>
 #include <cmath>
@@ -71,11 +72,45 @@ struct RenderState {
 };
 RenderState active{};
 constexpr int width = 235, height = 370;
+// Observe only the synchronous preview draw; never retain engine bone pointers.
+// IStudioRender::DrawModel slot/signature and DrawModelInfo prefix match the
+// supplied Fatality IStudioRender.h / IVModelRender.h declarations.
+VMT_Hook studio_observer;
+thread_local const ViewSetup* capture_view{};
+thread_local VisualPreview::Geometry* capture_geometry{};
+struct StudioInfoPrefix {studiohdr_t* hdr;};
+using StudioDrawFn=void(__thiscall*)(void*,void*,const StudioInfoPrefix&,matrix3x4_t*,float*,float*,const Vector&,int);
+bool ProjectPreviewPoint(const ViewSetup& view,const Vector& point,VisualPreview::Point& out){
+    constexpr float radians=.01745329252f;
+    const float pitch=view.angles.x*radians,tangent=std::tan(view.fov*radians*.5f);
+    const auto delta=point-view.origin;const float depth=delta.x*std::cos(pitch)-delta.z*std::sin(pitch);
+    if(depth<=view.near_z)return false;
+    out.x=.5f-delta.y/(2.f*depth*tangent);
+    out.y=.5f-(delta.x*std::sin(pitch)+delta.z*std::cos(pitch))*(static_cast<float>(view.width)/view.height)/(2.f*depth*tangent);
+    return std::isfinite(out.x) && std::isfinite(out.y);
+}
+void ObserveBones(const StudioInfoPrefix& info,matrix3x4_t* matrices){
+    if(!capture_view || !capture_geometry || !matrices || !info.hdr || capture_geometry->segments)return;
+    auto* hdr=info.hdr;
+    if(hdr->bones<20 || hdr->bones>256 || !std::strstr(hdr->name,"player") || std::strstr(hdr->name,"animset"))return;
+    for(int i=0;i<hdr->bones && capture_geometry->segments<64;++i){
+        const auto* bone=hdr->bone(i);if(!bone || !(bone->flags&0x100) || bone->parent<0 || bone->parent>=hdr->bones)continue;
+        VisualPreview::Segment line;
+        if(ProjectPreviewPoint(*capture_view,matrices[i].GetOrigin(),line.a) && ProjectPreviewPoint(*capture_view,matrices[bone->parent].GetOrigin(),line.b))capture_geometry->skeleton[capture_geometry->segments++]=line;
+    }
+    static bool logged=false;if(!logged && capture_geometry->segments){logged=true;LOG_INFO("preview skeleton: captured actual studio draw bones segments=%d",capture_geometry->segments);}
+}
+void __fastcall ObserveStudioDraw(void* self,void*,void* result,const StudioInfoPrefix& info,matrix3x4_t* matrices,float* flex,float* delayed,const Vector& origin,int flags){
+    __try{ObserveBones(info,matrices);}__except(EXCEPTION_EXECUTE_HANDLER){}
+    if(auto original=studio_observer.get_original<StudioDrawFn>())original(self,result,info,matrices,flex,delayed,origin,flags);
+}
+
 
 // Restore only state whose corresponding push/bind completed successfully.
 // A second engine exception is contained; preview stays disabled afterwards.
 void RestoreAfterFault() {
     __try {
+        capture_view=nullptr;capture_geometry=nullptr;
         PreviewMaterial::Restore();
         if (editor_allocation_begun && Interfaces::MaterialSystem)
             Slot<void(__thiscall*)(void*)>(Interfaces::MaterialSystem, 95)(Interfaces::MaterialSystem);
@@ -107,6 +142,7 @@ bool Initialize() {
     auto* alloc = Interfaces::MemAlloc;
     if (!ms || !Interfaces::RenderView || !Interfaces::StudioRender || !Interfaces::ModelRender || !alloc || !Resolve()) return false;
     // Fatality's Source 1 material system uses this flag to temporarily allow target allocation.
+    if(!studio_observer.is_hooked())LOG_INFO("preview skeleton observer attached=%d",studio_observer.attach(Interfaces::StudioRender,29,reinterpret_cast<void*>(&ObserveStudioDraw)));
     phase = "read material allocation flag";
     auto* allocation_disabled = reinterpret_cast<bool*>(reinterpret_cast<std::uintptr_t>(ms) + 0x9ec);
     const bool old = *allocation_disabled;
@@ -266,8 +302,8 @@ void DrawTarget(void* target, bool weapon_only) {
         view.fov = 12.f; view.origin = Vector{-distance, 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 2000.f;
     } else {
-        view.fov = 12.f; view.origin = Vector{-FatalityPreviewBridge::distance.load(std::memory_order_relaxed), 0.f, 55.f};
-        view.angles = QAngle{2.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
+        view.fov = 12.f; view.origin = Vector{-390.f, -6.f, 40.f};
+        view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
     }
     view.flags = 4; // bloom and tone mapping, as in Fatality
     auto* rv = reinterpret_cast<RenderViewABI*>(Interfaces::RenderView);
@@ -304,8 +340,8 @@ void DrawTarget(void* target, bool weapon_only) {
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
         matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;
     }
+    VisualPreview::Geometry projected{};
     if (!weapon_only && !fit_agent) {
-        VisualPreview::Geometry projected{};
         projected.box = {1.f,1.f,0.f,0.f};
         constexpr float radians = 0.01745329252f;
         const float pitch_angle=view.angles.x*radians;
@@ -313,9 +349,7 @@ void DrawTarget(void* target, bool weapon_only) {
         const float aspect=static_cast<float>(view.width)/view.height;
         bool valid=true;
         for(int corner=0;corner<8;++corner) {
-            Vector p{corner&1 ? agent_max.x : agent_min.x,corner&2 ? agent_max.y : agent_min.y,corner&4 ? agent_max.z : agent_min.z};
-            Vector world{};
-            for(int axis=0;axis<3;++axis)world[axis]=matrix[axis][0]*p.x+matrix[axis][1]*p.y+matrix[axis][2]*p.z+matrix[axis][3];
+            Vector world{corner&1 ? 16.f : -16.f,corner&2 ? 16.f : -16.f,corner&4 ? 72.f : 0.f};
             const auto delta=world-view.origin;
             const float depth=delta.x*std::cos(pitch_angle)-delta.z*std::sin(pitch_angle);
             if(depth<=view.near_z){valid=false;break;}
@@ -325,7 +359,7 @@ void DrawTarget(void* target, bool weapon_only) {
             projected.box.top=(std::min)(projected.box.top,y);projected.box.bottom=(std::max)(projected.box.bottom,y);
         }
         projected.valid=valid;
-        VisualPreview::SetGeometry(projected);
+        capture_view=&view;capture_geometry=&projected;
     }
     // Intentionally frozen: no weapon-dependent pose or idle/intro playback.
     auto* mr = Interfaces::ModelRender;
@@ -338,15 +372,14 @@ void DrawTarget(void* target, bool weapon_only) {
         phase = "apply preview chams";
         // The preview has no occluder: hidden pass is intentionally not painted
         // over the visible color. Ignore-Z remains a game-space option.
-        PreviewMaterial::Apply(appearance.kind, appearance.primary);
-        static_cast<MergedModel*>(model)->Draw(matrix);
-        PreviewMaterial::Restore();
-        if (appearance.kind == 3 || appearance.kind == 4) {
-            PreviewMaterial::Apply(3, appearance.secondary);
-            static_cast<MergedModel*>(model)->Draw(matrix);
-            PreviewMaterial::Restore();
+        if(appearance.kind==3 || appearance.kind==7) {
+            PreviewMaterial::Apply(2,appearance.primary);
+            static_cast<MergedModel*>(model)->Draw(matrix);PreviewMaterial::Restore();
         }
+        PreviewMaterial::Apply(appearance.kind,appearance.primary,false,appearance.secondary);
+        static_cast<MergedModel*>(model)->Draw(matrix);PreviewMaterial::Restore();
     } else static_cast<MergedModel*>(model)->Draw(matrix);
+    if(!weapon_only && !fit_agent){capture_view=nullptr;capture_geometry=nullptr;VisualPreview::SetGeometry(projected);}
     phase = "restore engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, false);
     active.lighting_suppressed = false;
@@ -437,13 +470,14 @@ void PaintImpl() {
     static bool drawn_skins{};
     static float drawn_aspect{};
     static VisualPreview::Material drawn_material{};
+    static DWORD last_draw{};
     const float yaw=FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
     const float aspect=FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed);
     const auto material=VisualPreview::GetMaterial();
     if(!redraw_preview && drawn_model==model && drawn_yaw==yaw && drawn_skins==skins &&
-       (!skins || drawn_aspect==aspect) && drawn_material==material && FatalityPreviewBridge::texture.load(std::memory_order_acquire))return;
+       (!skins || drawn_aspect==aspect) && drawn_material==material && !(material.enabled && material.kind==5 && GetTickCount()-last_draw>=33) && FatalityPreviewBridge::texture.load(std::memory_order_acquire))return;
     DrawTarget(render_texture, false);
-    drawn_model=model;drawn_yaw=yaw;drawn_skins=skins;drawn_aspect=aspect;drawn_material=material;redraw_preview=false;
+    drawn_model=model;drawn_yaw=yaw;drawn_skins=skins;drawn_aspect=aspect;drawn_material=material;last_draw=GetTickCount();redraw_preview=false;
 }
 // Experimental read-only bridge: reuse an existing game's generated material owner.
 // No synthetic CEconItemView, no generated-material calls, no live inventory mutation.
@@ -619,6 +653,7 @@ void BeforeReset() {
     FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
 }
 void Shutdown() {
+    studio_observer.detach();
     VisualPreview::SetGeometry({});
     redraw_preview=true;
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);

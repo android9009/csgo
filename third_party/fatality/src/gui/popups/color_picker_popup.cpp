@@ -16,7 +16,7 @@ void color_picker_popup::on_first_render_call()
 
 	// create hsv picker
 	const auto p = std::make_shared<hsv_slider>(control_id{GUI_HASH("cpp_hsv")}, picker->value, picker->allow_alpha);
-	if (*picker->gradient_enabled)
+	if (picker->gradient_setting().get())
 		p->enable_gradient(picker->second_color());
 	p->pos = {8.f, 8.f};
 	p->callback = picker->callback;
@@ -81,7 +81,7 @@ void color_picker_popup::on_first_render_call()
 	add(txt);
 
 	const float gradient_y = picker->allow_alpha ? 237.f : 197.f;
-	const auto gradient = std::make_shared<checkbox>(control_id{GUI_HASH("cpp_gradient")}, picker->gradient_enabled, vec2{8.f, gradient_y});
+	const auto gradient = std::make_shared<checkbox>(control_id{GUI_HASH("cpp_gradient")}, picker->gradient_setting(), vec2{0.f, 0.f});
 	gradient->callback = [this, p, txt](bool enabled) {
 		if (enabled) p->enable_gradient(picker->second_color());
 		else p->disable_gradient();
@@ -91,8 +91,12 @@ void color_picker_popup::on_first_render_call()
 		txt->move_caret_to_end();
 		txt->callback = old;
 	};
-	add(gradient);
-	add(std::make_shared<label>(control_id{GUI_HASH("cpp_gradient_label")}, "Gradient", colors.text, false, vec2{26.f, gradient_y - 2.f}));
+	gradient->margin={};gradient->reset_internal();
+	auto gradient_row=std::make_shared<control_container>(control_id{id+80},vec2{8.f,gradient_y},vec2{196.f,16.f});
+	gradient_row->add(gradient);
+	gradient_row->add(std::make_shared<label>(control_id{GUI_HASH("cpp_gradient_label")},"Gradient",colors.text,false,vec2{18.f,1.f}));
+	add(gradient_row);
+	process_queues();raise_first_render_call();
 
 	ctx->top_sort = sort;
 	ctx->active_popups.emplace_back(as<popup>());

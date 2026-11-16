@@ -47,6 +47,18 @@ namespace menu::group
 			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
 			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
 				layer->g.texture = texture;
+                if(chams_preview && cfg.visuals.esp.glow.enabled.get()) {
+                    const int subject=std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2);
+                    auto& glow=cfg.visuals.esp.glow;
+                    const bool enabled=subject==0 ? glow.enemy.get() : subject==1 ? glow.team.get() : glow.local.get();
+                    const auto c=subject==0 ? glow.enemy_color.get() : subject==1 ? glow.team_color.get() : glow.local_color.get();
+                    if(enabled) {
+                        const auto previous=layer->g.frag_shader;layer->g.frag_shader=draw.shaders[GUI_HASH("preview_silhouette")]->obj;
+                        for(const auto& offset:std::array<vec2,8>{vec2{-2.f,0.f},{2.f,0.f},{0.f,-2.f},{0.f,2.f},{-2.f,-2.f},{2.f,-2.f},{-2.f,2.f},{2.f,2.f}})
+                            layer->add_rect_filled(area_abs().translate(offset),c.mod_a(.32f));
+                        layer->g.frag_shader=previous;
+                    }
+                }
 				layer->add_rect_filled(area_abs(), color::white());
 				layer->g.texture = {};
 				if(!skins_preview && !chams_preview)overlay.render(layer,area_abs());
@@ -257,16 +269,23 @@ namespace menu::group
 		{
 			const auto picker = MAKE("visuals>esp>player>health>color 1", color_picker, cfg.visuals.esp.health_color_1, false);
 			picker->gradient_color = &cfg.visuals.esp.health_color_2;
+			picker->gradient_state = &cfg.visuals.esp.health_gradient;
 			ADD_INLINE("Health", MAKE("visuals>esp>player>health", checkbox, cfg.visuals.esp.health), picker);
 		}
 
 
-		ADD_INLINE(
-			"Armor", MAKE("visuals>esp>player>armor", checkbox, cfg.visuals.esp.armor),
-			MAKE("visuals>esp>player>armor>color", color_picker, cfg.visuals.esp.armor_color, false));
-		ADD_INLINE(
-			"Ammo", MAKE("visuals>esp>player>ammo", checkbox, cfg.visuals.esp.ammo),
-			MAKE("visuals>esp>player>ammo>color", color_picker, cfg.visuals.esp.ammo_color, false));
+		for(int index=0;index<2;++index) {
+            auto& color=index==0 ? cfg.visuals.esp.armor_color : cfg.visuals.esp.ammo_color;
+            auto& end=index==0 ? cfg.visuals.esp.armor_color_2 : cfg.visuals.esp.ammo_color_2;
+            auto& enabled=index==0 ? cfg.visuals.esp.armor : cfg.visuals.esp.ammo;
+            auto& gradient=index==0 ? cfg.visuals.esp.armor_gradient : cfg.visuals.esp.ammo_gradient;
+            const std::string key=index==0 ? "visuals>esp>player>armor" : "visuals>esp>player>ammo";
+            auto picker=MAKE_RUNTIME(key+">color",color_picker,color,false);picker->gradient_color=&end;picker->gradient_state=&gradient;
+            e->add(make_inlined(hash(key+">row"),[&](std::shared_ptr<layout>& row){
+                row->add(std::make_shared<label>(control_id{hash(key+">label")},index==0 ? "Armor" : "Ammo"));
+                row->add(MAKE_RUNTIME(key,checkbox,enabled));row->add(picker);
+            }));
+        }
 
 
 

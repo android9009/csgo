@@ -12,8 +12,9 @@ enum Tint { BoxColor,SkeletonColor,HistoryColor,NameColor,HealthColor,HealthEnd,
 struct Esp {
     std::array<bool,ToggleCount> show{};
     std::array<std::uint32_t,TintCount> colors{};
+    std::array<bool,3> gradient{};std::array<std::uint32_t,3> gradient_end{};
     std::uint64_t flags{};
-    VisualPreview::Layout layout{};
+    VisualPreview::Layout layout=EspDock::Defaults();
 };
 struct Highlight {bool enabled{};std::uint32_t color{0xffffffff};};
 struct Effects {
