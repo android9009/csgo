@@ -27,11 +27,14 @@ struct Item {
 static_assert(sizeof(void*) == 4, "Legacy CS:GO inventory requires Win32");
 static_assert(offsetof(Item,id)==8 && offsetof(Item,definition)==36 && offsetof(Item,flags)==48);
 struct Owner { std::uint64_t id; std::uint32_t type, padding; };
-struct Owned { Item* item; std::uint64_t id; SkinState::Choice choice; };
+struct Request { SkinState::Choice finish; int music{}; };
+struct Owned { Item* item; std::uint64_t id; Request request; };
 using Key=std::pair<int,int>; // CT/T and definition, independent selections
 std::map<Key,Owned> owned;
-std::atomic<bool> closing{false}, cleanup_complete{false};
-std::atomic<DWORD> game_thread{0};
+std::mutex loadout_mutex;
+Loadout loadouts[2];
+DWORD last_loadout{};
+
 void* inventory{};
 void* cache{};
 std::uint64_t owner_id{};
@@ -45,6 +48,32 @@ void (__thiscall* set_name)(Item*,const char*){};
 void* (__cdecl* item_system)(){};
 template<class T> T& At(void* p,std::size_t offset) {return *reinterpret_cast<T*>(static_cast<unsigned char*>(p)+offset);}
 template<class F> F Slot(void* p,std::size_t slot) {return MEM::GetVFunc<F>(p,slot);}
+void ReadLoadout(void* current) {
+    if(GetTickCount()-last_loadout<250) return;
+    last_loadout=GetTickCount();
+    Loadout next[2];
+    const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    // Inspected CCSPlayerInventory primary vtable, slot 8 = RVA 0x6cc240.
+    if(current && reinterpret_cast<std::uintptr_t>(Slot<void*>(current,8))==base+0x6cc240) {
+        for(int team=0;team<2;++team) {
+            for(int slot=2;slot<=38;++slot) {
+                auto* view=Slot<void*(__thiscall*)(void*,int,int)>(current,8)(current,team==0?3:2,slot);
+                if(!view) continue;
+                // RVA 0x715880 reads the definition at view+0x1ea in this client.
+                const int definition=At<std::uint16_t>(view,0x1ea);
+                if(definition>0 && definition<100) next[team].definitions.insert(definition);
+            }
+            next[team].ready=!next[team].definitions.empty();
+        }
+    }
+    std::lock_guard<std::mutex> lock(loadout_mutex);
+    if(loadouts[0].definitions!=next[0].definitions || loadouts[1].definitions!=next[1].definitions)
+        LOG_INFO("local inventory: loadout CT=%zu T=%zu",next[0].definitions.size(),next[1].definitions.size());
+    loadouts[0]=std::move(next[0]);loadouts[1]=std::move(next[1]);
+}
+
+std::atomic<bool> closing{false}, cleanup_complete{false};
+std::atomic<DWORD> game_thread{0};
 std::uintptr_t Relative(std::uintptr_t call) {
     return call ? call+5+At<std::int32_t>(reinterpret_cast<void*>(call),1) : 0;
 }
@@ -93,7 +122,15 @@ void Remove(const Owned& value) {
     Slot<void(__thiscall*)(void*,Item*)>(cache,3)(cache,value.item);
     Slot<void(__thiscall*)(Item*,bool)>(value.item,0)(value.item,true);
 }
-bool Attributes(Item* item,void* schema,const SkinState::Choice& choice) {
+bool Attributes(Item* item,void* schema,const Request& request) {
+    const auto& choice=request.finish;
+    if(request.music) {
+        auto* def=Slot<void*(__thiscall*)(void*,int)>(schema,27)(schema,166);
+        if(!def) return false;
+        int music=request.music;attribute(item,def,&music);return true;
+    }
+    // Agents and medals are definitions, not paint kits.
+    if(!choice.paint_kit && !EquipmentState::Find(item->definition)) return true;
     const int ids[]={6,7,8,80,81};
     void* defs[5]{};
     for(int i=0;i<5;++i) {
@@ -111,9 +148,10 @@ bool Attributes(Item* item,void* schema,const SkinState::Choice& choice) {
 }
 void Run() {
     if(closing.load() && owned.empty()) {cleanup_complete.store(true);return;}
-    if(stopped || (!enabled.load() && owned.empty()) || !Resolve()) return;
+    if(stopped || !Resolve()) return;
     auto* current=Slot<void*(__thiscall*)(void*)>(manager,23)(manager);
-    if(!current) return;
+    ReadLoadout(current);
+    if(!current || (!enabled.load() && owned.empty())) return;
     auto* soc=At<void*>(current,0xb4);
     if(!soc) return;
     auto* type_cache=create_cache(soc,1);
@@ -123,21 +161,24 @@ void Run() {
         // pointers after replacement; it may already have destroyed the objects.
         owned.clear();inventory=current;cache=type_cache;owner_id=At<std::uint64_t>(current,8);
     }
-    std::map<Key,SkinState::Choice> desired;
+    std::map<Key,Request> desired;
     if(enabled.load() && !closing.load()) {
         {
             std::lock_guard<std::mutex> lock(SkinState::mutex);
-            for(int team=0;team<2;++team) for(const auto& pair:SkinState::teams[team]) desired[{team,pair.first}]=pair.second;
+            for(int team=0;team<2;++team) for(const auto& pair:SkinState::teams[team]) desired[{team,pair.first}]={pair.second,0};
         }
         for(int team=0;team<2;++team) {
             const auto equipment=EquipmentState::Get(team==0);
+            if(equipment.inventory_agent) desired[{team,equipment.inventory_agent}]={};
+            if(equipment.inventory_medal) desired[{team,equipment.inventory_medal}]={};
+            if(equipment.inventory_music) desired[{team,1314}]={{},equipment.inventory_music};
             for(const auto& selection:{equipment.knife,equipment.gloves})
-                if(selection.definition) desired[{team,selection.definition}]=selection.finish;
+                if(selection.definition) desired[{team,selection.definition}]={selection.finish,0};
         }
     }
     for(auto it=owned.begin();it!=owned.end();) {
         const auto wanted=desired.find(it->first);
-        if(wanted==desired.end() || !SkinState::Equal(wanted->second,it->second.choice) || !Present(it->second)) {
+        if(wanted==desired.end() || (!SkinState::Equal(wanted->second.finish,it->second.request.finish) || wanted->second.music!=it->second.request.music) || !Present(it->second)) {
             Remove(it->second);it=owned.erase(it);
         } else ++it;
     }
@@ -160,25 +201,29 @@ void Run() {
         if(!ids.Next(id,position)) return;
         auto* item=create_item();
         if(!item) return;
-        const auto& choice=pair.second;
+        const auto& choice=pair.second.finish;
         item->id=id;item->original=0;item->account=At<std::uint32_t>(inventory,8);item->position=position;
         item->definition=static_cast<std::uint16_t>(pair.first.second);
         const unsigned quality=choice.souvenir?12u:choice.stattrak>=0?9u:EquipmentState::Knife(pair.first.second)?3u:4u;
         item->properties=static_cast<std::uint16_t>(8u | (quality<<5));
         item->flags=0;
-        if(!Attributes(item,schema,choice)) {Slot<void(__thiscall*)(Item*,bool)>(item,0)(item,true);return;}
+        if(!Attributes(item,schema,pair.second)) {Slot<void(__thiscall*)(Item*,bool)>(item,0)(item,true);return;}
         Slot<void(__thiscall*)(void*,Item*)>(cache,1)(cache,item);
-        const Owned candidate{item,item->id,choice};
+        const Owned candidate{item,item->id,pair.second};
         if(!Present(candidate)) {
             Slot<void(__thiscall*)(Item*,bool)>(item,0)(item,true);
             LOG_WARN("local inventory: cache rejected local item");
             return;
         }
-        owned.emplace(pair.first,Owned{item,item->id,choice});
+        owned.emplace(pair.first,Owned{item,item->id,pair.second});
         Notify(0,item);
         LOG_INFO("local inventory: added local item=%llu definition=%d paint=%d",static_cast<unsigned long long>(item->id),pair.first.second,choice.paint_kit);
     }
 }
+}
+Loadout GetLoadout(bool ct) {
+    std::lock_guard<std::mutex> lock(loadout_mutex);
+    return loadouts[ct?0:1];
 }
 void Frame() {
     game_thread.store(GetCurrentThreadId());

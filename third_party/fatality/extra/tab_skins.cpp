@@ -112,12 +112,9 @@ namespace menu::group
             std::string path;
             if (!paint.empty()) {
                 path=find_finish_icon(item,paint);
-                if (path.empty()) {
-                    for (const auto& pair : EquipmentPaints::entries) if (pair.paint == paint) {
-                        path=find_finish_icon(std::string(pair.item),paint);
-                        if (!path.empty()) break;
-                    }
-                }
+                // Never substitute another weapon's image for a foreign paint.
+                // Without a generated icon for this pair, keep the selected model.
+                if(path.empty()) path=SkinIconPath::Base(item);
             }
             else {
                 path=SkinIconPath::Base(item);
@@ -138,10 +135,11 @@ namespace menu::group
     }
     SkinCatalog::Catalog catalog;
     SkinSchema::Metadata schema_metadata;
+    SkinSchema::InventoryMetadata inventory_metadata;
     const char* filter_labels[] = {"All", "Name A-Z", "Name Z-A", "Consumer", "Industrial", "Mil-Spec", "Restricted", "Classified", "Covert", "Contraband", "Unknown"};
     const char* filter_rarity[] = {"", "", "", "common", "uncommon", "rare", "mythical", "legendary", "ancient", "immortal", "?"};
     bool catalog_loaded{};
-    bool show_all_paints{};
+    bool show_all_paints{}, show_all_weapons{};
     bool load_catalog() {
         if (catalog_loaded) return true;
         if (!Interfaces::BaseFileSystem) return false;
@@ -153,6 +151,7 @@ namespace menu::group
         const std::string_view schema(reinterpret_cast<const char*>(data.data()), data.size());
         catalog = SkinCatalog::Parse(schema);
         schema_metadata = SkinSchema::Parse(schema);
+        inventory_metadata = SkinSchema::ParseInventory(schema);
         catalog_loaded = !catalog.empty();
         LOG_INFO("skin menu: catalogue loaded for %zu weapons, %zu paint kit IDs", catalog.size(), schema_metadata.paint_ids.size());
         return catalog_loaded;
@@ -407,7 +406,9 @@ namespace menu::group
                 layer->add_rect_filled(rect{vec2{r.maxs.x - 23.f, r.mins.y + 3.f}, vec2{r.maxs.x - 3.f, r.mins.y + 23.f}}, colors.text);
                 layer->g.texture = {};
             }
-            const auto& columns = team_ct ? ct_weapons : t_weapons;
+            const auto columns = weapon_columns();
+            if(!show_all_weapons && !LocalInventory::GetLoadout(team_ct).ready)
+                layer->add_text(r.tl()+vec2{r.width()*.5f,90.f}, "Waiting for game loadout", colors.text_dark, text_params::with_vh(align_center,align_center));
             const float gap = 6.f, cell_width = (r.width() - 2.f * gap) / 3.f;
             static constexpr float header_y = 34.f, list_y = 55.f, cell_height = 78.f;
             const char* headings[] = {"Pistols", "Mid-Tier", "Rifles"};
@@ -447,14 +448,17 @@ namespace menu::group
             }
             layer->g.clip_rect = old_clip;
             if (catalog_settings_open) {
-                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 96.f}};
+                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 126.f}};
                 layer->add_rect_filled_rounded(popup, colors.bg_block_light, 3.f);
                 const rect check{popup.mins + vec2{10.f, 12.f}, popup.mins + vec2{22.f, 24.f}};
                 layer->add_rect_filled(check, show_all_paints ? colors.accent : colors.outline);
                 layer->add_text(popup.mins + vec2{32.f, 19.f}, "Show all skins", colors.text, text_params::with_v(align_center));
-                const rect share{popup.mins + vec2{10.f, 42.f}, popup.mins + vec2{22.f, 54.f}};
+                const rect weapons{popup.mins + vec2{10.f, 42.f}, popup.mins + vec2{22.f, 54.f}};
+                layer->add_rect_filled(weapons, show_all_weapons ? colors.accent : colors.outline);
+                layer->add_text(popup.mins + vec2{32.f, 49.f}, "Show all weapons", colors.text, text_params::with_v(align_center));
+                const rect share{popup.mins + vec2{10.f, 72.f}, popup.mins + vec2{22.f, 84.f}};
                 layer->add_rect_filled(share, LocalInventory::enabled.load() ? colors.accent : colors.outline);
-                layer->add_text(popup.mins + vec2{32.f, 49.f}, "Share to inventory", colors.text, text_params::with_v(align_center));
+                layer->add_text(popup.mins + vec2{32.f, 79.f}, "Share to inventory", colors.text, text_params::with_v(align_center));
             }
         }
         void on_mouse_down(char key) override {
@@ -485,6 +489,9 @@ namespace menu::group
                     agent_choice = static_cast<int>(index);
                     FatalityPreviewBridge::agent[team].store(agent_choice, std::memory_order_relaxed);
                     EquipmentState::Agent(team_ct,index==0 ? std::string{} : PreviewCatalog::GetAgent(team_ct,index).model);
+                    load_catalog();
+                    const auto id=inventory_metadata.items.find(PreviewCatalog::GetAgent(team_ct,index).icon);
+                    EquipmentState::InventorySelection(team_ct,0,index==0 || id==inventory_metadata.items.end()?0:id->second);
                     pending.stickers = agent_patches[team][agent_choice];
                     return;
                 }
@@ -511,8 +518,15 @@ namespace menu::group
                 }
                 if (equipment_screen == Equipment::Knife) { equipped_knife[team] = items[index].icon; EquipmentState::Select(team_ct,false,items[index].icon); }
                 if (equipment_screen == Equipment::Gloves) { equipped_gloves[team] = items[index].icon; EquipmentState::Select(team_ct,true,items[index].icon); }
-                if (equipment_screen == Equipment::Music) equipped_music[team] = items[index].icon;
-                if (equipment_screen == Equipment::Medal) equipped_medal[team] = items[index].icon;
+                if (equipment_screen == Equipment::Music || equipment_screen == Equipment::Medal) {
+                    const bool music=equipment_screen==Equipment::Music;
+                    (music?equipped_music[team]:equipped_medal[team])=items[index].icon;
+                    load_catalog();
+                    const auto& ids=music?inventory_metadata.music:inventory_metadata.items;
+                    const auto id=ids.find(items[index].icon);
+                    EquipmentState::InventorySelection(team_ct,music?2:1,index==0 || id==ids.end()?0:id->second);
+                    if(index && id==ids.end()) LOG_WARN("local inventory: schema ID missing for %s",items[index].icon);
+                }
                 equipment_screen = Equipment::None;
                 equipment_scroll = 0.f;
                 FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
@@ -526,7 +540,8 @@ namespace menu::group
             if (catalog_settings_open) {
                 if (local.x >= size.x - 210.f && local.x <= size.x) {
                     if (local.y >= 28.f && local.y < 66.f) show_all_paints = !show_all_paints;
-                    else if (local.y >= 66.f && local.y < 96.f)
+                    else if (local.y >= 66.f && local.y < 96.f) {show_all_weapons=!show_all_weapons;scroll=0.f;}
+                    else if (local.y >= 96.f && local.y < 126.f)
                         LocalInventory::enabled.store(!LocalInventory::enabled.load());
                 }
                 catalog_settings_open = false;
@@ -542,7 +557,7 @@ namespace menu::group
             const int col = static_cast<int>(local.x / (cell_width + 6.f));
             const int row = static_cast<int>((local.y - 55.f + scroll) / 78.f);
             if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
-            const auto& columns = team_ct ? ct_weapons : t_weapons;
+            const auto columns = weapon_columns();
             if (static_cast<size_t>(row) >= columns[col].size()) return;
             selected_weapon = columns[col][row]; equipment_weapon = false; agent_editor = false;
             paints.clear(); search_query.clear(); reverse_sort = false; filter_open = false; filter_index = 0;
@@ -1002,6 +1017,15 @@ namespace menu::group
                 const char* modes[]={"Default","Static","None"};
                 layer->add_text(option.tl()+vec2{8.f,12.f},modes[i],colors.text,text_params::with_v(align_center));
             }
+        }
+        std::array<Column,3> weapon_columns() const {
+            auto columns=team_ct?ct_weapons:t_weapons;
+            if(show_all_weapons) return columns;
+            const auto loadout=LocalInventory::GetLoadout(team_ct);
+            for(auto& column:columns) column.erase(std::remove_if(column.begin(),column.end(),[&](const WeaponIcon& item) {
+                return !loadout.ready || !loadout.definitions.count(SkinState::Definition(item.internal));
+            }),column.end());
+            return columns;
         }
         bool catalog_settings_open{};
         bool team_ct{true};

@@ -37,13 +37,19 @@ inline const Item* Find(std::string_view name){for(const auto& i:items)if(i.name
 inline const Item* Find(int def){for(const auto& i:items)if(i.definition==def)return &i;return nullptr;}
 inline bool Knife(int def){return def==42 || def==59 || (def>=500 && def<=525);}
 struct Selection { int definition{}; SkinState::Choice finish{}; std::uint64_t revision{}; };
-struct Team { std::string agent; Selection knife,gloves; };
+struct Team { std::string agent; Selection knife,gloves; int inventory_agent{},inventory_medal{},inventory_music{}; };
 inline std::mutex mutex;
 inline Team teams[2];
 inline std::uint64_t revision{};
 inline Team Get(bool ct){std::lock_guard<std::mutex> lock(mutex);return teams[ct?0:1];}
 inline void Agent(bool ct,std::string path){std::lock_guard<std::mutex> lock(mutex);auto& value=teams[ct?0:1].agent;if(value!=path){value=std::move(path);++revision;}}
 inline std::uint64_t Revision(){std::lock_guard<std::mutex> lock(mutex);return revision;}
+// Numeric IDs resolved from this installation's items_game, never UI indices.
+inline void InventorySelection(bool ct,int category,int id) {
+ std::lock_guard<std::mutex> lock(mutex);auto& t=teams[ct?0:1];
+ auto& value=category==0?t.inventory_agent:category==1?t.inventory_medal:t.inventory_music;
+ value=id>0?id:0;
+}
 inline bool Select(bool ct,bool gloves,std::string_view name,SkinState::Choice finish={}){
  const auto* item=Find(name);
  if(!name.empty() && (!item || Knife(item->definition)==gloves))return false;

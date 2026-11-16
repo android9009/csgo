@@ -55,6 +55,38 @@ inline bool SafePath(std::string_view v) {
     for (auto c : v) if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '/' || c == '-')) return false;
     return true;
 }
+struct InventoryMetadata {
+    std::map<std::string,int> items, music;
+};
+inline InventoryMetadata ParseInventory(std::string_view schema) {
+    InventoryMetadata out; Tokenizer t{schema};
+    for (;;) {
+        auto section=t.next(); if(section.empty()) break;
+        if(section!="items" && section!="music_definitions") continue;
+        if(t.next()!="{") continue;
+        const bool music=section=="music_definitions";
+        for (;;) {
+            auto key=t.next(); if(key.empty()||key=="}") break;
+            auto value=t.next(); if(value!="{") continue;
+            const int id=ParseId(key); int depth=1;
+            std::string name,image,model;
+            while(depth>0) {
+                auto field=t.next();if(field.empty()) break;
+                if(field=="{"){++depth;continue;}if(field=="}"){--depth;continue;}
+                auto val=t.next();if(val=="{"){++depth;continue;}
+                if(field=="name" && depth==1) name=std::string(val);
+                if(field=="image_inventory") image=std::string(val);
+                if(field=="model_player") model=std::string(val);
+            }
+            if(id<=0) continue;
+            auto& target=music?out.music:out.items;
+            if(!name.empty()) target[name]=id;
+            if(!image.empty()) target["resource/flash/"+image+".png"]=id;
+            if(!model.empty()) target[model]=id;
+        }
+    }
+    return out;
+}
 inline Metadata Parse(std::string_view schema) {
     Metadata out; Tokenizer t{schema};
     for (;;) {
