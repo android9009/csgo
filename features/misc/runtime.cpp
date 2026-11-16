@@ -187,19 +187,20 @@ void ResolveClanTag(){
     if(std::strcmp(reinterpret_cast<char*>(event),"ClanTagChanged") || std::strcmp(reinterpret_cast<char*>(tag),"tag") || std::strcmp(reinterpret_cast<char*>(name),"name")){LOG_WARN("misc clantag: message identity mismatch");return;}
     set_clan_tag=reinterpret_cast<SetClanTagFn>(at);
 }
-void CaptureClan(){
+bool CaptureClan(){
     original_clan[0]=0;const auto offset=PropManager::Get().GetOffset("DT_CSPlayerResource","m_szClan");
-    if(offset<=0 || offset>=0x10000)return;
+    if(offset<=0 || offset>=0x10000)return false;
     for(int i=1;i<2048;++i){auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(i));if(!entity)continue;
         auto* cls=entity->GetClientClass();if(!cls || !cls->m_pNetworkName || std::strcmp(cls->m_pNetworkName,"CCSPlayerResource"))continue;
-        std::memcpy(original_clan,reinterpret_cast<unsigned char*>(entity)+offset+Interfaces::Engine->GetLocalPlayer()*16,15);original_clan[15]=0;return;
+        std::memcpy(original_clan,reinterpret_cast<unsigned char*>(entity)+offset+Interfaces::Engine->GetLocalPlayer()*16,15);original_clan[15]=0;return true;
     }
+    return false;
 }
 void UpdateClan(bool enabled){
     if(!set_clan_tag)return;
     if(!ctx.in_game){clan_changed=false;clan_frame=~0u;return;}
     if(!enabled){if(clan_changed)set_clan_tag(original_clan,original_clan);clan_changed=false;clan_frame=~0u;return;}
-    if(!clan_changed)CaptureClan();
+    if(!clan_changed){static ULONGLONG next_attempt{};const auto now=GetTickCount64();if(now<next_attempt)return;next_attempt=now+1000;if(!CaptureClan())return;}
     const auto frame=static_cast<unsigned>(GetTickCount64()/300)%30;
     if(frame==clan_frame)return;
     const auto text=ClanFrame(frame);set_clan_tag(text.c_str(),text.c_str());clan_changed=true;clan_frame=frame;
