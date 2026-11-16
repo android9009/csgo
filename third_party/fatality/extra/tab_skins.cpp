@@ -9,6 +9,7 @@
 #include "../../../sdk/skin_schema.hpp"
 #include "../../../features/skins/skin_state.hpp"
 #include "../../../features/skins/preview_state.hpp"
+#include "../../../features/skins/equipment_state.hpp"
 #include "../preview_bridge.hpp"
 #include "../preview_catalog.hpp"
 #include "../skin_names.hpp"
@@ -451,6 +452,7 @@ namespace menu::group
                 if (equipment_screen == Equipment::Agent) {
                     agent_choice = static_cast<int>(index);
                     FatalityPreviewBridge::agent[team].store(agent_choice, std::memory_order_relaxed);
+                    EquipmentState::Agent(team_ct,index==0 ? std::string{} : PreviewCatalog::GetAgent(team_ct,index).model);
                     pending.stickers = agent_patches[team][agent_choice];
                     return;
                 }
@@ -471,11 +473,12 @@ namespace menu::group
                     const auto& saved = selection[team];
                     const auto found = saved.find(item.icon);
                     pending = found == saved.end() ? SkinChoice{} : found->second;
+                    commit_weapon();
                     equipment_screen = Equipment::None;
                     return;
                 }
-                if (equipment_screen == Equipment::Knife) equipped_knife[team] = items[index].icon;
-                if (equipment_screen == Equipment::Gloves) equipped_gloves[team] = items[index].icon;
+                if (equipment_screen == Equipment::Knife) { equipped_knife[team] = items[index].icon; EquipmentState::Select(team_ct,false,items[index].icon); }
+                if (equipment_screen == Equipment::Gloves) { equipped_gloves[team] = items[index].icon; EquipmentState::Select(team_ct,true,items[index].icon); }
                 if (equipment_screen == Equipment::Music) equipped_music[team] = items[index].icon;
                 if (equipment_screen == Equipment::Medal) equipped_medal[team] = items[index].icon;
                 equipment_screen = Equipment::None;
@@ -624,7 +627,15 @@ namespace menu::group
             selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
             const auto preview_id=schema_metadata.paint_ids.find(pending.paint);
             PreviewSkinState::Set(team_ct,selected_weapon.internal,preview_id==schema_metadata.paint_ids.end() ? 0 : preview_id->second,pending.seed,pending.wear);
-            if (equipment_weapon) return; // Knife/glove game-entity replacement is separate from preview.
+            if (equipment_weapon) {
+                SkinState::Choice finish{};finish.paint_kit=preview_id==schema_metadata.paint_ids.end()?0:preview_id->second;
+                finish.seed=pending.seed;finish.wear=pending.wear;finish.souvenir=pending.souvenir;
+                finish.stattrak=pending.souvenir || pending.stattrak_mode==2 ? -1 : pending.stattrak_mode==1 ? pending.stattrak_count : -2;
+                std::memcpy(finish.name.data(),pending.custom_name.data(),(std::min)(pending.custom_name.size(),finish.name.size()-1));
+                const auto* item=EquipmentState::Find(selected_weapon.internal);
+                if(item)EquipmentState::Select(team_ct,!EquipmentState::Knife(item->definition),selected_weapon.internal,finish);
+                return;
+            }
             const int definition = SkinState::Definition(selected_weapon.internal);
             if (pending.paint.empty()) { SkinState::Remove(team_ct, definition); return; }
             const auto id = schema_metadata.paint_ids.find(pending.paint);

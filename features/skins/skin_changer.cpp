@@ -1,5 +1,6 @@
 #include "skin_changer.hpp"
 #include "skin_state.hpp"
+#include "equipment_changer.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
 #include "../../offsets/offsets.hpp"
@@ -94,6 +95,7 @@ void FlushRefresh() {
 void FrameStage() {
     if (!Interfaces::Engine || !Interfaces::EntityList || !PropManager::Get().IsReady() ||
         !Interfaces::Engine->IsInGame() || !Interfaces::Engine->IsConnected()) { Reset(); return; }
+    EquipmentChanger::FrameStage();
     if (originals.empty() && SkinState::Empty()) return;
     const auto n = Resolve();
     if (!Valid(n)) {
@@ -144,7 +146,7 @@ void FrameStage() {
     }
     FlushRefresh();
 }
-void Reset() { originals.clear(); refreshed[0].clear(); refreshed[1].clear(); update_pending = false; last_update = 0; }
+void Reset() { EquipmentChanger::Reset(); originals.clear(); refreshed[0].clear(); refreshed[1].clear(); update_pending = false; last_update = 0; }
 void Shutdown() {
     if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && PropManager::Get().IsReady()) {
         const auto n = Resolve();
@@ -159,6 +161,7 @@ void Shutdown() {
             if (restored) { last_update = 0; RequestRefresh(); FlushRefresh(); }
         }
     }
+    EquipmentChanger::Shutdown();
     Reset();
 }
 }

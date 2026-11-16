@@ -160,6 +160,7 @@
     <ClCompile Include="hooks\framestage.cpp" />
     <ClCompile Include="features\visuals\model_preview.cpp" />
     <ClCompile Include="features\skins\skin_changer.cpp" />
+    <ClCompile Include="features\skins\equipment_changer.cpp" />
     <ClCompile Include="hooks\hooks.cpp" />
     <ClCompile Include="hooks\paint.cpp" />
     <ClCompile Include="hooks\sceneend.cpp" />
@@ -365,6 +366,8 @@
     <ClInclude Include="sdk\model_preview_render.hpp" />
     <ClInclude Include="features\visuals\model_preview.hpp" />
     <ClInclude Include="features\skins\skin_changer.hpp" />
+    <ClInclude Include="features\skins\equipment_changer.hpp" />
+    <ClInclude Include="features\skins\equipment_state.hpp" />
     <ClInclude Include="features\skins\skin_state.hpp" />
     <ClInclude Include="features\skins\preview_state.hpp" />
     <ClInclude Include="third_party\fatality\preview_bridge.hpp" />
