@@ -456,7 +456,10 @@ namespace menu::group
                 if ((equipment_screen == Equipment::Knife || equipment_screen == Equipment::Gloves) && index != 0) {
                     const auto item = items[index];
                     const auto kind = equipment_screen;
-                    if (kind == Equipment::Knife) equipped_knife[team] = item.icon; else equipped_gloves[team] = item.icon;
+                    if (kind == Equipment::Knife) {
+                        equipped_knife[team] = item.icon;
+                        FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(item.icon),std::memory_order_relaxed);
+                    } else equipped_gloves[team] = item.icon;
                     selected_weapon = {item.label, item.icon};
                     equipment_weapon = true;
                     paints.clear(); search_query.clear(); reverse_sort = false; filter_open = false; filter_index = 0;
@@ -513,11 +516,11 @@ namespace menu::group
             }
             if (options_open) {
                 if (agent_editor) return;
-                const auto local = input.cursor() - area_abs().tl();
+                const auto local = input.cursor() - area_abs().tl() - vec2{size.x-324.f,0.f};
                 if (local.x >= 120.f && local.x <= 300.f) {
                     if (local.y >= 90.f && local.y < 120.f) pending.seed = std::clamp(pending.seed + (delta > 0.f ? 1 : -1), 0, 1000);
                     else if (local.y >= 132.f && local.y < 162.f) pending.wear = std::clamp(pending.wear + (delta > 0.f ? .01f : -.01f), 0.f, 1.f);
-                    else if (local.y >= 300.f && local.y < 330.f && pending.stattrak_mode == 1) pending.stattrak_count = std::clamp(pending.stattrak_count + (delta > 0.f ? 1 : -1), 0, 99999);
+                    else if (local.y >= 300.f && local.y < 330.f && pending.stattrak_mode == 1 && !pending.souvenir) pending.stattrak_count = std::clamp(pending.stattrak_count + (delta > 0.f ? 1 : -1), 0, 99999);
                     else return;
                     if (!agent_editor) commit_weapon();
                 }
@@ -540,7 +543,7 @@ namespace menu::group
         void on_mouse_move(const vec2& cursor, const vec2&) override {
             if (!selected_weapon.internal || !options_open || !drag_slider) return;
             if (!input.is_mouse_down(m_left)) { drag_slider=0; commit_weapon(); return; }
-            const float fraction=std::clamp((cursor.x-area_abs().tl().x-120.f)/180.f,0.f,1.f);
+            const float fraction=std::clamp((cursor.x-area_abs().tl().x-(size.x-324.f)-120.f)/180.f,0.f,1.f);
             if (drag_slider==1) pending.seed=static_cast<int>(fraction*1000.f+.5f);
             else if (drag_slider==2) pending.wear=fraction;
             else pending.stattrak_count=static_cast<int>(fraction*99999.f+.5f);
@@ -655,16 +658,17 @@ namespace menu::group
             }
             return false;
         }
-        bool options_click(const vec2& p) {
+        bool options_click(const vec2& cursor) {
+            const auto p = cursor - vec2{size.x - 324.f, 0.f};
             if (p.x < 0.f || p.x >= 324.f || p.y < 68.f || p.y >= 424.f) {
                 options_open = false; stat_menu_open = false; drag_slider = 0; stop_name_input(); return true;
             }
             if (p.y < 94.f && p.x >= 290.f) { options_open = false; stop_name_input(); return true; }
             if (stat_menu_open) {
+                if (pending.souvenir) { stat_menu_open=false; return true; }
                 if (p.x >= 120.f && p.x < 300.f && p.y >= 286.f && p.y < 358.f) {
                     pending.stattrak_mode = static_cast<int>((p.y - 286.f) / 24.f);
                     pending.stattrak = pending.stattrak_mode == 1;
-                    if (pending.stattrak) pending.souvenir = false;
                     commit_weapon();
                 }
                 stat_menu_open = false; return true;
@@ -681,11 +685,10 @@ namespace menu::group
             if (p.x >= 120.f && p.x <= 300.f) {
                 if (p.y >= 94.f && p.y < 120.f) drag_slider = 1;
                 else if (p.y >= 132.f && p.y < 162.f) drag_slider = 2;
-                else if (p.y >= 260.f && p.y < 290.f) { stat_menu_open = true; return true; }
-                else if (p.y >= 300.f && p.y < 330.f && pending.stattrak_mode == 1) drag_slider = 3;
+                else if (p.y >= 260.f && p.y < 290.f && !pending.souvenir) { stat_menu_open = true; return true; }
+                else if (p.y >= 300.f && p.y < 330.f && pending.stattrak_mode == 1 && !pending.souvenir) drag_slider = 3;
                 else if (p.y >= 180.f && p.y < 208.f && p.x < 144.f) {
-                    pending.souvenir = !pending.souvenir;
-                    if (pending.souvenir) { pending.stattrak_mode = 2; pending.stattrak = false; }
+                    pending.souvenir = !pending.souvenir; stat_menu_open=false;
                     commit_weapon(); return true;
                 }
                 if (drag_slider) {
@@ -888,7 +891,7 @@ namespace menu::group
             if (options_open) render_weapon_options(layer, r);
         }
         void render_weapon_options(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
-            const auto origin=r.tl();
+            const auto origin=r.tl()+vec2{size.x-324.f,0.f};
             const rect panel{origin+vec2{0.f,68.f},origin+vec2{324.f,agent_editor ? 180.f : 424.f}};
             layer->add_rect_filled_rounded(panel,colors.bg_block,6.f);
             layer->add_rect_rounded(panel,colors.outline,6.f);
@@ -920,15 +923,20 @@ namespace menu::group
                 std::snprintf(number,sizeof(number),"%d",pending.stattrak_count); slider(317.f,"Value",static_cast<float>(pending.stattrak_count)/99999.f,number);
             }
             const float slots_y=agent_editor ? 120.f : 370.f;
-            label(slots_y+16.f,agent_editor ? "Patches" : "Stickers");
+            if (sticker_count()) label(slots_y+16.f,agent_editor ? "Patches" : "Stickers");
+            else label(slots_y+16.f,"No sticker slots for this item");
             bool budget=true;
             for (int i=0;i<sticker_count();++i) {
                 const auto center=origin+vec2{136.f+37.f*static_cast<float>(i),slots_y+16.f};
                 layer->add_circle_filled(center,14.f,colors.bg_bottom,24);
                 layer->add_circle(center,14.f,colors.outline,24,1.f,1.f);
-                draw_decal(layer,pending.stickers[i],rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}},budget);
+                if (pending.stickers[i].name.empty())
+                    layer->add_text(center,"+",colors.text,text_params::with_vh(align_center,align_center));
+                else draw_decal(layer,pending.stickers[i],rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}},budget);
             }
-            if (stat_menu_open) for (int i=0;i<3;++i) {
+            if (!agent_editor && pending.souvenir)
+                layer->add_rect_filled_rounded(rect{origin+vec2{8.f,256.f},origin+vec2{310.f,334.f}},color{0,0,0,155},3.f);
+            if (stat_menu_open && !pending.souvenir) for (int i=0;i<3;++i) {
                 const rect option{origin+vec2{120.f,286.f+24.f*static_cast<float>(i)},origin+vec2{300.f,310.f+24.f*static_cast<float>(i)}};
                 layer->add_rect_filled(option,colors.bg_bottom);
                 const char* modes[]={"Default","Static","None"};

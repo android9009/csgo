@@ -22,7 +22,7 @@ inline int Score(std::string name,std::string_view weapon) {
     std::transform(name.begin(),name.end(),name.begin(),[](unsigned char c){return static_cast<char>(c >= 'A' && c <= 'Z' ? c+32 : c);});
     for (auto bad : {"crouch","duck","sit","intro","outro","walk","run","jump","death","inspect","arrival"})
         if (name.find(bad)!=name.npos) return -1;
-    if (name.find("idle")==name.npos && name.find("stand")==name.npos) return -1;
+    if (name.find("idle")==name.npos && name.find("stand")==name.npos && name.find("aim")==name.npos) return -1;
     const auto family=Family(weapon);
     int score=0;
     if (name.find(family)!=name.npos) score+=100;

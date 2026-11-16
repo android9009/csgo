@@ -138,6 +138,17 @@ bool ModelExists(const char* path) {
     SkinIconFile::Slot<Close>(fs, 3)(fs, file);
     return true;
 }
+const char* AvailableAgentPath(bool ct,int index) {
+    const char* requested=PreviewCatalog::GetAgent(ct,static_cast<size_t>(index)).model;
+    if (ModelExists(requested) || index != 0) return requested;
+    // Default team models differ across legacy installations. Never substitute
+    // an opposite-team model or silently replace a named premium agent.
+    const char* ct_defaults[]={"models/player/custom_player/legacy/ctm_sas_variantf.mdl","models/player/ctm_sas.mdl"};
+    const char* t_defaults[]={"models/player/custom_player/legacy/tm_phoenix.mdl","models/player/custom_player/legacy/tm_leet_variantf.mdl","models/player/tm_leet.mdl","models/player/tm_phoenix.mdl"};
+    if (ct) { for (const auto* path : ct_defaults) if (ModelExists(path)) return path; }
+    else { for (const auto* path : t_defaults) if (ModelExists(path)) return path; }
+    return requested;
+}
 int AgentSequence(int weapon_index) {
     static std::vector<std::uint8_t> animation_mdl;
     static int sequences[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
@@ -145,8 +156,11 @@ int AgentSequence(int weapon_index) {
     if (animation_mdl.empty()) animation_mdl=SkinIconFile::Read(Interfaces::BaseFileSystem,
         "models/player/custom_player/uiplayer/animset_uiplayer.mdl",32u*1024u*1024u);
     if (!resolved[weapon_index]) {
-        const int selected=PreviewSequence::Select(animation_mdl,PreviewCatalog::weapons[weapon_index].id);
-        sequences[weapon_index]=selected<0 ? 0 : selected;
+        const bool pistol=PreviewSequence::Family(PreviewCatalog::weapons[weapon_index].id)=="pistol";
+        const int selected=pistol ? PreviewSequence::Select(animation_mdl,PreviewCatalog::weapons[weapon_index].id) : -1;
+        // Restore the known animated ESP stance for large weapons. Sequence zero
+        // can be a reference pose, so it is not a usable missing-label fallback.
+        sequences[weapon_index]=selected<0 ? 113 : selected;
         resolved[weapon_index]=true;
         LOG_INFO("agent preview: weapon=%s family=%s sequence=%d matched=%d",PreviewCatalog::weapons[weapon_index].id,
             PreviewSequence::Family(PreviewCatalog::weapons[weapon_index].id).c_str(),sequences[weapon_index],selected>=0 ? 1 : 0);
@@ -171,7 +185,7 @@ bool InitializeModel(bool ct, int agent_index, int weapon_index) {
     phase = "set animation model";
     merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
-    const char* agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(agent_index)).model;
+    const char* agent = AvailableAgentPath(ct,agent_index);
     LOG_INFO("model preview: loading %s model %s", ct ? "CT" : "T", agent);
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
     phase = "merge weapon model";
@@ -257,7 +271,7 @@ void DrawTarget(void* target, bool weapon_only) {
     const DWORD now = GetTickCount();
     if (!weapon_only && last_time) {
         const DWORD elapsed = now - last_time;
-        *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) += (elapsed < 100 ? elapsed : 100) * 0.0005f;
+        *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) += (elapsed < 100 ? elapsed : 100) * 0.001f;
     }
     last_time = now;
     auto* mr = Interfaces::ModelRender;
@@ -309,7 +323,7 @@ void PaintImpl() {
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
-        if (!ModelExists(PreviewCatalog::GetAgent(ct, static_cast<size_t>(agent_index)).model) ||
+        if (!ModelExists(AvailableAgentPath(ct,agent_index)) ||
             !ModelExists(PreviewCatalog::weapons[weapon_index].model)) {
             missing_models[team][agent_index][weapon_index] = true;
             LOG_WARN("model preview: requested agent=%d weapon=%s is unavailable", agent_index, PreviewCatalog::weapons[weapon_index].id);
