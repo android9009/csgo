@@ -109,7 +109,15 @@ namespace menu::group
         auto it=resolved_icon_paths.find(key);
         if (it == resolved_icon_paths.end()) {
             std::string path;
-            if (!paint.empty()) path=find_finish_icon(item,paint);
+            if (!paint.empty()) {
+                path=find_finish_icon(item,paint);
+                if (path.empty()) {
+                    for (const auto& pair : EquipmentPaints::entries) if (pair.paint == paint) {
+                        path=find_finish_icon(std::string(pair.item),paint);
+                        if (!path.empty()) break;
+                    }
+                }
+            }
             else {
                 path=SkinIconPath::Base(item);
                 if (!icon_exists(path)) {
@@ -132,6 +140,7 @@ namespace menu::group
     const char* filter_labels[] = {"All", "Name A-Z", "Name Z-A", "Consumer", "Industrial", "Mil-Spec", "Restricted", "Classified", "Covert", "Contraband", "Unknown"};
     const char* filter_rarity[] = {"", "", "", "common", "uncommon", "rare", "mythical", "legendary", "ancient", "immortal", "?"};
     bool catalog_loaded{};
+    bool show_all_paints{};
     bool load_catalog() {
         if (catalog_loaded) return true;
         if (!Interfaces::BaseFileSystem) return false;
@@ -392,6 +401,11 @@ namespace menu::group
             layer->font = draw.fonts[GUI_HASH("gui_main")];
             layer->add_text(ct.center(), "CT", team_ct ? colors.accent : colors.text_dark, text_params::with_vh(align_center, align_center));
             layer->add_text(t.center(), "T", !team_ct ? colors.accent : colors.text_dark, text_params::with_vh(align_center, align_center));
+            if (ctx->res.icons.settings) {
+                layer->g.texture = ctx->res.icons.settings->obj;
+                layer->add_rect_filled(rect{vec2{r.maxs.x - 23.f, r.mins.y + 3.f}, vec2{r.maxs.x - 3.f, r.mins.y + 23.f}}, colors.text);
+                layer->g.texture = {};
+            }
             const auto& columns = team_ct ? ct_weapons : t_weapons;
             const float gap = 6.f, cell_width = (r.width() - 2.f * gap) / 3.f;
             static constexpr float header_y = 34.f, list_y = 55.f, cell_height = 78.f;
@@ -431,6 +445,13 @@ namespace menu::group
                 }
             }
             layer->g.clip_rect = old_clip;
+            if (catalog_settings_open) {
+                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 66.f}};
+                layer->add_rect_filled_rounded(popup, colors.bg_block_light, 3.f);
+                const rect check{popup.mins + vec2{10.f, 12.f}, popup.mins + vec2{22.f, 24.f}};
+                layer->add_rect_filled(check, show_all_paints ? colors.accent : colors.outline);
+                layer->add_text(popup.mins + vec2{32.f, 19.f}, "Show all skins", colors.text, text_params::with_v(align_center));
+            }
         }
         void on_mouse_down(char key) override {
             const auto local = input.cursor() - area_abs().tl();
@@ -494,6 +515,16 @@ namespace menu::group
                 return;
             }
             if (selected_weapon.internal) { weapon_screen_click(local); return; }
+            if (local.y >= 0.f && local.y < 25.f && local.x >= size.x - 28.f) {
+                catalog_settings_open = !catalog_settings_open;
+                return;
+            }
+            if (catalog_settings_open) {
+                if (local.x >= size.x - 210.f && local.y >= 28.f && local.y < 66.f)
+                    show_all_paints = !show_all_paints;
+                catalog_settings_open = false;
+                return;
+            }
             if (local.y >= 0.f && local.y < 25.f) {
                 if (local.x >= 0.f && local.x < 72.f) { team_ct = true; scroll = 0.f; }
                 else if (local.x >= 78.f && local.x < 150.f) { team_ct = false; scroll = 0.f; }
@@ -609,7 +640,12 @@ namespace menu::group
             std::vector<std::string> result;
             if (filter_index < 3 && (query.empty() || std::string("default").find(query) != std::string::npos)) result.emplace_back();
             std::vector<std::string> matches;
-            for (const auto& paint : paints) {
+            std::vector<std::string> available = paints;
+            if (show_all_paints) {
+                available.clear();
+                for (const auto& entry : schema_metadata.paint_ids) available.push_back(entry.first);
+            }
+            for (const auto& paint : available) {
                 const auto it = schema_metadata.rarity.find(paint);
                 const bool rarity_match = filter_index < 3 || (filter_index == 10 ? it == schema_metadata.rarity.end() : it != schema_metadata.rarity.end() && it->second == filter_rarity[filter_index]);
                 if (rarity_match && lower(paint_name(paint)).find(query) != std::string::npos) matches.push_back(paint);
@@ -960,6 +996,7 @@ namespace menu::group
                 layer->add_text(option.tl()+vec2{8.f,12.f},modes[i],colors.text,text_params::with_v(align_center));
             }
         }
+        bool catalog_settings_open{};
         bool team_ct{true};
         float scroll{}, skin_scroll{}, equipment_scroll{};
         Equipment last_equipment_screen{Equipment::None};
