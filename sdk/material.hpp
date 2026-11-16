@@ -40,6 +40,9 @@ public:
     }
     void IncrementReferenceCount() { using Fn = void (__thiscall*)(void*); if (auto fn = VFunc<Fn>(12)) fn(this); }
     void DecrementReferenceCount() { using Fn = void (__thiscall*)(void*); if (auto fn = VFunc<Fn>(13)) fn(this); }
+    bool IsErrorMaterial() const { using Fn = bool (__thiscall*)(void*); auto fn = VFunc<Fn>(42); return fn && fn(const_cast<IMaterial*>(this)); }
+    float GetAlphaModulation() const { using Fn = float (__thiscall*)(void*); auto fn = VFunc<Fn>(44); return fn ? fn(const_cast<IMaterial*>(this)) : 1.f; }
+    void GetColorModulation(float* r, float* g, float* b) const { using Fn = void (__thiscall*)(void*, float*, float*, float*); if(auto fn=VFunc<Fn>(45)) fn(const_cast<IMaterial*>(this),r,g,b); }
     void AlphaModulate(float alpha) { using Fn = void (__thiscall*)(void*, float); if (auto fn = VFunc<Fn>(27)) fn(this, alpha); }
     void ColorModulate(float r, float g, float b) { using Fn = void (__thiscall*)(void*, float, float, float); if (auto fn = VFunc<Fn>(28)) fn(this, r, g, b); }
     void SetMaterialVarFlag(int flag, bool on) { using Fn = void (__thiscall*)(void*, int, bool); if (auto fn = VFunc<Fn>(29)) fn(this, flag, on); }

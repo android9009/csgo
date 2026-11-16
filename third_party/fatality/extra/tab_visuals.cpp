@@ -8,6 +8,7 @@
 #include "../cfg.h"
 #include "../preview_bridge.hpp"
 #include "macros.h"
+#include "esp_preview.hpp"
 
 using namespace evo::gui;
 using namespace evo::gui::helpers;
@@ -19,7 +20,7 @@ namespace menu::group
 	class model_preview_viewport final : public control
 	{
 	public:
-		model_preview_viewport(control_id id, const vec2 &size, bool skins = false) : control(id, {}, size), skins_preview(skins) { }
+		model_preview_viewport(control_id id, const vec2 &size, bool skins = false, bool chams = false) : control(id, {}, size), skins_preview(skins), chams_preview(chams) { }
 
 		void render() override
 		{
@@ -32,11 +33,23 @@ namespace menu::group
 				FatalityPreviewBridge::visuals_subject.store(static_cast<int>(cfg.visuals.preview.get().first_set_bit().value_or(0)), std::memory_order_relaxed);
 			if (skins_preview && size.y > 0.f)
 				FatalityPreviewBridge::skins_aspect.store(size.x / size.y, std::memory_order_relaxed);
+			VisualPreview::Material appearance{};
+			if(chams_preview) {
+				const int subject=static_cast<int>(cfg.visuals.preview.get().first_set_bit().value_or(0));
+				auto& chams=cfg.visuals.chams;
+				auto& selected=subject==2 ? chams.local_pl : subject==1 ? chams.team_pl : chams.enemy_pl;
+				appearance.enabled=chams.enable.get();appearance.kind=selected.mat.get().first_set_bit().value_or(0);
+				appearance.ignore_z=selected.ignorez.get();appearance.primary=selected.col1.get().rgba();
+				appearance.secondary=selected.col2.get().rgba();appearance.hidden=selected.col_z.get().rgba();
+			}
+			VisualPreview::SetMaterial(appearance);
+			if(!is_locked_by_me())overlay.up();
 			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
 			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
 				layer->g.texture = texture;
 				layer->add_rect_filled(area_abs(), color::white());
 				layer->g.texture = {};
+				if(!skins_preview && !chams_preview)overlay.render(layer,area_abs());
 			} else {
 				layer->font = draw.fonts[GUI_HASH("gui_main")];
 				layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
@@ -46,17 +59,23 @@ namespace menu::group
 
 		void on_mouse_down(char key) override
 		{
-			if (key == m_left) lock_input();
+			if(!is_mouse_on_me)return;
+			if(!skins_preview && !chams_preview && overlay.down(key)) {
+				if(key==m_left){lock_input();is_caring_about_hover=false;is_caring_about_parent=false;}
+				return;
+			}
+			if (key == m_left) {lock_input();is_caring_about_hover=false;is_caring_about_parent=false;}
 		}
 
 		void on_mouse_up(char key) override
 		{
-			if (key == m_left && is_locked_by_me()) unlock_input();
+			if (key == m_left && is_locked_by_me()) {overlay.up();unlock_input();is_caring_about_hover=true;is_caring_about_parent=true;}
 		}
 
 		void on_mouse_move(const vec2 &, const vec2 &delta) override
 		{
 			if (is_locked_by_me()) {
+				if(!skins_preview && !chams_preview && overlay.move(delta,size))return;
 				const auto yaw = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
 				FatalityPreviewBridge::yaw.store(std::remainder(yaw + delta.x * 0.5f, 360.f), std::memory_order_relaxed);
 			}
@@ -69,7 +88,8 @@ namespace menu::group
 		}
 
 	private:
-		bool skins_preview{};
+		bool skins_preview{},chams_preview{};
+		EspPreview::Overlay overlay;
 	};
 
 	std::shared_ptr<control> make_model_preview(const char* id, const vec2 &size)
@@ -184,7 +204,7 @@ namespace menu::group
 						ADD_INLINE("Type", c, preview_settings("visuals>chams>preview>type"));
 					}
 
-					e->add(MAKE("visuals>chams>preview>viewport", model_preview_viewport, vec2{220.f, 380.f}));
+					e->add(MAKE("visuals>chams>preview>viewport", model_preview_viewport, vec2{220.f, 380.f}, false, true));
 				}));
 
 		e->add(area);

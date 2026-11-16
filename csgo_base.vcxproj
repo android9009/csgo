@@ -154,6 +154,7 @@
     <ClCompile Include="hooks\drawmodel.cpp" />
     <ClCompile Include="hooks\framestage.cpp" />
     <ClCompile Include="features\visuals\model_preview.cpp" />
+    <ClCompile Include="features\visuals\world_esp.cpp" />
     <ClCompile Include="features\skins\skin_changer.cpp" />
     <ClCompile Include="features\skins\equipment_changer.cpp" />
     <ClCompile Include="features\skins\local_inventory.cpp" />
@@ -339,6 +340,9 @@
     <ClInclude Include="sdk\preview_sequence.hpp" />
     <ClInclude Include="sdk\preview_framing.hpp" />
     <ClInclude Include="sdk\preview_subject.hpp" />
+    <ClInclude Include="features\visuals\preview_material.hpp" />
+    <ClInclude Include="sdk\world_esp_state.hpp" />
+    <ClInclude Include="sdk\visual_preview_state.hpp" />
     <ClInclude Include="sdk\skin_icon_path.hpp" />
     <ClInclude Include="sdk\skin_icon_file.hpp" />
     <ClInclude Include="sdk\model_preview.hpp" />
@@ -358,6 +362,8 @@
     <ClInclude Include="third_party\fatality\equipment_paints.hpp" />
     <ClInclude Include="third_party\fatality\medal_catalog.hpp" />
     <ClInclude Include="third_party\fatality\extra\skin_options_popup.hpp" />
+    <ClInclude Include="third_party\fatality\extra\world_esp_overlay.hpp" />
+    <ClInclude Include="third_party\fatality\extra\esp_preview.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\json\adl_serializer.h" />

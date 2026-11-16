@@ -16,10 +16,10 @@ page is empty in those sources. Menu values are not connected to this project's 
 
 ## Player model preview (experimental)
 
-The ESP and Chams preview panels share orbit and zoom input. The experimental
-Source 1 renderer in `features/visuals/model_preview.cpp` follows Fatality's
-merged-model and render-target approach, using candidate addresses resolved once
-at startup. It uses a fixed FBI agent and has not been validated in-game; Type,
-ESP overlay and Chams preview are not yet connected to the model rendering.
-The game-specific ABI, reset/unload handling, correctness and performance still
-require runtime testing.
+The ESP and Chams panels share a fixed-distance, horizontal-orbit preview.
+Local uses the live agent; Team/Enemy resolve their side from the local team.
+The skinchanger has separate full-body framing. Chams appearance, sample ESP
+and draggable labels/bars are now connected to the preview; world item labels
+use copied game-thread snapshots. See `docs/visual-preview-status.md` for exact
+coverage, performance strategy, remaining UI-only controls and runtime checks.
+Compilation is not proof of game ABI compatibility or frame-time behavior.

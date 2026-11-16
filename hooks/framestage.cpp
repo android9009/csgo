@@ -1,5 +1,6 @@
 #include "hooks.hpp"
 #include "../features/visuals/model_preview.hpp"
+#include "../sdk/world_esp_state.hpp"
 #include "../features/skins/skin_changer.hpp"
 #include "../features/skins/local_inventory.hpp"
 #include "../context.hpp"
@@ -13,7 +14,7 @@ namespace HooksInternal {
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 0) LocalInventory::Frame();
-    if (stage == 6) ModelPreview::Paint();
+    if (stage == 6) {WorldEsp::Capture();ModelPreview::Paint();}
     static bool skins_failed = false;
     if (stage == 2 && !skins_failed) {
         __try { SkinChanger::FrameStage(); }

@@ -1,5 +1,6 @@
 // Experimental Source 1 preview, based on Fatality's entity_rendering::paint.
 #include "model_preview.hpp"
+#include "preview_material.hpp"
 #include "../../sdk/model_preview.hpp"
 #include "../../sdk/model_preview_render.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <unordered_map>
 
 namespace ModelPreview {
 namespace {
@@ -74,6 +76,7 @@ constexpr int width = 235, height = 370;
 // A second engine exception is contained; preview stays disabled afterwards.
 void RestoreAfterFault() {
     __try {
+        PreviewMaterial::Restore();
         if (editor_allocation_begun && Interfaces::MaterialSystem)
             Slot<void(__thiscall*)(void*)>(Interfaces::MaterialSystem, 95)(Interfaces::MaterialSystem);
         if (editor_allocation_flag) *editor_allocation_flag = editor_allocation_old;
@@ -134,12 +137,14 @@ bool Initialize() {
 bool ModelExists(const char* path) {
     auto* fs = Interfaces::BaseFileSystem;
     if (!fs) return true; // Preserve the previously working default when the filesystem is unavailable.
+    static std::unordered_map<std::string,bool> known;
+    if(const auto found=known.find(path);found!=known.end())return found->second;
     using Open = void* (__thiscall*)(void*, const char*, const char*, const char*);
     using Close = void (__thiscall*)(void*, void*);
     void* file = SkinIconFile::Slot<Open>(fs, 2)(fs, path, "rb", "GAME");
-    if (!file) return false;
+    if (!file) {known.emplace(path,false);return false;}
     SkinIconFile::Slot<Close>(fs, 3)(fs, file);
-    return true;
+    known.emplace(path,true);return true;
 }
 const char* AvailableAgentPath(bool ct,int index) {
     const char* requested=PreviewCatalog::GetAgent(ct,static_cast<size_t>(index)).model;
@@ -201,10 +206,12 @@ bool InitializeModel(bool ct, int agent_index, const char* agent) {
 void DrawTarget(void* target, bool weapon_only) {
     const bool fit_agent = !weapon_only && FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
     Vector agent_min{-18.f, -18.f, 0.f}, agent_max{18.f, 18.f, 80.f};
-    if (fit_agent && Interfaces::ModelInfo) {
+    if (!weapon_only && Interfaces::ModelInfo) {
         const bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
         const int index = FatalityPreviewBridge::agent[ct ? 0 : 1].load(std::memory_order_relaxed);
-        const auto path = AvailableAgentPath(ct, index);
+        const auto* cached = static_cast<const CachedModel*>(nullptr);
+        for(size_t i=0;i<model_count;++i)if(model_cache[i].model==model){cached=&model_cache[i];break;}
+        const auto path = cached ? cached->path.c_str() : AvailableAgentPath(ct, index);
         const int model_index = Interfaces::ModelInfo->GetModelIndex(path);
         auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
         auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
@@ -297,13 +304,49 @@ void DrawTarget(void* target, bool weapon_only) {
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
         matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;
     }
+    if (!weapon_only && !fit_agent) {
+        VisualPreview::Geometry projected{};
+        projected.box = {1.f,1.f,0.f,0.f};
+        constexpr float radians = 0.01745329252f;
+        const float pitch_angle=view.angles.x*radians;
+        const float tangent=std::tan(view.fov*radians*.5f);
+        const float aspect=static_cast<float>(view.width)/view.height;
+        bool valid=true;
+        for(int corner=0;corner<8;++corner) {
+            Vector p{corner&1 ? agent_max.x : agent_min.x,corner&2 ? agent_max.y : agent_min.y,corner&4 ? agent_max.z : agent_min.z};
+            Vector world{};
+            for(int axis=0;axis<3;++axis)world[axis]=matrix[axis][0]*p.x+matrix[axis][1]*p.y+matrix[axis][2]*p.z+matrix[axis][3];
+            const auto delta=world-view.origin;
+            const float depth=delta.x*std::cos(pitch_angle)-delta.z*std::sin(pitch_angle);
+            if(depth<=view.near_z){valid=false;break;}
+            const float x=.5f-delta.y/(2.f*depth*tangent);
+            const float y=.5f-(delta.x*std::sin(pitch_angle)+delta.z*std::cos(pitch_angle))*aspect/(2.f*depth*tangent);
+            projected.box.left=(std::min)(projected.box.left,x);projected.box.right=(std::max)(projected.box.right,x);
+            projected.box.top=(std::min)(projected.box.top,y);projected.box.bottom=(std::max)(projected.box.bottom,y);
+        }
+        projected.valid=valid;
+        VisualPreview::SetGeometry(projected);
+    }
     // Intentionally frozen: no weapon-dependent pose or idle/intro playback.
     auto* mr = Interfaces::ModelRender;
     phase = "suppress engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, true);
     active.lighting_suppressed = true;
     phase = "draw merged model";
-    static_cast<MergedModel*>(model)->Draw(matrix);
+    const auto appearance = VisualPreview::GetMaterial();
+    if (!weapon_only && !fit_agent && appearance.enabled && appearance.kind > 0) {
+        phase = "apply preview chams";
+        // The preview has no occluder: hidden pass is intentionally not painted
+        // over the visible color. Ignore-Z remains a game-space option.
+        PreviewMaterial::Apply(appearance.kind, appearance.primary);
+        static_cast<MergedModel*>(model)->Draw(matrix);
+        PreviewMaterial::Restore();
+        if (appearance.kind == 3 || appearance.kind == 4) {
+            PreviewMaterial::Apply(3, appearance.secondary);
+            static_cast<MergedModel*>(model)->Draw(matrix);
+            PreviewMaterial::Restore();
+        }
+    } else static_cast<MergedModel*>(model)->Draw(matrix);
     phase = "restore engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, false);
     active.lighting_suppressed = false;
@@ -329,6 +372,7 @@ void DrawTarget(void* target, bool weapon_only) {
     else FatalityPreviewBridge::texture.store(texture, std::memory_order_release);
 }
 
+bool redraw_preview=true;
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
     const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
@@ -388,7 +432,18 @@ void PaintImpl() {
         reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
         last_agent_model = model;
     }
+    static void* drawn_model{};
+    static float drawn_yaw{};
+    static bool drawn_skins{};
+    static float drawn_aspect{};
+    static VisualPreview::Material drawn_material{};
+    const float yaw=FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
+    const float aspect=FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed);
+    const auto material=VisualPreview::GetMaterial();
+    if(!redraw_preview && drawn_model==model && drawn_yaw==yaw && drawn_skins==skins &&
+       (!skins || drawn_aspect==aspect) && drawn_material==material && FatalityPreviewBridge::texture.load(std::memory_order_acquire))return;
     DrawTarget(render_texture, false);
+    drawn_model=model;drawn_yaw=yaw;drawn_skins=skins;drawn_aspect=aspect;drawn_material=material;redraw_preview=false;
 }
 // Experimental read-only bridge: reuse an existing game's generated material owner.
 // No synthetic CEconItemView, no generated-material calls, no live inventory mutation.
@@ -558,10 +613,14 @@ void Paint() {
     }
 }
 void BeforeReset() {
+    redraw_preview=true;
+    VisualPreview::SetGeometry({});
     FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
     FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
 }
 void Shutdown() {
+    VisualPreview::SetGeometry({});
+    redraw_preview=true;
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
     FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
