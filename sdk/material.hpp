@@ -23,7 +23,9 @@ public:
     void SetValue(float value) { using Fn = void (__thiscall*)(void*, float); if (auto fn = VFunc<Fn>(4)) fn(const_cast<IMaterialVar*>(this), value); }
     void SetValue(int value) { using Fn = void (__thiscall*)(void*, int); if (auto fn = VFunc<Fn>(5)) fn(const_cast<IMaterialVar*>(this), value); }
     void SetValue(const char* value) { using Fn = void (__thiscall*)(void*, const char*); if (auto fn = VFunc<Fn>(6)) fn(const_cast<IMaterialVar*>(this), value); }
-    void SetValue(float x, float y, float z) { using Fn = void (__thiscall*)(void*, float, float, float); if (auto fn = VFunc<Fn>(11)) fn(const_cast<IMaterialVar*>(this), x, y, z); }
+    // CS:GO x86 IMaterialVar::SetVecValue (Fatality IMaterialVar.h slot 11).
+    void SetVecValue(float x,float y,float z) {using Fn=void(__thiscall*)(void*,float,float,float);if(auto fn=VFunc<Fn>(11))fn(this,x,y,z);}
+    void SetValue(float x,float y,float z){SetVecValue(x,y,z);}
 };
 
 class IMaterial {
@@ -33,6 +35,8 @@ protected:
     }
 public:
     const char* GetName() const { using Fn = const char* (__thiscall*)(void*); auto fn = VFunc<Fn>(0); return fn ? fn(const_cast<IMaterial*>(this)) : ""; }
+    // CS:GO x86 IMaterial::GetShaderName, reference declaration slot 49.
+    const char* GetShaderName() const {using Fn=const char*(__thiscall*)(void*);auto fn=VFunc<Fn>(49);return fn ? fn(const_cast<IMaterial*>(this)) : "";}
     const char* GetTextureGroupName() const { using Fn = const char* (__thiscall*)(void*); auto fn = VFunc<Fn>(1); return fn ? fn(const_cast<IMaterial*>(this)) : ""; }
     IMaterialVar* FindVar(const char* name, bool* found, bool complain = true) {
         using Fn = IMaterialVar* (__thiscall*)(void*, const char*, bool*, bool);

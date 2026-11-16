@@ -31,9 +31,11 @@ inline IMaterial* Create(int kind) {
     if(!Interfaces::MaterialSystem || kind<1 || kind>6)return nullptr;
     using namespace FatalityMaterialDefinition;
     static const char* definitions[]={"",normal,flat,rim_glow,contour,flow,acrylic};
-    static const char* names[]={"","pastavar/fatality_normal","pastavar/fatality_flat","pastavar/fatality_rim","pastavar/fatality_contour","pastavar/fatality_flow","pastavar/fatality_acrylic"};
+    static const char* names[]={"","pastavar/chams_v2_normal","pastavar/chams_v2_flat","pastavar/chams_v2_rim","pastavar/chams_v2_contour","pastavar/chams_v2_flow","pastavar/chams_v2_acrylic"};
     auto* kv=Parse(names[kind],definitions[kind]);
     if(!kv){LOG_WARN("Fatality material parser unavailable: kind=%d",kind);return nullptr;}
-    return Interfaces::MaterialSystem->CreateMaterial(names[kind],kv);
+    auto* material=Interfaces::MaterialSystem->CreateMaterial(names[kind],kv);
+    if(material && !material->IsErrorMaterial())LOG_INFO("chams created kind=%d shader=%s",kind,material->GetShaderName());
+    return material;
 }
 }

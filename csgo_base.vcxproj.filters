@@ -593,6 +593,9 @@
     <ClInclude Include="features\visuals\preview_material.hpp">
       <Filter>Features</Filter>
     </ClInclude>
+    <ClInclude Include="features\visuals\chams_passes.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
     <ClInclude Include="features\visuals\fatality_material_definitions.hpp">
       <Filter>Features</Filter>
     </ClInclude>

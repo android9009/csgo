@@ -344,6 +344,7 @@
     <ClInclude Include="sdk\preview_framing.hpp" />
     <ClInclude Include="sdk\preview_subject.hpp" />
     <ClInclude Include="features\visuals\preview_material.hpp" />
+    <ClInclude Include="features\visuals\chams_passes.hpp" />
     <ClInclude Include="features\visuals\fatality_material_definitions.hpp" />
     <ClInclude Include="features\visuals\fatality_material_factory.hpp" />
     <ClInclude Include="sdk\world_esp_state.hpp" />

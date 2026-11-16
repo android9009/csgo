@@ -402,7 +402,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -423,7 +423,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -447,8 +447,7 @@ namespace menu::group
 
 				t->get_parent()->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_none) || v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.
-						test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_none) || v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -469,7 +468,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -495,7 +494,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -515,13 +514,13 @@ namespace menu::group
 				const bool enabled = !v.none() && !v.test(cfg_t::cham_none);
 				gear->set_visible(enabled);
 				FIND_SAFE(secondary, "visuals>chams>enemy>history>settings>secondary color");
-				secondary->get_parent()->set_visible(enabled && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+				secondary->get_parent()->set_visible(enabled && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 			ADD_INLINE("Backtrack", c, MAKE("visuals>chams>enemy>history>settings", settings, [](auto e) {
 				ADD("Primary color", "visuals>chams>enemy>history>settings>primary color", color_picker, cfg.visuals.chams.enemy_backtrack.col1, true, vec2{}, true);
 				const auto secondary = make_control("Secondary color", MAKE("visuals>chams>enemy>history>settings>secondary color", color_picker, cfg.visuals.chams.enemy_backtrack.col2, true, vec2{}, true));
 				const auto &v = *cfg.visuals.chams.enemy_backtrack.mat;
-				secondary->set_visible(!v.none() && !v.test(cfg_t::cham_none) && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+				secondary->set_visible(!v.none() && !v.test(cfg_t::cham_none) && !(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 				e->add(secondary);
 			})->make_invisible());
 		}
@@ -537,7 +536,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -559,7 +558,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			const auto gear = MAKE("visuals>chams>enemy>ragdoll>settings", settings, [](auto e) {
@@ -586,7 +585,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -617,7 +616,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(
@@ -640,7 +639,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			const auto gear = MAKE("visuals>chams>team>ragdoll>settings", settings, [](auto e) {
@@ -667,7 +666,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat) || v.test(cfg_t::cham_flow) || v.test(cfg_t::cham_acrylic) || v.test(cfg_t::cham_legacy)));
+					!(v.test(cfg_t::cham_normal) || v.test(cfg_t::cham_flat)));
 			};
 
 			ADD_INLINE(

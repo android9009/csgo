@@ -58,18 +58,7 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
         }
     } else return false;
     if(!choice.enabled || choice.kind<=0)return false;
-    if(choice.ignore_z && choice.kind==3 && PreviewMaterial::Apply(2,choice.hidden,true)) {
-        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    }
-    if(choice.ignore_z && PreviewMaterial::Apply(choice.kind,choice.hidden,true,choice.secondary)) {
-        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    }
-    if(choice.kind==3 && PreviewMaterial::Apply(2,choice.primary,false)) {
-        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    }
-    if(!PreviewMaterial::Apply(choice.kind,choice.primary,false,choice.secondary))return false;
-    original(ecx,context,state,info,bones);PreviewMaterial::Restore();
-    return true;
+    return PreviewMaterial::Draw(choice,true,[&](){original(ecx,context,state,info,bones);});
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {

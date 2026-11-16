@@ -29,6 +29,7 @@ using namespace SourceModelPreview;
 template<typename T> T Slot(void* p, int index) { return reinterpret_cast<T>((*reinterpret_cast<void***>(p))[index]); }
 void* render_texture{};
 void* cubemap{};
+bool cubemap_retained{};
 void* editor_target{};
 void* editor_models[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
 DWORD editor_material_refresh{};
@@ -68,7 +69,7 @@ struct RenderState {
     MatRenderContextABI* context{};
     RenderViewABI* view{};
     Frustum frustum{};
-    bool begun{}, target_pushed{}, view_pushed{}, lighting_suppressed{}, cubemap_bound{};
+    bool begun{}, target_pushed{}, view_pushed{}, lighting_suppressed{}, cubemap_bound{}, local_lights{};
 };
 RenderState active{};
 constexpr int width = 235, height = 370;
@@ -112,6 +113,8 @@ void RestoreAfterFault() {
     __try {
         capture_view=nullptr;capture_geometry=nullptr;
         PreviewMaterial::Restore();
+        if(active.local_lights && Interfaces::StudioRender)
+            Slot<void(__thiscall*)(void*,int,void*)>(Interfaces::StudioRender,22)(Interfaces::StudioRender,0,nullptr);
         if (editor_allocation_begun && Interfaces::MaterialSystem)
             Slot<void(__thiscall*)(void*)>(Interfaces::MaterialSystem, 95)(Interfaces::MaterialSystem);
         if (editor_allocation_flag) *editor_allocation_flag = editor_allocation_old;
@@ -165,7 +168,15 @@ bool Initialize() {
     Slot<void(__thiscall*)(void*)>(render_texture, 10)(render_texture);
     texture_retained = true;
     phase = "find cubemap";
-    cubemap = Slot<void*(__thiscall*)(void*, const char*, const char*, bool, int)>(ms, 91)(ms, "editor/cubemap.hdr", "CubeMap textures", true, 0);
+    for(const char* name:{"editor/cubemap.hdr","editor/cubemap","models/effects/cube_white"}){
+        auto* candidate=Slot<void*(__thiscall*)(void*,const char*,const char*,bool,int)>(ms,91)(ms,name,"CubeMap textures",false,0);
+        if(!candidate)continue;
+        const auto* actual=Slot<const char*(__thiscall*)(void*)>(candidate,0)(candidate);
+        if(!actual || std::strstr(actual,"error") || Slot<int(__thiscall*)(void*)>(candidate,3)(candidate)<=0)continue;
+        cubemap=candidate;Slot<void(__thiscall*)(void*)>(cubemap,10)(cubemap);cubemap_retained=true;
+        LOG_INFO("preview cubemap retained: %s",actual);break;
+    }
+    if(!cubemap)LOG_WARN("preview cubemap unavailable; reflections may differ from game");
     LOG_INFO("model preview render target initialized");
     return true;
 }
@@ -316,13 +327,37 @@ void DrawTarget(void* target, bool weapon_only) {
     phase = "clear buffers";
     context->ClearBuffers(true, true, true);
     struct Light { float x,y,z,w; };
-    Light light[6]; for (auto& l : light) l = {0.68f, 1.53f, 1.7f, 1.f};
+    const auto appearance=VisualPreview::GetMaterial();
+    const bool studio_chams=!weapon_only && !fit_agent && appearance.enabled && appearance.kind>0;
+    Light light[6];for(auto& l:light)l={.68f,1.53f,1.7f,1.f};
+    if(studio_chams){
+        // Directional ambient cube: readable normal shading instead of a
+        // uniform overbright cyan fill which made every shader look unlit.
+        const Light neutral[6]={{.22f,.23f,.26f,1.f},{.16f,.17f,.20f,1.f},
+            {.19f,.20f,.23f,1.f},{.11f,.12f,.15f,1.f},{.32f,.32f,.34f,1.f},{.07f,.08f,.10f,1.f}};
+        std::memcpy(light,neutral,sizeof(light));
+    }
     phase = "set ambient light";
     context->SetAmbientLightCube(light);
     phase = "set studio ambient light";
     Slot<void(__thiscall*)(void*, const Light*)>(Interfaces::StudioRender, 20)(Interfaces::StudioRender, light);
     phase = "set studio local lights";
     Slot<void(__thiscall*)(void*, int, void*)>(Interfaces::StudioRender, 22)(Interfaces::StudioRender, 0, nullptr);
+    // Source LightDesc_t (IVModelRender.h); the entire descriptor, including
+    // attenuation optimization fields, must be present for SetLocalLights.
+    struct StudioLight {
+        int type{};Vector color{},position{},direction{};
+        float range{},falloff{},attenuation0{1.f},attenuation1{},attenuation2{},theta{},phi{};
+        float theta_dot{},phi_dot{},one_over_dot{};unsigned flags{};float range_squared{};
+    };
+    static_assert(sizeof(StudioLight)==88,"CS:GO x86 LightDesc_t ABI");
+    StudioLight keys[2];
+    if(studio_chams){
+        keys[0].type=2;keys[0].color={1.1f,1.02f,.92f};keys[0].direction={.707107f,.0f,-.707107f};
+        keys[1].type=2;keys[1].color={.25f,.32f,.45f};keys[1].direction={-.6f,.8f,0.f};
+        Slot<void(__thiscall*)(void*,int,const StudioLight*)>(Interfaces::StudioRender,22)(Interfaces::StudioRender,2,keys);
+        active.local_lights=true;
+    }
     constexpr float to_rad = 0.01745329252f;
     const float yaw = (weapon_only ? FatalityPreviewBridge::editor_yaw.load(std::memory_order_relaxed) : FatalityPreviewBridge::yaw.load(std::memory_order_relaxed)) * to_rad;
     const float pitch = (weapon_only ? FatalityPreviewBridge::editor_pitch.load(std::memory_order_relaxed) : 0.f) * to_rad;
@@ -367,19 +402,13 @@ void DrawTarget(void* target, bool weapon_only) {
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, true);
     active.lighting_suppressed = true;
     phase = "draw merged model";
-    const auto appearance = VisualPreview::GetMaterial();
     if (!weapon_only && !fit_agent && appearance.enabled && appearance.kind > 0) {
         phase = "apply preview chams";
-        // The preview has no occluder: hidden pass is intentionally not painted
-        // over the visible color. Ignore-Z remains a game-space option.
-        if(appearance.kind==3) {
-            PreviewMaterial::Apply(2,appearance.primary);
-            static_cast<MergedModel*>(model)->Draw(matrix);PreviewMaterial::Restore();
-        }
-        PreviewMaterial::Apply(appearance.kind,appearance.primary,false,appearance.secondary);
-        static_cast<MergedModel*>(model)->Draw(matrix);PreviewMaterial::Restore();
+        if(!PreviewMaterial::Draw(appearance,false,[&](){static_cast<MergedModel*>(model)->Draw(matrix);}))
+            static_cast<MergedModel*>(model)->Draw(matrix);
     } else static_cast<MergedModel*>(model)->Draw(matrix);
     if(!weapon_only && !fit_agent){capture_view=nullptr;capture_geometry=nullptr;VisualPreview::SetGeometry(projected);}
+    if(active.local_lights){Slot<void(__thiscall*)(void*,int,void*)>(Interfaces::StudioRender,22)(Interfaces::StudioRender,0,nullptr);active.local_lights=false;}
     phase = "restore engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, false);
     active.lighting_suppressed = false;
@@ -676,6 +705,8 @@ void Shutdown() {
     }
     if (render_texture && texture_retained) Slot<void(__thiscall*)(void*)>(render_texture, 11)(render_texture);
     texture_retained = false;
+    if(cubemap && cubemap_retained)Slot<void(__thiscall*)(void*)>(cubemap,11)(cubemap);
+    cubemap_retained=false;
     if (editor_target && editor_target_retained) Slot<void(__thiscall*)(void*)>(editor_target, 11)(editor_target);
     editor_target = nullptr; editor_target_retained = false; editor_failed = false;
     editor_material_refresh = 0; editor_material_model = -1;
