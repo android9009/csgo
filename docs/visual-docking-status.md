@@ -12,7 +12,8 @@
 - Preview glow is a GUI alpha-silhouette approximation, not the engine glow
   manager. It must be visually checked on the target game build.
 - The six reference VMT definitions are used for live and preview chams, with
-  a flat underlay for additive rim/legacy passes and restored tint parameters.
+  a flat underlay for Rim Glow only. Legacy borrows and retains the engine
+  material, as in the reference; tint parameters are written as in Fatality.
 
 ## Provenance
 

@@ -10,7 +10,9 @@
 namespace HooksInternal {
 namespace {
 int LogChamsFault(EXCEPTION_POINTERS* info){
-    if(info && info->ExceptionRecord){
+    static bool reported=false;
+    if(!reported && info && info->ExceptionRecord){
+        reported=true;
         const auto* e=info->ExceptionRecord;
         LOG_ERROR("chams pass exception code=0x%08lX instruction=%p",e->ExceptionCode,e->ExceptionAddress);
     }
