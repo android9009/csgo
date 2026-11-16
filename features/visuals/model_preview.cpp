@@ -9,6 +9,8 @@
 #include "../../sdk/netvars.hpp"
 #include "../../sdk/preview_sequence.hpp"
 #include "../../sdk/preview_framing.hpp"
+#include "../../sdk/preview_subject.hpp"
+#include "../../sdk/entity/entity.hpp"
 #include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
@@ -37,7 +39,7 @@ void* model{};
 void* last_agent_model{};
 // The engine destructor ABI is not verified. Keep a bounded cache instead of
 // repeatedly destroying merged models while the pointer moves over the grid.
-struct CachedModel { int team, agent; void* model; };
+struct CachedModel { int team, agent; void* model; std::string path; };
 CachedModel model_cache[128]{};
 size_t model_count{};
 bool cache_limit_logged{};
@@ -164,7 +166,7 @@ int AgentSequence() {
     }
     return sequence;
 }
-bool InitializeModel(bool ct, int agent_index) {
+bool InitializeModel(bool ct, int agent_index, const char* agent) {
     auto* alloc = Interfaces::MemAlloc;
     const int team = ct ? 0 : 1;
     phase = "allocate merged model";
@@ -182,7 +184,6 @@ bool InitializeModel(bool ct, int agent_index) {
     phase = "set animation model";
     merged_model->SetMDL("models/player/custom_player/uiplayer/animset_uiplayer.mdl");
     phase = "merge player model";
-    const char* agent = AvailableAgentPath(ct,agent_index);
     LOG_INFO("model preview: loading %s model %s", ct ? "CT" : "T", agent);
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
     const auto root=reinterpret_cast<std::uintptr_t>(model)+4;
@@ -192,7 +193,7 @@ bool InitializeModel(bool ct, int agent_index) {
     *reinterpret_cast<bool*>(root+0x675)=false;
     phase = "setup model bones";
     reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
-    model_cache[model_count++] = {team, agent_index, model};
+    model_cache[model_count++] = {team, agent_index, model, agent};
     LOG_INFO("model preview %s model initialized agent=%d unarmed/static (experimental Source 1)",ct ? "CT" : "T",agent_index);
     return true;
 }
@@ -330,22 +331,41 @@ void DrawTarget(void* target, bool weapon_only) {
 
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
-    const bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
     const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
+    bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
+    std::string local_path;
+    if (!skins) {
+        const int subject = FatalityPreviewBridge::visuals_subject.load(std::memory_order_relaxed);
+        CBaseEntity* local = nullptr;
+        if (Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::EntityList)
+            local = static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer()));
+        const int local_team = local ? local->m_iTeamNum() : 0;
+        ct = PreviewSubject::CounterTerrorist(local_team, subject);
+        if (subject == 2 && (local_team == 2 || local_team == 3) && Interfaces::ModelInfo) {
+            const auto* path = local->GetModelName();
+            // Copy engine-owned text; never retain an entity/model pointer.
+            if (path && PreviewSubject::PlayerModel(path)) local_path = path;
+        }
+    }
     const int team = ct ? 0 : 1;
     int agent_index = skins ? FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed) : 0;
     if (agent_index < 0 || static_cast<size_t>(agent_index) >= PreviewCatalog::AgentCount(ct)) agent_index = 0;
+    std::string agent_path = local_path.empty() ? AvailableAgentPath(ct, agent_index) : local_path;
+    // Missing live models fall back to a valid model on the same side.
+    if (!local_path.empty() && !ModelExists(agent_path.c_str())) {
+        local_path.clear(); agent_path = AvailableAgentPath(ct, 0);
+    }
     model = nullptr;
     for (size_t i = 0; i < model_count; ++i)
-        if (model_cache[i].team == team && model_cache[i].agent == agent_index) { model = model_cache[i].model; break; }
+        if (model_cache[i].team == team && model_cache[i].path == agent_path) { model = model_cache[i].model; break; }
     if (!model) {
         // Check availability before asking the engine to merge a potentially absent model.
-        if (missing_models[team][agent_index]) {
+        if (local_path.empty() && missing_models[team][agent_index]) {
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
-        if (!ModelExists(AvailableAgentPath(ct,agent_index))) {
-            missing_models[team][agent_index] = true;
+        if (!ModelExists(agent_path.c_str())) {
+            if (local_path.empty()) missing_models[team][agent_index] = true;
             LOG_WARN("model preview: requested agent=%d is unavailable",agent_index);
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
@@ -355,7 +375,7 @@ void PaintImpl() {
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
-        if (!InitializeModel(ct, agent_index)) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
+        if (!InitializeModel(ct, agent_index, agent_path.c_str())) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
     }
     if (model != last_agent_model) {
         // Each cached combination has its own merged model. Reset the known

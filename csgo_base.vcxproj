@@ -338,6 +338,7 @@
     <ClInclude Include="sdk\skin_schema.hpp" />
     <ClInclude Include="sdk\preview_sequence.hpp" />
     <ClInclude Include="sdk\preview_framing.hpp" />
+    <ClInclude Include="sdk\preview_subject.hpp" />
     <ClInclude Include="sdk\skin_icon_path.hpp" />
     <ClInclude Include="sdk\skin_icon_file.hpp" />
     <ClInclude Include="sdk\model_preview.hpp" />

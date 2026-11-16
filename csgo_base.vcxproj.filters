@@ -563,6 +563,9 @@
     <ClInclude Include="sdk\preview_framing.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\preview_subject.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\skin_schema.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
