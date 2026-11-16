@@ -11,6 +11,9 @@
     "create_base_type_cache_rel32_at_1": [
       "0x83395d"
     ],
+    "item_system_rel32_at_1": [
+      "0x43b945"
+    ],
     "set_dynamic_attribute": [
       "0x6da0e0"
     ],

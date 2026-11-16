@@ -5,6 +5,7 @@
 #include "../utils/memory.hpp"
 #include "../context.hpp"
 #include "../utils/config.hpp"
+#include "../features/skins/local_inventory.hpp"
 #include <d3d9.h>
 #include "../sdk/structs.hpp"
 namespace Hooks {
@@ -195,6 +196,7 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    LocalInventory::Shutdown();
     if (game_window && original_wndproc)
         SetWindowLongPtrA(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_wndproc));
     original_wndproc = nullptr; game_window = nullptr;

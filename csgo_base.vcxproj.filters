@@ -177,6 +177,9 @@
     <ClCompile Include="features\skins\equipment_changer.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
+    <ClCompile Include="features\skins\local_inventory.cpp">
+      <Filter>Features\skins</Filter>
+    </ClCompile>
     <ClCompile Include="features\skins\skin_changer.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>

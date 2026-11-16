@@ -15,6 +15,7 @@ PATTERNS = {
     "inventory_manager_operand_at_5": "8D 44 24 28 B9 ? ? ? ? 50",
     "econ_item_factory_pointer_at_20": "55 8B EC 83 EC 1C 8D 45 E4 C7 45",
     "create_base_type_cache_rel32_at_1": "E8 ? ? ? ? 8D 4D 0F",
+    "item_system_rel32_at_1": "E8 ? ? ? ? 0F B7 0F",
     "set_dynamic_attribute": "55 8B EC 83 E4 F8 83 EC 3C 53 8B 5D 08 56 57 6A",
     "set_custom_name_rel32_at_1": "E8 ? ? ? ? 8B 46 78 C1 E8 0A A8 01 74 13 8B 46 34",
 }

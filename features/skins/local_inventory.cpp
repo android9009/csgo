@@ -1,0 +1,195 @@
+// Local-only SOC integration. Reference: Osiris csgo-end-of-life (MIT), see
+// third_party/licenses/Osiris-inventory.txt and docs/local-inventory-status.md.
+#include "local_inventory.hpp"
+#include "equipment_state.hpp"
+#include "../../utils/memory.hpp"
+#include "../../utils/log.hpp"
+#include <windows.h>
+#include <cstddef>
+#include <cstring>
+#include <map>
+#include <algorithm>
+#include <limits>
+
+namespace LocalInventory {
+namespace {
+struct Item {
+    void* vtable; void* shared_vtable;
+    std::uint64_t id, original;
+    void* attributes;
+    std::uint32_t account, position;
+    std::uint16_t definition, properties;
+    std::int16_t set;
+    int update_frame;
+    std::uint8_t flags;
+};
+static_assert(sizeof(void*) == 4, "Legacy CS:GO inventory requires Win32");
+static_assert(offsetof(Item,id)==8 && offsetof(Item,definition)==36 && offsetof(Item,flags)==48);
+struct Owner { std::uint64_t id; std::uint32_t type, padding; };
+struct Owned { Item* item; std::uint64_t id; SkinState::Choice choice; };
+using Key=std::pair<int,int>; // CT/T and definition, independent selections
+std::map<Key,Owned> owned;
+std::mutex run_mutex;
+void* inventory{};
+void* cache{};
+std::uint64_t owner_id{};
+std::uint64_t highest_local_id{};
+std::uint32_t highest_position{};
+bool attempted{}, ready{}, stopped{};
+void* manager{};
+Item* (__stdcall* create_item)(){};
+void* (__thiscall* create_cache)(void*,int){};
+void (__thiscall* attribute)(Item*,void*,void*){};
+void (__thiscall* set_name)(Item*,const char*){};
+void* (__cdecl* item_system)(){};
+template<class T> T& At(void* p,std::size_t offset) {return *reinterpret_cast<T*>(static_cast<unsigned char*>(p)+offset);}
+template<class F> F Slot(void* p,std::size_t slot) {return MEM::GetVFunc<F>(p,slot);}
+std::uintptr_t Relative(std::uintptr_t call) {
+    return call ? call+5+At<std::int32_t>(reinterpret_cast<void*>(call),1) : 0;
+}
+bool Resolve() {
+    if(attempted) return ready;
+    attempted=true;
+    auto* base=static_cast<unsigned char*>(MEM::GetModuleBase("client.dll"));
+    if(!base) {attempted=false;return false;}
+    auto* dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    auto* nt=reinterpret_cast<IMAGE_NT_HEADERS*>(base+dos->e_lfanew);
+    // Only the supplied legacy client has been inspected offline. Never use
+    // these layouts against an arbitrary client just because a pattern matches.
+    if(nt->FileHeader.TimeDateStamp!=0x65272025) {
+        LOG_WARN("local inventory: unsupported client timestamp; no SOC mutation");return false;
+    }
+    const auto m=MEM::FindPattern("client.dll","8D 44 24 28 B9 ? ? ? ? 50");
+    const auto c=MEM::FindPattern("client.dll","55 8B EC 83 EC 1C 8D 45 E4 C7 45");
+    const auto b=MEM::FindPattern("client.dll","E8 ? ? ? ? 8D 4D 0F");
+    const auto a=MEM::FindPattern("client.dll","55 8B EC 83 E4 F8 83 EC 3C 53 8B 5D 08 56 57 6A");
+    const auto n=MEM::FindPattern("client.dll","E8 ? ? ? ? 8B 46 78 C1 E8 0A A8 01 74 13 8B 46 34");
+    const auto s=MEM::FindPattern("client.dll","E8 ? ? ? ? 0F B7 0F");
+    if(!m||!c||!b||!a||!n||!s) {LOG_WARN("local inventory: required signature missing");return false;}
+    manager=At<void*>(reinterpret_cast<void*>(m),5);
+    create_item=At<decltype(create_item)>(reinterpret_cast<void*>(c),20);
+    create_cache=reinterpret_cast<decltype(create_cache)>(Relative(b));
+    attribute=reinterpret_cast<decltype(attribute)>(a);
+    set_name=reinterpret_cast<decltype(set_name)>(Relative(n));
+    item_system=reinterpret_cast<decltype(item_system)>(Relative(s));
+    ready=manager && create_item;
+    LOG_INFO("local inventory: legacy SOC backend resolved=%d (experimental)",ready);
+    return ready;
+}
+bool Present(const Owned& value) {
+    const int count=At<int>(cache,24);
+    if(count<0||count>100000) return false;
+    auto** items=At<Item**>(cache,4);
+    for(int i=0;i<count;++i) if(items[i]==value.item) return items[i]->id==value.id;
+    return false;
+}
+void Notify(std::size_t slot,Item* item) {
+    Slot<void(__thiscall*)(void*,Owner,Item*,int)>(inventory,slot)(inventory,At<Owner>(inventory,8),item,4);
+}
+void Remove(const Owned& value) {
+    if(!Present(value)) return;
+    Notify(2,value.item);
+    Slot<void(__thiscall*)(void*,Item*)>(cache,3)(cache,value.item);
+    Slot<void(__thiscall*)(Item*,bool)>(value.item,0)(value.item,true);
+}
+bool Attributes(Item* item,void* schema,const SkinState::Choice& choice) {
+    const int ids[]={6,7,8,80,81};
+    void* defs[5]{};
+    for(int i=0;i<5;++i) {
+        defs[i]=Slot<void*(__thiscall*)(void*,int)>(schema,27)(schema,ids[i]);
+        if(!defs[i]) return false;
+    }
+    float paint=static_cast<float>(choice.paint_kit),seed=static_cast<float>(choice.seed),wear=choice.wear;
+    attribute(item,defs[0],&paint);attribute(item,defs[1],&seed);attribute(item,defs[2],&wear);
+    if(!choice.souvenir && choice.stattrak>=0) {
+        int count=choice.stattrak,type=0;
+        attribute(item,defs[3],&count);attribute(item,defs[4],&type);
+    }
+    if(choice.name[0]) set_name(item,choice.name.data());
+    return true;
+}
+void Run() {
+    std::lock_guard<std::mutex> lock(run_mutex);
+    if(stopped || (!enabled.load() && owned.empty()) || !Resolve()) return;
+    auto* current=Slot<void*(__thiscall*)(void*)>(manager,23)(manager);
+    if(!current) return;
+    auto* soc=At<void*>(current,0xb4);
+    if(!soc) return;
+    auto* type_cache=create_cache(soc,1);
+    if(!type_cache || At<int>(type_cache,32)!=1) return;
+    if(current!=inventory || type_cache!=cache || At<std::uint64_t>(current,8)!=owner_id) {
+        // Old cache belongs to the engine/account. Never dereference old ledger
+        // pointers after replacement; it may already have destroyed the objects.
+        owned.clear();inventory=current;cache=type_cache;owner_id=At<std::uint64_t>(current,8);
+    }
+    std::map<Key,SkinState::Choice> desired;
+    if(enabled.load()) {
+        {
+            std::lock_guard<std::mutex> lock(SkinState::mutex);
+            for(int team=0;team<2;++team) for(const auto& pair:SkinState::teams[team]) desired[{team,pair.first}]=pair.second;
+        }
+        for(int team=0;team<2;++team) {
+            const auto equipment=EquipmentState::Get(team==0);
+            for(const auto& selection:{equipment.knife,equipment.gloves})
+                if(selection.definition) desired[{team,selection.definition}]=selection.finish;
+        }
+    }
+    for(auto it=owned.begin();it!=owned.end();) {
+        const auto wanted=desired.find(it->first);
+        if(wanted==desired.end() || !SkinState::Equal(wanted->second,it->second.choice) || !Present(it->second)) {
+            Remove(it->second);it=owned.erase(it);
+        } else ++it;
+    }
+    if(desired.empty()) return;
+    auto* system=item_system();
+    if(!system) return;
+    auto* schema=Slot<void*(__thiscall*)(void*)>(system,0)(system);
+    if(!schema) return;
+    for(const auto& pair:desired) {
+        if(owned.count(pair.first)) continue;
+        if(!Slot<void*(__thiscall*)(void*,int)>(schema,4)(schema,pair.first.second)) continue;
+        const int count=At<int>(cache,24);
+        if(count<0||count>100000) return;
+        auto** objects=At<Item**>(cache,4);
+        std::uint64_t id=highest_local_id;std::uint32_t position=highest_position;
+        for(int i=0;i<count;++i) {
+            const auto* item=objects[i];
+            if(!item || (item->id & 0xf000000000000000ULL)) continue;
+            id=(std::max)(id,item->id);position=(std::max)(position,item->position);
+        }
+        if(id>=0x0ffffffffffffffeULL || position==std::numeric_limits<std::uint32_t>::max()) return;
+        auto* item=create_item();
+        if(!item) return;
+        const auto& choice=pair.second;
+        item->id=id+1;item->original=0;item->account=At<std::uint32_t>(inventory,8);item->position=position+1;
+        item->definition=static_cast<std::uint16_t>(pair.first.second);
+        const unsigned quality=choice.souvenir?12u:choice.stattrak>=0?9u:EquipmentState::Knife(pair.first.second)?3u:4u;
+        item->properties=static_cast<std::uint16_t>(8u | (quality<<5));
+        item->flags=0;
+        if(!Attributes(item,schema,choice)) {Slot<void(__thiscall*)(Item*,bool)>(item,0)(item,true);return;}
+        Slot<void(__thiscall*)(void*,Item*)>(cache,1)(cache,item);
+        const Owned candidate{item,item->id,choice};
+        if(!Present(candidate)) {
+            Slot<void(__thiscall*)(Item*,bool)>(item,0)(item,true);
+            LOG_WARN("local inventory: cache rejected local item");
+            return;
+        }
+        highest_local_id=item->id;highest_position=item->position;
+        owned.emplace(pair.first,Owned{item,item->id,choice});
+        Notify(0,item);
+        LOG_INFO("local inventory: added local item=%llu definition=%d paint=%d",static_cast<unsigned long long>(item->id),pair.first.second,choice.paint_kit);
+    }
+}
+}
+void Frame() {
+    __try { Run(); }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        stopped=true;
+        LOG_ERROR("local inventory: exception 0x%08lX; SOC backend disabled",GetExceptionCode());
+    }
+}
+void Shutdown() {
+    enabled.store(false);
+    Frame();
+}
+}

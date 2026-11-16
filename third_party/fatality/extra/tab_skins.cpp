@@ -8,6 +8,7 @@
 #include "../../../sdk/skin_catalog.hpp"
 #include "../../../sdk/skin_schema.hpp"
 #include "../../../features/skins/skin_state.hpp"
+#include "../../../features/skins/local_inventory.hpp"
 #include "../../../features/skins/preview_state.hpp"
 #include "../../../features/skins/equipment_state.hpp"
 #include "../preview_bridge.hpp"
@@ -446,11 +447,14 @@ namespace menu::group
             }
             layer->g.clip_rect = old_clip;
             if (catalog_settings_open) {
-                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 66.f}};
+                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 96.f}};
                 layer->add_rect_filled_rounded(popup, colors.bg_block_light, 3.f);
                 const rect check{popup.mins + vec2{10.f, 12.f}, popup.mins + vec2{22.f, 24.f}};
                 layer->add_rect_filled(check, show_all_paints ? colors.accent : colors.outline);
                 layer->add_text(popup.mins + vec2{32.f, 19.f}, "Show all skins", colors.text, text_params::with_v(align_center));
+                const rect share{popup.mins + vec2{10.f, 42.f}, popup.mins + vec2{22.f, 54.f}};
+                layer->add_rect_filled(share, LocalInventory::enabled.load() ? colors.accent : colors.outline);
+                layer->add_text(popup.mins + vec2{32.f, 49.f}, "Share to inventory", colors.text, text_params::with_v(align_center));
             }
         }
         void on_mouse_down(char key) override {
@@ -520,8 +524,11 @@ namespace menu::group
                 return;
             }
             if (catalog_settings_open) {
-                if (local.x >= size.x - 210.f && local.y >= 28.f && local.y < 66.f)
-                    show_all_paints = !show_all_paints;
+                if (local.x >= size.x - 210.f && local.x <= size.x) {
+                    if (local.y >= 28.f && local.y < 66.f) show_all_paints = !show_all_paints;
+                    else if (local.y >= 66.f && local.y < 96.f)
+                        LocalInventory::enabled.store(!LocalInventory::enabled.load());
+                }
                 catalog_settings_open = false;
                 return;
             }

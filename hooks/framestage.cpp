@@ -1,6 +1,7 @@
 #include "hooks.hpp"
 #include "../features/visuals/model_preview.hpp"
 #include "../features/skins/skin_changer.hpp"
+#include "../features/skins/local_inventory.hpp"
 #include "../context.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../sdk/entity/player.hpp"
@@ -11,6 +12,7 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
+    if (stage == 0) LocalInventory::Frame();
     if (stage == 6) ModelPreview::Paint();
     static bool skins_failed = false;
     if (stage == 2 && !skins_failed) {

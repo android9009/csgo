@@ -161,6 +161,7 @@
     <ClCompile Include="features\visuals\model_preview.cpp" />
     <ClCompile Include="features\skins\skin_changer.cpp" />
     <ClCompile Include="features\skins\equipment_changer.cpp" />
+    <ClCompile Include="features\skins\local_inventory.cpp" />
     <ClCompile Include="hooks\hooks.cpp" />
     <ClCompile Include="hooks\paint.cpp" />
     <ClCompile Include="hooks\sceneend.cpp" />
