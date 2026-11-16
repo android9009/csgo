@@ -81,6 +81,7 @@ public:
     virtual void FireGameEvent(Event* event){__try{OnEvent(event);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged=false;if(!logged){logged=true;LOG_WARN("misc: rejected event data");}}}
     virtual int GetEventDebugID(){return 42;}
 } listener;
+void ClearMessages(){std::lock_guard<std::mutex> lock(mutex);messages={};}
 void RestoreRadar(){
     for(int i=1;i<=64;++i){auto& record=radar[i];
         if(record.written && spotted>0 && ctx.in_game && Interfaces::EntityList && Interfaces::EntityList->GetClientEntity(i)==record.entity)
@@ -119,7 +120,12 @@ void MoveImpl(CUserCmd* cmd){
     // m_nWaterLevel=0x25E. Both are byte fields, not 32-bit NETVAR reads.
     const auto* bytes=reinterpret_cast<const unsigned char*>(ctx.local);
     const int type=bytes[0x25c],water=bytes[0x25e];const bool ground=(ctx.local->m_fFlags()&1)!=0;
-    Move(*cmd,options,ground,type,water,velocity.x,velocity.y);
+    bool server_bhop=false;
+    if(Interfaces::ConVar){
+        static void* variable=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_autobunnyhopping");
+        if(variable)server_bhop=MEM::GetVFunc<int(__thiscall*)(void*)>(variable,13)(variable)!=0;
+    }
+    Move(*cmd,options,ground,type,water,velocity.x,velocity.y,server_bhop);
     if(options.avoid_walls && options.strafe && !ground && Walkable(type,water) && Interfaces::EngineTrace && velocity.Length2D()>20.f){
         const auto start=ctx.local->m_vecOrigin()+Vector{0,0,2};Ray_t ray;
         ray.Init(start,start+velocity*.1f,{-16,-16,0},{16,16,54});CTraceFilterSimple filter(ctx.local);CGameTrace trace;
@@ -144,7 +150,7 @@ void Shutdown(){
     if(registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);
     registered=false;pending_buy=false;PlaySoundA(nullptr,nullptr,0);
     __try{RestoreRadar();}__except(EXCEPTION_EXECUTE_HANDLER){}
-    std::lock_guard<std::mutex> lock(mutex);messages={};
+    ClearMessages();
 }
 void CreateMove(CUserCmd* cmd){
     if(!cmd)return;const float f=cmd->forwardmove,s=cmd->sidemove;const int buttons=cmd->buttons;

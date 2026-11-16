@@ -153,7 +153,7 @@
     <ClCompile Include="features\visuals\model_preview.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\misc\runtime.cpp"><Filter>features</Filter></ClCompile>
+    <ClCompile Include="features\misc\runtime.cpp"><Filter>Features</Filter></ClCompile>
     <ClCompile Include="features\visuals\shot_chams.cpp">
       <Filter>Features</Filter>
     </ClCompile>
@@ -600,10 +600,10 @@
     <ClInclude Include="features\visuals\chams_entities.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\misc\runtime.hpp"><Filter>features</Filter></ClInclude>
-    <ClInclude Include="features\misc\state.hpp"><Filter>features</Filter></ClInclude>
-    <ClInclude Include="third_party\fatality\extra\misc_runtime.hpp"><Filter>features</Filter></ClInclude>
-    <ClInclude Include="third_party\fatality\resources\misc_sounds.h"><Filter>features</Filter></ClInclude>
+    <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="features\misc\state.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="third_party\fatality\extra\misc_runtime.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="third_party\fatality\resources\misc_sounds.h"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\visuals\shot_chams.hpp">
       <Filter>Features</Filter>
     </ClInclude>
