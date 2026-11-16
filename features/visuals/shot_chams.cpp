@@ -111,7 +111,7 @@ void Capture(const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3
     const auto options=VisualRuntime::GetEffects();
     if(!options.chams_enabled || !options.shot.kind || !ctx.in_game || !ctx.local || !bones || !state.studio_hdr || info.entity_index<1 || info.entity_index>64 || !Interfaces::EntityList)return;
     auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(info.entity_index));
-    if(!ChamsEntities::Is(entity,"CCSPlayer") || entity->m_iTeamNum()==ctx.local->m_iTeamNum())return;
+    if(!ChamsEntities::Is(entity,"CCSPlayer") || entity->m_iTeamNum()==ctx.local->m_iTeamNum() || entity->GetModel()!=info.model)return;
     const int count=state.studio_hdr->bones;if(count<1 || count>256)return;
     auto& record=latest[info.entity_index];record.valid=false;record.entity=entity;record.index=info.entity_index;record.time=Now();record.state=state;record.info=info;
     const auto* world=info.model_to_world ? info.model_to_world : state.model_to_world;if(!world)return;

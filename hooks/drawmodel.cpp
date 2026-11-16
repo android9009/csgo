@@ -48,7 +48,7 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
             const int team=owner ? owner->m_iTeamNum() : ChamsEntities::RagdollTeam(entity);
             if(team!=2 && team!=3)return false;
             const int subject=VisualRuntime::SubjectFor(local_team,team,owner==ctx.local);
-            choice=ragdoll ? settings.ragdolls[subject] : settings.players[subject];
+            choice=ragdoll ? settings.ragdolls[subject] : info.model!=entity->GetModel() ? settings.attachments[subject] : settings.players[subject];
         } else {
             auto* owner=WorldEsp::Projectile(cls->m_pNetworkName) ? nullptr : ChamsEntities::AttachmentPlayer(entity);
             if(owner) {

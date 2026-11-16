@@ -76,17 +76,15 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
     const auto primary=ChamsPasses::Tint(rgba),effect=ChamsPasses::Tint(secondary,true);
     material->ColorModulate(primary[0],primary[1],primary[2]);
     // Preserve the picker alpha continuously, including the last five percent.
-    float alpha=ChamsPasses::Alpha(rgba);
+    const float alpha=ChamsPasses::Alpha(rgba);
     auto& v=variables[kind];
     if(kind==7){
         // Only reflected Fresnel light is additive; no diffuse white veil.
         material->ColorModulate(0.f,0.f,0.f);
         Set(v.env,effect);
-        if(kind==7){
-            material->SetMaterialVarFlag(MATERIAL_VAR_ADDITIVE,true);
-            if(v.fresnel)v.fresnel->SetValue(1);
-            Set(v.fresnel_range,{0.f,1.f,2.f});
-        }
+        material->SetMaterialVarFlag(MATERIAL_VAR_ADDITIVE,true);
+        if(v.fresnel)v.fresnel->SetValue(1);
+        Set(v.fresnel_range,{0.f,1.f,2.f});
     }
     material->AlphaModulate(alpha);
     material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);
