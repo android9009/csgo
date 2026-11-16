@@ -79,8 +79,14 @@ runtime safety; this remains experimental and defaults OFF.
   missing from this installation are logged and skipped, never guessed.
 - The checkbox and selections use the existing session-only state, not persistence
   of synthetic Steam items. They do not survive a game restart automatically.
-- Sharing does not automatically equip the synthetic item into the game's loadout.
-  Existing game skin application remains a separate fallback system.
+- Sharing now updates the local loadout slot immediately after the item-created
+  notification, using the item definition's team slot (+0x28c array) or global
+  slot (+0x268). The prior local slot ID is recorded/restored on removal, but
+  only if it still refers to our item. Latest weapon selection revision wins
+  when multiple configured alternatives share a slot. Existing in-match fallback
+  skin application remains independent. This is local loadout-cache application,
+  not a server-confirmed equip operation; Panorama badges/agent animation/audio
+  still require runtime verification.
 - A changed/discarded inventory cache is engine-owned; the module deliberately
   does not dereference the old cache to attempt cleanup after replacement.
 - Check CT/T independently, main menu before joining a server, repeated selection,
@@ -108,3 +114,22 @@ Foreign paints no longer display a donor weapon's image. When this installation
 has no generated PNG for that weapon/paint pair, the selected model's base icon
 is used. This is NOT an implementation of arbitrary skinned icon generation;
 correctly rendering an AWP finish on a USP remains subject to engine compatibility.
+
+## Local-only application and picked-up weapon policy
+
+Disassembly of manager vtable slot 29 (RVA 0x6e66b0, ret 0x18) shows protobuf
+construction and queueing; despite its UpdateInventoryEquippedState name it is
+NOT a purely local operation. Neither it nor slot 20 is called. Instead this
+module updates only the validated local array at inventory+0xd8 (4 teams x 57
+64-bit IDs), which GetItemInLoadout reads at RVA 0x6cc240. Original cache entries
+are backed up before substitution. No GC equip message is sent by this module.
+
+Weapons gear also has Allow weapon skins, default OFF. Ordinary weapon fallback
+paints compare m_OriginalOwnerXuidLow/High against the local SteamID64 from player
+info; account ID rewritten by the cosmetic override is never used to classify
+ownership. OFF means original local owner only (unknown/zero owner is skipped),
+ON also allows configured finishes on foreign/picked-up weapons. Turning it OFF
+restores previously overridden foreign weapons through the existing original
+state ledger. The policy change increments the selection revision exactly once;
+unchanged commits do not cause periodic full updates. This setting does not
+change which weapon models are visible in the menu.

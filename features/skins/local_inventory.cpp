@@ -31,7 +31,7 @@ struct Request { SkinState::Choice finish; int music{}; };
 struct Owned { Item* item; std::uint64_t id; Request request; };
 using Key=std::pair<int,int>; // CT/T and definition, independent selections
 std::map<Key,Owned> owned;
-struct Equipped {std::uint64_t original{},local{};};
+struct Equipped {std::uint64_t original{},local{},revision{};};
 std::map<Key,Equipped> equipped; // actual team/slot; only our local changes
 
 std::mutex loadout_mutex;
@@ -128,7 +128,7 @@ void EquipLocal(int team,int slot,std::uint64_t id) {
     if(team<0 || team>3 || slot<0 || slot>56) return;
     At<std::uint64_t>(inventory,0xd8+static_cast<std::size_t>(team*57+slot)*8)=id;
 }
-void AutoEquip(const Key& key,Item* item,void* definition) {
+void AutoEquip(const Key& key,Item* item,void* definition,std::uint64_t revision) {
     const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     if(reinterpret_cast<std::uintptr_t>(Slot<void*>(inventory,8))!=base+0x6cc240) return;
     int team=key.first==0?3:2;
@@ -137,13 +137,15 @@ void AutoEquip(const Key& key,Item* item,void* definition) {
     if(slot<0 || slot>56) return;
     auto& saved=equipped[{team,slot}];
     const auto current=SlotItem(team,slot);
+    // Several configured alternatives can occupy one buy slot. On initial
+    // sharing prefer the most recently edited selection, not numeric item order.
+    if(saved.local && current==saved.local && saved.revision>revision) return;
     if(!saved.local || current!=saved.local) saved.original=current;
-    saved.local=item->id;
+    saved.local=item->id;saved.revision=revision;
     EquipLocal(team,slot,item->id);
     LOG_INFO("local inventory: locally equipped item=%llu team=%d slot=%d",static_cast<unsigned long long>(item->id),team,slot);
 }
 void Remove(const Owned& value) {
-    if(!Present(value)) return;
     for(auto it=equipped.begin();it!=equipped.end();) {
         if(it->second.local==value.id) {
             if(SlotItem(it->first.first,it->first.second)==value.id)
@@ -151,6 +153,7 @@ void Remove(const Owned& value) {
             it=equipped.erase(it);
         } else ++it;
     }
+    if(!Present(value)) return;
     Notify(2,value.item);
     Slot<void(__thiscall*)(void*,Item*)>(cache,3)(cache,value.item);
     Slot<void(__thiscall*)(Item*,bool)>(value.item,0)(value.item,true);
@@ -251,7 +254,7 @@ void Run() {
         }
         owned.emplace(pair.first,Owned{item,item->id,pair.second});
         Notify(0,item);
-        AutoEquip(pair.first,item,definition);
+        AutoEquip(pair.first,item,definition,choice.revision);
         last_loadout=0;
         LOG_INFO("local inventory: added local item=%llu definition=%d paint=%d",static_cast<unsigned long long>(item->id),pair.first.second,choice.paint_kit);
     }
