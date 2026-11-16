@@ -3,6 +3,7 @@
 #include <ren/types/color.h>
 #include <ren/types/pos.h>
 #include <fstream>
+#include <array>
 #include <chrono>
 
 namespace group {
@@ -604,12 +605,16 @@ struct cfg_t {
 			cham_t team_pl, team_rag, team_att, enemy_pl, enemy_backtrack, enemy_shot, enemy_rag, enemy_att, local_pl, local_fake, local_arms, local_att;
 		} chams;
 
-		struct {
+		struct esp_player_t {
 			setting<bool> enabled, ammo, armor, ping, health, name, weapon, weapon_icon, box, skeleton, history_skeleton, sound_esp;
 			setting<color> ammo_color{ color::white( ) }, armor_color{ color::white( ) }, ping_color{ color::white( ) }, health_color_1{ {130, 0, 0} }, health_color_2{ {130, 180, 0} }
 				, name_color{ color::white( ) }, weapon_color{ color::white( ) }, weapon_icon_color{ color::white( ) }, box_color{ color::white( ) }, skeleton_color
 				{ color::white( ) }, history_skeleton_color{ color::white( ) }, sound_esp_color{ color::white( ) };
 			setting<bitset> health_style{ 1 << healthbar_solid }, flags;
+		};
+		struct esp_t : esp_player_t {
+			std::array<esp_player_t,3> profiles{};
+			int active_profile{};
 
 			struct {
 				setting<bool> weapon_icons;
@@ -620,7 +625,7 @@ struct cfg_t {
 				setting<color> color{ color::white( ) };
 				struct category_visuals {
 					setting<bitset> material{1 << cham_none}, glow_mode{1};
-					setting<evo::ren::color> glow_color{evo::ren::color::white()};
+					setting<evo::ren::color> glow_color{evo::ren::color::white()}, material_color{evo::ren::color::white()};
 				} weapon_visuals, grenade_visuals, c4_visuals;
 			} world;
 

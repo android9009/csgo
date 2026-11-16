@@ -45,6 +45,7 @@ public:
         using Fn = void (__thiscall*)(void*, int&, int&);
         reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[5])(this, width, height);
     }
+    bool GetPlayerInfo(int index, void* info) {using Fn = bool (__thiscall*)(void*,int,void*);return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[8])(this,index,info);}
     int GetLocalPlayer() {
         using Fn = int (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[12])(this);
@@ -109,6 +110,7 @@ public:
         using Fn = void (__thiscall*)(void*, IMaterial*, int, int);
         if (auto fn = VFunc<Fn>(1)) fn(this, material, override_type, overrides);
     }
+    bool IsForcedMaterialOverride() { using Fn = bool (__thiscall*)(void*); auto fn=VFunc<Fn>(2); return fn && fn(this); }
     void DrawModelExecute(void* context, const DrawModelState_t& state, const ModelRenderInfo_t& info, matrix3x4_t* bone_to_world = nullptr) {
         using Fn = void (__thiscall*)(void*, void*, const DrawModelState_t&, const ModelRenderInfo_t&, matrix3x4_t*);
         if (auto fn = VFunc<Fn>(21)) fn(this, context, state, info, bone_to_world);

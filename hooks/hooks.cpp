@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../sdk/visual_runtime_state.hpp"
 #include "../utils/detourhook.hpp"
 #include "../utils/log.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
@@ -196,6 +197,7 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();
     if (game_window && original_wndproc)
         SetWindowLongPtrA(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_wndproc));

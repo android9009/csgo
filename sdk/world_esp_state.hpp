@@ -13,6 +13,7 @@ inline Category Classify(std::string_view name) {
     if(name.substr(0,7)=="CWeapon" || name=="CAK47" || name=="CDEagle" || name=="CKnife")return Weapon;
     return None;
 }
+inline bool Projectile(std::string_view name){return name.find("Projectile")!=name.npos || name=="CInferno";}
 struct Options {
     std::array<bool,3> enabled{},icons{};
     std::array<std::uint32_t,3> colors{0xffffffff,0xffffffff,0xffffffff};

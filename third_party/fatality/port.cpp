@@ -75,6 +75,8 @@
 #include "port.hpp"
 #include "extra/menu.h"
 #include "extra/world_esp_overlay.hpp"
+#include "extra/visual_runtime.hpp"
+#include "extra/player_esp_overlay.hpp"
 #include <chrono>
 #include <mutex>
 #include <exception>
@@ -875,9 +877,11 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     }
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
+    VisualSettings::Configure();
     WorldEspOverlay::Configure();
     draw.begin_frame();
     WorldEspOverlay::Render();
+    PlayerEspOverlay::Render();
     ctx->render();
     draw.end_frame();
     draw.render();

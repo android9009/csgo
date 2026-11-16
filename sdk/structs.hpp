@@ -1,6 +1,7 @@
 #pragma once
 #include "datatypes/datatypes.hpp"
 #include <cstdint>
+#include <cstddef>
 
 struct CUserCmd {
     void* vtable = nullptr;
@@ -23,16 +24,26 @@ struct CUserCmd {
     Vector headoffset{};
 };
 struct CVerifiedUserCmd { CUserCmd cmd{}; unsigned long crc = 0; };
+// Pinned 2023 (non-LEGACY) Source 1 layout: free-list link precedes entity.
 struct CGlowObjectDefinition {
+    int m_nNextFreeSlot = -2;
     void* m_pEntity = nullptr;
     float r = 0.f, g = 0.f, b = 0.f, a = 0.f;
-    unsigned char pad[16]{};
+    bool custom_alpha = false;
+    unsigned char pad[3]{};
+    float alpha_velocity{}, alpha_max{}, glow_pulse{};
     bool m_bRenderWhenOccluded = false;
     bool m_bRenderWhenUnoccluded = false;
     bool m_bFullBloom = false;
-    unsigned char pad2[5]{};
-    int m_nNextFreeSlot = -2;
+    unsigned char pad2{};
+    int full_bloom_stencil{}, glow_style{}, screen_slot{};
 };
+#if defined(_M_IX86)
+static_assert(sizeof(CGlowObjectDefinition)==0x38,"CS:GO 2023 glow entry ABI");
+static_assert(offsetof(CGlowObjectDefinition,m_pEntity)==4,"CS:GO glow entity offset");
+static_assert(offsetof(CGlowObjectDefinition,m_bRenderWhenOccluded)==0x28,"CS:GO glow flags offset");
+#endif
+
 struct CAnimationLayer {
     char pad[20]{};
     int m_nOrder = 0;

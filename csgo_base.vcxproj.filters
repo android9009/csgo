@@ -156,6 +156,12 @@
     <ClCompile Include="features\visuals\world_esp.cpp">
       <Filter>Features</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\player_esp.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\glow.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="hooks\framestage.cpp">
       <Filter>Hooks</Filter>
     </ClCompile>
@@ -557,6 +563,12 @@
     <ClInclude Include="third_party\fatality\extra\esp_preview.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\player_esp_overlay.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\visual_runtime.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
     <ClInclude Include="third_party\fatality\preview_catalog.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
@@ -582,6 +594,9 @@
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_preview_state.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\visual_runtime_state.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\skin_schema.hpp">

@@ -19,11 +19,12 @@ public:
         const vec2 extent{viewport.width(),viewport.height()};
         const auto& b=geometry.box;
         const rect box{viewport.tl()+vec2{b.left*extent.x,b.top*extent.y},viewport.tl()+vec2{b.right*extent.x,b.bottom*extent.y}};
+        layout_extent={box.width(),box.height()};
         const auto clip=d->g.clip_rect;d->override_clip_rect(viewport);
         d->font=draw.fonts[GUI_HASH("gui_main")];
         const auto offsets=VisualPreview::GetLayout();
         auto position=[&](int id,vec2 origin,vec2 size) {
-            const auto p=VisualPreview::ClampPosition({origin.x-viewport.tl().x+offsets[id].x*extent.x,origin.y-viewport.tl().y+offsets[id].y*extent.y},
+            const auto p=VisualPreview::ClampPosition({origin.x-viewport.tl().x+offsets[id].x*box.width(),origin.y-viewport.tl().y+offsets[id].y*box.height()},
                 {size.x,size.y},{extent.x,extent.y});
             const auto top=viewport.tl()+vec2{p.x,p.y};
             hits[id]={top,top+size};present[id]=true;
@@ -84,10 +85,10 @@ public:
         }
         return false;
     }
-    bool move(const vec2& delta,const vec2& extent) {
+    bool move(const vec2& delta,const vec2&) {
         if(dragging<0)return false;
-        if(extent.x<=0.f || extent.y<=0.f)return true;
-        auto p=VisualPreview::GetLayout()[dragging];p.x+=delta.x/extent.x;p.y+=delta.y/extent.y;
+        if(layout_extent.x<=0.f || layout_extent.y<=0.f)return true;
+        auto p=VisualPreview::GetLayout()[dragging];p.x+=delta.x/layout_extent.x;p.y+=delta.y/layout_extent.y;
         VisualPreview::SetOffset(dragging,p);return true;
     }
     void up(){dragging=-1;}
@@ -95,5 +96,6 @@ private:
     std::array<rect,VisualPreview::ElementCount> hits{};
     std::array<bool,VisualPreview::ElementCount> present{};
     int dragging{-1};
+    vec2 layout_extent{};
 };
 }

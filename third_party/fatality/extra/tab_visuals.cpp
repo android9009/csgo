@@ -30,12 +30,12 @@ namespace menu::group
 			FatalityPreviewBridge::render_ct.store(!skins_preview || FatalityPreviewBridge::skins_team_ct.load(std::memory_order_relaxed), std::memory_order_relaxed);
 			FatalityPreviewBridge::render_skins.store(skins_preview, std::memory_order_relaxed);
 			if (!skins_preview)
-				FatalityPreviewBridge::visuals_subject.store(static_cast<int>(cfg.visuals.preview.get().first_set_bit().value_or(0)), std::memory_order_relaxed);
+				FatalityPreviewBridge::visuals_subject.store(std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2), std::memory_order_relaxed);
 			if (skins_preview && size.y > 0.f)
 				FatalityPreviewBridge::skins_aspect.store(size.x / size.y, std::memory_order_relaxed);
 			VisualPreview::Material appearance{};
 			if(chams_preview) {
-				const int subject=static_cast<int>(cfg.visuals.preview.get().first_set_bit().value_or(0));
+				const int subject=std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2);
 				auto& chams=cfg.visuals.chams;
 				auto& selected=subject==2 ? chams.local_pl : subject==1 ? chams.team_pl : chams.enemy_pl;
 				appearance.enabled=chams.enable.get();appearance.kind=selected.mat.get().first_set_bit().value_or(0);
@@ -328,7 +328,7 @@ namespace menu::group
 		}
 		auto material = MAKE_RUNTIME(key + "chams", combo_box, visual.material, vec2{}, vec2{80.f, 20.f});
 		insert_chams(key + "chams>", material);
-		e->add(make_control("Chams", material));
+		add_inline("chams", "Chams", {material, MAKE_RUNTIME(key + "chams>color", color_picker, visual.material_color)});
 		auto glow = MAKE_RUNTIME(key + "glow", combo_box, visual.glow_mode, vec2{}, vec2{80.f, 20.f});
 		glow->add({MAKE_RUNTIME(key + "glow>off", selectable, "Off", 0), MAKE_RUNTIME(key + "glow>on", selectable, "On", 1)});
 		const auto glow_color = MAKE_RUNTIME(key + "glow>color", color_picker, visual.glow_color);

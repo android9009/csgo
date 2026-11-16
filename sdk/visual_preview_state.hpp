@@ -27,6 +27,7 @@ inline Material GetMaterial() { std::lock_guard<std::mutex> lock(mutex); return 
 inline void SetMaterial(const Material& value) { std::lock_guard<std::mutex> lock(mutex); material=value; }
 inline Geometry GetGeometry() { std::lock_guard<std::mutex> lock(mutex); return geometry; }
 inline void SetGeometry(const Geometry& value) { std::lock_guard<std::mutex> lock(mutex); geometry=value; }
+inline void SetLayout(const Layout& value){std::lock_guard<std::mutex> lock(mutex);layout=value;}
 inline Layout GetLayout() { std::lock_guard<std::mutex> lock(mutex); return layout; }
 inline Point ClampOffset(Point p) {
     if (!std::isfinite(p.x) || !std::isfinite(p.y)) return {};

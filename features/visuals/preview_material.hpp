@@ -5,7 +5,7 @@
 #include "../../utils/log.hpp"
 
 namespace PreviewMaterial {
-// Preview-only overrides. Do not install a global DrawModelExecute override.
+// Scoped material overrides shared by the preview and game model passes.
 // Borrow engine materials, cache lookups, and restore every modified property.
 inline IMaterial* cache[8]{};
 inline bool tried[8]{};

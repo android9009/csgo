@@ -16,8 +16,11 @@ bool CBaseEntity::IsPlayer() const {
 }
 ClientClass* CBaseEntity::GetClientClass() {
     using Fn = ClientClass* (__thiscall*)(void*);
-    auto fn = MEM::GetVFunc<Fn>(this, 2);
-    return fn ? fn(this) : nullptr;
+    // IClientNetworkable is the third x86 base interface (+8), not the
+    // entity's IClientUnknown vtable (whose slot 2 is a different method).
+    auto* networkable = reinterpret_cast<unsigned char*>(this) + 8;
+    auto fn = MEM::GetVFunc<Fn>(networkable, 2);
+    return fn ? fn(networkable) : nullptr;
 }
 int CBaseEntity::GetIndex() const {
     if (!Interfaces::EntityList) return -1;

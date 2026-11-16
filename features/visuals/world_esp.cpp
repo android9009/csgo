@@ -50,7 +50,7 @@ void CaptureImpl() {
             if(planted && !ReadBool(entity,ticking))continue;
             // Never label weapons / grenades carried by a player.
             const auto handle=static_cast<std::uint32_t>(ReadInt(entity,owner));
-            if(!planted && (!owner || (handle && handle!=0xffffffffu && Interfaces::EntityList->GetClientEntityFromHandle(handle))))continue;
+            if(!planted && !Projectile(cls->m_pNetworkName) && (!owner || (handle && handle!=0xffffffffu && Interfaces::EntityList->GetClientEntityFromHandle(handle))))continue;
             const auto position=entity->m_vecOrigin();
             if(!position.IsValid() || position.IsZero())continue;
             Item item;item.category=category;item.x=position.x;item.y=position.y;item.z=position.z;

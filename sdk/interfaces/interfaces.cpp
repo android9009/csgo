@@ -69,7 +69,10 @@ bool Setup() {
     ClientState = static_cast<IClientState*>(ReadModulePointer("engine.dll", offsets::Get("dwClientState")));
     Globals = static_cast<IGlobalVarsBase*>(ReadModulePointer("engine.dll", offsets::Get("dwGlobalVars")));
     Input = static_cast<IInput*>(ReadModulePointer("client.dll", offsets::Get("dwInput")));
-    GlowManager = static_cast<IGlowObjectManager*>(ReadModulePointer("client.dll", offsets::Get("dwGlowObjectManager")));
+    // dwGlowObjectManager is the address of the CUtlVector-backed manager,
+    // not a pointer slot. Dereferencing it here would yield the entry array.
+    const auto glow_rva = offsets::Get("dwGlowObjectManager");
+    GlowManager = glow_rva ? reinterpret_cast<IGlowObjectManager*>(reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll")) + glow_rva) : nullptr;
     DirectDevice = ReadModulePointer("shaderapidx9.dll", offsets::Get("dwppDirect3DDevice9"));
 
     const auto client_mode_operand = ReadAbsoluteOperand("client.dll", "A1 ? ? ? ? 8B 80 ? ? ? ? 5D C3", 1);
