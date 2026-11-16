@@ -38,7 +38,7 @@ void* last_agent_model{};
 // The engine destructor ABI is not verified. Keep a bounded cache instead of
 // repeatedly destroying merged models while the pointer moves over the grid.
 struct CachedModel { int team, agent, weapon; void* model;
-    DWORD material_refresh{}; std::uint64_t material_revision{}; bool had_material{};
+    DWORD material_refresh{}; std::uint64_t material_revision{}; bool had_material{}; int material_status{-1};
 };
 void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index);
 CachedModel model_cache[128]{};
@@ -372,9 +372,13 @@ bool LiveMaterialBuildCompatible() {
     const unsigned char copy_call[] = {0x85,0xc9,0x74,0x06,0x8b,0x01,0x53,0xff,0x50,0x0c};
     return std::memcmp(base + 0x9aebc2, copy_call, sizeof(copy_call)) == 0;
 }
-void* FindLiveMaterialOwner(int index, int paint, int seed, float wear) {
+// Reason codes: 1 outside game, 2 netvars, 3 unsupported definition,
+// 4 local player, 5 no matching item, 6 owner ABI, 7 generated materials absent.
+void* FindLiveMaterialOwner(int index, int paint, int seed, float wear, int* reason=nullptr) {
+    if(reason) *reason=1;
     if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Engine->IsInGame() ||
         !PropManager::Get().IsReady()) return nullptr;
+    if(reason) *reason=2;
     auto& net = PropManager::Get();
     const auto weapons = net.GetOffset("DT_BaseCombatCharacter", "m_hMyWeapons");
     const auto item = net.GetOffset("DT_BaseAttributableItem", "m_Item");
@@ -385,9 +389,12 @@ void* FindLiveMaterialOwner(int index, int paint, int seed, float wear) {
     for (const auto offset : {weapons,item,definition,paint_offset,seed_offset,wear_offset})
         if (offset <= 0 || offset > 0x10000) return nullptr;
     const int wanted = SkinState::Definition(PreviewCatalog::weapons[index].id);
+    if(reason) *reason=3;
     if (!wanted) return nullptr;
+    if(reason) *reason=4;
     auto* local = static_cast<unsigned char*>(Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer()));
     if (!local) return nullptr;
+    if(reason) *reason=5;
     const auto* handles = reinterpret_cast<const std::uint32_t*>(local + weapons);
     const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
     for (int i=0; i<64; ++i) {
@@ -397,16 +404,18 @@ void* FindLiveMaterialOwner(int index, int paint, int seed, float wear) {
             *reinterpret_cast<int*>(entity + paint_offset) != paint ||
             *reinterpret_cast<int*>(entity + seed_offset) != seed ||
             std::fabs(*reinterpret_cast<float*>(entity + wear_offset) - wear) > .00001f) continue;
+        if(reason) *reason=6;
         auto* owner = entity + item + 0x10;
         const auto* table = *reinterpret_cast<std::uintptr_t**>(owner);
         // Confirm inherited material-owner operations, not merely a plausible pointer.
         if (!table || table[1] != base + 0x1de6f0 || table[3] != base + 0x1ac360) continue;
+        if(reason) *reason=7;
         const int count = *reinterpret_cast<int*>(owner + 0x10);
         auto** materials = *reinterpret_cast<void***>(owner + 4);
         if (count <= 0 || count > 32 || !materials) continue;
         bool any = false;
         for (int slot=0; slot<count; ++slot) any = any || materials[slot] != nullptr;
-        if (any) return owner; // Used synchronously; never cached beyond this render call.
+        if (any) { if(reason) *reason=0; return owner; } // Never cached beyond this render call.
     }
     return nullptr;
 }
@@ -415,6 +424,7 @@ void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index) {
     const auto finish=PreviewSkinState::Get(ct,PreviewCatalog::weapons[weapon_index].id);
     const auto now=GetTickCount();
     if (cached.material_revision==finish.revision && now-cached.material_refresh<500) return;
+    const bool request_changed=cached.material_revision!=finish.revision;
     cached.material_refresh=now; cached.material_revision=finish.revision;
     // Verified in client RVA 0x9af400/0x9af4f0: merged vector data +0x6d4,
     // count +0x6e0, CMDL stride 0x6d0. Child 0 is agent, child 1 is weapon.
@@ -428,7 +438,13 @@ void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index) {
     void* destination=children+0x6d0;
     const auto* table=*reinterpret_cast<std::uintptr_t**>(destination);
     if (!table || table[1]!=base+0x1de6f0 || table[3]!=base+0x1ac360) return;
-    void* source=finish.paint>0 ? FindLiveMaterialOwner(weapon_index,finish.paint,finish.seed,finish.wear) : nullptr;
+    int reason=0;
+    void* source=finish.paint>0 ? FindLiveMaterialOwner(weapon_index,finish.paint,finish.seed,finish.wear,&reason) : nullptr;
+    if (finish.paint>0 && (cached.material_status!=reason || request_changed)) {
+        const char* reasons[]={"copied","outside game","missing netvars","unsupported definition","missing local player","no matching local weapon/paint/seed/wear","material owner ABI mismatch","generated materials absent"};
+        LOG_INFO("agent preview material: weapon=%s paint=%d seed=%d wear=%.6f status=%s",PreviewCatalog::weapons[weapon_index].id,finish.paint,finish.seed,finish.wear,reasons[reason]);
+    }
+    cached.material_status=reason;
     using Clear=void(__thiscall*)(void*,bool);
     using Copy=void(__thiscall*)(void*,void*);
     if (cached.had_material || source) reinterpret_cast<Clear>(base+0x1acc80)(destination,false);
