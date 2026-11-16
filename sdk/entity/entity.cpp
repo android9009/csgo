@@ -14,16 +14,17 @@ bool CBaseEntity::IsPlayer() const {
     if (!cls || !cls->m_pNetworkName) return false;
     return std::strstr(cls->m_pNetworkName, "Player") != nullptr;
 }
-ClientClass* CBaseEntity::GetClientClass() {
+namespace {
+ClientClass* ReadClientClass(void* entity,std::uintptr_t base) {
     // Pinned Source 1 client class getters are `mov eax, &ClientClass; ret`.
     // Resolve this read-only getter instead of invoking arbitrary virtual code
     // while scanning non-player entity slots. Fail closed on another ABI.
     __try {
-        static const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+        if(!base)return nullptr;
         const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
         const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS*>(base+dos->e_lfanew);
         const auto end=base+nt->OptionalHeader.SizeOfImage;
-        auto** table=*reinterpret_cast<unsigned char***>(reinterpret_cast<unsigned char*>(this)+8);
+        auto** table=*reinterpret_cast<unsigned char***>(reinterpret_cast<unsigned char*>(entity)+8);
         auto* code=table[2];
         for(int jump=0;jump<2 && code && code[0]==0xe9;++jump)code+=5+*reinterpret_cast<std::int32_t*>(code+1);
         const auto address=reinterpret_cast<std::uintptr_t>(code);
@@ -36,6 +37,12 @@ ClientClass* CBaseEntity::GetClientClass() {
         for(int i=0;i<128;++i)if(!cls->m_pNetworkName[i])return cls;
     } __except(EXCEPTION_EXECUTE_HANDLER) {}
     return nullptr;
+}
+}
+ClientClass* CBaseEntity::GetClientClass() {
+    // Keep C++ initialization (and its unwind state) outside the SEH leaf.
+    static const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    return ReadClientClass(this,base);
 }
 
 int CBaseEntity::GetIndex() const {

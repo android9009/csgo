@@ -49,9 +49,9 @@ void slider<T>::on_key_down(uint16_t key)
 
 	const auto o = *value;
 	if (key == VK_LEFT || key == VK_DOWN)
-		*value -= step;
+		*value = static_cast<T>(*value - step);
 	if (key == VK_RIGHT || key == VK_UP)
-		*value += step;
+		*value = static_cast<T>(*value + step);
 
 	*value = std::clamp(*value, low, high);
 	if (o != *value)
