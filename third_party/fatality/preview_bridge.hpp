@@ -7,6 +7,7 @@ inline std::atomic<bool> skins_selecting{false};
 inline std::atomic<bool> skins_team_ct{true};
 inline std::atomic<bool> render_ct{true};
 inline std::atomic<bool> render_skins{false};
+inline std::atomic<float> skins_aspect{220.f / 292.f};
 inline std::atomic<int> agent[2]{};
 inline std::atomic<int> weapon{0};
 inline std::atomic<float> yaw{180.f};

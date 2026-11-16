@@ -8,6 +8,7 @@
 #include "../../sdk/skin_icon_file.hpp"
 #include "../../sdk/netvars.hpp"
 #include "../../sdk/preview_sequence.hpp"
+#include "../../sdk/preview_framing.hpp"
 #include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
@@ -197,6 +198,25 @@ bool InitializeModel(bool ct, int agent_index) {
 }
 
 void DrawTarget(void* target, bool weapon_only) {
+    const bool fit_agent = !weapon_only && FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
+    Vector agent_min{-18.f, -18.f, 0.f}, agent_max{18.f, 18.f, 80.f};
+    if (fit_agent && Interfaces::ModelInfo) {
+        const bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
+        const int index = FatalityPreviewBridge::agent[ct ? 0 : 1].load(std::memory_order_relaxed);
+        const auto path = AvailableAgentPath(ct, index);
+        const int model_index = Interfaces::ModelInfo->GetModelIndex(path);
+        auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
+        auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
+        if (hdr) {
+            const auto lo = hdr->bb_min, hi = hdr->bb_max;
+            if (std::isfinite(lo.x) && std::isfinite(lo.y) && std::isfinite(lo.z) &&
+                std::isfinite(hi.x) && std::isfinite(hi.y) && std::isfinite(hi.z) &&
+                hi.x > lo.x && hi.y > lo.y && hi.z - lo.z >= 60.f && hi.z - lo.z <= 110.f &&
+                hi.x - lo.x < 120.f && hi.y - lo.y < 120.f) {
+                agent_min = lo; agent_max = hi;
+            }
+        }
+    }
     auto* ms = Interfaces::MaterialSystem;
     phase = "get render context";
     auto* context = static_cast<MatRenderContextABI*>(Slot<void*(__thiscall*)(void*)>(ms, 115)(ms));
@@ -227,6 +247,16 @@ void DrawTarget(void* target, bool weapon_only) {
             !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
         view.fov = 50.f; view.origin = Vector{-(std::max)(70.f, radius * 9.f), 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
+    } else if (fit_agent) {
+        center = Vector{(agent_min.x + agent_max.x) * .5f, (agent_min.y + agent_max.y) * .5f, (agent_min.z + agent_max.z) * .5f};
+        view.aspect_ratio = FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed);
+        if (!std::isfinite(view.aspect_ratio) || view.aspect_ratio < .2f || view.aspect_ratio > 4.f)
+            view.aspect_ratio = static_cast<float>(width) / height;
+        const float distance = PreviewFraming::Distance((agent_max.x - agent_min.x) * .5f,
+            (agent_max.y - agent_min.y) * .5f, (agent_max.z - agent_min.z) * .5f,
+            FatalityPreviewBridge::yaw.load(std::memory_order_relaxed), view.aspect_ratio);
+        view.fov = 12.f; view.origin = Vector{-distance, 0.f, 0.f};
+        view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 2000.f;
     } else {
         view.fov = 12.f; view.origin = Vector{-FatalityPreviewBridge::distance.load(std::memory_order_relaxed), 0.f, 55.f};
         view.angles = QAngle{2.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
@@ -258,8 +288,10 @@ void DrawTarget(void* target, bool weapon_only) {
     matrix[0][0]=cy*cp; matrix[0][1]=cy*sp*sr-sy*cr; matrix[0][2]=cy*sp*cr+sy*sr;
     matrix[1][0]=sy*cp; matrix[1][1]=sy*sp*sr+cy*cr; matrix[1][2]=sy*sp*cr-cy*sr;
     matrix[2][0]=-sp; matrix[2][1]=cp*sr; matrix[2][2]=cp*cr;
-    if (weapon_only) {
+    if (weapon_only || fit_agent) {
         for (int i=0; i<3; ++i) matrix[i][3] = -(matrix[i][0]*center.x + matrix[i][1]*center.y + matrix[i][2]*center.z);
+    }
+    if (weapon_only) {
         // Normalized screen drag; camera looks along +X, so Y/Z span its image plane.
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
         matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;

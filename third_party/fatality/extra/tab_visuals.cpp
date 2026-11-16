@@ -28,6 +28,8 @@ namespace menu::group
 			auto &layer = draw.layers[ctx->content_layer];
 			FatalityPreviewBridge::render_ct.store(!skins_preview || FatalityPreviewBridge::skins_team_ct.load(std::memory_order_relaxed), std::memory_order_relaxed);
 			FatalityPreviewBridge::render_skins.store(skins_preview, std::memory_order_relaxed);
+			if (skins_preview && size.y > 0.f)
+				FatalityPreviewBridge::skins_aspect.store(size.x / size.y, std::memory_order_relaxed);
 			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
 			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
 				layer->g.texture = texture;
