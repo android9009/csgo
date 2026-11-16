@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
+#include <cstring>
 
 GUI_NAMESPACE;
 
@@ -28,8 +29,11 @@ template <typename T>
 void slider<T>::preserve_hotkey_state()
 {
 	pres_state.is_engaged = in_hotkey;
-	*(float *)&pres_state.hk_value = in_hotkey ? *value : 0;
-	*(float *)&pres_state.real_value = in_hotkey ? old_value : *value;
+	static_assert(sizeof(T)<=sizeof(pres_state.hk_value));
+	const T hk = in_hotkey ? *value : T{};
+	const T real = in_hotkey ? old_value : *value;
+	std::memcpy(&pres_state.hk_value, &hk, sizeof(T));
+	std::memcpy(&pres_state.real_value, &real, sizeof(T));
 
 	*value = old_value;
 }
@@ -38,7 +42,10 @@ template <typename T>
 void slider<T>::restore_hotkey_state()
 {
 	in_hotkey = pres_state.is_engaged;
-	*value = in_hotkey ? *(T *)&pres_state.hk_value : *(T *)&pres_state.real_value;
+	T restored{};
+	const auto& stored = in_hotkey ? pres_state.hk_value : pres_state.real_value;
+	std::memcpy(&restored, &stored, sizeof(T));
+	*value = restored;
 }
 
 template <typename T>
@@ -140,13 +147,16 @@ void slider<T>::render()
 template <typename T>
 void slider<T>::update_value()
 {
-	const auto step_frac = 1.f / step;
+	if (step <= 0.f || size.x <= 0.f) return;
+	const auto step_frac = 1.0 / static_cast<double>(step);
 	const auto cursor = input.cursor();
 
 	const auto o = *value;
 
-	*value = (cursor.x - pos_abs().x) / size.x * ((float)high - (float)low) + (float)low;
-	*value = std::clamp(floorf(*value * step_frac + 0.5f) / step_frac, (float)low, (float)high);
+	const double raw = static_cast<double>((cursor.x - pos_abs().x) / size.x) *
+		(static_cast<double>(high) - static_cast<double>(low)) + static_cast<double>(low);
+	*value = static_cast<T>(std::clamp(std::floor(raw * step_frac + 0.5) / step_frac,
+		static_cast<double>(low), static_cast<double>(high)));
 
 	if (o != *value)
 	{
