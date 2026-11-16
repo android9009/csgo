@@ -157,6 +157,13 @@ namespace menu::group
     };
     std::map<int, std::array<SkinSchema::Decal, 5>> agent_patches[2];
     std::map<std::string, SkinChoice> selection[2]; // independent CT/T menu state
+    const std::string& selected_equipment_paint(const char* weapon, bool ct) {
+        static const std::string empty;
+        if (!weapon) return empty;
+        const auto& chosen = selection[ct ? 0 : 1];
+        const auto it = chosen.find(weapon);
+        return it == chosen.end() ? empty : it->second.paint;
+    }
     enum class Equipment { None, Agent, Gloves, Knife, Medal, Music };
     Equipment equipment_screen = Equipment::None;
     std::string equipped_knife[2], equipped_gloves[2], equipped_music[2], equipped_medal[2];
@@ -337,7 +344,7 @@ namespace menu::group
                 const auto& agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
                 if (entries[i] == Equipment::Knife && card.contains(input.cursor()) && equipment_screen == Equipment::None)
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(selected.empty() ? (ct ? "weapon_knife" : "weapon_knife_t") : selected.c_str()), std::memory_order_relaxed);
-                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget, entries[i] == Equipment::Knife ? selected_paint(selected.c_str()) : std::string{});
+                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget, entries[i] == Equipment::Knife ? selected_equipment_paint(selected.c_str(), ct) : std::string{});
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 layer->add_text(pos + vec2{width * .5f, 40.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
                 layer->add_rect_filled(rect{pos + vec2{3.f, 47.f}, pos + vec2{width - 3.f, 49.f}}, colors.outline);
@@ -814,10 +821,7 @@ namespace menu::group
             layer->g.clip_rect = clip;
         }
         const std::string& selected_paint(const char* weapon) const {
-            static const std::string empty;
-            const auto& chosen = selection[team_ct ? 0 : 1];
-            const auto it = chosen.find(weapon);
-            return it == chosen.end() ? empty : it->second.paint;
+            return selected_equipment_paint(weapon, team_ct);
         }
         void close_skins() {
             stop_name_input();
