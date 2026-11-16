@@ -1,0 +1,21 @@
+{
+  "sha256": "183d42fac8a4ecc24dc02edf5f09122f37fe9e7533ca093a867718b25cfdeb03",
+  "timestamp": "0x65272025",
+  "matches": {
+    "inventory_manager_operand_at_5": [
+      "0x3fd70a"
+    ],
+    "econ_item_factory_pointer_at_20": [
+      "0x6e41c0"
+    ],
+    "create_base_type_cache_rel32_at_1": [
+      "0x83395d"
+    ],
+    "set_dynamic_attribute": [
+      "0x6da0e0"
+    ],
+    "set_custom_name_rel32_at_1": [
+      "0x6d9ffb"
+    ]
+  }
+}
