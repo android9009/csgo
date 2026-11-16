@@ -542,7 +542,7 @@ struct cfg_t {
 	} aa;
 
 	struct misc_t {
-		setting<bool> compensate_grenade, peek_assist, peek_assist_retreat_on_release, birthday_mode, instant_unduck, bhop, fov_enabled, vm_fov_enabled, radar,
+		setting<bool> compensate_grenade, peek_assist, peek_assist_retreat_on_release, birthday_mode, instant_unduck, bhop, no_fall_damage, fov_enabled, vm_fov_enabled, radar,
 			remove_flash, remove_smoke, remove_blur, avoid_walls, thirdperson, thirdperson_dead, thirdperson_grenade, thirdperson_no_interp, force_crosshair,
 			autoaccept, reveal_ranks, hurtlog, hurtlog_info, buylog, clantag, preservedn, impacts, grenade_tracer, grenade_helper, sv_pure,
 			shared_esp_with_enemy, shared_esp, buybot_defuser, buybot_taser, buybot_grenades, debug_info, edge_jump, goblin_mode, scope_invert;

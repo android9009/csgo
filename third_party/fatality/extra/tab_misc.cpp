@@ -139,6 +139,9 @@ namespace menu::group
 			ADD("Avoid walls", "misc>movement>avoid walls", checkbox, cfg.misc.avoid_walls);
 		}));
 		ADD("Bhop", "misc>movement>bhop", checkbox, cfg.misc.bhop);
+        const auto no_fall = MAKE("misc>movement>no fall damage", checkbox, cfg.misc.no_fall_damage);
+        no_fall->tooltip = "UI setting only: fall damage is server-controlled; prevention is not implemented.";
+        e->add(make_control("No fall damage", no_fall));
 		ADD("Instant duck", "misc>movement>instant unduck", checkbox, cfg.misc.instant_unduck);
 		ADD("Edge jump", "misc>movement>edge jump", checkbox, cfg.misc.edge_jump);
 		ADD("Edge stop", "misc>movement>edge stop", checkbox, cfg.misc.edge_stop);

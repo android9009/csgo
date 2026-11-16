@@ -133,3 +133,13 @@ restores previously overridden foreign weapons through the existing original
 state ledger. The policy change increments the selection revision exactly once;
 unchanged commits do not cause periodic full updates. This setting does not
 change which weapon models are visible in the menu.
+
+### Sharing existing menu entries
+
+Enabling Share to inventory now re-publishes all current CT/T menu selections
+through the same validated weapon commit path, plus selected agent/medal/music
+IDs, before enabling backend reconciliation. Editor state is preserved. Previously
+configured alternative knives/gloves are not silently equipped: only the selected
+model is published. Existing backend equality checks still prevent duplicate SOC
+items and unchanged skin full updates. This exports the skinchanger's menu state;
+it does not duplicate genuine Steam items or restore selections from past sessions.

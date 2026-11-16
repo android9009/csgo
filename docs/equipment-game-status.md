@@ -51,3 +51,10 @@ restoration update.
 
 `tests/skin_refresh_test.cpp` simulates 10,000 unchanged commits per category and
 asserts that only real edits/default transitions generate a revision event.
+
+## Movement UI note
+
+`No fall damage` is positioned immediately after Bhop in Movement. It is currently
+a UI-only setting, with an explicit hover tooltip. No server damage suppression,
+client-health spoofing, prediction hack, or guaranteed fall-damage prevention is
+implemented or claimed.

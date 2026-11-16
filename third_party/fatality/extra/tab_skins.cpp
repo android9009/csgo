@@ -545,8 +545,11 @@ namespace menu::group
                 if (local.x >= size.x - 210.f && local.x <= size.x) {
                     if (local.y >= 28.f && local.y < 66.f) show_all_paints = !show_all_paints;
                     else if (local.y >= 66.f && local.y < 96.f) {show_all_weapons=!show_all_weapons;scroll=0.f;}
-                    else if (local.y >= 96.f && local.y < 126.f)
-                        LocalInventory::enabled.store(!LocalInventory::enabled.load());
+                    else if (local.y >= 96.f && local.y < 126.f) {
+                        const bool share=!LocalInventory::enabled.load();
+                        if(share) publish_existing_inventory();
+                        LocalInventory::enabled.store(share);
+                    }
                     else if (local.y >= 126.f && local.y < 156.f)
                         SkinState::AllowWeaponSkins(!SkinState::AllowWeaponSkins());
                 }
@@ -692,6 +695,39 @@ namespace menu::group
             std::vector<const SkinSchema::Decal*> result;
             for (const auto& decal : schema_metadata.decals) if (decal.patch == agent_editor) result.push_back(&decal);
             return result;
+        }
+        void publish_existing_inventory() {
+            // Re-publish the complete menu inventory, not just the currently
+            // open weapon. Reuse commit validation and preserve editor state.
+            if(!load_catalog()) return;
+            const auto old_weapon=selected_weapon;
+            const auto old_pending=pending;
+            const bool old_team=team_ct, old_equipment=equipment_weapon, old_agent=agent_editor;
+            for(int team=0;team<2;++team) {
+                team_ct=team==0;
+                const auto entries=selection[team]; // commit writes selection
+                for(const auto& entry:entries) {
+                    const auto* equipment=EquipmentState::Find(entry.first);
+                    if(equipment && entry.first!=equipped_knife[team] && entry.first!=equipped_gloves[team]) continue;
+                    if(!equipment && !SkinState::Definition(entry.first)) continue;
+                    selected_weapon={entry.first.c_str(),entry.first.c_str()};
+                    pending=entry.second;equipment_weapon=equipment!=nullptr;agent_editor=false;
+                    commit_weapon();
+                }
+                const auto index=static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed));
+                const auto& agent=PreviewCatalog::GetAgent(team_ct,index);
+                const auto found=inventory_metadata.items.find(agent.icon);
+                EquipmentState::InventorySelection(team_ct,0,index==0 || found==inventory_metadata.items.end()?0:found->second);
+                for(int category=1;category<=2;++category) {
+                    const auto& ids=category==2?inventory_metadata.music:inventory_metadata.items;
+                    const auto& path=category==2?equipped_music[team]:equipped_medal[team];
+                    const auto id=ids.find(path);
+                    EquipmentState::InventorySelection(team_ct,category,id==ids.end()?0:id->second);
+                }
+            }
+            selected_weapon=old_weapon;pending=old_pending;team_ct=old_team;
+            equipment_weapon=old_equipment;agent_editor=old_agent;
+            LOG_INFO("local inventory: published existing CT/T menu inventory for sharing");
         }
         void commit_weapon() {
             if (!selected_weapon.internal) return;
