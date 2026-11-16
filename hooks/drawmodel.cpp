@@ -9,6 +9,13 @@
 #include <cstring>
 namespace HooksInternal {
 namespace {
+int LogChamsFault(EXCEPTION_POINTERS* info){
+    if(info && info->ExceptionRecord){
+        const auto* e=info->ExceptionRecord;
+        LOG_ERROR("chams pass exception code=0x%08lX instruction=%p",e->ExceptionCode,e->ExceptionAddress);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
 bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones) {
     if(!VisualRuntime::any_material.load(std::memory_order_relaxed) || !ctx.in_game || !ctx.local || !Interfaces::ModelInfo || !Interfaces::EntityList || !Interfaces::ModelRender ||
        Interfaces::ModelRender->IsForcedMaterialOverride())return false;
@@ -49,10 +56,13 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
         }
     } else return false;
     if(!choice.enabled || choice.kind<=0)return false;
+    if(choice.ignore_z && choice.kind==3 && PreviewMaterial::Apply(2,choice.hidden,true)) {
+        original(ecx,context,state,info,bones);PreviewMaterial::Restore();
+    }
     if(choice.ignore_z && PreviewMaterial::Apply(choice.kind,choice.hidden,true,choice.secondary)) {
         original(ecx,context,state,info,bones);PreviewMaterial::Restore();
     }
-    if((choice.kind==3 || choice.kind==7) && PreviewMaterial::Apply(2,choice.primary,false)) {
+    if(choice.kind==3 && PreviewMaterial::Apply(2,choice.primary,false)) {
         original(ecx,context,state,info,bones);PreviewMaterial::Restore();
     }
     if(!PreviewMaterial::Apply(choice.kind,choice.primary,false,choice.secondary))return false;
@@ -63,7 +73,7 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
     bool handled=false;
     __try {handled=DrawConfigured(ecx,context,state,info,bone_to_world);}
-    __except(EXCEPTION_EXECUTE_HANDLER) {
+    __except(LogChamsFault(GetExceptionInformation())) {
         __try {PreviewMaterial::Restore();}__except(EXCEPTION_EXECUTE_HANDLER){}
         static bool logged=false;if(!logged){logged=true;LOG_WARN("chams: model pass raised exception; restored material override");}
     }

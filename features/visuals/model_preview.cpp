@@ -86,7 +86,7 @@ bool ProjectPreviewPoint(const ViewSetup& view,const Vector& point,VisualPreview
     const auto delta=point-view.origin;const float depth=delta.x*std::cos(pitch)-delta.z*std::sin(pitch);
     if(depth<=view.near_z)return false;
     out.x=.5f-delta.y/(2.f*depth*tangent);
-    out.y=.5f-(delta.x*std::sin(pitch)+delta.z*std::cos(pitch))*(static_cast<float>(view.width)/view.height)/(2.f*depth*tangent);
+    out.y=.5f-(delta.x*std::sin(pitch)+delta.z*std::cos(pitch))*(view.aspect_ratio>0.f ? view.aspect_ratio : static_cast<float>(view.width)/view.height)/(2.f*depth*tangent);
     return std::isfinite(out.x) && std::isfinite(out.y);
 }
 void ObserveBones(const StudioInfoPrefix& info,matrix3x4_t* matrices){
@@ -291,19 +291,16 @@ void DrawTarget(void* target, bool weapon_only) {
             !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
         view.fov = 50.f; view.origin = Vector{-(std::max)(70.f, radius * 9.f), 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
-    } else if (fit_agent) {
+    } else {
         center = Vector{(agent_min.x + agent_max.x) * .5f, (agent_min.y + agent_max.y) * .5f, (agent_min.z + agent_max.z) * .5f};
-        view.aspect_ratio = FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed);
+        view.aspect_ratio = fit_agent ? FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed) : FatalityPreviewBridge::visuals_aspect.load(std::memory_order_relaxed);
         if (!std::isfinite(view.aspect_ratio) || view.aspect_ratio < .2f || view.aspect_ratio > 4.f)
             view.aspect_ratio = static_cast<float>(width) / height;
         const float distance = PreviewFraming::Distance((agent_max.x - agent_min.x) * .5f,
             (agent_max.y - agent_min.y) * .5f, (agent_max.z - agent_min.z) * .5f,
-            FatalityPreviewBridge::yaw.load(std::memory_order_relaxed), view.aspect_ratio);
+            FatalityPreviewBridge::yaw.load(std::memory_order_relaxed), view.aspect_ratio,12.f,fit_agent ? .94f : .90f);
         view.fov = 12.f; view.origin = Vector{-distance, 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 2000.f;
-    } else {
-        view.fov = 12.f; view.origin = Vector{-390.f, -6.f, 40.f};
-        view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 20.f; view.far_z = 1000.f;
     }
     view.flags = 4; // bloom and tone mapping, as in Fatality
     auto* rv = reinterpret_cast<RenderViewABI*>(Interfaces::RenderView);
@@ -332,9 +329,7 @@ void DrawTarget(void* target, bool weapon_only) {
     matrix[0][0]=cy*cp; matrix[0][1]=cy*sp*sr-sy*cr; matrix[0][2]=cy*sp*cr+sy*sr;
     matrix[1][0]=sy*cp; matrix[1][1]=sy*sp*sr+cy*cr; matrix[1][2]=sy*sp*cr-cy*sr;
     matrix[2][0]=-sp; matrix[2][1]=cp*sr; matrix[2][2]=cp*cr;
-    if (weapon_only || fit_agent) {
-        for (int i=0; i<3; ++i) matrix[i][3] = -(matrix[i][0]*center.x + matrix[i][1]*center.y + matrix[i][2]*center.z);
-    }
+    for (int i=0; i<3; ++i) matrix[i][3] = -(matrix[i][0]*center.x + matrix[i][1]*center.y + matrix[i][2]*center.z);
     if (weapon_only) {
         // Normalized screen drag; camera looks along +X, so Y/Z span its image plane.
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
@@ -346,10 +341,12 @@ void DrawTarget(void* target, bool weapon_only) {
         constexpr float radians = 0.01745329252f;
         const float pitch_angle=view.angles.x*radians;
         const float tangent=std::tan(view.fov*radians*.5f);
-        const float aspect=static_cast<float>(view.width)/view.height;
+        const float aspect=view.aspect_ratio>0.f ? view.aspect_ratio : static_cast<float>(view.width)/view.height;
         bool valid=true;
         for(int corner=0;corner<8;++corner) {
-            Vector world{corner&1 ? 16.f : -16.f,corner&2 ? 16.f : -16.f,corner&4 ? 72.f : 0.f};
+            const Vector local{corner&1 ? agent_max.x : agent_min.x,corner&2 ? agent_max.y : agent_min.y,corner&4 ? agent_max.z : agent_min.z};
+            Vector world;
+            for(int axis=0;axis<3;++axis)world[axis]=matrix[axis][0]*local.x+matrix[axis][1]*local.y+matrix[axis][2]*local.z+matrix[axis][3];
             const auto delta=world-view.origin;
             const float depth=delta.x*std::cos(pitch_angle)-delta.z*std::sin(pitch_angle);
             if(depth<=view.near_z){valid=false;break;}
@@ -372,7 +369,7 @@ void DrawTarget(void* target, bool weapon_only) {
         phase = "apply preview chams";
         // The preview has no occluder: hidden pass is intentionally not painted
         // over the visible color. Ignore-Z remains a game-space option.
-        if(appearance.kind==3 || appearance.kind==7) {
+        if(appearance.kind==3) {
             PreviewMaterial::Apply(2,appearance.primary);
             static_cast<MergedModel*>(model)->Draw(matrix);PreviewMaterial::Restore();
         }
@@ -472,10 +469,10 @@ void PaintImpl() {
     static VisualPreview::Material drawn_material{};
     static DWORD last_draw{};
     const float yaw=FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
-    const float aspect=FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed);
+    const float aspect=skins ? FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed) : FatalityPreviewBridge::visuals_aspect.load(std::memory_order_relaxed);
     const auto material=VisualPreview::GetMaterial();
     if(!redraw_preview && drawn_model==model && drawn_yaw==yaw && drawn_skins==skins &&
-       (!skins || drawn_aspect==aspect) && drawn_material==material && !(material.enabled && material.kind==5 && GetTickCount()-last_draw>=33) && FatalityPreviewBridge::texture.load(std::memory_order_acquire))return;
+       drawn_aspect==aspect && drawn_material==material && !(material.enabled && material.kind==5 && GetTickCount()-last_draw>=33) && FatalityPreviewBridge::texture.load(std::memory_order_acquire))return;
     DrawTarget(render_texture, false);
     drawn_model=model;drawn_yaw=yaw;drawn_skins=skins;drawn_aspect=aspect;drawn_material=material;last_draw=GetTickCount();redraw_preview=false;
 }

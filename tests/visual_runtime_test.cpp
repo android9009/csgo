@@ -1,6 +1,21 @@
 #include "sdk/visual_runtime_state.hpp"
 #include <cassert>
+#include "sdk/esp_projection.hpp"
 int main(){
+    // Partial off-screen / camera-plane intersections must not drop all ESP.
+    std::array<float,16> projection{};projection[0]=1.f;projection[5]=1.f;projection[15]=1.f;
+    std::array<EspProjection::Point,8> hull{};
+    for(int i=0;i<8;++i)hull[i]={i&1 ? 2.f : -.2f,i&2 ? 2.f : -.2f,i&4 ? 1.f : -1.f};
+    EspProjection::Box bounds;
+    assert(EspProjection::Bounds(projection,hull,bounds));
+    assert(bounds.right==1.f && bounds.top==0.f);
+    projection[15]=0.f;projection[14]=1.f;
+    assert(EspProjection::Bounds(projection,hull,bounds));
+    for(auto& point:hull)point.z=-1.f;
+    assert(!EspProjection::Bounds(projection,hull,bounds));
+    projection[15]=1.f;projection[14]=0.f;
+    for(auto& point:hull)point.x=3.f;
+    assert(!EspProjection::Bounds(projection,hull,bounds));
     using namespace VisualRuntime;
     assert(SubjectFor(2,3,false)==Enemy);assert(SubjectFor(3,2,false)==Enemy);
     assert(SubjectFor(2,2,false)==Team);assert(SubjectFor(3,3,false)==Team);

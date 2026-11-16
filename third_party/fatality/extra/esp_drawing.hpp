@@ -10,7 +10,7 @@ struct Data {
     std::uint64_t flags{0x7ff};
 };
 inline std::array<rect,EspDock::Count> Render(std::shared_ptr<layer>& d,const rect& box,const VisualRuntime::Esp& style,const Data& data,
-    const std::array<VisualPreview::Segment,64>& skeleton={},int segments=0,const vec2& skeleton_scale={1.f,1.f},const vec2& skeleton_origin={}) {
+    const std::array<VisualPreview::Segment,64>& skeleton={},int segments=0,const vec2& skeleton_scale={1.f,1.f},const vec2& skeleton_origin={},int dragged=-1,const vec2& drag_delta={}) {
     using namespace VisualRuntime;
     std::array<EspDock::Item,EspDock::Count> items{};std::array<std::string,EspDock::Count> labels{};
     const auto text_font=draw.fonts[GUI_HASH("gui_main")],icon_font=draw.fonts[GUI_HASH("weapon_icons")];
@@ -26,7 +26,7 @@ inline std::array<rect,EspDock::Count> Render(std::shared_ptr<layer>& d,const re
     std::array<rect,EspDock::Count> hit{};
     auto color_for=[&](int id){return color{style.colors[id]};};
     if(style.show[Box]){d->add_rect({box.tl()-vec2{1.f,1.f},box.br()+vec2{1.f,1.f}},color{0,0,0,210});d->add_rect(box,color_for(BoxColor));}
-    for(int id=0;id<EspDock::Count;++id){if(!items[id].visible)continue;const auto& a=arranged[id];const rect r{a.x,a.y,a.x+a.w,a.y+a.h};hit[id]=r;
+    for(int id=0;id<EspDock::Count;++id){if(!items[id].visible)continue;const auto& a=arranged[id];const rect r=rect{a.x,a.y,a.x+a.w,a.y+a.h}.translate(id==dragged ? drag_delta : vec2{});hit[id]=r;
         if(items[id].bar){
             const int tint=id==1 ? HealthColor : id==2 ? ArmorColor : AmmoColor;
             const float ratio=std::clamp(id==1 ? static_cast<float>(data.health)/100.f : id==2 ? static_cast<float>(data.armor)/100.f : data.max_ammo>0 ? static_cast<float>(data.ammo)/data.max_ammo : 0.f,0.f,1.f);

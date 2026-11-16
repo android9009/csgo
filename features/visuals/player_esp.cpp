@@ -1,5 +1,6 @@
 #include "../../sdk/visual_runtime_state.hpp"
 #include "../../sdk/world_esp_state.hpp"
+#include "../../sdk/esp_projection.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../context.hpp"
 #include "../../utils/memory.hpp"
@@ -20,7 +21,7 @@ void CaptureImpl() {
     std::memcpy(projection.matrix.data(),reinterpret_cast<void*>(base+offset),sizeof(float)*16);
     auto project=[&](const Vector& p,VisualPreview::Point& result) {
         WorldEsp::Item point;point.x=p.x;point.y=p.y;point.z=p.z;
-        return WorldEsp::Project(projection,point,result.x,result.y);
+        return WorldEsp::ProjectUnclipped(projection,point,result.x,result.y);
     };
     const int max_clients=(std::min)(64,Interfaces::Engine->GetMaxClients());
     const int local_team=ctx.local->m_iTeamNum();
@@ -39,14 +40,14 @@ void CaptureImpl() {
         float duck=0.f;
         if(duck_offset>0 && duck_offset<0x10000)duck=*reinterpret_cast<float*>(reinterpret_cast<unsigned char*>(entity)+duck_offset);
         if(!std::isfinite(duck))duck=0.f;duck=(std::max)(0.f,(std::min)(1.f,duck));
-        p.box={1.f,1.f,0.f,0.f};bool valid=true;
-        for(int corner=0;corner<8;++corner) {
-            VisualPreview::Point screen;
-            if(!project(origin+Vector{corner&1 ? 16.f : -16.f,corner&2 ? 16.f : -16.f,corner&4 ? 72.f-duck*18.f : 0.f},screen)){valid=false;break;}
-            p.box.left=(std::min)(p.box.left,screen.x);p.box.right=(std::max)(p.box.right,screen.x);
-            p.box.top=(std::min)(p.box.top,screen.y);p.box.bottom=(std::max)(p.box.bottom,screen.y);
+        std::array<EspProjection::Point,8> hull{};
+        for(int corner=0;corner<8;++corner){
+            const auto point=origin+Vector{corner&1 ? 16.f : -16.f,corner&2 ? 16.f : -16.f,corner&4 ? 72.f-duck*18.f : 0.f};
+            hull[corner]={point.x,point.y,point.z};
         }
-        if(!valid)continue;
+        EspProjection::Box bounds;
+        if(!EspProjection::Bounds(projection.matrix,hull,bounds))continue;
+        p.box={bounds.left,bounds.top,bounds.right,bounds.bottom};
         auto& name=names[index];
         if(name.entity!=entity || GetTickCount()>=name.next) {
             name.entity=entity;name.next=GetTickCount()+1000;

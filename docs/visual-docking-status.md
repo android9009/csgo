@@ -37,3 +37,25 @@ resolution. Scan activation/count diagnostics are logged for the next game test.
 Portable state/docking tests do not validate Windows ABI, GPU shaders, materials,
 preview bone capture, glyph correspondence, drag interaction or runtime stability.
 All of those require an in-game pass on the supplied binary version.
+
+## Follow-up to image-48
+
+- Dragging now moves only the grabbed element under the cursor. A release commits
+  its nearest side/grid slot; clicking without moving does not reorder it. The
+  hover rectangles and drag-side highlight are removed.
+- Visuals preview now fits the agent's studio bounds to the actual viewport
+  aspect, rather than using a fixed 390-unit camera. The projected box uses the
+  same transformed bounds as the model, instead of a fixed 72-unit reference hull.
+- Live player bounds clip the hull's edges at the camera plane and intersect
+  with the viewport. Previously one off-screen corner rejected the entire
+  player; this explains the close-range disappearance in that code path.
+- Chams now retain the borrowed Legacy material like the reference, remove the
+  non-reference Legacy flat underlay and extra IMaterialVar vector getter, reset
+  render-view modulation before drawing, and explicitly draw filled material
+  passes (restoring the prior wireframe flag afterwards). Missing shaders leave
+  the original model intact instead of silently becoming a debug material.
+- Exception code/instruction diagnostics were added for model-pass faults.
+
+The close-range regression has portable clipping tests. Runtime Legacy stability,
+material appearance, camera framing and interactive dragging still need an
+in-game check; no supplied crash dump establishes the Legacy crash cause.

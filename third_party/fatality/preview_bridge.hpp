@@ -9,6 +9,7 @@ inline std::atomic<bool> render_ct{true};
 inline std::atomic<bool> render_skins{false};
 // Visuals only: 0 enemy, 1 teammate, 2 local.
 inline std::atomic<int> visuals_subject{0};
+inline std::atomic<float> visuals_aspect{235.f / 370.f};
 inline std::atomic<float> skins_aspect{220.f / 292.f};
 inline std::atomic<int> agent[2]{};
 inline std::atomic<int> weapon{0};

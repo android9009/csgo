@@ -31,6 +31,8 @@ namespace menu::group
 			FatalityPreviewBridge::render_skins.store(skins_preview, std::memory_order_relaxed);
 			if (!skins_preview)
 				FatalityPreviewBridge::visuals_subject.store(std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2), std::memory_order_relaxed);
+			if (!skins_preview && size.y > 0.f)
+                FatalityPreviewBridge::visuals_aspect.store(size.x / size.y, std::memory_order_relaxed);
 			if (skins_preview && size.y > 0.f)
 				FatalityPreviewBridge::skins_aspect.store(size.x / size.y, std::memory_order_relaxed);
 			VisualPreview::Material appearance{};
@@ -43,7 +45,7 @@ namespace menu::group
 				appearance.secondary=selected.col2.get().rgba();appearance.hidden=selected.col_z.get().rgba();
 			}
 			VisualPreview::SetMaterial(appearance);
-			if(!is_locked_by_me())overlay.up();
+			if(!is_locked_by_me())overlay.cancel();
 			FatalityPreviewBridge::visible.store(true, std::memory_order_relaxed);
 			if (auto texture = FatalityPreviewBridge::texture.load(std::memory_order_acquire)) {
 				layer->g.texture = texture;

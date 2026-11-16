@@ -611,6 +611,9 @@
     <ClInclude Include="sdk\esp_docking.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\esp_projection.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\visual_runtime_state.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

@@ -350,6 +350,7 @@
     <ClInclude Include="sdk\visual_preview_state.hpp" />
     <ClInclude Include="sdk\weapon_glyph.hpp" />
     <ClInclude Include="sdk\esp_docking.hpp" />
+    <ClInclude Include="sdk\esp_projection.hpp" />
     <ClInclude Include="sdk\visual_runtime_state.hpp" />
     <ClInclude Include="sdk\skin_icon_path.hpp" />
     <ClInclude Include="sdk\skin_icon_file.hpp" />

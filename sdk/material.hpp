@@ -11,6 +11,7 @@ enum MaterialVarFlags : int {
     MATERIAL_VAR_NOFOG = 1 << 14,
     MATERIAL_VAR_IGNOREZ = 1 << 15,
     MATERIAL_VAR_TRANSLUCENT = 1 << 21,
+    MATERIAL_VAR_WIREFRAME = 1 << 28,
 };
 
 class IMaterialVar {
@@ -19,7 +20,6 @@ protected:
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(const_cast<IMaterialVar*>(this)))[index]);
     }
 public:
-    float* GetVector(){using Fn=float* (__thiscall*)(void*);auto fn=VFunc<Fn>(29);return fn ? fn(this) : nullptr;}
     void SetValue(float value) { using Fn = void (__thiscall*)(void*, float); if (auto fn = VFunc<Fn>(4)) fn(const_cast<IMaterialVar*>(this), value); }
     void SetValue(int value) { using Fn = void (__thiscall*)(void*, int); if (auto fn = VFunc<Fn>(5)) fn(const_cast<IMaterialVar*>(this), value); }
     void SetValue(const char* value) { using Fn = void (__thiscall*)(void*, const char*); if (auto fn = VFunc<Fn>(6)) fn(const_cast<IMaterialVar*>(this), value); }
