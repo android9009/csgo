@@ -22,6 +22,12 @@ static bool ForwardGuiInput(UINT message, WPARAM wparam, LPARAM lparam, bool ope
 }
 
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    // Never let GUI input handling consume the game's shutdown messages.
+    // Avoid waiting or unloading here: WndProc can be executing inside a hook.
+    if (message == WM_CLOSE || message == WM_DESTROY || message == WM_NCDESTROY || message == WM_QUERYENDSESSION || message == WM_ENDSESSION) {
+        if (auto original = Hooks::GetOriginalWndProc()) return CallWindowProcA(original, window, message, wparam, lparam);
+        return DefWindowProcA(window, message, wparam, lparam);
+    }
     // Check the menu key before passing input to the Fatality GUI.
     // Debounce rapid repeated key-up messages to avoid flicker.
     if (message == WM_KEYUP && wparam == static_cast<WPARAM>(Config::settings.menu_key)) {

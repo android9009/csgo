@@ -52,12 +52,16 @@ context::context(float text_size)
 	draw.fonts[GUI_HASH("gui_infinity")] = std::make_shared<font>((win_dir + "/fonts/segoeui.ttf").c_str(), text_size, 0, 0x221E, 0x221E);
 	draw.fonts[GUI_HASH("gui_bold")] = std::make_shared<font>(josefin_sans_bold, sizeof(josefin_sans_bold), text_size, 0, 0, 0x45F);
 
-	draw.shaders[GUI_HASH("blur_f")] = std::make_shared<shader>(
-		(
-			"sampler s0;const float2 resolution:register(c0);const float time:register(c1);const float alpha:register(c2);float4 main(float2 "
-			"uv:TEXCOORD0):COLOR0{float radius=2.0;float2 invSize=1.0/resolution.xy;float weight=0.0;float4 color=0.0;for(float "
-			"x=-radius;x<=radius;x+=1.0){for(float y=-radius;y<=radius;y+=1.0){float2 coord=uv+float2(x,y)*invSize;color+=tex2D(s0,coord)*exp(-((x*x+y*y)/"
-			"(2.0*radius*radius)));weight+=exp(-((x*x+y*y)/(2.0*radius*radius)));}}color.a*=alpha;return color/weight;}"), shader_frag);
+    // Nine bilinear taps on the quarter-resolution scene texture. The shader
+    // stays within ps_2_0 limits used by the DX9 adapter.
+    draw.shaders[GUI_HASH("blur_f")] = std::make_shared<shader>(
+        "sampler s0; const float2 resolution:register(c0); const float alpha:register(c2);"
+        "float4 main(float2 uv:TEXCOORD0):COLOR0 {"
+        "float2 d=2.0/resolution; float4 c=tex2D(s0,uv)*0.25;"
+        "c+=(tex2D(s0,uv+float2(d.x,0))+tex2D(s0,uv-float2(d.x,0))"
+        "+tex2D(s0,uv+float2(0,d.y))+tex2D(s0,uv-float2(0,d.y)))*0.125;"
+        "c+=(tex2D(s0,uv+d)+tex2D(s0,uv-d)+tex2D(s0,uv+float2(d.x,-d.y))"
+        "+tex2D(s0,uv+float2(-d.x,d.y)))*0.0625; c.a*=alpha; return c; }", shader_frag);
 
 	accent_prev = colors.accent;
 }

@@ -14,8 +14,11 @@ void window::render()
 	auto &d = draw.layers[ctx->content_layer];
 	d->g.anti_alias = true;
 
-	// background
-	d->add_rect_filled_rounded(r, colors.bg_bottom, 3.f);
+	// Blur the scene before drawing the translucent panel; child controls remain sharp.
+	add_with_blur(d, r, [&](std::shared_ptr<layer>& l) {
+		l->add_rect_filled_rounded(r, color::white(), 3.f);
+	});
+	d->add_rect_filled_rounded(r, colors.bg_bottom.mod_a(.84f), 3.f);
 
 	// header background
 	d->add_rect_filled_rounded(r_header, colors.bg_block, 3.f, rnd_t);

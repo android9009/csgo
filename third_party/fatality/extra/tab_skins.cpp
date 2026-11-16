@@ -10,6 +10,7 @@
 #include "../../../features/skins/skin_state.hpp"
 #include "../preview_bridge.hpp"
 #include "../preview_catalog.hpp"
+#include "../skin_names.hpp"
 #include "../../../utils/log.hpp"
 #include <algorithm>
 #include <array>
@@ -115,7 +116,7 @@ namespace menu::group
     std::map<std::string, SkinChoice> selection[2]; // independent CT/T menu state
     enum class Equipment { None, Agent, Gloves, Knife, Medal, Music };
     Equipment equipment_screen = Equipment::None;
-    std::string equipped_knife[2], equipped_gloves[2], equipped_music[2];
+    std::string equipped_knife[2], equipped_gloves[2], equipped_music[2], equipped_medal[2];
     struct EquipmentItem { const char* label; const char* icon; };
     const std::vector<EquipmentItem> knife_items = {
         {"Default", ""}, {"Bayonet", "weapon_bayonet"}, {"Classic Knife", "weapon_knife_css"},
@@ -206,6 +207,10 @@ namespace menu::group
         {"Ben Bromfield, Rabbit Hole", "resource/flash/econ/music_kits/benbromfield_01.png"},
         {"Daniel Sadowski, Dead Shot", "resource/flash/econ/music_kits/danielsadowski_05.png"},
     };
+    const std::vector<EquipmentItem> medal_items{
+        {"Default", ""},
+#include "../medal_catalog.hpp"
+    };
     const std::vector<EquipmentItem> default_item{{"Default", ""}};
     std::vector<EquipmentItem> make_agents(bool ct) {
         std::vector<EquipmentItem> result;
@@ -225,10 +230,11 @@ namespace menu::group
         if (screen == Equipment::Knife) return knife_items;
         if (screen == Equipment::Gloves) return glove_items;
         if (screen == Equipment::Music) return music_items;
+        if (screen == Equipment::Medal) return medal_items;
         return default_item;
     }
     const char* equipment_icon(Equipment screen, const std::string& equipped, bool ct) {
-        if (!equipped.empty() && screen != Equipment::Music && screen != Equipment::Agent) return equipped.c_str();
+        if (!equipped.empty() && screen != Equipment::Music && screen != Equipment::Agent && screen != Equipment::Medal) return equipped.c_str();
         if (screen == Equipment::Knife) return ct ? "weapon_knife" : "weapon_knife_t";
         if (screen == Equipment::Gloves) return ct ? "ct_gloves" : "t_gloves";
         return nullptr;
@@ -250,9 +256,9 @@ namespace menu::group
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
                              bool ct, vec2 center, vec2 bounds, bool& budget) {
         const auto name = equipment_icon(screen, selected, ct);
-        if (name || ((screen == Equipment::Music || screen == Equipment::Agent) && !selected.empty())) {
+        if (name || ((screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) && !selected.empty())) {
             const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
-            auto icon = (screen == Equipment::Music || screen == Equipment::Agent) ? get_asset_icon(path, budget) : get_weapon_icon(name, {}, budget);
+            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, {}, budget);
             if (icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
@@ -263,7 +269,7 @@ namespace menu::group
                     layer->g.texture = {};
                 }
             }
-        } else draw_symbol(layer, screen, center);
+        } else if (screen != Equipment::Music && screen != Equipment::Medal) draw_symbol(layer, screen, center);
     }
     class equipment_tiles final : public control {
     public:
@@ -284,7 +290,7 @@ namespace menu::group
                 const rect card{pos, pos + vec2{width, 50.f}};
                 layer->add_rect_filled_rounded(card, equipment_screen == entries[i] ? colors.bg_block_light : colors.bg_bottom, 2.f);
                 const std::string empty;
-                const auto& selected = entries[i] == Equipment::Knife ? equipped_knife[team] : entries[i] == Equipment::Gloves ? equipped_gloves[team] : entries[i] == Equipment::Music ? equipped_music[team] : empty;
+                const auto& selected = entries[i] == Equipment::Knife ? equipped_knife[team] : entries[i] == Equipment::Gloves ? equipped_gloves[team] : entries[i] == Equipment::Music ? equipped_music[team] : entries[i] == Equipment::Medal ? equipped_medal[team] : empty;
                 const auto& agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
                 if (entries[i] == Equipment::Knife && card.contains(input.cursor()) && equipment_screen == Equipment::None)
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(selected.empty() ? (ct ? "weapon_knife" : "weapon_knife_t") : selected.c_str()), std::memory_order_relaxed);
@@ -410,6 +416,7 @@ namespace menu::group
                 if (equipment_screen == Equipment::Knife) equipped_knife[team] = items[index].icon;
                 if (equipment_screen == Equipment::Gloves) equipped_gloves[team] = items[index].icon;
                 if (equipment_screen == Equipment::Music) equipped_music[team] = items[index].icon;
+                if (equipment_screen == Equipment::Medal) equipped_medal[team] = items[index].icon;
                 equipment_screen = Equipment::None;
                 equipment_scroll = 0.f;
                 FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
@@ -578,6 +585,16 @@ namespace menu::group
         }
     private:
         void stop_name_input() { editing_name = false; editing_search = false; is_taking_text = false; is_taking_keys = false; }
+        static std::string paint_name(const std::string& paint) {
+            for (const auto& entry : SkinNames::entries) if (entry.id == paint) return std::string(entry.name);
+            std::string result = paint;
+            const auto prefix = result.find('_');
+            if (prefix != std::string::npos && prefix <= 4) result.erase(0, prefix + 1);
+            std::replace(result.begin(), result.end(), '_', ' ');
+            bool word = true;
+            for (auto& ch : result) { if (word) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); word = ch == ' '; }
+            return result;
+        }
         std::vector<std::string> filtered_paints() const {
             auto lower = [](std::string value) {
                 std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -590,8 +607,9 @@ namespace menu::group
             for (const auto& paint : paints) {
                 const auto it = schema_metadata.rarity.find(paint);
                 const bool rarity_match = filter_index < 3 || (filter_index == 10 ? it == schema_metadata.rarity.end() : it != schema_metadata.rarity.end() && it->second == filter_rarity[filter_index]);
-                if (rarity_match && lower(paint).find(query) != std::string::npos) matches.push_back(paint);
+                if (rarity_match && lower(paint_name(paint)).find(query) != std::string::npos) matches.push_back(paint);
             }
+            std::sort(matches.begin(), matches.end(), [&](const auto& a, const auto& b) { return lower(paint_name(a)) < lower(paint_name(b)); });
             if (reverse_sort) std::reverse(matches.begin(), matches.end());
             result.insert(result.end(), matches.begin(), matches.end());
             return result;
@@ -832,8 +850,6 @@ namespace menu::group
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
             const auto& items = equipment_items(equipment_screen, team_ct);
-            if (equipment_screen == Equipment::Medal)
-                layer->add_text(r.tl() + vec2{0.f, 30.f}, "Only default available", colors.text_dark);
             const float cell_width = (r.width() - 12.f) / 3.f;
             const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
             const auto old_clip = layer->g.clip_rect;
@@ -890,7 +906,7 @@ namespace menu::group
                     }
                 }
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
-                const auto label = paint.empty() ? std::string("Default") : paint;
+                const auto label = paint.empty() ? std::string("Default") : std::string(selected_weapon.label) + " | " + paint_name(paint);
                 layer->add_text(vec2{x + 4.f, y + 57.f}, label, colors.text, text_params::with_v(align_center));
             }
             layer->g.clip_rect = old_clip;

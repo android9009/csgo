@@ -755,7 +755,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                             e->add(make_groupbox("misc>buy bot", "BUY BOT", group_sz, menu::group::misc_buybot));
                         }));
                         e->add(make_tab_area(GUI_HASH("scripts_container"), false, [](const std::shared_ptr<layout>&) {}));
-                        e->add(make_tab_area(GUI_HASH("skins_container"), false, [&](const std::shared_ptr<layout>& e) {
+                        e->add(make_tab_area(GUI_HASH("skins_container"), false, s_horizontal, [&](const std::shared_ptr<layout>& e) {
                             e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("skins_preview_agents"), group_sz, {
                                 make_groupbox("skins>preview", "PREVIEW", vec2{group_sz.x, 318.f}, [](auto e) {
                                     e->add(menu::group::make_model_preview("skins>preview>viewport", vec2{220.f, 280.f}));

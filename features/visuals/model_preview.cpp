@@ -33,7 +33,7 @@ struct CachedModel { int team, agent, weapon; void* model; };
 CachedModel model_cache[128]{};
 size_t model_count{};
 bool cache_limit_logged{};
-bool missing_models[2][13][sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
+bool missing_models[2][(std::max)(sizeof(PreviewCatalog::ct)/sizeof(*PreviewCatalog::ct), sizeof(PreviewCatalog::t)/sizeof(*PreviewCatalog::t))][sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
 bool failed{}, texture_retained{};
 const char* volatile phase = "not started";
 struct Fault { DWORD code{}; std::uintptr_t instruction{}, address{}; ULONG_PTR operation{}; };
@@ -204,7 +204,7 @@ void DrawTarget(void* target, bool weapon_only) {
     rv->Push3DView(context, view, clear_color_depth_stencil, static_cast<Texture*>(target), active.frustum);
     active.view_pushed = true;
     phase = "clear color";
-    context->ClearColor4ub(0, 0, 0, 0);
+    context->ClearColor4ub(0, 0, 0, 255);
     phase = "clear buffers";
     context->ClearBuffers(true, true, true);
     struct Light { float x,y,z,w; };
