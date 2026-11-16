@@ -73,9 +73,9 @@ void Apply(void* e, const Netvars& n, const Original& original, const SkinState:
     At<int>(e,n.item_high) = -1; At<int>(e,n.account) = static_cast<int>(account);
     At<int>(e,n.paint) = c.paint_kit; At<int>(e,n.seed) = c.seed;
     At<float>(e,n.wear) = (std::max)(0.000001f, c.wear);
-    At<int>(e,n.stat) = c.stattrak;
+    At<int>(e,n.stat) = c.stattrak == -2 ? original.stat : c.stattrak;
     // Unique, StatTrak, or tournament quality. No mutation of live inventory.
-    At<int>(e,n.quality) = c.souvenir ? 12 : c.stattrak >= 0 ? 9 : original.quality;
+    At<int>(e,n.quality) = c.souvenir ? 12 : c.stattrak >= 0 ? 9 : c.stattrak == -1 && original.quality == 9 ? 4 : original.quality;
     std::memcpy(&At<char>(e,n.name), c.name.data(), c.name.size());
 }
 void RequestRefresh() { update_pending = true; }

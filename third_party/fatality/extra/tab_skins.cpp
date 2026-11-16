@@ -110,6 +110,7 @@ namespace menu::group
         int seed{}, stattrak_count{};
         float wear{};
         bool stattrak{}, souvenir{};
+        int stattrak_mode{}; // 0: original item, 1: static counter, 2: none
         std::array<SkinSchema::Decal, 5> stickers{};
     };
     std::map<int, std::array<SkinSchema::Decal, 5>> agent_patches[2];
@@ -327,7 +328,8 @@ namespace menu::group
                 equipment_scroll = 0.f;
                 last_equipment_screen = equipment_screen;
             }
-            if (editor_open) { if (decal_picker >= 0) render_decal_picker(layer, r); else render_editor(layer, r); return; }
+            if (decal_picker >= 0) { render_decal_picker(layer, r); return; }
+            if (editor_open) { render_editor(layer, r); return; }
             if (equipment_screen != Equipment::None) { selected_weapon = {}; stop_name_input(); render_equipment(layer, r); return; }
             if (selected_weapon.internal) { render_skins(layer, r); return; }
             const auto ct = rect(r.tl(), r.tl() + vec2{72.f, 25.f});
@@ -385,6 +387,7 @@ namespace menu::group
             }
             if (key != m_left) return;
             const float cell_width = (size.x - 12.f) / 3.f;
+            if (decal_picker >= 0) { decal_picker_click(local); return; }
             if (editor_open) {
                 if (decal_picker >= 0) decal_picker_click(local);
                 else editor_click(local);
@@ -422,58 +425,7 @@ namespace menu::group
                 FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
                 return;
             }
-            if (selected_weapon.internal) {
-                if (local.y >= 0.f && local.y < 30.f && local.x >= size.x - 35.f) {
-                    close_skins();
-                    return;
-                }
-                if (local.y >= 0.f && local.y < 30.f && local.x >= 0.f && local.x < 240.f) {
-                    editing_search = true; is_taking_text = true; is_taking_keys = true; return;
-                }
-                stop_name_input();
-                if (filter_open) {
-                    if (local.x >= 246.f && local.x < 400.f && local.y >= 30.f && local.y < 30.f + 25.f * 11.f) {
-                        filter_index = static_cast<int>((local.y - 30.f) / 25.f);
-                        reverse_sort = filter_index == 2;
-                        skin_scroll = 0.f;
-                    }
-                    filter_open = false; return;
-                }
-                if (local.y >= 0.f && local.y < 30.f && local.x >= 246.f && local.x < 400.f) {
-                    filter_open = true; return;
-                }
-                if (local.y < 42.f || local.x < 0.f) return;
-                const int col = static_cast<int>(local.x / (cell_width + 6.f));
-                const int row = static_cast<int>((local.y - 42.f + skin_scroll) / 78.f);
-                if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
-                const size_t index = static_cast<size_t>(row * 3 + col);
-                const auto visible = filtered_paints();
-                if (index >= visible.size()) return;
-                if (visible[index].empty()) {
-                    selection[team_ct ? 0 : 1].erase(selected_weapon.internal);
-                    SkinState::Remove(team_ct, SkinState::Definition(selected_weapon.internal));
-                    close_skins();
-                }
-                else {
-                    const auto& paint = visible[index];
-                    const auto& chosen = selection[team_ct ? 0 : 1];
-                    const auto it = chosen.find(selected_weapon.internal);
-                    pending = (it != chosen.end() && it->second.paint == paint) ? it->second : SkinChoice{};
-                    pending.paint = paint;
-                    const auto paint_id = schema_metadata.paint_ids.find(paint);
-                    if (paint_id != schema_metadata.paint_ids.end())
-                        LOG_INFO("skin preview selection: weapon=%s paint=%s paintkit=%d seed=%d wear=%.3f; generated material not connected", selected_weapon.internal, paint.c_str(), paint_id->second, pending.seed, pending.wear);
-                    else
-                        LOG_WARN("skin preview selection: no paint kit ID for weapon=%s paint=%s", selected_weapon.internal, paint.c_str());
-                    agent_editor = false; decal_picker = -1;
-                    editor_3d = false; editor_drag = 0;
-                    FatalityPreviewBridge::editor_weapon.store(PreviewCatalog::WeaponIndex(selected_weapon.internal), std::memory_order_relaxed);
-                    FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
-                    editor_open = true;
-                    stop_name_input();
-                }
-                return;
-            }
+            if (selected_weapon.internal) { weapon_screen_click(local); return; }
             if (local.y >= 0.f && local.y < 25.f) {
                 if (local.x >= 0.f && local.x < 72.f) { team_ct = true; scroll = 0.f; }
                 else if (local.x >= 78.f && local.x < 150.f) { team_ct = false; scroll = 0.f; }
@@ -492,14 +444,28 @@ namespace menu::group
                 auto it = catalog.find(selected_weapon.internal);
                 if (it != catalog.end()) paints = it->second;
             }
-            skin_scroll = 0.f;
+            skin_scroll = 0.f; options_open = false; stat_menu_open = false; agent_editor = false;
+            const auto& saved = selection[team_ct ? 0 : 1];
+            const auto saved_it = saved.find(selected_weapon.internal);
+            pending = saved_it == saved.end() ? SkinChoice{} : saved_it->second;
             FatalityPreviewBridge::skins_selecting.store(true, std::memory_order_relaxed);
         }
         void on_mouse_wheel(float delta) override {
             input.consume_wheel();
-            if (editor_open && decal_picker >= 0) {
+            if (decal_picker >= 0) {
                 const float rows = static_cast<float>((visible_decals().size() + 2) / 3);
                 decal_scroll = std::clamp(decal_scroll - delta * 55.f, 0.f, (std::max)(0.f, rows * 78.f - (size.y - 42.f)));
+                return;
+            }
+            if (selected_weapon.internal && !editor_open && options_open) {
+                const auto local = input.cursor() - area_abs().tl();
+                if (local.x >= 105.f && local.x <= 250.f) {
+                    if (local.y >= 105.f && local.y < 135.f) pending.seed = std::clamp(pending.seed + (delta > 0.f ? 1 : -1), 0, 1000);
+                    else if (local.y >= 160.f && local.y < 190.f) pending.wear = std::clamp(pending.wear + (delta > 0.f ? .01f : -.01f), 0.f, 1.f);
+                    else if (local.y >= 245.f && local.y < 275.f && pending.stattrak_mode == 1) pending.stattrak_count = std::clamp(pending.stattrak_count + (delta > 0.f ? 1 : -1), 0, 99999);
+                    else return;
+                    commit_weapon();
+                }
                 return;
             }
             if (editor_open) {
@@ -519,8 +485,8 @@ namespace menu::group
                 const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
                 equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
             } else if (selected_weapon.internal) {
-                const float rows = static_cast<float>((filtered_paints().size() + 2) / 3);
-                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
+                const float rows = static_cast<float>((filtered_paints().size() + 4) / 5);
+                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 238.f));
                 skin_scroll = std::clamp(skin_scroll - delta * 55.f, 0.f, max_scroll);
             } else {
                 const float viewport_height = (std::max)(0.f, size.y - 55.f);
@@ -541,6 +507,14 @@ namespace menu::group
                 }
                 return;
             }
+            if (!editor_open && selected_weapon.internal && options_open && drag_slider) {
+                if (!input.is_mouse_down(m_left)) { drag_slider = 0; commit_weapon(); return; }
+                const float fraction = std::clamp((cursor.x - area_abs().tl().x - 105.f) / 145.f, 0.f, 1.f);
+                if (drag_slider == 1) pending.seed = static_cast<int>(fraction * 1000.f + .5f);
+                else if (drag_slider == 2) pending.wear = fraction;
+                else pending.stattrak_count = static_cast<int>(fraction * 99999.f + .5f);
+                return;
+            }
             if (!editor_open || !drag_slider) return;
             if (!input.is_mouse_down(m_left)) { drag_slider = 0; return; }
             const float x = cursor.x - area_abs().tl().x;
@@ -554,13 +528,13 @@ namespace menu::group
             }
         }
         void on_mouse_up(char key) override {
-            if (key == m_left) drag_slider = 0;
+            if (key == m_left && drag_slider) { drag_slider = 0; if (!editor_open && selected_weapon.internal) commit_weapon(); }
             if ((editor_drag == 1 && key == m_left) || (editor_drag == 2 && key == m_right)) {
                 editor_drag = 0; if (is_locked_by_me()) unlock_input();
             }
         }
         void on_text_input(const std::vector<uint32_t>& text) override {
-            if ((!editor_open || !editing_name) && !editing_search) return;
+            if (!editing_name && !editing_search) return;
             if (input.is_key_down(VK_CONTROL) || input.is_key_down(VK_MENU)) return;
             auto& target = editing_search ? search_query : pending.custom_name;
             const size_t limit = editing_search ? 64u : 31u;
@@ -571,6 +545,7 @@ namespace menu::group
                 if (target.size() + encoded.size() <= limit) target += encoded;
             }
             if (editing_search) skin_scroll = 0.f;
+            else if (!editor_open && selected_weapon.internal) commit_weapon();
         }
         void on_key_down(uint16_t key) override {
             if (!editing_name && !editing_search) return;
@@ -581,6 +556,7 @@ namespace menu::group
                 while (pos > 0 && (static_cast<unsigned char>(target[pos]) & 0xc0) == 0x80) --pos;
                 target.erase(pos);
                 if (editing_search) skin_scroll = 0.f;
+                else if (!editor_open && selected_weapon.internal) commit_weapon();
             }
         }
     private:
@@ -623,10 +599,93 @@ namespace menu::group
             for (const auto& decal : schema_metadata.decals) if (decal.patch == agent_editor) result.push_back(&decal);
             return result;
         }
+        void commit_weapon() {
+            if (!selected_weapon.internal) return;
+            selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
+            const int definition = SkinState::Definition(selected_weapon.internal);
+            if (pending.paint.empty()) { SkinState::Remove(team_ct, definition); return; }
+            const auto id = schema_metadata.paint_ids.find(pending.paint);
+            if (id == schema_metadata.paint_ids.end() || !definition) {
+                SkinState::Remove(team_ct, definition);
+                LOG_WARN("skins: missing paint kit ID or weapon definition for %s / %s", selected_weapon.internal, pending.paint.c_str());
+                return;
+            }
+            SkinState::Choice choice{};
+            choice.paint_kit = id->second; choice.seed = pending.seed; choice.wear = pending.wear;
+            choice.stattrak = pending.souvenir || pending.stattrak_mode == 2 ? -1 : pending.stattrak_mode == 1 ? pending.stattrak_count : -2;
+            choice.souvenir = pending.souvenir;
+            std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
+            if (!SkinState::Set(team_ct, definition, choice)) LOG_WARN("skins: invalid choice for %s", selected_weapon.internal);
+        }
+        void weapon_screen_click(const vec2& p) {
+            if (p.y >= 0.f && p.y < 28.f && p.x >= size.x - 35.f) { close_skins(); return; }
+            if (options_open) {
+                if (stat_menu_open) {
+                    if (p.x >= 105.f && p.x < 250.f && p.y >= 212.f && p.y < 284.f) {
+                        pending.stattrak_mode = static_cast<int>((p.y - 212.f) / 24.f);
+                        pending.stattrak = pending.stattrak_mode == 1;
+                        if (pending.stattrak) pending.souvenir = false;
+                        commit_weapon();
+                    }
+                    stat_menu_open = false; return;
+                }
+                if (p.x < 260.f && p.y >= 30.f && p.y < 340.f) {
+                    if (p.y < 60.f && p.x >= 225.f) { options_open = false; stop_name_input(); return; }
+                    if (p.y >= 70.f && p.y < 100.f && p.x >= 105.f && p.x < 250.f) {
+                        editing_name = true; is_taking_text = true; is_taking_keys = true; return;
+                    }
+                    stop_name_input();
+                    if (p.x >= 105.f && p.x <= 250.f && p.y >= 105.f && p.y < 135.f) drag_slider = 1;
+                    else if (p.x >= 105.f && p.x <= 250.f && p.y >= 160.f && p.y < 190.f) drag_slider = 2;
+                    else if (p.y >= 195.f && p.y < 220.f && p.x >= 105.f) { stat_menu_open = true; return; }
+                    else if (p.x >= 105.f && p.x <= 250.f && p.y >= 245.f && p.y < 275.f && pending.stattrak_mode == 1) drag_slider = 3;
+                    else if (p.y >= 285.f && p.y < 315.f) {
+                        pending.souvenir = !pending.souvenir;
+                        if (pending.souvenir && pending.stattrak_mode == 1) { pending.stattrak_mode = 2; pending.stattrak = false; }
+                        commit_weapon(); return;
+                    }
+                    if (drag_slider) {
+                        const float f = std::clamp((p.x - 105.f) / 145.f, 0.f, 1.f);
+                        if (drag_slider == 1) pending.seed = static_cast<int>(f * 1000.f + .5f);
+                        else if (drag_slider == 2) pending.wear = f;
+                        else pending.stattrak_count = static_cast<int>(f * 99999.f + .5f);
+                    }
+                    return;
+                }
+                options_open = false; stat_menu_open = false; stop_name_input();
+            }
+            if (p.y >= 164.f && p.y < 195.f && p.x < 90.f) { options_open = true; stop_name_input(); return; }
+            const float slots_x = size.x - static_cast<float>(sticker_count()) * 37.f;
+            if (p.y >= 164.f && p.y < 197.f && p.x >= slots_x && p.x < size.x) {
+                const int slot = static_cast<int>((p.x - slots_x) / 37.f);
+                if (slot >= 0 && slot < sticker_count()) { decal_picker = slot; decal_scroll = 0.f; stop_name_input(); }
+                return;
+            }
+            if (filter_open) {
+                if (p.x >= 0.f && p.x < 130.f && p.y >= 230.f && p.y < 230.f + 18.f * 11.f) {
+                    filter_index = static_cast<int>((p.y - 230.f) / 18.f); reverse_sort = filter_index == 2; skin_scroll = 0.f;
+                }
+                filter_open = false; return;
+            }
+            if (p.y >= 200.f && p.y < 230.f) {
+                if (p.x < 130.f) { stop_name_input(); filter_open = true; }
+                else if (p.x >= 136.f && p.x < size.x) { editing_search = true; is_taking_text = true; is_taking_keys = true; }
+                return;
+            }
+            stop_name_input();
+            if (p.y < 238.f || p.y >= size.y || p.x < 0.f) return;
+            const float width = (size.x - 24.f) / 5.f;
+            const int col = static_cast<int>(p.x / (width + 6.f));
+            const int row = static_cast<int>((p.y - 238.f + skin_scroll) / 78.f);
+            if (col < 0 || col >= 5 || row < 0 || p.x - static_cast<float>(col) * (width + 6.f) >= width) return;
+            const auto visible = filtered_paints();
+            const size_t index = static_cast<size_t>(row * 5 + col);
+            if (index < visible.size()) { pending.paint = visible[index]; commit_weapon(); }
+        }
         void decal_picker_click(const vec2& p) {
             if (p.y < 32.f) {
                 if (p.x >= size.x - 35.f) { decal_picker = -1; return; }
-                if (p.x < 130.f) { pending.stickers[decal_picker] = {}; decal_picker = -1; return; }
+                if (p.x < 130.f) { pending.stickers[decal_picker] = {}; decal_picker = -1; if (!agent_editor) commit_weapon(); return; }
             }
             if (p.y < 42.f || p.x < 0.f) return;
             const float width = (size.x - 12.f) / 3.f;
@@ -635,7 +694,7 @@ namespace menu::group
             if (col < 0 || col >= 3 || row < 0 || p.x - static_cast<float>(col) * (width + 6.f) >= width) return;
             const auto visible = visible_decals();
             const size_t index = static_cast<size_t>(row * 3 + col);
-            if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; }
+            if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; if (!agent_editor) commit_weapon(); }
         }
         void editor_click(const vec2& p) {
             if (!agent_editor && p.y >= 0.f && p.y < 30.f && p.x >= 300.f && p.x < 435.f) {
@@ -839,7 +898,7 @@ namespace menu::group
         }
         void close_skins() {
             stop_name_input();
-            editor_open = false;
+            editor_open = false; options_open = false; stat_menu_open = false; decal_picker = -1;
             selected_weapon = {};
             FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
         }
@@ -871,51 +930,112 @@ namespace menu::group
         }
         void render_skins(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            const rect search{r.tl(), r.tl() + vec2{240.f, 27.f}};
-            const rect sort{r.tl() + vec2{246.f, 0.f}, r.tl() + vec2{400.f, 27.f}};
-            layer->add_rect_filled_rounded(search, colors.bg_bottom, 2.f);
-            layer->add_text(search.tl() + vec2{7.f, 13.f}, search_query.empty() ? (editing_search ? "|" : "Search skins...") : search_query + (editing_search ? "|" : ""), search_query.empty() ? colors.text_dark : colors.text, text_params::with_v(align_center));
-            layer->add_rect_filled_rounded(sort, colors.bg_bottom, 2.f);
-            layer->add_text(sort.center(), std::string(filter_labels[filter_index]) + "  v", colors.text, text_params::with_vh(align_center, align_center));
+            const auto title = std::string(selected_weapon.label) + (pending.paint.empty() ? " | Default" : " | " + paint_name(pending.paint));
+            layer->add_text(r.tl() + vec2{size.x * .5f, 14.f}, title, colors.text, text_params::with_vh(align_center, align_center));
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
-            layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
-            layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
-            if (!catalog_loaded)
-                layer->add_text(r.tl() + vec2{0.f, 30.f}, "Skin catalogue unavailable", colors.text_dark);
-            const float cell_width = (r.width() - 12.f) / 3.f;
-            const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
-            const auto old_clip = layer->g.clip_rect;
-            layer->override_clip_rect(viewport);
-            bool load_budget = true;
-            const auto visible = filtered_paints();
-            for (size_t i = 0; i < visible.size(); ++i) {
-                const float x = r.mins.x + static_cast<float>(i % 3) * (cell_width + 6.f);
-                const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - skin_scroll;
-                const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
-                if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
-                const std::string& paint = visible[i];
-                layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
-                if (auto icon = get_weapon_icon(selected_weapon.internal, paint, load_budget); icon && icon->obj) {
-                    const auto native = icon->get_size();
-                    if (native.x > 0.f && native.y > 0.f) {
-                        const float scale = (std::min)((cell_width - 10.f) / native.x, 48.f / native.y);
-                        const vec2 image_size = native * scale, center{x + cell_width * .5f, y + 27.f};
-                        layer->g.texture = icon->obj;
-                        layer->add_rect_filled(rect{center - image_size * .5f, center + image_size * .5f}, color::white());
-                        layer->g.texture = {};
+            layer->add_rect_filled_rounded(close, colors.bg_bottom, 3.f);
+            layer->add_text(close.center(), "X", colors.text_dark, text_params::with_vh(align_center, align_center));
+            layer->add_rect_filled(rect{r.tl() + vec2{0.f, 30.f}, r.tl() + vec2{size.x, 196.f}}, colors.bg_bottom);
+            bool budget = true;
+            if (auto icon = get_weapon_icon(selected_weapon.internal, pending.paint, budget); icon && icon->obj) {
+                const auto native = icon->get_size();
+                if (native.x > 0.f && native.y > 0.f) {
+                    const auto scale = (std::min)(330.f / native.x, 120.f / native.y);
+                    const auto dims = native * scale;
+                    const auto center = r.tl() + vec2{size.x * .5f, 98.f};
+                    layer->g.texture = icon->obj;
+                    layer->add_rect_filled(rect{center - dims * .5f, center + dims * .5f}, color::white());
+                    layer->g.texture = {};
+                    // Approximate 2D overlay only; actual item sticker positions are model-specific.
+                    for (int i = 0; i < sticker_count(); ++i) {
+                        const float x = center.x - dims.x * .30f + dims.x * .60f * (static_cast<float>(i) + .5f) / static_cast<float>(sticker_count());
+                        draw_decal(layer, pending.stickers[i], rect{vec2{x-10.f, center.y-10.f}, vec2{x+10.f, center.y+10.f}}, budget);
                     }
                 }
-                layer->font = draw.fonts[GUI_HASH("gui_main")];
-                const auto label = paint.empty() ? std::string("Default") : std::string(selected_weapon.label) + " | " + paint_name(paint);
-                layer->add_text(vec2{x + 4.f, y + 57.f}, label, colors.text, text_params::with_v(align_center));
             }
-            layer->g.clip_rect = old_clip;
-            if (filter_open) {
-                for (int i = 0; i < 11; ++i) {
-                    const rect option{r.tl() + vec2{246.f, 30.f + 25.f*static_cast<float>(i)}, r.tl() + vec2{400.f, 55.f + 25.f*static_cast<float>(i)}};
-                    layer->add_rect_filled(option, i == filter_index ? colors.bg_block_light : colors.bg_bottom);
-                    layer->add_text(option.tl() + vec2{8.f, 12.f}, filter_labels[i], colors.text, text_params::with_v(align_center));
+            const rect options{r.tl() + vec2{3.f, 164.f}, r.tl() + vec2{88.f, 193.f}};
+            layer->add_rect_filled_rounded(options, options_open ? colors.bg_block_light : colors.bg_block, 4.f);
+            layer->add_text(options.center(), "Options", colors.text, text_params::with_vh(align_center, align_center));
+            const float slots_x = size.x - static_cast<float>(sticker_count()) * 37.f;
+            layer->add_text(r.tl() + vec2{slots_x, 151.f}, "Stickers", colors.text_dark, text_params::with_v(align_center));
+            for (int i = 0; i < sticker_count(); ++i) {
+                const auto center = r.tl() + vec2{slots_x + static_cast<float>(i) * 37.f + 16.f, 179.f};
+                layer->add_circle_filled(center, 14.f, colors.bg_block_light, 24);
+                layer->add_circle(center, 14.f, colors.outline, 24, 1.f, 1.f);
+                draw_decal(layer, pending.stickers[i], rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}}, budget);
+            }
+            const rect sort{r.tl()+vec2{0.f,200.f},r.tl()+vec2{130.f,228.f}};
+            const rect search{r.tl()+vec2{136.f,200.f},r.tl()+vec2{size.x,228.f}};
+            layer->add_rect_filled_rounded(sort, colors.bg_bottom, 3.f);
+            layer->add_text(sort.center(), std::string(filter_labels[filter_index])+"  v", colors.text, text_params::with_vh(align_center,align_center));
+            layer->add_rect_filled_rounded(search, colors.bg_bottom, 3.f);
+            layer->add_text(search.tl()+vec2{8.f,14.f},search_query.empty() ? (editing_search ? "|" : "Search skins...") : search_query + (editing_search ? "|" : ""),search_query.empty() ? colors.text_dark : colors.text,text_params::with_v(align_center));
+            const float width = (r.width() - 24.f) / 5.f;
+            const rect viewport{r.tl()+vec2{0.f,238.f},r.br()};
+            const auto clip = layer->g.clip_rect; layer->override_clip_rect(viewport);
+            const auto visible = filtered_paints();
+            for (size_t i = 0; i < visible.size(); ++i) {
+                const float x = r.mins.x + static_cast<float>(i % 5) * (width + 6.f);
+                const float y = r.mins.y + 238.f + static_cast<float>(i / 5) * 78.f - skin_scroll;
+                const rect cell{vec2{x,y},vec2{x+width,y+72.f}};
+                if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
+                layer->add_rect_filled_rounded(cell, colors.bg_bottom, 4.f);
+                if (visible[i] == pending.paint) layer->add_rect_rounded(cell, colors.accent, 4.f);
+                if (auto icon = get_weapon_icon(selected_weapon.internal, visible[i], budget); icon && icon->obj) {
+                    const auto native = icon->get_size();
+                    if (native.x > 0.f && native.y > 0.f) {
+                        const auto scale = (std::min)((width - 8.f) / native.x, 43.f / native.y);
+                        const auto dims = native * scale; const vec2 center{x + width*.5f,y+25.f};
+                        layer->g.texture = icon->obj; layer->add_rect_filled(rect{center-dims*.5f,center+dims*.5f},color::white()); layer->g.texture = {};
+                    }
                 }
+                const auto item_clip = layer->g.clip_rect;
+                layer->override_clip_rect(rect{vec2{x+2.f,(std::max)(y+48.f,viewport.mins.y)},vec2{x+width-2.f,(std::min)(y+72.f,viewport.maxs.y)}});
+                layer->add_text(vec2{x+4.f,y+59.f},visible[i].empty() ? std::string("Default") : paint_name(visible[i]),colors.text,text_params::with_v(align_center));
+                layer->g.clip_rect = item_clip;
+            }
+            layer->g.clip_rect = clip;
+            if (filter_open) {
+                for (int i=0;i<11;++i) {
+                    const rect option{r.tl()+vec2{0.f,230.f+18.f*static_cast<float>(i)},r.tl()+vec2{130.f,248.f+18.f*static_cast<float>(i)}};
+                    layer->add_rect_filled(option,i == filter_index ? colors.bg_block_light : colors.bg_bottom);
+                    layer->add_text(option.tl()+vec2{8.f,9.f},filter_labels[i],colors.text,text_params::with_v(align_center));
+                }
+            }
+            if (options_open) render_weapon_options(layer, r);
+        }
+        void render_weapon_options(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
+            const auto origin = r.tl();
+            const rect panel{origin+vec2{0.f,30.f},origin+vec2{260.f,340.f}};
+            layer->add_rect_filled_rounded(panel,colors.bg_block,6.f);
+            layer->add_rect_rounded(panel,colors.outline,6.f);
+            layer->add_text(origin+vec2{12.f,48.f},"Options",colors.text,text_params::with_v(align_center));
+            layer->add_text(origin+vec2{240.f,48.f},"X",colors.text_dark,text_params::with_vh(align_center,align_center));
+            auto label = [&](float y,const char* text) { layer->add_text(origin+vec2{12.f,y},text,colors.text,text_params::with_v(align_center)); };
+            label(85.f,"Name");
+            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,70.f},origin+vec2{250.f,99.f}},colors.bg_bottom,4.f);
+            layer->add_text(origin+vec2{112.f,85.f},pending.custom_name.empty() ? (editing_name ? "|" : "Name tag") : pending.custom_name+(editing_name ? "|" : ""),pending.custom_name.empty() ? colors.text_dark : colors.text,text_params::with_v(align_center));
+            auto slider = [&](float y,const char* name,float value,const char* display) {
+                label(y,name);
+                layer->add_rect_filled_rounded(rect{origin+vec2{105.f,y-2.f},origin+vec2{250.f,y+3.f}},colors.bg_bottom,2.f);
+                layer->add_rect_filled_rounded(rect{origin+vec2{105.f,y-2.f},origin+vec2{105.f+145.f*value,y+3.f}},colors.accent,2.f);
+                layer->add_text(origin+vec2{250.f,y-10.f},display,colors.text_dark,text_params::with_h(align_right));
+            };
+            char number[32]; std::snprintf(number,sizeof(number),"%d",pending.seed); slider(120.f,"Seed",static_cast<float>(pending.seed)/1000.f,number);
+            const char* wear_name = pending.wear < .07f ? "Factory New" : pending.wear < .15f ? "Minimal Wear" : pending.wear < .38f ? "Field-Tested" : pending.wear < .45f ? "Well-Worn" : "Battle-Scarred";
+            layer->add_text(origin+vec2{12.f,150.f},wear_name,colors.text_dark,text_params::with_v(align_center));
+            std::snprintf(number,sizeof(number),"%.3f",pending.wear); slider(175.f,"Wear",pending.wear,number);
+            label(207.f,"StatTrak");
+            const char* modes[] = {"Default", "Static", "None"};
+            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,195.f},origin+vec2{250.f,220.f}},colors.bg_bottom,3.f);
+            layer->add_text(origin+vec2{115.f,207.f},std::string(modes[pending.stattrak_mode])+"  v",colors.text,text_params::with_v(align_center));
+            std::snprintf(number,sizeof(number),"%d",pending.stattrak_count); slider(260.f,"Value",static_cast<float>(pending.stattrak_count)/99999.f,number);
+            label(300.f,"Souvenir");
+            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,290.f},origin+vec2{125.f,310.f}},pending.souvenir ? colors.accent : colors.bg_bottom,3.f);
+            if (stat_menu_open) for (int i=0;i<3;++i) {
+                const rect row{origin+vec2{105.f,212.f+24.f*static_cast<float>(i)},origin+vec2{250.f,236.f+24.f*static_cast<float>(i)}};
+                layer->add_rect_filled(row,pending.stattrak_mode == i ? colors.bg_block_light : colors.bg_bottom);
+                layer->add_text(row.tl()+vec2{10.f,12.f},modes[i],colors.text,text_params::with_v(align_center));
             }
         }
         bool team_ct{true};
@@ -923,7 +1043,7 @@ namespace menu::group
         Equipment last_equipment_screen{Equipment::None};
         WeaponIcon selected_weapon{};
         SkinChoice pending{};
-        bool editor_open{}, editing_name{}, editing_search{}, reverse_sort{}, filter_open{};
+        bool editor_open{}, editing_name{}, editing_search{}, reverse_sort{}, filter_open{}, options_open{}, stat_menu_open{};
         int filter_index{};
         std::string search_query;
         int drag_slider{}, decal_picker{-1}, agent_choice{}, editor_drag{};

@@ -10,7 +10,8 @@
 // Menu and frame hook share only copied values; never expose GUI-owned strings.
 namespace SkinState {
 struct Choice {
-    int paint_kit{}, seed{}, stattrak{-1};
+    // -2 keeps the original item's counter, -1 disables it, >=0 is static.
+    int paint_kit{}, seed{}, stattrak{-2};
     float wear{};
     bool souvenir{};
     std::array<char, 32> name{};
@@ -37,7 +38,7 @@ inline int Definition(std::string_view name) {
 }
 inline bool Set(bool ct, int definition, Choice choice) {
     if (definition <= 0 || choice.paint_kit <= 0 || choice.seed < 0 || choice.seed > 1000 ||
-        !(choice.wear >= 0.f && choice.wear <= 1.f) || choice.stattrak < -1 || choice.stattrak > 99999 ||
+        !(choice.wear >= 0.f && choice.wear <= 1.f) || choice.stattrak < -2 || choice.stattrak > 99999 ||
         (choice.souvenir && choice.stattrak >= 0)) return false;
     choice.name.back() = '\0';
     std::lock_guard<std::mutex> lock(mutex);
