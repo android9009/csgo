@@ -558,7 +558,7 @@ struct cfg_t {
 
 		setting<bool> force_second_zoom, force_viewmodel_scope, disable_landing_bob;
 		setting<bool> sv_cheats, console_filter, console_logs, reveal_enemy_chat, ragdoll_thrust_enabled, ping_spike_enabled;
-		setting<bool> edge_stop, edge_bug, pixel_surf, jump_bug, long_jump, ladder_jump;
+		setting<bool> edge_stop, edge_bug, pixel_surf, long_jump, ladder_jump;
 		setting<bool> hit_sound_enabled, kill_sound_enabled;
 		setting<bitset> scoreboard_options, log_types, hit_log_details, miss_log_details, buy_log_targets, kill_sound_select{1 << hitsound_none};
 		arr_setting<color> log_colors{color::white()};

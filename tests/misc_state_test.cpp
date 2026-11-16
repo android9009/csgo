@@ -37,4 +37,13 @@ int main(){
     c={};peek.Update(c,true,false,false,{0,0,20},{0,0,0},false,p);assert(!peek.valid);
     peek.Update(c,true,false,true,{0,0,0},{0,0,0},false,p);
     peek.Update(c,true,false,true,{50,0,0},{0,0,0},true,p);assert(peek.returning && c.forwardmove<0);
+    for(unsigned frame=0;frame<60;++frame){const auto tag=ClanFrame(frame);assert(tag.size()==15 && tag.find("gamesense")==std::string::npos);}
+    assert(ClanFrame(11).find("Pastaware")!=std::string::npos);
+    LongJumpState lj;c={};c.buttons=2;lj.Update(c,true,true,0);c={};lj.Update(c,true,false,200);assert((c.buttons&4) && !(c.buttons&2));
+    lj.Update(c,false,false,100);assert(!lj.active);
+    SequenceHistory history;SequenceHistory::Entry entry;
+    history.Record(10,1,1.0);history.Record(11,0,1.1);history.Record(12,1,1.2);
+    assert(history.Select(1.25,.1,entry) && entry.sequence==11 && entry.reliable==0);
+    assert(!history.Select(1.25,.5,entry));history.Record(1,0,2);assert(history.count==1);
+    history.Record(1,0,2.1);assert(history.count==1);
 }

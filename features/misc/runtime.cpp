@@ -19,6 +19,7 @@ struct RadarEntry {void* entity{};bool original{},written{};};
 std::array<RadarEntry,65> radar;
 std::ptrdiff_t spotted{};
 PeekState peek_state;
+LongJumpState long_jump_state;
 std::atomic<bool> peek_shot{};
 void* movement_player{};int last_command{};
 float ConVarFloat(const char* name,float fallback){
@@ -96,20 +97,6 @@ struct Event {
 };
 int User(int id){return MEM::GetVFunc<int(__thiscall*)(void*,int)>(Interfaces::Engine,9)(Interfaces::Engine,id);}
 void Command(const char* command){if(Interfaces::Engine && command && *command)MEM::GetVFunc<void(__thiscall*)(void*,const char*)>(Interfaces::Engine,7)(Interfaces::Engine,command);}
-void Clean(char* dst,std::size_t capacity,const char* src){
-    std::size_t i=0;if(src)for(;i+1<capacity && src[i];++i){const unsigned char c=static_cast<unsigned char>(src[i]);dst[i]=c<32 || c==127 || c==';' || c=='"' || c=='\'' || c=='\\' ? '_' : static_cast<char>(c);}dst[i]=0;
-}
-void Name(int index,char (&name)[128]){
-    alignas(8) unsigned char data[512]{};
-    if(index>0 && Interfaces::Engine->GetPlayerInfo(index,data)){char raw[128]{};std::memcpy(raw,data+16,127);Clean(name,sizeof(name),raw);}
-    else std::snprintf(name,sizeof(name),"player %d",index);
-}
-void MessageLine(const Settings& options,int kind,const char* text){
-    Message message;Clean(message.text,sizeof(message.text),text);message.color=options.colors[kind];message.time=static_cast<float>(GetTickCount64())*.001f;
-    {std::lock_guard<std::mutex> lock(mutex);for(std::size_t i=0;i+1<messages.size();++i)messages[i]=messages[i+1];messages.back()=message;}
-    LOG_INFO("misc: %s",message.text);
-    if(options.console_logs){char command[224]{};std::snprintf(command,sizeof(command),"echo [Arena] %s",message.text);Command(command);}
-}
 void Sound(int selection){
     using namespace FatalityMiscSounds;const unsigned char* wave=nullptr;
     switch(selection){case 1:wave=bell;break;case 2:wave=cod;break;case 3:wave=fatality;break;case 4:
@@ -129,25 +116,9 @@ void OnEvent(Event* event){
         const int attacker=User(event->Int("attacker")),victim=User(event->Int("userid"));
         if(attacker==local && victim!=local){
             if(options.hit_enabled)Sound(options.hit_sound);
-            const auto* weapon=event->String("weapon");const bool grenade=weapon && (!std::strcmp(weapon,"hegrenade") || !std::strcmp(weapon,"inferno"));
-            const int kind=grenade && (options.logs&16u) ? 4 : 0;
-            if(options.logs&(1u<<kind)){char player[128]{},line[192]{};Name(victim,player);
-                if(options.hit_details&1u)std::snprintf(line,sizeof(line),"%s %s: %d damage (%d hp)",grenade ? "Naded" : "Hit",player,event->Int("dmg_health"),event->Int("health"));
-                else std::snprintf(line,sizeof(line),"%s %s",grenade ? "Naded" : "Hit",player);
-                MessageLine(options,kind,line);
-            }
-        }else if(victim==local && (options.logs&8u)){
-            char player[128]{},line[192]{};Name(attacker,player);std::snprintf(line,sizeof(line),"Hurt by %s: %d damage",player,event->Int("dmg_health"));MessageLine(options,3,line);
         }
     }else if(!std::strcmp(name,"player_death")){
         if(User(event->Int("attacker"))==local && User(event->Int("userid"))!=local && options.kill_enabled)Sound(options.kill_sound);
-    }else if(!std::strcmp(name,"item_purchase") && (options.logs&4u)){
-        const int index=User(event->Int("userid"));
-        auto* buyer=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(index));if(!buyer || !ctx.local)return;
-        const unsigned target=index==local ? 4u : buyer->m_iTeamNum()==ctx.local->m_iTeamNum() ? 1u : 2u;
-        if(!(options.buy_targets&(target|8u)))return;
-        char player[128]{},weapon[64]{},line[192]{};Name(index,player);Clean(weapon,sizeof(weapon),event->String("weapon"));
-        std::snprintf(line,sizeof(line),"%.110s bought %.50s",player,weapon);MessageLine(options,2,line);
     }
 }
 class Listener {
@@ -164,8 +135,88 @@ void RestoreRadar(){
         record={};
     }
 }
+VMT_Hook datagram_hook;void* ping_channel{};SequenceHistory sequence_history;std::mutex sequence_mutex;
+using DatagramFn=int(__thiscall*)(void*,void*);DatagramFn datagram_original{};
+int SendWithSequence(void* channel,void* data,const SequenceHistory::Entry& entry){
+    auto* sequence=reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x1c);
+    auto* reliable=reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x28);
+    const int old_sequence=*sequence,old_reliable=*reliable;int result{};
+    __try{*sequence=entry.sequence;*reliable=entry.reliable;result=datagram_original(channel,data);}
+    __finally{*sequence=old_sequence;*reliable=old_reliable;}
+    return result;
+}
+int __fastcall SendDatagram(void* channel,void*,void* data){
+    const auto original=datagram_original;if(!original)return 0;
+    const auto options=Get();if(channel!=ping_channel || data || !options.ping_spike || !Interfaces::Engine || !Interfaces::Engine->IsInGame())return original(channel,data);
+    const auto loopback=MEM::GetVFunc<bool(__thiscall*)(void*)>(channel,6);if(loopback(channel))return original(channel,data);
+    const auto latency=MEM::GetVFunc<float(__thiscall*)(void*,int)>(channel,9);
+    const float existing=latency(channel,0)+latency(channel,1),max_unlag=ConVarFloat("sv_maxunlag",.2f);
+    const float delay=std::clamp(options.ping_amount*.001f,0.f,(std::max)(0.f,max_unlag-existing));
+    SequenceHistory::Entry selected;bool found{};
+    {std::lock_guard<std::mutex> lock(sequence_mutex);found=sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);}
+    return found ? SendWithSequence(channel,data,selected) : original(channel,data);
+}
+bool PingEngineSupported(){
+    static int supported=-1;if(supported!=-1)return supported==1;
+    supported=0;auto* base=static_cast<unsigned char*>(MEM::GetModuleBase("engine.dll"));if(!base)return false;
+    const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(base);if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>0x1000)return false;
+    const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
+    supported=nt->Signature==IMAGE_NT_SIGNATURE && nt->FileHeader.Machine==IMAGE_FILE_MACHINE_I386 && nt->FileHeader.TimeDateStamp==0x64ee7e86u && nt->OptionalHeader.SizeOfImage==0x39c0000u ? 1 : 0;
+    if(!supported)LOG_WARN("misc ping: unsupported engine build; channel hook disabled");
+    return supported==1;
+}
+void UpdatePing(){
+    if(!PingEngineSupported())return;
+    void* channel=ctx.in_game && Interfaces::Engine ? MEM::GetVFunc<void*(__thiscall*)(void*)>(Interfaces::Engine,78)(Interfaces::Engine) : nullptr;
+    if(channel!=ping_channel){datagram_hook.detach();{std::lock_guard<std::mutex> lock(sequence_mutex);sequence_history.Reset();}ping_channel=channel;
+        if(channel){datagram_original=MEM::GetVFunc<DatagramFn>(channel,46);if(!datagram_hook.attach(channel,46,reinterpret_cast<void*>(&SendDatagram)))ping_channel=nullptr;}
+    }
+    if(!channel || channel!=ping_channel)return;
+    const int sequence=*reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x1c),reliable=*reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x28);
+    std::lock_guard<std::mutex> lock(sequence_mutex);sequence_history.Record(sequence,reliable,static_cast<double>(GetTickCount64())*.001);
+}
+using SetClanTagFn=void(__fastcall*)(const char*,const char*);
+SetClanTagFn set_clan_tag{};
+bool clan_changed{};unsigned clan_frame=~0u;char original_clan[16]{};
+void ResolveClanTag(){
+    const auto at=MEM::FindPattern("engine.dll","53 56 57 8B DA 8B F9 FF 15 ? ? ? ? 6A 2C 8B C8 8B 30 FF 56 08 85 C0 74 13 51 6A 00 68 ? ? ? ? 8B C8 E8 ? ? ? ? 8B F0 EB 02 33 F6 6A 01 68");
+    if(!at){LOG_WARN("misc clantag: engine fingerprint not found");return;}
+    std::uint32_t event{},tag{},name{};std::memcpy(&event,reinterpret_cast<void*>(at+30),4);std::memcpy(&tag,reinterpret_cast<void*>(at+50),4);std::memcpy(&name,reinterpret_cast<void*>(at+76),4);
+    if(std::strcmp(reinterpret_cast<char*>(event),"ClanTagChanged") || std::strcmp(reinterpret_cast<char*>(tag),"tag") || std::strcmp(reinterpret_cast<char*>(name),"name")){LOG_WARN("misc clantag: message identity mismatch");return;}
+    set_clan_tag=reinterpret_cast<SetClanTagFn>(at);
+}
+void CaptureClan(){
+    original_clan[0]=0;const auto offset=PropManager::Get().GetOffset("DT_CSPlayerResource","m_szClan");
+    if(offset<=0 || offset>=0x10000)return;
+    for(int i=1;i<2048;++i){auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(i));if(!entity)continue;
+        auto* cls=entity->GetClientClass();if(!cls || !cls->m_pNetworkName || std::strcmp(cls->m_pNetworkName,"CCSPlayerResource"))continue;
+        std::memcpy(original_clan,reinterpret_cast<unsigned char*>(entity)+offset+Interfaces::Engine->GetLocalPlayer()*16,15);original_clan[15]=0;return;
+    }
+}
+void UpdateClan(bool enabled){
+    if(!set_clan_tag)return;
+    if(!ctx.in_game){clan_changed=false;clan_frame=~0u;return;}
+    if(!enabled){if(clan_changed)set_clan_tag(original_clan,original_clan);clan_changed=false;clan_frame=~0u;return;}
+    if(!clan_changed)CaptureClan();
+    const auto frame=static_cast<unsigned>(GetTickCount64()/300)%30;
+    if(frame==clan_frame)return;
+    const auto text=ClanFrame(frame);set_clan_tag(text.c_str(),text.c_str());clan_changed=true;clan_frame=frame;
+}
+void* ragdoll_cvar{};float ragdoll_original{},ragdoll_applied{};bool ragdoll_changed{};
+void UpdateRagdoll(const Settings& options){
+    if(!ragdoll_cvar && Interfaces::ConVar)ragdoll_cvar=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"cl_ragdoll_gravity");
+    if(!ragdoll_cvar)return;
+    const auto get=MEM::GetVFunc<float(__thiscall*)(void*)>(ragdoll_cvar,12);const auto set=MEM::GetVFunc<void(__thiscall*)(void*,float)>(ragdoll_cvar,15);
+    if(!options.ragdoll_gravity){if(ragdoll_changed && std::abs(get(ragdoll_cvar)-ragdoll_applied)<.01f)set(ragdoll_cvar,ragdoll_original);ragdoll_changed=false;return;}
+    if(!ragdoll_changed)ragdoll_original=get(ragdoll_cvar);
+    const float value=ragdoll_original*std::clamp(options.ragdoll_amount/100.f,.01f,10.f);
+    if(!ragdoll_changed || std::abs(value-ragdoll_applied)>.01f){set(ragdoll_cvar,value);ragdoll_applied=value;ragdoll_changed=true;}
+}
+void InitializeExtras(){__try{ResolveClanTag();}__except(EXCEPTION_EXECUTE_HANDLER){set_clan_tag=nullptr;LOG_WARN("misc clantag: invalid fingerprint operands");}}
+void ShutdownExtras(){datagram_hook.detach();ping_channel=nullptr;__try{UpdateClan(false);Settings disabled;UpdateRagdoll(disabled);}__except(EXCEPTION_EXECUTE_HANDLER){}}
 void FrameImpl(){
     const auto options=Get();
+    UpdateClan(options.clantag);UpdateRagdoll(options);UpdatePing();
     if(!ctx.in_game || !ctx.local || !Interfaces::EntityList){for(auto& r:radar)r={};pending_buy=false;return;}
     if(!options.radar)RestoreRadar();
     else {
@@ -219,10 +270,10 @@ void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physic
     if(now-reported>2000){reported=now;LOG_INFO("misc forecast: selected %s route tick=%d traces=%d (experimental, not engine prediction)",choice.kind==2 ? "pixel-surf" : "edge-bug",choice.tick,choice.traces);}
 }
 void MoveImpl(CUserCmd* cmd){
-    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();movement_player=nullptr;peek_shot.store(false);return;}
+    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);movement_player=nullptr;peek_shot.store(false);return;}
     if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();peek_shot.store(false);}
     movement_player=ctx.local;last_command=cmd->command_number;
-    const auto options=Get();const auto velocity=ctx.local->m_vecVelocity();
+    const auto options=Get();PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);const auto velocity=ctx.local->m_vecVelocity();
     // Datamap entries in the supplied client.dll: m_MoveType=0x25C,
     // m_nWaterLevel=0x25E. Both are byte fields, not 32-bit NETVAR reads.
     const auto* bytes=reinterpret_cast<const unsigned char*>(ctx.local);
@@ -233,7 +284,16 @@ void MoveImpl(CUserCmd* cmd){
         if(variable)server_bhop=MEM::GetVFunc<int(__thiscall*)(void*)>(variable,13)(variable)!=0;
     }
     auto physics=CapturePhysics();
-    if(!Walkable(type,water)){peek_state.Reset();peek_shot.store(false);return;}
+    if(type==9 && options.ladder_jump && water<2 && velocity.z>0.f && cmd->forwardmove>0.f && Interfaces::EngineTrace){
+        const auto position=ctx.local->m_vecOrigin();const float yaw=cmd->viewangles.y*.01745329252f;
+        const Vector toward{std::cos(yaw)*32.f,std::sin(yaw)*32.f,0};
+        Ray_t lower,upper;lower.Init(position+Vector{0,0,32},position+Vector{0,0,32}+toward);
+        upper.Init(position+Vector{0,0,80},position+Vector{0,0,80}+toward);
+        CTraceFilterSimple filter(ctx.local);CGameTrace low,high;
+        Interfaces::EngineTrace->TraceRay(lower,0x20000000u,&filter,&low);Interfaces::EngineTrace->TraceRay(upper,0x20000000u,&filter,&high);
+        if(low.fraction<1.f && high.fraction==1.f && !high.startsolid && !high.allsolid)cmd->buttons|=2;
+    }
+    if(!Walkable(type,water)){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);return;}
     Move(*cmd,options,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
     const auto position=ctx.local->m_vecOrigin();
     const bool shot=peek_shot.exchange(false);
@@ -270,17 +330,20 @@ void MoveImpl(CUserCmd* cmd){
         }
     }
     PredictMovement(*cmd,options,physics,ground,position,velocity);
+    if(!options.edge_bug && !options.pixel_surf && !options.no_fall)long_jump_state.Update(*cmd,options.long_jump,ground,velocity.z);else long_jump_state.Reset();
 }
 }
 void Initialize(){
+    InitializeExtras();
     if(!accept_receiver)InstallAccept();
     if(registered || !Interfaces::GameEvent)return;
     auto add=MEM::GetVFunc<bool(__thiscall*)(void*,void*,const char*,bool)>(Interfaces::GameEvent,3);
-    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","weapon_fire","player_hurt","player_death","item_purchase"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
+    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","weapon_fire","player_hurt","player_death"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
     if(!ok){MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);LOG_WARN("misc: event listener unavailable");return;}
     registered=true;LOG_INFO("misc: event listener registered");
 }
 void Shutdown(){
+    ShutdownExtras();
     accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;
     peek_state.Reset();peek_shot.store(false);
     if(registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);

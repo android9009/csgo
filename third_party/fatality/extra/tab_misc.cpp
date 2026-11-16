@@ -152,7 +152,6 @@ namespace menu::group
 	{
 		{ const auto control = MAKE("misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug); control->tooltip = "Experimental bounded trajectory search; Source-style simulation, not engine prediction."; e->add(make_control("Edge bugs", control)); }
 		{ const auto control = MAKE("misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf); control->tooltip = "Experimental trajectory search requiring repeated unsupported floor contacts."; e->add(make_control("Pixel surf", control)); }
-		ADD("Jump bug", "misc>movement>extra>jump bug", checkbox, cfg.misc.jump_bug);
 		ADD("Long jump", "misc>movement>extra>long jump", checkbox, cfg.misc.long_jump);
 		ADD("Ladder jump", "misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump);
 

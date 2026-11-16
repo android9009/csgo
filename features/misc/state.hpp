@@ -10,6 +10,8 @@ namespace MiscRuntime {
 struct Settings {
     bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{};
     bool peek{},retreat_on_release{},no_fall{},edge_jump{},autoaccept{},edge_bug{},pixel_surf{},edge_stop{};float peek_distance{-1.f};
+    bool clantag{},ragdoll_gravity{},long_jump{},ladder_jump{},enemy_chat{},ping_spike{};float ping_amount{};float ragdoll_amount{100.f};
+    unsigned indicators{},indicator_active{};int active_weapon{};bool alive{};
     unsigned strafe{},logs{},hit_details{},buy_targets{};float smoothing{};
     int primary{},pistol{},armor{},hit_sound{},kill_sound{};
     bool defuser{},taser{},grenades{},hit_enabled{},kill_enabled{};
@@ -22,6 +24,42 @@ inline std::array<Message,8> messages{};
 inline void Publish(const Settings& s){std::lock_guard<std::mutex> lock(mutex);settings=s;}
 inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
 inline std::array<Message,8> Messages(){std::lock_guard<std::mutex> lock(mutex);return messages;}
+inline int live_weapon{};
+inline bool live_alive{};
+inline int ActiveWeapon(){std::lock_guard<std::mutex> lock(mutex);return live_weapon;}
+inline bool Alive(){std::lock_guard<std::mutex> lock(mutex);return live_alive;}
+inline void PlayerState(int weapon,bool alive){std::lock_guard<std::mutex> lock(mutex);live_weapon=weapon;live_alive=alive;}
+inline std::string ClanFrame(unsigned tick){
+    constexpr char text[]="             Pastaware                ";
+    constexpr std::array<unsigned,30> frames{0,1,2,3,4,5,6,7,8,9,10,11,11,11,11,11,11,11,11,12,13,14,15,16,17,18,19,20,21,22};
+    return std::string(text+frames[tick%frames.size()],15);
+}
+struct LongJumpState {
+    bool was_grounded{},armed{},active{};
+    void Reset(){*this={};}
+    void Update(CUserCmd& cmd,bool enabled,bool ground,float vertical){
+        if(!enabled){Reset();return;}
+        if(ground){active=false;armed=(cmd.buttons&2)!=0;}
+        else if(was_grounded && armed && vertical>0.f){active=true;armed=false;}
+        if(active && !ground){cmd.buttons|=4;cmd.buttons&=~2;}
+        was_grounded=ground;
+    }
+};
+struct SequenceHistory {
+    struct Entry {int sequence{},reliable{};double time{};};
+    std::array<Entry,256> entries{};unsigned count{},next{};
+    void Reset(){count=next=0;}
+    void Record(int sequence,int reliable,double time){
+        if(!std::isfinite(time))return;
+        if(count){const auto& last=entries[(next+255)%256];if(time<last.time || static_cast<std::int32_t>(static_cast<std::uint32_t>(sequence)-static_cast<std::uint32_t>(last.sequence))<0)Reset();else if(sequence==last.sequence)return;}
+        entries[next]={sequence,reliable,time};next=(next+1)%256;count=(std::min)(count+1,256u);
+    }
+    bool Select(double now,double delay,Entry& out) const {
+        if(!std::isfinite(now) || !std::isfinite(delay) || delay<=0)return false;
+        for(unsigned n=0;n<count;++n){const auto& e=entries[(next+255-n)%256];if(now-e.time>=delay){out=e;return true;}}
+        return false;
+    }
+};
 inline bool Walkable(int type,int water){return type==2 && water<2;}
 // Adapted from the reference's friction_speed/write_counter_movement stages.
 struct Physics {float interval{1.f/64.f},friction{5.2f},stop_speed{80.f},accelerate{5.5f},surface_friction{1.f},max_speed{250.f};};
