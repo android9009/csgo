@@ -756,12 +756,13 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                         }));
                         e->add(make_tab_area(GUI_HASH("scripts_container"), false, [](const std::shared_ptr<layout>&) {}));
                         e->add(make_tab_area(GUI_HASH("skins_container"), false, s_horizontal, [&](const std::shared_ptr<layout>& e) {
+                            e->stack_offset.x = 10.f;
                             e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("skins_preview_agents"), group_sz, {
-                                make_groupbox("skins>preview", "PREVIEW", vec2{group_sz.x, 318.f}, [](auto e) {
-                                    e->add(menu::group::make_model_preview("skins>preview>viewport", vec2{220.f, 280.f}));
+                                make_groupbox("skins>preview", "PREVIEW", vec2{group_sz.x, 330.f}, [](auto e) {
+                                    e->add(menu::group::make_model_preview("skins>preview>viewport", vec2{220.f, 292.f}));
                                 }),
-                                make_groupbox("skins>equipment", "EQUIPMENT", vec2{group_sz.x, group_sz.y - 328.f}, menu::group::skins_equipment_tiles)}));
-                            e->add(make_groupbox("skins>weapon grid", "WEAPONS", vec2{group_sz.x * 2.f + 16.f, group_sz.y}, menu::group::skins_weapon_grid));
+                                make_groupbox("skins>equipment", "EQUIPMENT", vec2{group_sz.x, group_sz.y - 340.f}, menu::group::skins_equipment_tiles)}));
+                            e->add(make_groupbox("skins>weapon grid", "WEAPONS", vec2{group_sz.x * 2.f + 6.f, group_sz.y}, menu::group::skins_weapon_grid));
                         }));
                         }, [ & ]( std::shared_ptr<layout>& e) {
 							{

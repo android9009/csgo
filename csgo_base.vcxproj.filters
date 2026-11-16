@@ -602,6 +602,9 @@
     <ClInclude Include="third_party\fatality\preview_bridge.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\equipment_paints.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
     <ClInclude Include="third_party\fatality\skin_names.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>

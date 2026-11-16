@@ -11,6 +11,7 @@
 #include "../preview_bridge.hpp"
 #include "../preview_catalog.hpp"
 #include "../skin_names.hpp"
+#include "../equipment_paints.hpp"
 #include "../../../utils/log.hpp"
 #include <algorithm>
 #include <array>
@@ -84,6 +85,12 @@ namespace menu::group
     }
     std::shared_ptr<texture> get_weapon_icon(const char* weapon, const std::string& paint, bool& load_budget) {
         return get_asset_icon(paint.empty() ? SkinIconPath::Base(weapon) : SkinIconPath::Generated(weapon, paint), load_budget);
+    }
+    std::string representative_glove_paint(const std::string& item) {
+        // Glove families do not have base_weapons icons in the CS:GO VPK.
+        for (const auto& entry : EquipmentPaints::entries)
+            if (entry.item == item) return std::string(entry.paint);
+        return {};
     }
     SkinCatalog::Catalog catalog;
     SkinSchema::Metadata schema_metadata;
@@ -259,7 +266,8 @@ namespace menu::group
         const auto name = equipment_icon(screen, selected, ct);
         if (name || ((screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) && !selected.empty())) {
             const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
-            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, {}, budget);
+            const auto glove_paint = screen == Equipment::Gloves && !selected.empty() ? representative_glove_paint(selected) : std::string{};
+            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, glove_paint, budget);
             if (icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
@@ -416,6 +424,23 @@ namespace menu::group
                     return;
                 }
                 if (equipment_screen == Equipment::Agent) FatalityPreviewBridge::agent[team].store(0, std::memory_order_relaxed);
+                if ((equipment_screen == Equipment::Knife || equipment_screen == Equipment::Gloves) && index != 0) {
+                    const auto item = items[index];
+                    const auto kind = equipment_screen;
+                    if (kind == Equipment::Knife) equipped_knife[team] = item.icon; else equipped_gloves[team] = item.icon;
+                    selected_weapon = {item.label, item.icon};
+                    equipment_weapon = true;
+                    paints.clear(); search_query.clear(); reverse_sort = false; filter_open = false; filter_index = 0;
+                    load_catalog();
+                    for (const auto& pair : EquipmentPaints::entries)
+                        if (pair.item == item.icon && schema_metadata.paint_ids.count(std::string(pair.paint))) paints.emplace_back(pair.paint);
+                    skin_scroll = 0.f; options_open = false; stat_menu_open = false; agent_editor = false;
+                    const auto& saved = selection[team];
+                    const auto found = saved.find(item.icon);
+                    pending = found == saved.end() ? SkinChoice{} : found->second;
+                    equipment_screen = Equipment::None;
+                    return;
+                }
                 if (equipment_screen == Equipment::Knife) equipped_knife[team] = items[index].icon;
                 if (equipment_screen == Equipment::Gloves) equipped_gloves[team] = items[index].icon;
                 if (equipment_screen == Equipment::Music) equipped_music[team] = items[index].icon;
@@ -438,7 +463,7 @@ namespace menu::group
             if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
             const auto& columns = team_ct ? ct_weapons : t_weapons;
             if (static_cast<size_t>(row) >= columns[col].size()) return;
-            selected_weapon = columns[col][row];
+            selected_weapon = columns[col][row]; equipment_weapon = false;
             paints.clear(); search_query.clear(); reverse_sort = false; filter_open = false; filter_index = 0;
             if (load_catalog()) {
                 auto it = catalog.find(selected_weapon.internal);
@@ -592,6 +617,7 @@ namespace menu::group
         }
         int sticker_count() const {
             if (agent_editor) return 3;
+            if (equipment_weapon) return 0;
             return selected_weapon.internal && (!std::strcmp(selected_weapon.internal, "weapon_revolver") || !std::strcmp(selected_weapon.internal, "weapon_g3sg1")) ? 5 : 4;
         }
         std::vector<const SkinSchema::Decal*> visible_decals() const {
@@ -602,6 +628,7 @@ namespace menu::group
         void commit_weapon() {
             if (!selected_weapon.internal) return;
             selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
+            if (equipment_weapon) return; // Menu preview only; knife/glove entity replacement is not implemented.
             const int definition = SkinState::Definition(selected_weapon.internal);
             if (pending.paint.empty()) { SkinState::Remove(team_ct, definition); return; }
             const auto id = schema_metadata.paint_ids.find(pending.paint);
@@ -899,7 +926,7 @@ namespace menu::group
         void close_skins() {
             stop_name_input();
             editor_open = false; options_open = false; stat_menu_open = false; decal_picker = -1;
-            selected_weapon = {};
+            selected_weapon = {}; equipment_weapon = false;
             FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
         }
         void render_equipment(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
@@ -924,7 +951,16 @@ namespace menu::group
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(items[i].icon[0] ? items[i].icon : (team_ct ? "weapon_knife" : "weapon_knife_t")), std::memory_order_relaxed);
                 draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget);
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
-                layer->add_text(vec2{x + cell_width * .5f, y + 57.f}, items[i].label, colors.text, text_params::with_vh(align_center, align_center));
+                std::string label = items[i].label;
+                if (layer->font->get_text_size(label).x > cell_width - 10.f) {
+                    while (!label.empty() && layer->font->get_text_size(label + "...").x > cell_width - 10.f) {
+                        auto pos = label.size() - 1;
+                        while (pos && (static_cast<unsigned char>(label[pos]) & 0xc0) == 0x80) --pos;
+                        label.erase(pos);
+                    }
+                    label += "...";
+                }
+                layer->add_text(vec2{x + cell_width * .5f, y + 57.f}, label, colors.text, text_params::with_vh(align_center, align_center));
             }
             layer->g.clip_rect = old_clip;
         }
@@ -937,7 +973,8 @@ namespace menu::group
             layer->add_text(close.center(), "X", colors.text_dark, text_params::with_vh(align_center, align_center));
             layer->add_rect_filled(rect{r.tl() + vec2{0.f, 30.f}, r.tl() + vec2{size.x, 196.f}}, colors.bg_bottom);
             bool budget = true;
-            if (auto icon = get_weapon_icon(selected_weapon.internal, pending.paint, budget); icon && icon->obj) {
+            const std::string preview_paint = equipment_weapon && pending.paint.empty() ? representative_glove_paint(selected_weapon.internal) : pending.paint;
+            if (auto icon = get_weapon_icon(selected_weapon.internal, preview_paint, budget); icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
                     const auto scale = (std::min)(330.f / native.x, 120.f / native.y);
@@ -957,7 +994,7 @@ namespace menu::group
             layer->add_rect_filled_rounded(options, options_open ? colors.bg_block_light : colors.bg_block, 4.f);
             layer->add_text(options.center(), "Options", colors.text, text_params::with_vh(align_center, align_center));
             const float slots_x = size.x - static_cast<float>(sticker_count()) * 37.f;
-            layer->add_text(r.tl() + vec2{slots_x, 151.f}, "Stickers", colors.text_dark, text_params::with_v(align_center));
+            if (sticker_count()) layer->add_text(r.tl() + vec2{slots_x, 151.f}, "Stickers", colors.text_dark, text_params::with_v(align_center));
             for (int i = 0; i < sticker_count(); ++i) {
                 const auto center = r.tl() + vec2{slots_x + static_cast<float>(i) * 37.f + 16.f, 179.f};
                 layer->add_circle_filled(center, 14.f, colors.bg_block_light, 24);
@@ -1048,7 +1085,7 @@ namespace menu::group
         std::string search_query;
         int drag_slider{}, decal_picker{-1}, agent_choice{}, editor_drag{};
         float decal_scroll{};
-        bool agent_editor{}, editor_3d{};
+        bool agent_editor{}, editor_3d{}, equipment_weapon{};
         std::vector<std::string> paints;
     };
     }
@@ -1057,7 +1094,7 @@ namespace menu::group
         e->add(MAKE("skins>equipment>tiles", equipment_tiles, vec2{220.f, 108.f}));
     }
     void skins_weapon_grid(std::shared_ptr<layout>& e) {
-        e->add(MAKE("skins>weapon_grid", weapon_grid, vec2{490.f, 440.f}));
+        e->add(MAKE("skins>weapon_grid", weapon_grid, vec2{480.f, 440.f}));
     }
 
 	void skins_weapons(std::shared_ptr<layout> &e)

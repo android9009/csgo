@@ -27,6 +27,7 @@ bool editor_failed{}, editor_target_retained{};
 bool* editor_allocation_flag{};
 bool editor_allocation_old{}, editor_allocation_begun{};
 void* model{};
+void* last_agent_model{};
 // The engine destructor ABI is not verified. Keep a bounded cache instead of
 // repeatedly destroying merged models while the pointer moves over the grid.
 struct CachedModel { int team, agent, weapon; void* model; };
@@ -101,7 +102,8 @@ bool Initialize() {
     phase = "begin render target allocation";
     Slot<void(__thiscall*)(void*)>(ms, 94)(ms);
     phase = "get back buffer format";
-    const int format = Slot<int(__thiscall*)(void*)>(ms, 36)(ms);
+    // IMAGE_FORMAT_RGBA8888 retains an alpha channel, unlike the back-buffer format.
+    const int format = 0;
     phase = "create render target texture";
     render_texture = Slot<void*(__thiscall*)(void*, const char*, int, int, int, int, int, unsigned, unsigned)>(ms, 97)(
         ms, "_fatality_preview_port", width, height, 0, format, 0, 0x4u | 0x8u, 1u);
@@ -204,7 +206,7 @@ void DrawTarget(void* target, bool weapon_only) {
     rv->Push3DView(context, view, clear_color_depth_stencil, static_cast<Texture*>(target), active.frustum);
     active.view_pushed = true;
     phase = "clear color";
-    context->ClearColor4ub(0, 0, 0, 255);
+    context->ClearColor4ub(0, 0, 0, 0);
     phase = "clear buffers";
     context->ClearBuffers(true, true, true);
     struct Light { float x,y,z,w; };
@@ -296,6 +298,17 @@ void PaintImpl() {
             return;
         }
         if (!InitializeModel(ct, agent_index, weapon_index)) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
+    }
+    if (model != last_agent_model) {
+        // Each cached combination has its own merged model. Reset the known
+        // Fatality sequence and playback basis when switching, before drawing.
+        const auto root = reinterpret_cast<std::uintptr_t>(model) + 4;
+        *reinterpret_cast<int*>(root + 0x54) = 113;
+        *reinterpret_cast<float*>(root + 0x60) = 20.f;
+        *reinterpret_cast<bool*>(root + 0x675) = false;
+        *reinterpret_cast<float*>(root + 0x67c) = 20.f;
+        reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
+        last_agent_model = model;
     }
     DrawTarget(render_texture, false);
 }
@@ -391,6 +404,7 @@ void Shutdown() {
         model_count = 0;
         cache_limit_logged = false;
         std::memset(missing_models, 0, sizeof(missing_models));
+        last_agent_model = nullptr;
     }
     if (render_texture && texture_retained) Slot<void(__thiscall*)(void*)>(render_texture, 11)(render_texture);
     texture_retained = false;
