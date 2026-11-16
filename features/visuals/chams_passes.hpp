@@ -5,7 +5,11 @@
 namespace ChamsPasses {
 struct Pass {int kind{};std::uint32_t primary{},secondary{};bool ignore_z{};};
 struct Plan {std::array<Pass,4> passes{};int count{};};
-inline bool Composite(int kind){return kind==3 || kind==4 || kind==5 || kind==7;}
+// Keep saved Flat / Legacy numeric values compatible with existing configs.
+inline int Selection(int kind){return kind==2 || kind==7 ? kind : 0;}
+inline bool Composite(int kind){return kind==7;}
+inline bool FreshSnapshot(float captured,float now){return std::isfinite(captured) && std::isfinite(now) && now>=captured && now-captured<=.25f;}
+inline float GhostFade(float age){return !std::isfinite(age) || age<0.f || age>=1.f ? 0.f : std::clamp((1.f-age)/.4f,0.f,1.f);}
 inline float Alpha(std::uint32_t c){return float((c>>24)&255)/255.f;}
 inline std::array<float,3> Tint(std::uint32_t c,bool intensity=false){
     const float a=intensity ? Alpha(c) : 1.f;
@@ -13,11 +17,11 @@ inline std::array<float,3> Tint(std::uint32_t c,bool intensity=false){
 }
 inline Plan Build(const VisualPreview::Material& material,bool include_hidden){
     Plan plan;
-    if(!material.enabled || material.kind<1 || material.kind>7)return plan;
+    if(!material.enabled || Selection(material.kind)==0)return plan;
     auto layer=[&](std::uint32_t color,bool hidden){
         // Hidden effects keep the hidden hue, but use Secondary's strength.
         const auto effect=hidden ? (material.hidden&0xffffffu)|(material.secondary&0xff000000u) : material.secondary;
-        if(Composite(material.kind))plan.passes[plan.count++]={material.kind==4 ? 1 : 2,color,effect,hidden};
+        if(Composite(material.kind))plan.passes[plan.count++]={2,color,effect,hidden};
         plan.passes[plan.count++]={material.kind,color,effect,hidden};
     };
     if(include_hidden && material.ignore_z)layer(material.hidden,true);

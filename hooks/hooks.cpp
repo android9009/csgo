@@ -7,6 +7,7 @@
 #include "../context.hpp"
 #include "../utils/config.hpp"
 #include "../features/skins/local_inventory.hpp"
+#include "../features/visuals/shot_chams.hpp"
 #include <d3d9.h>
 #include "../sdk/structs.hpp"
 namespace Hooks {
@@ -182,11 +183,12 @@ bool Setup() {
         LOG_WARN("Panel is null; PaintTraverse not hooked");
     if (Interfaces::Client)
         client_hook.attach(Interfaces::Client, 37, reinterpret_cast<void*>(&HooksInternal::FrameStageNotify));
-    if (Interfaces::ViewRender)
-        view_render_hook.attach(Interfaces::ViewRender, 6, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
+    if (Interfaces::RenderView)
+        view_render_hook.attach(Interfaces::RenderView, 9, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
+    ShotChams::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d CreateMove=%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
         device_ex_hook.is_hooked(), client_mode_hook.is_hooked(), panel_hook.is_hooked(),
@@ -197,6 +199,7 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    ShotChams::Shutdown();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();
     if (game_window && original_wndproc)

@@ -153,6 +153,9 @@
     <ClCompile Include="features\visuals\model_preview.cpp">
       <Filter>Features</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\shot_chams.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="features\visuals\world_esp.cpp">
       <Filter>Features</Filter>
     </ClCompile>
@@ -591,6 +594,12 @@
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\preview_material.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\chams_entities.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\shot_chams.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\chams_passes.hpp">

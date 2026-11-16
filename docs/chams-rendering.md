@@ -70,3 +70,42 @@ check native compilation only. Actual shader output, UV scroll, reflection asset
 shader-driver behavior and Legacy stability require an in-game test. Preview uses
 controlled studio illumination, not each map's lighting: pixel-identical output
 with every match scene is neither expected nor claimed.
+
+## Current reduced set and completed runtime paths
+
+The later user request supersedes the seven-material table above: **None / Flat /
+Glow** are now the only options everywhere, including world objects, ragdolls,
+arms, attachments, history and On shot controls. Glow is retained Legacy, not the
+removed Rim Glow material. Saved IDs 2 (Flat) and 7 (Glow) are preserved; removed
+IDs normalize to None. Only Flat's VMT is created; old VMT definitions are removed.
+
+Ragdolls resolve DT_CSRagdoll::m_hPlayer, with a reverse player m_hRagdoll fallback.
+Team classification comes from that player or the ragdoll's own team RecvProp,
+not blindly from the BaseEntity team offset. The local ragdoll uses Local's player
+profile (there is no independent local-ragdoll control). Attachments resolve the
+weapon-world-model parent, viewmodel owner, owner entity and move-parent links
+with a bounded, cycle-checked chain. Draw-only renderables can resolve their base
+entity using the supplied IClientRenderable / IClientUnknown ABI. First-person
+weapons use Local attachments; first-person arms retain their separate setting.
+
+On shot is implemented as a bounded eight-ghost render cache. Enemy draw payloads,
+model transform and up to 256 bone matrices are copied, not retained as transient
+bone pointers. Confirmed local weapon_fire selects a target using a current
+crosshair trace; player_hurt provides actual-victim confirmation/fallback. Ghosts
+last one second, fading over the last 0.4 seconds. Snapshots older than 0.25 seconds
+are rejected. Duplicate fire/hurt notifications are debounced. Replay validates
+entity identity/model and expires on disable, clock rollback, round/map change.
+The listener is removed at shutdown. Replay occurs in actual IVRenderView slot 9
+SceneEnd; the old optional VViewRender slot 6 hook was not the SceneEnd interface.
+
+This project has no functioning rage resolver/lag-record shot pipeline. Therefore
+this is a rendered-pose fire/hurt ghost, **not a server rewind/lag-compensated
+resolver record**. A miss with no identifiable crosshair target creates no ghost;
+penetration/spread target selection is not inferred from missing rage data.
+Existing history/fake controls are restricted to the same three options, but this
+change does not implement history lag compensation or fake-angle generation.
+
+Portable tests validate reduced selection, pass order, hidden colors, fade and
+snapshot freshness. Native event callbacks, attachment chains, all agent/ragdoll
+classes and ghost replay still require an in-game check; no runtime result is
+claimed from compilation alone.

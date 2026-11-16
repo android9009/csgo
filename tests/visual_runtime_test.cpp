@@ -33,4 +33,7 @@ int main(){
     assert(!any_material.load());config.objects[0].enabled=true;config.objects[0].kind=2;Publish(config);assert(any_material.load());
     config.objects[0].enabled=false;config.players[Local].kind=1;Publish(config);assert(!any_material.load());
     config.chams_enabled=true;Publish(config);assert(any_material.load());
+    config.players[Local].kind=0;config.shot.kind=7;config.shot.enabled=true;Publish(config);
+    assert(any_material.load() && shot_requested.load());
+    config.chams_enabled=false;Publish(config);assert(!shot_requested.load());
 }

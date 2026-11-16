@@ -2,6 +2,7 @@
 #include "menu.h"
 #include "../cfg.h"
 #include "../../../sdk/visual_runtime_state.hpp"
+#include "../../../features/visuals/chams_passes.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -26,22 +27,29 @@ inline VisualRuntime::Esp ReadEsp(cfg_t::visuals_t::esp_player_t& e,int subject)
     s.flags=static_cast<std::uint64_t>(e.flags.get());s.layout=subject==cfg.visuals.esp.active_profile ? VisualPreview::GetLayout() : layouts[subject];return s;
 }
 template<class T> inline VisualRuntime::Material Material(T& c) {
-    VisualRuntime::Material s;s.enabled=true;s.kind=c.mat.get().first_set_bit().value_or(0);s.ignore_z=c.ignorez.get();
+    VisualRuntime::Material s;s.enabled=true;s.kind=ChamsPasses::Selection(c.mat.get().first_set_bit().value_or(0));s.ignore_z=c.ignorez.get();
     s.primary=c.col1.get().rgba();s.secondary=c.col2.get().rgba();s.hidden=c.col_z.get().rgba();return s;
 }
 inline void Configure() {
     SyncProfile();
     auto& esp=cfg.visuals.esp;auto& c=cfg.visuals.chams;auto& w=esp.world;
+    auto selection=[](auto& value){
+        auto& bits=value.get();
+        const int kind=ChamsPasses::Selection(bits.first_set_bit().value_or(0));
+        bits=evo::gui::bits{1ull<<kind};
+    };
+    for(auto* entry:{&c.team_pl,&c.team_rag,&c.team_att,&c.enemy_pl,&c.enemy_backtrack,&c.enemy_shot,&c.enemy_rag,&c.enemy_att,&c.local_pl,&c.local_fake,&c.local_arms,&c.local_att})selection(entry->mat);
+    selection(w.weapon_visuals.material);selection(w.grenade_visuals.material);selection(w.c4_visuals.material);
     VisualRuntime::Settings s;s.chams_enabled=c.enable.get();
     s.players={Material(c.enemy_pl),Material(c.team_pl),Material(c.local_pl)};
     s.ragdolls={Material(c.enemy_rag),Material(c.team_rag),Material(c.local_pl)};
-    s.attachments={Material(c.enemy_att),Material(c.team_att),Material(c.local_att)};s.arms=Material(c.local_arms);
+    s.attachments={Material(c.enemy_att),Material(c.team_att),Material(c.local_att)};s.arms=Material(c.local_arms);s.shot=Material(c.enemy_shot);
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.team.get(),esp.glow.team_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.local.get(),esp.glow.local_color.get().rgba()}};
     s.object_enabled={w.weapon_enabled.get(),w.grenade_enabled.get(),w.c4_enabled.get()};
     auto object=[&](int index,auto& v) {
-        s.objects[index].enabled=s.object_enabled[index];s.objects[index].kind=v.material.get().first_set_bit().value_or(0);s.objects[index].primary=v.material_color.get().rgba();s.objects[index].secondary=s.objects[index].primary;
+        s.objects[index].enabled=s.object_enabled[index];s.objects[index].kind=ChamsPasses::Selection(v.material.get().first_set_bit().value_or(0));s.objects[index].primary=v.material_color.get().rgba();s.objects[index].secondary=s.objects[index].primary;
         s.object_glow[index]={s.object_enabled[index] && v.glow_mode->test(1),v.glow_color.get().rgba()};
     };
     object(0,w.weapon_visuals);object(1,w.grenade_visuals);object(2,w.c4_visuals);

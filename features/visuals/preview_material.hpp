@@ -10,7 +10,7 @@ namespace PreviewMaterial {
 // Fatality-derived materials with a shared, explicitly planned pass sequence.
 inline IMaterial* cache[8]{};
 inline bool tried[8]{};
-struct Variables {IMaterialVar* env{};IMaterialVar* phong{};IMaterialVar* rim{};IMaterialVar* fresnel{};IMaterialVar* fresnel_range{};};
+struct Variables {IMaterialVar* env{};IMaterialVar* fresnel{};IMaterialVar* fresnel_range{};};
 inline Variables variables[8]{};
 inline IMaterialVar* Find(IMaterial* m,const char* name){bool found=false;auto* v=m->FindVar(name,&found,false);return found ? v : nullptr;}
 inline void Set(IMaterialVar* v,const std::array<float,3>& c){if(v)v->SetVecValue(c[0],c[1],c[2]);}
@@ -21,7 +21,7 @@ inline float old_view_color[3]{1.f,1.f,1.f},old_blend{1.f};
 inline bool view_saved{};
 template<typename Fn> inline Fn ViewSlot(int slot){return MEM::GetVFunc<Fn>(Interfaces::RenderView,slot);}
 inline IMaterial* Resolve(int kind) {
-    if(kind<=0 || kind>=8 || !Interfaces::MaterialSystem)return nullptr;
+    if(!ChamsPasses::Selection(kind) || !Interfaces::MaterialSystem)return nullptr;
     if(tried[kind])return cache[kind];
     tried[kind]=true;
     const bool borrowed=kind==7;
@@ -32,10 +32,9 @@ inline IMaterial* Resolve(int kind) {
     }
     if(borrowed)material->IncrementReferenceCount();
     auto& v=variables[kind];
-    if(kind==3 || kind==4 || kind==6 || kind==7)v.env=Find(material,"$envmaptint");
+    if(kind==7)v.env=Find(material,"$envmaptint");
     if(kind==7){v.fresnel=Find(material,"$envmapfresnel");v.fresnel_range=Find(material,"$envmapfresnelminmaxexp");}
-    if(kind==6){v.phong=Find(material,"$phongtint");v.rim=Find(material,"$rimlightboost");}
-    if((kind==3 || kind==7) && !v.env)LOG_WARN("chams kind=%d has no envmap tint",kind);
+    if(kind==7 && !v.env)LOG_WARN("chams kind=%d has no envmap tint",kind);
     cache[kind]=material;
     LOG_INFO("Fatality chams resolved kind=%d material=%s wireframe=%d",kind,material->GetName(),material->GetMaterialVarFlag(MATERIAL_VAR_WIREFRAME));
     return material;
@@ -79,7 +78,7 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
     // Preserve the picker alpha continuously, including the last five percent.
     float alpha=ChamsPasses::Alpha(rgba);
     auto& v=variables[kind];
-    if(kind==3 || kind==4 || kind==7){
+    if(kind==7){
         // Only reflected Fresnel light is additive; no diffuse white veil.
         material->ColorModulate(0.f,0.f,0.f);
         Set(v.env,effect);
@@ -88,14 +87,6 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
             if(v.fresnel)v.fresnel->SetValue(1);
             Set(v.fresnel_range,{0.f,1.f,2.f});
         }
-    }else if(kind==5){
-        const auto flow=ChamsPasses::Tint(secondary);
-        material->ColorModulate(flow[0],flow[1],flow[2]);
-        alpha*=ChamsPasses::Alpha(secondary);
-    }else if(kind==6){
-        Set(v.env,{effect[0]*.35f,effect[1]*.35f,effect[2]*.35f});
-        Set(v.phong,effect);
-        if(v.rim)v.rim->SetValue(1.5f*ChamsPasses::Alpha(secondary));
     }
     material->AlphaModulate(alpha);
     material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);

@@ -40,7 +40,7 @@ namespace menu::group
 				const int subject=std::clamp(static_cast<int>(cfg.visuals.preview.get()),0,2);
 				auto& chams=cfg.visuals.chams;
 				auto& selected=subject==2 ? chams.local_pl : subject==1 ? chams.team_pl : chams.enemy_pl;
-				appearance.enabled=chams.enable.get();appearance.kind=selected.mat.get().first_set_bit().value_or(0);
+				appearance.enabled=chams.enable.get();appearance.kind=ChamsPasses::Selection(selected.mat.get().first_set_bit().value_or(0));
 				appearance.ignore_z=selected.ignorez.get();appearance.primary=selected.col1.get().rgba();
 				appearance.secondary=selected.col2.get().rgba();appearance.hidden=selected.col_z.get().rgba();
 			}
@@ -380,12 +380,9 @@ namespace menu::group
 
 	void insert_chams(const std::string &id, const std::shared_ptr<combo_box> &c)
 	{
-		c->add(
-		{MAKE_RUNTIME(id + XOR("none"), selectable, XOR("None"), cfg_t::cham_none), MAKE_RUNTIME(id + XOR("normal"), selectable, XOR("Normal"), cfg_t::cham_normal),
-		 MAKE_RUNTIME(id + XOR("flat"), selectable, XOR("Flat"), cfg_t::cham_flat), MAKE_RUNTIME(id + XOR("rim glow"), selectable, XOR("Rim Glow"), cfg_t::cham_rim_glow),
-		 MAKE_RUNTIME(id + XOR("contour"), selectable, XOR("Contour"), cfg_t::cham_contour), MAKE_RUNTIME(id + XOR("flow"), selectable, XOR("Flow"), cfg_t::cham_flow),
-		 MAKE_RUNTIME(id + XOR("acrylic"), selectable, XOR("Acrylic"), cfg_t::cham_acrylic),
-		 MAKE_RUNTIME(id + XOR("legacy"), selectable, XOR("Legacy"), cfg_t::cham_legacy),});
+        c->add({MAKE_RUNTIME(id+"none",selectable,"None",cfg_t::cham_none),
+            MAKE_RUNTIME(id+"flat",selectable,"Flat",cfg_t::cham_flat),
+            MAKE_RUNTIME(id+"glow",selectable,"Glow",cfg_t::cham_legacy)});
 	}
 
 	void visuals_models_local(std::shared_ptr<layout> &e)

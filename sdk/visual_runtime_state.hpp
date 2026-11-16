@@ -20,7 +20,7 @@ struct Highlight {bool enabled{};std::uint32_t color{0xffffffff};};
 struct Effects {
     bool chams_enabled{};
     std::array<Material,3> players{},ragdolls{},attachments{},objects{};
-    Material arms;
+    Material arms,shot;
     std::array<Highlight,3> player_glow{},object_glow{};
     std::array<bool,3> object_enabled{};
 };
@@ -28,6 +28,7 @@ struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;
 inline Settings settings;
 inline std::atomic<bool> any_material{false};
+inline std::atomic<bool> shot_requested{false};
 inline std::atomic<bool> glow_closing{false};
 inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
 inline Effects GetEffects(){std::lock_guard<std::mutex> lock(mutex);return static_cast<const Effects&>(settings);}
@@ -35,9 +36,10 @@ inline void Publish(const Settings& s){
     bool any=false;
     for(int i=0;i<3;++i)any=any || (s.objects[i].enabled && s.objects[i].kind>0) ||
         (s.chams_enabled && (s.players[i].kind>0 || s.ragdolls[i].kind>0 || s.attachments[i].kind>0));
-    any=any || (s.chams_enabled && s.arms.kind>0);
+    any=any || (s.chams_enabled && (s.arms.kind>0 || s.shot.kind>0));
     {std::lock_guard<std::mutex> lock(mutex);settings=s;}
     any_material.store(any,std::memory_order_relaxed);
+    shot_requested.store(s.chams_enabled && s.shot.enabled && s.shot.kind>0,std::memory_order_relaxed);
 }
 struct Segment {VisualPreview::Point a,b;};
 struct Player {

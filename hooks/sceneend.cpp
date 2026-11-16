@@ -1,5 +1,6 @@
 #include "hooks.hpp"
 #include "../context.hpp"
+#include "../features/visuals/shot_chams.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../offsets/offsets.hpp"
 #include "../utils/memory.hpp"
@@ -7,6 +8,7 @@
 namespace HooksInternal {
 void __fastcall SceneEnd(void* ecx, void* /*edx*/) {
     if (auto original = Hooks::GetSceneEndOriginal()) original(ecx);
+    ShotChams::SceneEnd();
     __try {
         if (!Interfaces::Engine || !Interfaces::Globals) return;
         int width = 0, height = 0;
