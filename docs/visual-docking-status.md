@@ -60,3 +60,25 @@ All of those require an in-game pass on the supplied binary version.
 The close-range regression has portable clipping tests. Runtime Legacy stability,
 material appearance, camera framing and interactive dragging still need an
 in-game check; no supplied crash dump establishes the Legacy crash cause.
+
+## Follow-up to image-49 / supplied chams.cpp and chams.h
+
+- Both agent previews now use a yaw-independent enclosing-cylinder camera fit.
+  Rotation is about the fixed model root (local X/Y zero), not the asymmetric
+  studio-box midpoint. Only orientation changes with horizontal drag; the camera
+  distance and translation no longer change with yaw. Natural perspective and
+  the silhouette can still change as a 3D model turns.
+- Visuals framing leaves a footer for the docked bars/weapon label/icon. The
+  skinchanger retains its separate larger framing, without yaw-dependent zoom.
+- The attached chams.cpp SHA-256 is
+  `7ba4bbdc8f99c76a111ea074ca2e09b0f5aa51d289d174e4329cfe5edeb15473`,
+  byte-identical to the previously used Fatality reference file. It applies
+  Normal, Flat, Rim Glow, Contour, Flow, Acrylic and Legacy; the sprite entry is
+  auxiliary, not an agent chams choice. Raw VMT definitions are in misc/init.cpp,
+  not in either uploaded chams file. All six copied VMT strings were compared
+  with that init.cpp (ignoring whitespace) and match. Legacy is the engine's
+  dev/glow_armsrace. The >0.95 opacity snap from apply_material is now matched too.
+
+Portable framing tests sweep all yaw angles with the same camera distance and
+check corner containment. Windows compilation and an in-game visual check are
+separate validations; no in-game pass was available in this environment.

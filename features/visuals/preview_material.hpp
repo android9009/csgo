@@ -64,7 +64,9 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
         ViewSlot<void(__thiscall*)(void*,float)>(4)(Interfaces::RenderView,1.f);
     }
     material->ColorModulate(float((rgba>>16)&255)/255.f,float((rgba>>8)&255)/255.f,float(rgba&255)/255.f);
-    material->AlphaModulate(float((rgba>>24)&255)/255.f);
+    // Fatality snaps the final five percent to fully opaque.
+    const float blend=float((rgba>>24)&255)/255.f;
+    material->AlphaModulate(blend>.95f ? 1.f : blend);
     material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);
     material->SetMaterialVarFlag(MATERIAL_VAR_WIREFRAME,false);
     if(kind==3 || kind==4 || kind==7){

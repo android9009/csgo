@@ -292,14 +292,17 @@ void DrawTarget(void* target, bool weapon_only) {
         view.fov = 50.f; view.origin = Vector{-(std::max)(70.f, radius * 9.f), 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
     } else {
-        center = Vector{(agent_min.x + agent_max.x) * .5f, (agent_min.y + agent_max.y) * .5f, (agent_min.z + agent_max.z) * .5f};
+        // Keep the model root on a fixed turntable axis. Asymmetric studio
+        // bounds must not move that axis around when yaw changes.
+        center = Vector{0.f,0.f,(agent_min.z + agent_max.z) * .5f};
         view.aspect_ratio = fit_agent ? FatalityPreviewBridge::skins_aspect.load(std::memory_order_relaxed) : FatalityPreviewBridge::visuals_aspect.load(std::memory_order_relaxed);
         if (!std::isfinite(view.aspect_ratio) || view.aspect_ratio < .2f || view.aspect_ratio > 4.f)
             view.aspect_ratio = static_cast<float>(width) / height;
-        const float distance = PreviewFraming::Distance((agent_max.x - agent_min.x) * .5f,
-            (agent_max.y - agent_min.y) * .5f, (agent_max.z - agent_min.z) * .5f,
-            FatalityPreviewBridge::yaw.load(std::memory_order_relaxed), view.aspect_ratio,12.f,fit_agent ? .94f : .90f);
-        view.fov = 12.f; view.origin = Vector{-distance, 0.f, 0.f};
+        const float distance = PreviewFraming::TurntableDistance(
+            (std::max)(std::abs(agent_min.x),std::abs(agent_max.x)),
+            (std::max)(std::abs(agent_min.y),std::abs(agent_max.y)),
+            (agent_max.z-agent_min.z)*.5f,view.aspect_ratio,12.f,fit_agent ? .94f : .80f);
+        view.fov = 12.f; view.origin = Vector{-distance,0.f,fit_agent ? 0.f : -(agent_max.z-agent_min.z)*.04f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 2000.f;
     }
     view.flags = 4; // bloom and tone mapping, as in Fatality
