@@ -42,12 +42,17 @@ inline std::mutex mutex;
 inline Team teams[2];
 inline std::uint64_t revision{};
 inline Team Get(bool ct){std::lock_guard<std::mutex> lock(mutex);return teams[ct?0:1];}
-inline void Agent(bool ct,std::string path){std::lock_guard<std::mutex> lock(mutex);teams[ct?0:1].agent=std::move(path);}
+inline void Agent(bool ct,std::string path){std::lock_guard<std::mutex> lock(mutex);auto& value=teams[ct?0:1].agent;if(value!=path){value=std::move(path);++revision;}}
+inline std::uint64_t Revision(){std::lock_guard<std::mutex> lock(mutex);return revision;}
 inline bool Select(bool ct,bool gloves,std::string_view name,SkinState::Choice finish={}){
  const auto* item=Find(name);
  if(!name.empty() && (!item || Knife(item->definition)==gloves))return false;
  if(finish.paint_kit<0 || finish.seed<0 || finish.seed>1000 || !(finish.wear>=0 && finish.wear<=1))return false;
+ finish.name.back()='\0';
  std::lock_guard<std::mutex> lock(mutex);auto& value=gloves?teams[ct?0:1].gloves:teams[ct?0:1].knife;
- value={item?item->definition:0,finish,++revision};return true;
+ const int definition=item?item->definition:0;
+ // Reopening a catalog or committing unchanged values is not a settings change.
+ if(value.definition==definition && (!definition || SkinState::Equal(value.finish,finish)))return true;
+ value={definition,finish,++revision};return true;
 }
 }

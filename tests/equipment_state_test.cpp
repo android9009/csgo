@@ -9,7 +9,12 @@ int main(){using namespace EquipmentState;
  assert(!Select(true,false,"sporty_gloves"));assert(!Select(true,true,"weapon_bayonet"));assert(!Select(true,false,"bogus"));
  assert(Select(true,false,"weapon_bayonet"));assert(Get(true).knife.definition==500&&!Get(false).knife.definition);
  SkinState::Choice finish{};finish.paint_kit=10018;finish.wear=.1f;assert(Select(false,true,"sporty_gloves",finish));assert(Get(false).gloves.finish.paint_kit==10018);
+ const auto stable=Revision();
+ for(int i=0;i<1000;++i) assert(Select(true,false,"weapon_bayonet"));
+ assert(Revision()==stable);
  const auto revision=Get(true).knife.revision;assert(Select(true,false,""));assert(!Get(true).knife.definition&&Get(true).knife.revision>revision);
  Agent(true,"models/player/example.mdl");assert(Get(true).agent=="models/player/example.mdl"&&Get(false).agent.empty());Agent(true,"");assert(Get(true).agent.empty());
+ const auto no_agent=Revision();Agent(true,"");assert(Revision()==no_agent);
+ const auto defaults=Revision();assert(Select(true,false,""));assert(Revision()==defaults);
  finish.wear=std::numeric_limits<float>::quiet_NaN();assert(!Select(false,true,"sporty_gloves",finish));
 }

@@ -36,19 +36,27 @@ inline int Definition(std::string_view name) {
     for (const auto& item : items) if (item.name == name) return item.id;
     return 0;
 }
+inline bool Equal(const Choice& a,const Choice& b) {
+    return a.paint_kit==b.paint_kit && a.seed==b.seed && a.stattrak==b.stattrak &&
+        a.wear==b.wear && a.souvenir==b.souvenir && std::strcmp(a.name.data(),b.name.data())==0;
+}
+inline std::uint64_t Revision() { std::lock_guard<std::mutex> lock(mutex); return version; }
 inline bool Set(bool ct, int definition, Choice choice) {
     if (definition <= 0 || choice.paint_kit <= 0 || choice.seed < 0 || choice.seed > 1000 ||
         !(choice.wear >= 0.f && choice.wear <= 1.f) || choice.stattrak < -2 || choice.stattrak > 99999 ||
         (choice.souvenir && choice.stattrak >= 0)) return false;
     choice.name.back() = '\0';
     std::lock_guard<std::mutex> lock(mutex);
+    auto& values=teams[ct ? 0 : 1];
+    const auto it=values.find(definition);
+    if(it!=values.end() && Equal(it->second,choice)) return true;
     choice.revision = ++version;
-    teams[ct ? 0 : 1][definition] = choice;
+    values[definition] = choice;
     return true;
 }
 inline void Remove(bool ct, int definition) {
     std::lock_guard<std::mutex> lock(mutex);
-    teams[ct ? 0 : 1].erase(definition); ++version;
+    if(teams[ct ? 0 : 1].erase(definition)) ++version;
 }
 inline bool Empty() {
     std::lock_guard<std::mutex> lock(mutex);

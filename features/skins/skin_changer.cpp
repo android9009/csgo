@@ -1,6 +1,8 @@
 #include "skin_changer.hpp"
 #include "skin_state.hpp"
 #include "equipment_changer.hpp"
+#include "equipment_state.hpp"
+#include "refresh_gate.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
 #include "../../offsets/offsets.hpp"
@@ -23,7 +25,9 @@ struct Original {
     std::uint64_t revision{};
 };
 std::map<std::uint32_t, Original> originals;
-std::map<int, std::uint64_t> refreshed[2];
+// Selection revisions survive entity/map resets. A full update recreates entities
+// and must not itself look like another user edit.
+SkinRefresh::Gate selection_changes;
 bool logged_missing{};
 DWORD last_update{};
 bool update_pending{};
@@ -96,7 +100,10 @@ void FrameStage() {
     if (!Interfaces::Engine || !Interfaces::EntityList || !PropManager::Get().IsReady() ||
         !Interfaces::Engine->IsInGame() || !Interfaces::Engine->IsConnected()) { Reset(); return; }
     EquipmentChanger::FrameStage();
-    if (originals.empty() && SkinState::Empty()) return;
+    const auto skin_revision=SkinState::Revision();
+    const auto equipment_revision=EquipmentState::Revision();
+    if(selection_changes.Observe(skin_revision,equipment_revision)) RequestRefresh();
+    if (originals.empty() && SkinState::Empty()) { FlushRefresh(); return; }
     const auto n = Resolve();
     if (!Valid(n)) {
         if (!logged_missing) { LOG_WARN("skins: required weapon/player netvars unavailable; application disabled"); logged_missing = true; }
@@ -123,15 +130,13 @@ void FrameStage() {
         auto it = originals.find(h);
         if (it != originals.end() && (it->second.entity != entity || it->second.definition != def)) { originals.erase(it); it = originals.end(); }
         if (!enabled) {
-            if (it != originals.end()) { Restore(entity,n,it->second); originals.erase(it); RequestRefresh(); }
+            if (it != originals.end()) { Restore(entity,n,it->second); originals.erase(it); }
             continue;
         }
         if (it == originals.end()) {
             Original saved{}; Save(entity,def,n,saved);
             it = originals.emplace(h,saved).first;
         }
-        auto& last_revision = refreshed[team == 3 ? 0 : 1][def];
-        if (last_revision != selected.revision) { last_revision = selected.revision; RequestRefresh(); }
         it->second.revision = selected.revision;
         Apply(entity,n,it->second,selected,account);
     }
@@ -140,13 +145,13 @@ void FrameStage() {
         if (held.count(it->first)) { ++it; continue; }
         auto* entity = Interfaces::EntityList->GetClientEntityFromHandle(it->first);
         if (entity && entity == it->second.entity && At<short>(entity,n.def) == it->second.definition) {
-            Restore(entity,n,it->second); RequestRefresh();
+            Restore(entity,n,it->second);
         }
         it = originals.erase(it);
     }
     FlushRefresh();
 }
-void Reset() { EquipmentChanger::Reset(); originals.clear(); refreshed[0].clear(); refreshed[1].clear(); update_pending = false; last_update = 0; }
+void Reset() { EquipmentChanger::Reset(); originals.clear(); update_pending = false; last_update = 0; }
 void Shutdown() {
     if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && PropManager::Get().IsReady()) {
         const auto n = Resolve();

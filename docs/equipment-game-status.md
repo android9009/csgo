@@ -36,3 +36,18 @@ Limits requiring Windows/game verification:
 Manual checks: CT and T separately, Default restoration, weapon switching,
 dropping/picking up knives, death/respawn, team/map change, reconnect and unload.
 Check `%TEMP%/csgo_base.log` for `equipment:` messages and hook exceptions.
+
+## Full-update scheduling
+
+Full updates are now scheduled centrally by `SkinChanger` only when the copied
+weapon/equipment selection revision actually changes. Unchanged Set/Select,
+reopening a catalog, repeated Default and repeated agent selection are idempotent.
+The revision gate survives entity/network/map resets. Entity respawn, dropped-item
+restoration or the server resending a knife definition does not schedule a new
+full update. Local netvar enforcement and necessary per-entity notifications are
+separate from full updates. Rapid edits are coalesced by the existing throttle;
+there is no periodic full-update timer. Explicit unload may still request one
+restoration update.
+
+`tests/skin_refresh_test.cpp` simulates 10,000 unchanged commits per category and
+asserts that only real edits/default transitions generate a revision event.

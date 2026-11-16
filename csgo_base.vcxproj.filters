@@ -605,6 +605,9 @@
     <ClInclude Include="features\skins\preview_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
+    <ClInclude Include="features\skins\refresh_gate.hpp">
+      <Filter>Features\skins</Filter>
+    </ClInclude>
     <ClInclude Include="features\skins\skin_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>

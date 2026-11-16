@@ -369,6 +369,7 @@
     <ClInclude Include="features\skins\equipment_changer.hpp" />
     <ClInclude Include="features\skins\equipment_state.hpp" />
     <ClInclude Include="features\skins\skin_state.hpp" />
+    <ClInclude Include="features\skins\refresh_gate.hpp" />
     <ClInclude Include="features\skins\preview_state.hpp" />
     <ClInclude Include="third_party\fatality\preview_bridge.hpp" />
     <ClInclude Include="third_party\fatality\preview_catalog.hpp" />

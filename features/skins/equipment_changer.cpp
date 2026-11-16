@@ -2,7 +2,6 @@
 #include "equipment_state.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
-#include "../../offsets/offsets.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <map>
@@ -57,7 +56,7 @@ struct SavedModel{void* entity{};int index{};};
 std::map<std::uint32_t,SavedModel> models;
 void* player{};int original_agent{},applied_agent{},original_body{};bool body_changed{};
 std::uint32_t created_glove{},previous_wearable{};std::uint32_t serial_counter{1};
-DWORD last_refresh{};bool refresh_pending{};
+
 Saved& Capture(std::uint32_t h,void* e,const Vars& v){
  auto it=saved.find(h);if(it!=saved.end() && it->second.entity==e)return it->second;
  Saved s{};s.entity=e;s.def=At<short>(e,v.def);s.model=At<int>(e,v.model);s.high=At<int>(e,v.high);s.account=At<int>(e,v.account);
@@ -67,7 +66,7 @@ Saved& Capture(std::uint32_t h,void* e,const Vars& v){
 void Restore(std::uint32_t h,const Vars& v){
  auto it=saved.find(h);if(it==saved.end())return;const auto s=it->second;auto* e=Entity(h);
  if(e==s.entity){At<short>(e,v.def)=s.def;At<int>(e,v.high)=s.high;At<int>(e,v.account)=s.account;At<int>(e,v.quality)=s.quality;
- At<int>(e,v.paint)=s.paint;At<int>(e,v.seed)=s.seed;At<int>(e,v.stat)=s.stat;At<float>(e,v.wear)=s.wear;std::memcpy(&At<char>(e,v.name),s.name,32);SetModel(e,s.model,v);Notify(e);refresh_pending=true;}
+ At<int>(e,v.paint)=s.paint;At<int>(e,v.seed)=s.seed;At<int>(e,v.stat)=s.stat;At<float>(e,v.wear)=s.wear;std::memcpy(&At<char>(e,v.name),s.name,32);SetModel(e,s.model,v);Notify(e);}
  saved.erase(it);
 }
 void Apply(std::uint32_t h,void* e,const EquipmentState::Selection& c,int model,std::uint32_t account,const Vars& v){
@@ -76,7 +75,7 @@ void Apply(std::uint32_t h,void* e,const EquipmentState::Selection& c,int model,
  At<int>(e,v.quality)=EquipmentState::Knife(c.definition)?3:4;At<int>(e,v.paint)=c.finish.paint_kit;At<int>(e,v.seed)=c.finish.seed;
  At<float>(e,v.wear)=(std::max)(.000001f,c.finish.wear);At<int>(e,v.stat)=c.finish.stattrak==-2?original.stat:c.finish.stattrak;
  std::memcpy(&At<char>(e,v.name),c.finish.name.data(),32);SetModel(e,model,v);
- if(changed){Notify(e);original.revision=c.revision;refresh_pending=true;LOG_INFO("equipment: applied definition=%d paint=%d",c.definition,c.finish.paint_kit);}
+ if(changed){Notify(e);original.revision=c.revision;LOG_INFO("equipment: applied definition=%d paint=%d",c.definition,c.finish.paint_kit);}
 }
 void OverrideModel(std::uint32_t handle,int index,const Vars& v,std::set<std::uint32_t>& touched){
  auto* e=Entity(handle);if(!e || index<=0)return;touched.insert(handle);
@@ -124,8 +123,6 @@ void Gloves(void* local,const EquipmentState::Selection& c,std::uint32_t account
  if(!body_changed){original_body=At<int>(local,v.body);body_changed=true;}
  At<int>(local,v.body)=1;held.insert(handle);Apply(handle,glove,c,model,account,v);
 }
-void Flush(){if(!refresh_pending || !Interfaces::ClientState)return;const auto now=GetTickCount();if(last_refresh && now-last_refresh<1000)return;
- const auto delta=offsets::Get("clientstate_delta_ticks");if(delta && delta<0x2000){At<int>(Interfaces::ClientState,static_cast<std::ptrdiff_t>(delta))=-1;last_refresh=now;}refresh_pending=false;}
 } // namespace
 void FrameStage(){
  if(!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::ModelInfo || !Interfaces::Client || !PropManager::Get().IsReady() || !Interfaces::Engine->IsInGame()){Reset();return;}
@@ -150,16 +147,16 @@ void FrameStage(){
  }
  Gloves(local,choice.gloves,account,v,held);
  for(auto it=saved.begin();it!=saved.end();){auto h=it->first;++it;if(!held.count(h))Restore(h,v);}
- RestoreModels(v,touched);Flush();
+ RestoreModels(v,touched);
 }
-void Reset(){saved.clear();models.clear();player=nullptr;original_agent=applied_agent=original_body=0;body_changed=false;created_glove=previous_wearable=0;last_refresh=0;refresh_pending=false;}
+void Reset(){saved.clear();models.clear();player=nullptr;original_agent=applied_agent=original_body=0;body_changed=false;created_glove=previous_wearable=0;}
 void Shutdown(){
  if(Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::EntityList && PropManager::Get().IsReady()){
  const auto v=Resolve();if(Valid(v)){
  auto* local=Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer());
  if(local==player){if(original_agent)SetModel(local,original_agent,v);if(body_changed && Offset(v.body))At<int>(local,v.body)=original_body;}
  RemoveCreated(local==player?local:nullptr,v);
- while(!saved.empty())Restore(saved.begin()->first,v);RestoreModels(v,{});Flush();}}
+ while(!saved.empty())Restore(saved.begin()->first,v);RestoreModels(v,{});}}
  Reset();
 }
 }
