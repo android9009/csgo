@@ -601,6 +601,7 @@
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="features\misc\prediction.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\state.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="third_party\fatality\extra\misc_runtime.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="third_party\fatality\resources\misc_sounds.h"><Filter>Features</Filter></ClInclude>

@@ -9,7 +9,7 @@
 namespace MiscRuntime {
 struct Settings {
     bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{};
-    bool peek{},retreat_on_release{},no_fall{},edge_jump{},autoaccept{};float peek_distance{-1.f};
+    bool peek{},retreat_on_release{},no_fall{},edge_jump{},autoaccept{},edge_bug{},pixel_surf{},edge_stop{};float peek_distance{-1.f};
     unsigned strafe{},logs{},hit_details{},buy_targets{};float smoothing{};
     int primary{},pistol{},armor{},hit_sound{},kill_sound{};
     bool defuser{},taser{},grenades{},hit_enabled{},kill_enabled{};

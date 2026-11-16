@@ -1,4 +1,5 @@
 #include "runtime.hpp"
+#include "prediction.hpp"
 #include "../../context.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/entity/player.hpp"
@@ -187,6 +188,36 @@ void FrameImpl(){
         if(!commands.empty()){Command(commands.c_str());last_buy=now;LOG_INFO("misc buybot: submitted configured purchases");}
     }
 }
+void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physics,bool ground,const Vector& position,const Vector& velocity){
+    if(!(options.edge_jump || options.edge_stop || options.edge_bug || options.pixel_surf) || !Interfaces::EngineTrace)return;
+    const auto duck_offset=PropManager::Get().GetOffset("DT_CSPlayer","m_flDuckAmount");
+    if(duck_offset<=0 || duck_offset>=0x10000)return;
+    const float duck=*reinterpret_cast<const float*>(reinterpret_cast<const unsigned char*>(ctx.local)+duck_offset);
+    MiscPrediction::State initial{position,velocity,ground,duck};MiscPrediction::Rules rules;
+    rules.ground=physics;rules.gravity=ConVarFloat("sv_gravity",800.f);rules.air_accelerate=ConVarFloat("sv_airaccelerate",12.f);rules.jump_impulse=ConVarFloat("sv_jump_impulse",301.993f);
+    auto trace=[](const Vector& start,const Vector& end,const Vector& mins,const Vector& maxs){
+        const auto native=Hull(start,end,mins,maxs);
+        return MiscPrediction::Trace{native.fraction,native.endpos,native.plane.normal,native.startsolid,native.allsolid};
+    };
+    if(ground){
+        auto future=initial;MiscPrediction::Budget budget;
+        const auto result=MiscPrediction::Tick(future,cmd,rules,trace,budget);
+        if(result.invalid)return;
+        if(result.left_ground && !(cmd.buttons&2)){
+            if(options.edge_jump)MiscRuntime::EdgeJump(cmd,true,true,false);
+            else if(options.edge_stop)CounterMove(cmd,velocity.x,velocity.y,physics);
+        }
+        return;
+    }
+    const auto choice=MiscPrediction::Search(initial,cmd,rules,options.edge_bug,options.pixel_surf,trace);
+    if(!choice.found)return;
+    // Receding-horizon plan: only this command is changed. Every following
+    // command starts from a fresh live snapshot; never replay stale trajectories.
+    cmd.forwardmove=choice.forward;cmd.sidemove=choice.side;
+    if(choice.duck)cmd.buttons|=4;else cmd.buttons&=~4;
+    static ULONGLONG reported{};const auto now=GetTickCount64();
+    if(now-reported>2000){reported=now;LOG_INFO("misc forecast: selected %s route tick=%d traces=%d (experimental, not engine prediction)",choice.kind==2 ? "pixel-surf" : "edge-bug",choice.tick,choice.traces);}
+}
 void MoveImpl(CUserCmd* cmd){
     if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();movement_player=nullptr;peek_shot.store(false);return;}
     if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();peek_shot.store(false);}
@@ -221,15 +252,6 @@ void MoveImpl(CUserCmd* cmd){
                 }
             }
         }
-        // A conservative one-command hull forecast. This is NOT full engine
-        // prediction; the portable transition rule itself matches edge_jump.cpp.
-        if(options.edge_jump && ground && !(cmd->buttons&2) && velocity.Length2D()>5.f && physics.interval>=.001f && physics.interval<=.1f){
-            const auto ahead=Hull(position,position+Vector{velocity.x*physics.interval,velocity.y*physics.interval,0},{-16,-16,0},{16,16,54});
-            if(!ahead.startsolid && !ahead.allsolid && ahead.fraction>.99f){
-                const auto support=Hull(ahead.endpos+Vector{0,0,2},ahead.endpos-Vector{0,0,2},{-16,-16,0},{16,16,2});
-                EdgeJump(*cmd,true,true,support.startsolid || support.allsolid || (support.fraction<1.f && support.plane.normal.z>=.7f));
-            }
-        }
         if(options.no_fall && !ground){
             Vector start=position;if(!(ctx.local->m_fFlags()&2))start.z+=9.f;
             const auto floor=Hull(start,start-Vector{0,0,1000},{-16,-16,0},{16,16,54},1u,true);
@@ -247,6 +269,7 @@ void MoveImpl(CUserCmd* cmd){
             if(dot<0.f){x-=dot*trace.plane.normal.x;y-=dot*trace.plane.normal.y;cmd->forwardmove=std::clamp(x*c+y*sn,-450.f,450.f);cmd->sidemove=std::clamp(x*sn-y*c,-450.f,450.f);}
         }
     }
+    PredictMovement(*cmd,options,physics,ground,position,velocity);
 }
 }
 void Initialize(){

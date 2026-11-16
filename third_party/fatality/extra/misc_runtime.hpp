@@ -5,6 +5,7 @@
 namespace MiscBridge {
 inline void Configure(){
     auto& m=cfg.misc;MiscRuntime::Settings s;
+    s.edge_bug=m.edge_bug.get();s.pixel_surf=m.pixel_surf.get();s.edge_stop=m.edge_stop.get();
     s.peek=m.peek_assist.get();s.retreat_on_release=m.peek_assist_retreat_on_release.get();s.peek_distance=m.peek_assist_distance.get();s.no_fall=m.no_fall_damage.get();s.edge_jump=m.edge_jump.get();s.autoaccept=m.autoaccept.get();
     s.bhop=m.bhop.get();s.instant_duck=m.instant_unduck.get();s.quick_stop=cfg.legit.quick_stop.get();
     s.strafe=static_cast<unsigned>(static_cast<std::uint64_t>(m.autostrafe.get()));s.smoothing=m.autostrafe_smoothing.get();s.avoid_walls=m.avoid_walls.get();s.radar=m.radar.get();

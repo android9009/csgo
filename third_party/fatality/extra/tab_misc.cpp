@@ -143,15 +143,15 @@ namespace menu::group
         no_fall->tooltip = "Experimental landing assist: times duck/jump around a predicted landing; does not guarantee zero server fall damage.";
         e->add(make_control("No fall damage", no_fall));
 		ADD("Instant duck", "misc>movement>instant unduck", checkbox, cfg.misc.instant_unduck);
-		ADD("Edge jump", "misc>movement>edge jump", checkbox, cfg.misc.edge_jump);
-		ADD("Edge stop", "misc>movement>edge stop", checkbox, cfg.misc.edge_stop);
+		{ const auto control = MAKE("misc>movement>edge jump", checkbox, cfg.misc.edge_jump); control->tooltip = "Experimental isolated movement forecast; not full engine prediction."; e->add(make_control("Edge jump", control)); }
+		{ const auto control = MAKE("misc>movement>edge stop", checkbox, cfg.misc.edge_stop); control->tooltip = "Experimental counter-movement when the forecast leaves ground."; e->add(make_control("Edge stop", control)); }
 		ADD("Quick stop", "misc>movement>standalone quick stop", checkbox, cfg.legit.quick_stop);
 	}
 
 	void misc_movement_extra(std::shared_ptr<layout> &e)
 	{
-		ADD("Edge bugs", "misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug);
-		ADD("Pixel surf", "misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf);
+		{ const auto control = MAKE("misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug); control->tooltip = "Experimental bounded trajectory search; Source-style simulation, not engine prediction."; e->add(make_control("Edge bugs", control)); }
+		{ const auto control = MAKE("misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf); control->tooltip = "Experimental trajectory search requiring repeated unsupported floor contacts."; e->add(make_control("Pixel surf", control)); }
 		ADD("Jump bug", "misc>movement>extra>jump bug", checkbox, cfg.misc.jump_bug);
 		ADD("Long jump", "misc>movement>extra>long jump", checkbox, cfg.misc.long_jump);
 		ADD("Ladder jump", "misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump);

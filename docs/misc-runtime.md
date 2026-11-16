@@ -1,5 +1,9 @@
 # Misc runtime
 
+For the current exhaustive menu inventory and prediction status, see
+[misc-menu-status.md](misc-menu-status.md). The chronological notes below describe
+earlier stages and are superseded by that inventory.
+
 World controls and World runtime are unchanged.
 
 Implemented: bunnyhop (preserves server autobhop), instant unduck through IN_BULLRUSH,

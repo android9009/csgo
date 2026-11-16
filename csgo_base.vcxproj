@@ -349,6 +349,7 @@
     <ClInclude Include="features\visuals\chams_entities.hpp" />
     <ClInclude Include="features\misc\runtime.hpp" />
     <ClInclude Include="features\misc\state.hpp" />
+    <ClInclude Include="features\misc\prediction.hpp" />
     <ClInclude Include="third_party\fatality\extra\misc_runtime.hpp" />
     <ClInclude Include="third_party\fatality\resources\misc_sounds.h" />
     <ClInclude Include="features\visuals\shot_chams.hpp" />
