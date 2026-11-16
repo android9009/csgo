@@ -1,4 +1,5 @@
 #include "shot_chams.hpp"
+#include "../../sdk/visual_runtime_state.hpp"
 #include "preview_material.hpp"
 #include "chams_entities.hpp"
 #include "../../hooks/hooks.hpp"
