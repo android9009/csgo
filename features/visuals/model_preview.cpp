@@ -228,6 +228,9 @@ void DrawTarget(void* target, bool weapon_only) {
     matrix[2][0]=-sp; matrix[2][1]=cp*sr; matrix[2][2]=cp*cr;
     if (weapon_only) {
         for (int i=0; i<3; ++i) matrix[i][3] = -(matrix[i][0]*center.x + matrix[i][1]*center.y + matrix[i][2]*center.z);
+        // Normalized screen drag; camera looks along +X, so Y/Z span its image plane.
+        matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
+        matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;
     }
     static DWORD last_time{};
     const DWORD now = GetTickCount();
@@ -322,7 +325,7 @@ void PaintWeaponImpl() {
         auto* disabled = reinterpret_cast<bool*>(reinterpret_cast<std::uintptr_t>(ms) + 0x9ec);
         editor_allocation_old = *disabled; editor_allocation_flag = disabled; *disabled = false;
         Slot<void(__thiscall*)(void*)>(ms, 94)(ms); editor_allocation_begun = true;
-        const int format = Slot<int(__thiscall*)(void*)>(ms, 36)(ms);
+        const int format = 0; // IMAGE_FORMAT_RGBA8888: preserve transparent background.
         editor_target = Slot<void*(__thiscall*)(void*, const char*, int, int, int, int, int, unsigned, unsigned)>(ms, 97)(
             ms, "_fatality_weapon_preview_port", 452, 128, 0, format, 0, 0x4u | 0x8u, 1u);
         Slot<void(__thiscall*)(void*)>(ms, 95)(ms); editor_allocation_begun = false;

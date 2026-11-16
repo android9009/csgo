@@ -16,5 +16,6 @@ inline std::atomic<void*> texture{nullptr};
 inline std::atomic<bool> weapon_editor_visible{false};
 inline std::atomic<int> editor_weapon{0};
 inline std::atomic<float> editor_yaw{0.f}, editor_pitch{0.f}, editor_roll{0.f};
+inline std::atomic<float> editor_pan_x{0.f}, editor_pan_y{0.f};
 inline std::atomic<void*> editor_texture{nullptr};
 }

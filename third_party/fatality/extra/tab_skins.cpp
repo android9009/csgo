@@ -389,8 +389,9 @@ namespace menu::group
         }
         void on_mouse_down(char key) override {
             const auto local = input.cursor() - area_abs().tl();
-            if (editor_open && !agent_editor && decal_picker < 0 && editor_3d &&
-                local.x >= 8.f && local.x < 460.f && local.y >= 38.f && local.y < 166.f && (key == m_left || key == m_right)) {
+            const bool inline_preview = !editor_open && equipment_screen == Equipment::None && selected_weapon.internal && !options_open;
+            if ((inline_preview || (editor_open && !agent_editor && editor_3d)) && decal_picker < 0 &&
+                local.x >= 8.f && local.x < size.x - 8.f && local.y >= 38.f && local.y < 166.f && (key == m_left || key == m_right)) {
                 editor_drag = key == m_left ? 1 : 2; lock_input(); return;
             }
             if (key != m_left) return;
@@ -532,8 +533,10 @@ namespace menu::group
                     FatalityPreviewBridge::editor_yaw.store(std::remainder(yaw + delta.x * .6f, 360.f), std::memory_order_relaxed);
                     FatalityPreviewBridge::editor_pitch.store(std::remainder(pitch + delta.y * .6f, 360.f), std::memory_order_relaxed);
                 } else {
-                    const auto roll = FatalityPreviewBridge::editor_roll.load(std::memory_order_relaxed);
-                    FatalityPreviewBridge::editor_roll.store(std::remainder(roll + delta.x * .6f, 360.f), std::memory_order_relaxed);
+                    const auto x = FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed);
+                    const auto y = FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_pan_x.store(std::clamp(x + delta.x / 452.f, -1.f, 1.f), std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_pan_y.store(std::clamp(y + delta.y / 128.f, -1.f, 1.f), std::memory_order_relaxed);
                 }
                 return;
             }
@@ -850,6 +853,7 @@ namespace menu::group
             const auto agent_path = std::string("resource/flash/econ/characters/") + agent.icon + ".png";
             const bool weapon_3d = !agent_editor && editor_3d;
             if (weapon_3d) {
+                FatalityPreviewBridge::editor_weapon.store(PreviewCatalog::WeaponIndex(selected_weapon.internal), std::memory_order_relaxed);
                 FatalityPreviewBridge::weapon_editor_visible.store(true, std::memory_order_relaxed);
                 if (auto texture = FatalityPreviewBridge::editor_texture.load(std::memory_order_acquire)) {
                     layer->g.texture = texture; layer->add_rect_filled(icon_box, color::white()); layer->g.texture = {};
@@ -869,7 +873,7 @@ namespace menu::group
                 }
             }
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            if (weapon_3d) layer->add_text(icon_box.tl() + vec2{5.f, 5.f}, "LMB: rotate  RMB: roll", colors.text_dark);
+            if (weapon_3d) layer->add_text(icon_box.tl() + vec2{5.f, 5.f}, "LMB: rotate  RMB: move", colors.text_dark);
             for (int i = 0; !weapon_3d && i < sticker_count(); ++i) {
                 const float x = 150.f + static_cast<float>(i) * 38.f;
                 draw_decal(layer, pending.stickers[i], rect{r.tl()+vec2{x,90.f}, r.tl()+vec2{x+30.f,120.f}}, budget);
@@ -991,23 +995,29 @@ namespace menu::group
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 3.f);
             layer->add_text(close.center(), "X", colors.text_dark, text_params::with_vh(align_center, align_center));
             bool budget = true;
-            const std::string preview_paint = equipment_weapon && pending.paint.empty() ? representative_glove_paint(selected_weapon.internal) : pending.paint;
-            if (auto icon = get_weapon_icon(selected_weapon.internal, preview_paint, budget); icon && icon->obj) {
-                const auto native = icon->get_size();
-                if (native.x > 0.f && native.y > 0.f) {
-                    const auto scale = (std::min)(330.f / native.x, 120.f / native.y);
-                    const auto dims = native * scale;
-                    const auto center = r.tl() + vec2{size.x * .5f, 98.f};
-                    layer->g.texture = icon->obj;
-                    layer->add_rect_filled(rect{center - dims * .5f, center + dims * .5f}, color::white());
-                    layer->g.texture = {};
-                    // Approximate 2D overlay only; actual item sticker positions are model-specific.
-                    for (int i = 0; i < sticker_count(); ++i) {
-                        const float x = center.x - dims.x * .30f + dims.x * .60f * (static_cast<float>(i) + .5f) / static_cast<float>(sticker_count());
-                        draw_decal(layer, pending.stickers[i], rect{vec2{x-10.f, center.y-10.f}, vec2{x+10.f, center.y+10.f}}, budget);
-                    }
-                }
+            int weapon_index = PreviewCatalog::WeaponIndex(selected_weapon.internal);
+            if (std::strcmp(PreviewCatalog::weapons[weapon_index].id, selected_weapon.internal)) weapon_index = -1;
+            if (preview_weapon_index != weapon_index) {
+                preview_weapon_index = weapon_index;
+                FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
+                FatalityPreviewBridge::editor_yaw.store(0.f, std::memory_order_relaxed);
+                FatalityPreviewBridge::editor_pitch.store(0.f, std::memory_order_relaxed);
+                FatalityPreviewBridge::editor_roll.store(0.f, std::memory_order_relaxed);
+                FatalityPreviewBridge::editor_pan_x.store(0.f, std::memory_order_relaxed);
+                FatalityPreviewBridge::editor_pan_y.store(0.f, std::memory_order_relaxed);
             }
+            FatalityPreviewBridge::editor_weapon.store(weapon_index, std::memory_order_relaxed);
+            FatalityPreviewBridge::weapon_editor_visible.store(true, std::memory_order_relaxed);
+            const rect model_area{r.tl()+vec2{8.f,38.f},r.tl()+vec2{size.x-8.f,166.f}};
+            if (auto model_texture = FatalityPreviewBridge::editor_texture.load(std::memory_order_acquire)) {
+                layer->g.texture = model_texture;
+                layer->add_rect_filled(model_area, color::white());
+                layer->g.texture = {};
+            } else {
+                layer->add_text(model_area.center(), "3D model unavailable / loading", colors.text_dark, text_params::with_vh(align_center,align_center));
+            }
+            layer->add_text(model_area.tl()+vec2{4.f,2.f}, "LMB: rotate / RMB: move", colors.text_dark);
+            layer->add_text(model_area.bl()-vec2{-4.f,4.f}, "Base model - paint / stickers not rendered", colors.text_dark);
             const auto options_center = r.tl() + vec2{19.f, 179.f};
             layer->add_circle_filled(options_center, 14.f, options_open ? colors.bg_block_light : colors.bg_block, 32);
             layer->add_circle(options_center, 14.f, colors.outline, 32, 1.f, 1.f);
@@ -1102,6 +1112,7 @@ namespace menu::group
         bool editor_open{}, editing_name{}, editing_search{}, reverse_sort{}, filter_open{}, options_open{}, stat_menu_open{};
         int filter_index{};
         std::string search_query;
+        int preview_weapon_index{-1};
         int drag_slider{}, decal_picker{-1}, agent_choice{}, editor_drag{};
         float decal_scroll{};
         bool agent_editor{}, editor_3d{}, equipment_weapon{};
