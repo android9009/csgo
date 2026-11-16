@@ -12,4 +12,9 @@ inline std::atomic<int> weapon{0};
 inline std::atomic<float> yaw{180.f};
 inline std::atomic<float> distance{310.f};
 inline std::atomic<void*> texture{nullptr};
+// Separate editor target; never reuses or replaces the agent viewport.
+inline std::atomic<bool> weapon_editor_visible{false};
+inline std::atomic<int> editor_weapon{0};
+inline std::atomic<float> editor_yaw{0.f}, editor_pitch{0.f}, editor_roll{0.f};
+inline std::atomic<void*> editor_texture{nullptr};
 }

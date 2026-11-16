@@ -16,6 +16,7 @@
 #include <vector>
 #include <cstdio>
 #include <cctype>
+#include <cmath>
 #include <ren/misc.h>
 
 using namespace evo::gui;
@@ -370,8 +371,12 @@ namespace menu::group
             layer->g.clip_rect = old_clip;
         }
         void on_mouse_down(char key) override {
-            if (key != m_left) return;
             const auto local = input.cursor() - area_abs().tl();
+            if (editor_open && !agent_editor && decal_picker < 0 && editor_3d &&
+                local.x >= 8.f && local.x < 460.f && local.y >= 38.f && local.y < 166.f && (key == m_left || key == m_right)) {
+                editor_drag = key == m_left ? 1 : 2; lock_input(); return;
+            }
+            if (key != m_left) return;
             const float cell_width = (size.x - 12.f) / 3.f;
             if (editor_open) {
                 if (decal_picker >= 0) decal_picker_click(local);
@@ -444,6 +449,9 @@ namespace menu::group
                     pending = (it != chosen.end() && it->second.paint == paint) ? it->second : SkinChoice{};
                     pending.paint = paint;
                     agent_editor = false; decal_picker = -1;
+                    editor_3d = false; editor_drag = 0;
+                    FatalityPreviewBridge::editor_weapon.store(PreviewCatalog::WeaponIndex(selected_weapon.internal), std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_texture.store(nullptr, std::memory_order_release);
                     editor_open = true;
                     stop_name_input();
                 }
@@ -503,7 +511,19 @@ namespace menu::group
                 scroll = std::clamp(scroll - delta * 55.f, 0.f, max_scroll);
             }
         }
-        void on_mouse_move(const vec2& cursor, const vec2&) override {
+        void on_mouse_move(const vec2& cursor, const vec2& delta) override {
+            if (editor_drag && is_locked_by_me()) {
+                if (editor_drag == 1) {
+                    const auto yaw = FatalityPreviewBridge::editor_yaw.load(std::memory_order_relaxed);
+                    const auto pitch = FatalityPreviewBridge::editor_pitch.load(std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_yaw.store(std::remainder(yaw + delta.x * .6f, 360.f), std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_pitch.store(std::remainder(pitch + delta.y * .6f, 360.f), std::memory_order_relaxed);
+                } else {
+                    const auto roll = FatalityPreviewBridge::editor_roll.load(std::memory_order_relaxed);
+                    FatalityPreviewBridge::editor_roll.store(std::remainder(roll + delta.x * .6f, 360.f), std::memory_order_relaxed);
+                }
+                return;
+            }
             if (!editor_open || !drag_slider) return;
             if (!input.is_mouse_down(m_left)) { drag_slider = 0; return; }
             const float x = cursor.x - area_abs().tl().x;
@@ -516,7 +536,12 @@ namespace menu::group
                 else pending.wear = fraction;
             }
         }
-        void on_mouse_up(char key) override { if (key == m_left) drag_slider = 0; }
+        void on_mouse_up(char key) override {
+            if (key == m_left) drag_slider = 0;
+            if ((editor_drag == 1 && key == m_left) || (editor_drag == 2 && key == m_right)) {
+                editor_drag = 0; if (is_locked_by_me()) unlock_input();
+            }
+        }
         void on_text_input(const std::vector<uint32_t>& text) override {
             if ((!editor_open || !editing_name) && !editing_search) return;
             if (input.is_key_down(VK_CONTROL) || input.is_key_down(VK_MENU)) return;
@@ -585,6 +610,9 @@ namespace menu::group
             if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; }
         }
         void editor_click(const vec2& p) {
+            if (!agent_editor && p.y >= 0.f && p.y < 30.f && p.x >= 300.f && p.x < 435.f) {
+                editor_3d = !editor_3d; stop_name_input(); return;
+            }
             if (p.y >= 0.f && p.y < 30.f && p.x >= size.x - 35.f) {
                 editor_open = false; stop_name_input();
                 if (agent_editor) equipment_screen = Equipment::Agent;
@@ -678,12 +706,26 @@ namespace menu::group
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
+            if (!agent_editor) {
+                const rect toggle{r.tl()+vec2{300.f,0.f},r.tl()+vec2{435.f,27.f}};
+                layer->add_rect_filled_rounded(toggle, colors.bg_bottom, 2.f);
+                layer->add_text(toggle.center(), editor_3d ? "Show 2D skin" : "3D base model", colors.text, text_params::with_vh(align_center, align_center));
+            }
             const rect icon_box{r.tl() + vec2{8.f, 38.f}, r.tl() + vec2{460.f, 166.f}};
             layer->add_rect_filled_rounded(icon_box, colors.bg_bottom, 2.f);
             bool budget = true;
             const auto& agent = PreviewCatalog::GetAgent(team_ct, static_cast<size_t>(agent_choice));
             const auto agent_path = std::string("resource/flash/econ/characters/") + agent.icon + ".png";
-            auto preview_icon = agent_editor ? get_asset_icon(agent_path, budget) : get_weapon_icon(selected_weapon.internal, pending.paint, budget);
+            const bool weapon_3d = !agent_editor && editor_3d;
+            if (weapon_3d) {
+                FatalityPreviewBridge::weapon_editor_visible.store(true, std::memory_order_relaxed);
+                if (auto texture = FatalityPreviewBridge::editor_texture.load(std::memory_order_acquire)) {
+                    layer->g.texture = texture; layer->add_rect_filled(icon_box, color::white()); layer->g.texture = {};
+                } else {
+                    layer->add_text(icon_box.center(), "3D model unavailable / loading", colors.text_dark, text_params::with_vh(align_center, align_center));
+                }
+            }
+            auto preview_icon = weapon_3d ? std::shared_ptr<texture>{} : agent_editor ? get_asset_icon(agent_path, budget) : get_weapon_icon(selected_weapon.internal, pending.paint, budget);
             if (auto icon = preview_icon; icon && icon->obj) {
                 const auto native = icon->get_size();
                 if (native.x > 0.f && native.y > 0.f) {
@@ -695,12 +737,13 @@ namespace menu::group
                 }
             }
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            for (int i = 0; i < sticker_count(); ++i) {
+            if (weapon_3d) layer->add_text(icon_box.tl() + vec2{5.f, 5.f}, "LMB: rotate  RMB: roll", colors.text_dark);
+            for (int i = 0; !weapon_3d && i < sticker_count(); ++i) {
                 const float x = 150.f + static_cast<float>(i) * 38.f;
                 draw_decal(layer, pending.stickers[i], rect{r.tl()+vec2{x,90.f}, r.tl()+vec2{x+30.f,120.f}}, budget);
             }
             layer->add_text(r.tl() + vec2{10.f, 179.f}, agent_editor ? agent.name : pending.paint, colors.text, text_params::with_v(align_center));
-            layer->add_text(r.tl() + vec2{455.f, 179.f}, "2D preview", colors.text_dark, text_params::with_vh(align_center, align_right));
+            layer->add_text(r.tl() + vec2{455.f, 179.f}, weapon_3d ? "3D default - no skin" : "2D preview", colors.text_dark, text_params::with_vh(align_center, align_right));
             for (int i = 0; i < sticker_count(); ++i) {
                 const rect slot{r.tl()+vec2{365.f,190.f+static_cast<float>(i)*35.f},r.tl()+vec2{460.f,220.f+static_cast<float>(i)*35.f}};
                 layer->add_rect_filled_rounded(slot, colors.bg_bottom, 2.f);
@@ -844,9 +887,9 @@ namespace menu::group
         bool editor_open{}, editing_name{}, editing_search{}, reverse_sort{}, filter_open{};
         int filter_index{};
         std::string search_query;
-        int drag_slider{}, decal_picker{-1}, agent_choice{};
+        int drag_slider{}, decal_picker{-1}, agent_choice{}, editor_drag{};
         float decal_scroll{};
-        bool agent_editor{};
+        bool agent_editor{}, editor_3d{};
         std::vector<std::string> paints;
     };
     }

@@ -872,6 +872,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
         for (const auto& p : ctx->active_popups) p->close();
     }
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
+    FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
     draw.begin_frame();
     ctx->render();
     draw.end_frame();
