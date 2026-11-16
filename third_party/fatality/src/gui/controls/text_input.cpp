@@ -9,6 +9,22 @@ void text_input::render()
 	if (!is_visible)
 		return;
 
+	// Derive the caret from the actual prefix, not accumulated glyph widths.
+	// Kerning and backspace used to leave a negative offset after clearing text.
+	cursor_pos = (std::max)(0, (std::min)(cursor_pos, static_cast<int>(raw_value.size())));
+	std::string prefix;
+	for (int i = 0; i < cursor_pos; ++i)
+		prefix += utf8_encode(raw_value[i]);
+	cursor_offset = calc_text_width(prefix);
+	calc_total_width();
+	const auto visible_width = (std::max)(0.f, size.x - 14.f);
+	const auto max_scroll = (std::max)(0.f, total_width - visible_width);
+	scroll_offset = (std::max)(0.f, (std::min)(scroll_offset, max_scroll));
+	if (cursor_offset < scroll_offset)
+		scroll_offset = cursor_offset;
+	else if (cursor_offset > scroll_offset + visible_width)
+		scroll_offset = cursor_offset - visible_width;
+
 	const auto r = area_abs();
 	an->animate();
 
@@ -30,7 +46,6 @@ void text_input::render()
 		d->add_text(r.tl() + base_offset, placeholder, colors.text_dark);
 
 	d->add_text(r.tl() + base_offset, value, colors.text);
-	d->g.clip_rect = old_clip;
 
 	if (is_locked_by_me())
 	{
@@ -41,6 +56,7 @@ void text_input::render()
 		d->add_line(caret_offset, caret_offset + caret_size, colors.accent.mod_a(an->value));
 		d->skip_dpi = false;
 	}
+	d->g.clip_rect = old_clip;
 }
 
 void text_input::create()
@@ -245,7 +261,7 @@ void text_input::on_key_down(uint16_t key)
 	// delete
 	if (key == VK_DELETE && cursor_pos != raw_value.size() && !raw_value.empty())
 	{
-		auto last_char_width = calc_char_width_at_cursor(0, -1);
+		auto last_char_width = calc_char_width(raw_value[cursor_pos]);
 
 		if (!has_selection)
 			raw_value.erase(raw_value.begin() + cursor_pos);
@@ -340,8 +356,8 @@ void text_input::on_key_down(uint16_t key)
 		// update scrolling, if necessary
 		if (does_text_exceed_width() && is_cursor_out_of_bounds())
 		{
-			const auto new_char = raw_value[new_pos];
-			const auto old_char = raw_value[old_pos];
+			const auto new_char = raw_value[new_pos - 1];
+			const auto old_char = raw_value[(std::max)(0, old_pos - 1)];
 
 			scroll_offset += calc_char_width(new_char, old_char, adjust == -1) * (float)adjust;
 		}

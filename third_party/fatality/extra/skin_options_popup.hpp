@@ -63,6 +63,7 @@ public:
             wear->callback=[update](float,float){update();};row("Wear",wear,78.f);
             if(!gloves) {
                 auto souvenir=std::make_shared<checkbox>(control_id{id+5},values->souvenir);
+                souvenir->reset_internal();
                 souvenir->callback=[update](bool){update();};row("Souvenir",souvenir,114.f);
                 auto name=std::make_shared<text_input>(control_id{id+6},vec2{},vec2{154.f,24.f},std::nullopt,std::nullopt,31);
                 name->placeholder="Name tag";name->set_value(values->choice.custom_name);
@@ -94,7 +95,7 @@ public:
     void render() override {
         if(!is_visible)return;
         if(mode)mode->is_taking_input=!values->souvenir.get();
-        if(count)count->is_taking_input=!values->souvenir.get() && values->mode.get().get(1);
+        if(count)count->is_taking_input=!values->souvenir.get() && !values->mode.get().get(2);
         begin_render();auto& d=draw.layers[ctx->content_layer];
         d->add_shadow_rect(area_abs(),8.f,true);
         d->add_rect_filled_rounded(area_abs(),colors.bg_block,3.f);
@@ -103,7 +104,7 @@ public:
         if(!agent && !gloves) {
             begin_render();auto& top=draw.layers[ctx->content_layer];
             if(values->souvenir.get())top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,180.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
-            else if(!values->mode.get().get(1))top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,216.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
+            else if(values->mode.get().get(2))top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,216.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
             end_render();
         }
     }
@@ -144,6 +145,9 @@ public:
             const auto keep=values[i];
             auto check=std::make_shared<checkbox>(control_id{id+20+static_cast<std::uint64_t>(i)},*keep);
             check->pos={194.f,0.f};check->margin={};
+            // Native checkbox animation starts unchecked, independently of value.
+            // Restore the visual state without firing a settings callback.
+            check->reset_internal();
             check->callback=[self,keep,i](bool value){if(auto p=self.lock())if(p->changed)p->changed(i,value);};
             row->add(std::make_shared<label>(control_id{id+30+static_cast<std::uint64_t>(i)},names[i]));
             row->add(check);add(row);
