@@ -1,6 +1,7 @@
 // Local-only SOC integration. Reference: Osiris csgo-end-of-life (MIT), see
 // third_party/licenses/Osiris-inventory.txt and docs/local-inventory-status.md.
 #include "local_inventory.hpp"
+#include "local_inventory_ids.hpp"
 #include "equipment_state.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
@@ -30,11 +31,12 @@ struct Owned { Item* item; std::uint64_t id; SkinState::Choice choice; };
 using Key=std::pair<int,int>; // CT/T and definition, independent selections
 std::map<Key,Owned> owned;
 std::mutex run_mutex;
+std::atomic<bool> closing{false}, cleanup_complete{false};
+std::atomic<DWORD> game_thread{0};
 void* inventory{};
 void* cache{};
 std::uint64_t owner_id{};
-std::uint64_t highest_local_id{};
-std::uint32_t highest_position{};
+IdAllocator ids;
 bool attempted{}, ready{}, stopped{};
 void* manager{};
 Item* (__stdcall* create_item)(){};
@@ -110,6 +112,7 @@ bool Attributes(Item* item,void* schema,const SkinState::Choice& choice) {
 }
 void Run() {
     std::lock_guard<std::mutex> lock(run_mutex);
+    if(closing.load() && owned.empty()) {cleanup_complete.store(true);return;}
     if(stopped || (!enabled.load() && owned.empty()) || !Resolve()) return;
     auto* current=Slot<void*(__thiscall*)(void*)>(manager,23)(manager);
     if(!current) return;
@@ -123,7 +126,7 @@ void Run() {
         owned.clear();inventory=current;cache=type_cache;owner_id=At<std::uint64_t>(current,8);
     }
     std::map<Key,SkinState::Choice> desired;
-    if(enabled.load()) {
+    if(enabled.load() && !closing.load()) {
         {
             std::lock_guard<std::mutex> lock(SkinState::mutex);
             for(int team=0;team<2;++team) for(const auto& pair:SkinState::teams[team]) desired[{team,pair.first}]=pair.second;
@@ -140,7 +143,7 @@ void Run() {
             Remove(it->second);it=owned.erase(it);
         } else ++it;
     }
-    if(desired.empty()) return;
+    if(desired.empty()) { if(closing.load()) cleanup_complete.store(true); return; }
     auto* system=item_system();
     if(!system) return;
     auto* schema=Slot<void*(__thiscall*)(void*)>(system,0)(system);
@@ -151,17 +154,16 @@ void Run() {
         const int count=At<int>(cache,24);
         if(count<0||count>100000) return;
         auto** objects=At<Item**>(cache,4);
-        std::uint64_t id=highest_local_id;std::uint32_t position=highest_position;
         for(int i=0;i<count;++i) {
-            const auto* item=objects[i];
-            if(!item || (item->id & 0xf000000000000000ULL)) continue;
-            id=(std::max)(id,item->id);position=(std::max)(position,item->position);
+            const auto* existing=objects[i];
+            if(existing) ids.Observe(existing->id,existing->position);
         }
-        if(id>=0x0ffffffffffffffeULL || position==std::numeric_limits<std::uint32_t>::max()) return;
+        std::uint64_t id{}; std::uint32_t position{};
+        if(!ids.Next(id,position)) return;
         auto* item=create_item();
         if(!item) return;
         const auto& choice=pair.second;
-        item->id=id+1;item->original=0;item->account=At<std::uint32_t>(inventory,8);item->position=position+1;
+        item->id=id;item->original=0;item->account=At<std::uint32_t>(inventory,8);item->position=position;
         item->definition=static_cast<std::uint16_t>(pair.first.second);
         const unsigned quality=choice.souvenir?12u:choice.stattrak>=0?9u:EquipmentState::Knife(pair.first.second)?3u:4u;
         item->properties=static_cast<std::uint16_t>(8u | (quality<<5));
@@ -174,7 +176,6 @@ void Run() {
             LOG_WARN("local inventory: cache rejected local item");
             return;
         }
-        highest_local_id=item->id;highest_position=item->position;
         owned.emplace(pair.first,Owned{item,item->id,choice});
         Notify(0,item);
         LOG_INFO("local inventory: added local item=%llu definition=%d paint=%d",static_cast<unsigned long long>(item->id),pair.first.second,choice.paint_kit);
@@ -182,6 +183,7 @@ void Run() {
 }
 }
 void Frame() {
+    game_thread.store(GetCurrentThreadId());
     __try { Run(); }
     __except(EXCEPTION_EXECUTE_HANDLER) {
         stopped=true;
@@ -189,7 +191,13 @@ void Frame() {
     }
 }
 void Shutdown() {
+    closing.store(true);
     enabled.store(false);
-    Frame();
+    if(game_thread.load()==GetCurrentThreadId()) { Frame(); return; }
+    // Restore runs on the unload worker. Never invoke SOC callbacks there.
+    // Keep hooks alive briefly so FRAME_START can perform game-thread cleanup.
+    const auto deadline=GetTickCount64()+500;
+    while(!cleanup_complete.load() && GetTickCount64()<deadline) Sleep(1);
+    if(!cleanup_complete.load()) LOG_WARN("local inventory: game-thread cleanup unavailable; leaving engine-owned cache intact");
 }
 }
