@@ -16,7 +16,7 @@
 namespace SkinChanger {
 namespace {
 struct Netvars {
-    std::ptrdiff_t weapons{}, team{}, def{}, item_high{}, account{}, quality{}, paint{}, seed{}, wear{}, stat{}, name{};
+    std::ptrdiff_t owner_low{}, owner_high{}, weapons{}, team{}, def{}, item_high{}, account{}, quality{}, paint{}, seed{}, wear{}, stat{}, name{};
 };
 struct Original {
     void* entity{}; int definition{};
@@ -37,6 +37,8 @@ Netvars Resolve() {
     v.weapons = n.GetOffset("DT_BaseCombatCharacter", "m_hMyWeapons");
     v.team = n.GetOffset("DT_BaseEntity", "m_iTeamNum");
     const auto table = "DT_BaseAttributableItem";
+    v.owner_low = n.GetOffset(table,"m_OriginalOwnerXuidLow");
+    v.owner_high = n.GetOffset(table,"m_OriginalOwnerXuidHigh");
     v.def = n.GetOffset(table,"m_iItemDefinitionIndex");
     v.item_high = n.GetOffset(table,"m_iItemIDHigh");
     v.account = n.GetOffset(table,"m_iAccountID");
@@ -53,14 +55,15 @@ bool Valid(const Netvars& n) {
         if (offset <= 0 || offset > 0x10000) return false;
     return true;
 }
-bool LocalAccount(std::uint32_t& account) {
+bool LocalAccount(std::uint32_t& account,std::uint64_t& owner) {
     // player_info_t's SteamID64 begins at offset 8 in the Source 1 interface.
     alignas(8) unsigned char info[512]{};
     using Fn = bool (__thiscall*)(void*, int, void*);
     auto* engine = Interfaces::Engine;
     auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(engine))[8]);
     if (!fn || !fn(engine, engine->GetLocalPlayer(), info)) return false;
-    std::memcpy(&account, info + 8, sizeof(account));
+    std::memcpy(&owner, info + 8, sizeof(owner));
+    account=static_cast<std::uint32_t>(owner);
     return account != 0;
 }
 void Save(void* e, int def, const Netvars& n, Original& o) {
@@ -115,7 +118,10 @@ void FrameStage() {
     const int team = At<int>(local, n.team);
     if (team != 2 && team != 3) return;
     std::uint32_t account{};
-    if (!LocalAccount(account)) return;
+    std::uint64_t local_owner{};
+    if (!LocalAccount(account,local_owner)) return;
+    const bool allow_foreign=SkinState::AllowWeaponSkins();
+    const bool owner_available=n.owner_low>0 && n.owner_low<0x10000 && n.owner_high>0 && n.owner_high<0x10000;
     const auto* handles = reinterpret_cast<const std::uint32_t*>(reinterpret_cast<std::uintptr_t>(local) + n.weapons);
     std::set<std::uint32_t> held;
     for (int i=0; i<64; ++i) {
@@ -126,7 +132,10 @@ void FrameStage() {
         held.insert(h);
         const int def = At<short>(entity,n.def);
         SkinState::Choice selected{};
-        const bool enabled = SkinState::Get(team == 3, def, selected);
+        const std::uint64_t original_owner=owner_available ?
+            (static_cast<std::uint64_t>(At<std::uint32_t>(entity,n.owner_high))<<32) | At<std::uint32_t>(entity,n.owner_low) : 0;
+        const bool enabled = SkinState::Get(team == 3, def, selected) &&
+            SkinState::CanApply(allow_foreign,original_owner,local_owner);
         auto it = originals.find(h);
         if (it != originals.end() && (it->second.entity != entity || it->second.definition != def)) { originals.erase(it); it = originals.end(); }
         if (!enabled) {

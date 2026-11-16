@@ -20,6 +20,15 @@ struct Choice {
 inline std::mutex mutex;
 inline std::map<int, Choice> teams[2];
 inline std::uint64_t version{};
+inline bool allow_weapon_skins{};
+inline bool AllowWeaponSkins() {std::lock_guard<std::mutex> lock(mutex);return allow_weapon_skins;}
+inline void AllowWeaponSkins(bool value) {
+ std::lock_guard<std::mutex> lock(mutex);
+ if(allow_weapon_skins!=value){allow_weapon_skins=value;++version;}
+}
+inline bool CanApply(bool allow_foreign,std::uint64_t original_owner,std::uint64_t local_owner) {
+ return allow_foreign || (local_owner!=0 && original_owner==local_owner);
+}
 inline int Definition(std::string_view name) {
     struct Item { std::string_view name; int id; };
     static constexpr Item items[] = {

@@ -19,4 +19,17 @@ int main() {
     for (int i=0;i<1000;++i) { Choice x{}; assert(Get(true,7,x)); }
     t.join(); Remove(true,7); assert(!Get(true,7,out) && Get(false,7,out));
     const auto removed=Revision();Remove(true,7);assert(Revision()==removed);
+ const std::uint64_t me=0x0110000100001234ULL,other=0x0110000100005678ULL;
+ assert(SkinState::CanApply(false,me,me));
+ assert(!SkinState::CanApply(false,other,me));
+ assert(!SkinState::CanApply(false,0,me));
+ assert(SkinState::CanApply(true,other,me));
+ assert(SkinState::CanApply(true,0,me));
+ const auto policy_revision=SkinState::Revision();
+ SkinState::AllowWeaponSkins(false);
+ SkinState::AllowWeaponSkins(true);
+ assert(SkinState::Revision()==policy_revision+1);
+ SkinState::AllowWeaponSkins(true);
+ assert(SkinState::Revision()==policy_revision+1);
+ SkinState::AllowWeaponSkins(false);
 }

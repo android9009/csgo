@@ -31,6 +31,9 @@ struct Request { SkinState::Choice finish; int music{}; };
 struct Owned { Item* item; std::uint64_t id; Request request; };
 using Key=std::pair<int,int>; // CT/T and definition, independent selections
 std::map<Key,Owned> owned;
+struct Equipped {std::uint64_t original{},local{};};
+std::map<Key,Equipped> equipped; // actual team/slot; only our local changes
+
 std::mutex loadout_mutex;
 Loadout loadouts[2];
 DWORD last_loadout{};
@@ -116,8 +119,38 @@ bool Present(const Owned& value) {
 void Notify(std::size_t slot,Item* item) {
     Slot<void(__thiscall*)(void*,Owner,Item*,int)>(inventory,slot)(inventory,At<Owner>(inventory,8),item,4);
 }
+std::uint64_t SlotItem(int team,int slot) {
+    return At<std::uint64_t>(inventory,0xd8+static_cast<std::size_t>(team*57+slot)*8);
+}
+void EquipLocal(int team,int slot,std::uint64_t id) {
+    // Both manager slots 20 AND 29 can send GC messages in this client.
+    // Only modify the inspected client loadout array consumed by getter 8.
+    if(team<0 || team>3 || slot<0 || slot>56) return;
+    At<std::uint64_t>(inventory,0xd8+static_cast<std::size_t>(team*57+slot)*8)=id;
+}
+void AutoEquip(const Key& key,Item* item,void* definition) {
+    const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    if(reinterpret_cast<std::uintptr_t>(Slot<void*>(inventory,8))!=base+0x6cc240) return;
+    int team=key.first==0?3:2;
+    int slot=At<int>(definition,0x28c+static_cast<std::size_t>(team)*4);
+    if(slot<0 || slot>56) {team=0;slot=At<int>(definition,0x268);}
+    if(slot<0 || slot>56) return;
+    auto& saved=equipped[{team,slot}];
+    const auto current=SlotItem(team,slot);
+    if(!saved.local || current!=saved.local) saved.original=current;
+    saved.local=item->id;
+    EquipLocal(team,slot,item->id);
+    LOG_INFO("local inventory: locally equipped item=%llu team=%d slot=%d",static_cast<unsigned long long>(item->id),team,slot);
+}
 void Remove(const Owned& value) {
     if(!Present(value)) return;
+    for(auto it=equipped.begin();it!=equipped.end();) {
+        if(it->second.local==value.id) {
+            if(SlotItem(it->first.first,it->first.second)==value.id)
+                EquipLocal(it->first.first,it->first.second,it->second.original);
+            it=equipped.erase(it);
+        } else ++it;
+    }
     Notify(2,value.item);
     Slot<void(__thiscall*)(void*,Item*)>(cache,3)(cache,value.item);
     Slot<void(__thiscall*)(Item*,bool)>(value.item,0)(value.item,true);
@@ -159,7 +192,7 @@ void Run() {
     if(current!=inventory || type_cache!=cache || At<std::uint64_t>(current,8)!=owner_id) {
         // Old cache belongs to the engine/account. Never dereference old ledger
         // pointers after replacement; it may already have destroyed the objects.
-        owned.clear();inventory=current;cache=type_cache;owner_id=At<std::uint64_t>(current,8);
+        owned.clear();equipped.clear();inventory=current;cache=type_cache;owner_id=At<std::uint64_t>(current,8);
     }
     std::map<Key,Request> desired;
     if(enabled.load() && !closing.load()) {
@@ -189,7 +222,8 @@ void Run() {
     if(!schema) return;
     for(const auto& pair:desired) {
         if(owned.count(pair.first) || pair.first.second<=0 || pair.first.second>65535) continue;
-        if(!Slot<void*(__thiscall*)(void*,int)>(schema,4)(schema,pair.first.second)) continue;
+        auto* definition=Slot<void*(__thiscall*)(void*,int)>(schema,4)(schema,pair.first.second);
+        if(!definition) continue;
         const int count=At<int>(cache,24);
         if(count<0||count>100000) return;
         auto** objects=At<Item**>(cache,4);
@@ -217,6 +251,8 @@ void Run() {
         }
         owned.emplace(pair.first,Owned{item,item->id,pair.second});
         Notify(0,item);
+        AutoEquip(pair.first,item,definition);
+        last_loadout=0;
         LOG_INFO("local inventory: added local item=%llu definition=%d paint=%d",static_cast<unsigned long long>(item->id),pair.first.second,choice.paint_kit);
     }
 }

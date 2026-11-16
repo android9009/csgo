@@ -448,7 +448,7 @@ namespace menu::group
             }
             layer->g.clip_rect = old_clip;
             if (catalog_settings_open) {
-                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 126.f}};
+                const rect popup{vec2{r.maxs.x - 210.f, r.mins.y + 28.f}, vec2{r.maxs.x, r.mins.y + 156.f}};
                 layer->add_rect_filled_rounded(popup, colors.bg_block_light, 3.f);
                 const rect check{popup.mins + vec2{10.f, 12.f}, popup.mins + vec2{22.f, 24.f}};
                 layer->add_rect_filled(check, show_all_paints ? colors.accent : colors.outline);
@@ -459,6 +459,9 @@ namespace menu::group
                 const rect share{popup.mins + vec2{10.f, 72.f}, popup.mins + vec2{22.f, 84.f}};
                 layer->add_rect_filled(share, LocalInventory::enabled.load() ? colors.accent : colors.outline);
                 layer->add_text(popup.mins + vec2{32.f, 79.f}, "Share to inventory", colors.text, text_params::with_v(align_center));
+                const rect allow{popup.mins + vec2{10.f, 102.f}, popup.mins + vec2{22.f, 114.f}};
+                layer->add_rect_filled(allow, SkinState::AllowWeaponSkins() ? colors.accent : colors.outline);
+                layer->add_text(popup.mins + vec2{32.f, 109.f}, "Allow weapon skins", colors.text, text_params::with_v(align_center));
             }
         }
         void on_mouse_down(char key) override {
@@ -544,6 +547,8 @@ namespace menu::group
                     else if (local.y >= 66.f && local.y < 96.f) {show_all_weapons=!show_all_weapons;scroll=0.f;}
                     else if (local.y >= 96.f && local.y < 126.f)
                         LocalInventory::enabled.store(!LocalInventory::enabled.load());
+                    else if (local.y >= 126.f && local.y < 156.f)
+                        SkinState::AllowWeaponSkins(!SkinState::AllowWeaponSkins());
                 }
                 catalog_settings_open = false;
                 return;
