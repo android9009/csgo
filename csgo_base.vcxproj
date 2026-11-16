@@ -48,7 +48,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)third_party;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\minhook;$(ProjectDir)third_party\json;$(ProjectDir)third_party\fatality;$(ProjectDir)third_party\fatality\src;$(ProjectDir)third_party\fatality\deps\renderer\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)third_party;$(ProjectDir)third_party\minhook;$(ProjectDir)third_party\json;$(ProjectDir)third_party\fatality;$(ProjectDir)third_party\fatality\src;$(ProjectDir)third_party\fatality\deps\renderer\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -68,7 +68,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ExceptionHandling>Sync</ExceptionHandling>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)third_party;$(ProjectDir)third_party\imgui;$(ProjectDir)third_party\minhook;$(ProjectDir)third_party\json;$(ProjectDir)third_party\fatality;$(ProjectDir)third_party\fatality\src;$(ProjectDir)third_party\fatality\deps\renderer\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)third_party;$(ProjectDir)third_party\minhook;$(ProjectDir)third_party\json;$(ProjectDir)third_party\fatality;$(ProjectDir)third_party\fatality\src;$(ProjectDir)third_party\fatality\deps\renderer\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -79,11 +79,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="features\menu\fonts\FontIcon.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="features\menu\fonts\JosefinSansBold.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="features\menu\fonts\JosefinSansRegular.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="features\menu\menu.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="features\menu\text_editor\TextEditor.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\anim.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\container.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\control.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
@@ -175,14 +170,6 @@
     <ClCompile Include="sdk\entity\weapon.cpp" />
     <ClCompile Include="sdk\interfaces\interfaces.cpp" />
     <ClCompile Include="sdk\netvars.cpp" />
-    <ClCompile Include="third_party\imgui\imgui.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_demo.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_draw.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_impl_dx9.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_stdlib.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_tables.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_widgets.cpp"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
     <ClCompile Include="third_party\minhook\buffer.c" />
     <ClCompile Include="third_party\minhook\hde\hde32.c" />
     <ClCompile Include="third_party\minhook\hde\hde64.c"><ExcludedFromBuild>true</ExcludedFromBuild></ClCompile>
@@ -326,17 +313,6 @@
     <ClInclude Include="third_party\fatality\src\gui\popups\settings_popup.h" />
     <ClInclude Include="third_party\fatality\src\gui\traits.h" />
     <ClInclude Include="third_party\fatality\src\gui\values.h" />
-    <ClInclude Include="features\menu\fonts\FontIcon.h" />
-    <ClInclude Include="features\menu\fonts\JosefinSansBold.h" />
-    <ClInclude Include="features\menu\fonts\JosefinSansRegular.h" />
-    <ClInclude Include="features\menu\img\stb_image.h" />
-    <ClInclude Include="features\menu\img\vis_preview.hpp" />
-    <ClInclude Include="features\menu\img\vis_preview_ent.hpp" />
-    <ClInclude Include="features\menu\menu.h" />
-    <ClInclude Include="features\menu\text_editor\TextEditor.h" />
-    <ClInclude Include="features\menu\texture.hpp" />
-    <ClInclude Include="features\menu\vars.h" />
-    <ClInclude Include="features\menu\xorstr.hpp" />
     <ClInclude Include="hooks\hooks.hpp" />
     <ClInclude Include="math\color.hpp" />
     <ClInclude Include="math\math.hpp" />
@@ -381,17 +357,6 @@
     <ClInclude Include="third_party\fatality\medal_catalog.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
-    <ClInclude Include="third_party\img\click_sfx.hpp" />
-    <ClInclude Include="third_party\img\stb_image.h" />
-    <ClInclude Include="third_party\imgui\imconfig.h" />
-    <ClInclude Include="third_party\imgui\imgui.h" />
-    <ClInclude Include="third_party\imgui\imgui_impl_dx9.h" />
-    <ClInclude Include="third_party\imgui\imgui_impl_win32.h" />
-    <ClInclude Include="third_party\imgui\imgui_internal.h" />
-    <ClInclude Include="third_party\imgui\imgui_stdlib.h" />
-    <ClInclude Include="third_party\imgui\imstb_rectpack.h" />
-    <ClInclude Include="third_party\imgui\imstb_textedit.h" />
-    <ClInclude Include="third_party\imgui\imstb_truetype.h" />
     <ClInclude Include="third_party\json\adl_serializer.h" />
     <ClInclude Include="third_party\json\byte_container_with_subtype.h" />
     <ClInclude Include="third_party\json\detail\abi_macros.h" />

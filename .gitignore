@@ -10,3 +10,12 @@ cmake_install.cmake
 *.obj
 *.lib
 /.zigcache/
+
+# Local IDE state and transient analysis/test files.
+.vs/
+*.vcxproj.user
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+/received-binaries/

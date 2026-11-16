@@ -10,18 +10,6 @@
     <Filter Include="Features\skins">
       <UniqueIdentifier>{6D58DD9C-96BD-4A8A-94D9-1F32F528645F}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Features\menu">
-      <UniqueIdentifier>{3B8D28AD-38E6-5A43-978D-E95549C7452E}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\menu\fonts">
-      <UniqueIdentifier>{B6D9CC02-5103-585A-9648-030F46CCF238}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\menu\img">
-      <UniqueIdentifier>{26EE96FD-CDF4-5371-B1D2-DAD05A7EE004}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\menu\text_editor">
-      <UniqueIdentifier>{2A3D2343-EA6A-566F-BD4C-77601742B20F}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Hooks">
       <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
     </Filter>
@@ -100,12 +88,6 @@
     <Filter Include="Third Party">
       <UniqueIdentifier>{740937C8-6AD2-54C6-BCF1-2FF9676E8813}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Third Party\img">
-      <UniqueIdentifier>{7A199EB9-CADE-5CFE-AA2E-DB11CCDBC746}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Third Party\imgui">
-      <UniqueIdentifier>{79E72F2A-02C2-5684-8920-E9885743C06A}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Third Party\json">
       <UniqueIdentifier>{97A4265E-8292-5088-B386-D9680C13267D}</UniqueIdentifier>
     </Filter>
@@ -147,21 +129,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="features\menu\fonts\FontIcon.cpp">
-      <Filter>Features\menu\fonts</Filter>
-    </ClCompile>
-    <ClCompile Include="features\menu\fonts\JosefinSansBold.cpp">
-      <Filter>Features\menu\fonts</Filter>
-    </ClCompile>
-    <ClCompile Include="features\menu\fonts\JosefinSansRegular.cpp">
-      <Filter>Features\menu\fonts</Filter>
-    </ClCompile>
-    <ClCompile Include="features\menu\menu.cpp">
-      <Filter>Features\menu</Filter>
-    </ClCompile>
-    <ClCompile Include="features\menu\text_editor\TextEditor.cpp">
-      <Filter>Features\menu\text_editor</Filter>
-    </ClCompile>
     <ClCompile Include="hooks\client.cpp">
       <Filter>Hooks</Filter>
     </ClCompile>
@@ -435,30 +402,6 @@
     <ClCompile Include="third_party\fatality\src\gui\popups\settings_popup.cpp">
       <Filter>Menu (Fatality)\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_demo.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_draw.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_impl_dx9.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_stdlib.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_tables.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="third_party\imgui\imgui_widgets.cpp">
-      <Filter>Third Party\imgui</Filter>
-    </ClCompile>
     <ClCompile Include="third_party\minhook\buffer.c">
       <Filter>Third Party\minhook</Filter>
     </ClCompile>
@@ -499,39 +442,6 @@
   <ItemGroup>
     <ClInclude Include="context.hpp">
       <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\fonts\FontIcon.h">
-      <Filter>Features\menu\fonts</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\fonts\JosefinSansBold.h">
-      <Filter>Features\menu\fonts</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\fonts\JosefinSansRegular.h">
-      <Filter>Features\menu\fonts</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\img\stb_image.h">
-      <Filter>Features\menu\img</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\img\vis_preview.hpp">
-      <Filter>Features\menu\img</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\img\vis_preview_ent.hpp">
-      <Filter>Features\menu\img</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\menu.h">
-      <Filter>Features\menu</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\text_editor\TextEditor.h">
-      <Filter>Features\menu\text_editor</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\texture.hpp">
-      <Filter>Features\menu</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\vars.h">
-      <Filter>Features\menu</Filter>
-    </ClInclude>
-    <ClInclude Include="features\menu\xorstr.hpp">
-      <Filter>Features\menu</Filter>
     </ClInclude>
     <ClInclude Include="hooks\hooks.hpp">
       <Filter>Hooks</Filter>
@@ -1048,39 +958,6 @@
     </ClInclude>
     <ClInclude Include="third_party\fatality\src\gui\values.h">
       <Filter>Menu (Fatality)\gui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\img\click_sfx.hpp">
-      <Filter>Third Party\img</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\img\stb_image.h">
-      <Filter>Third Party\img</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imconfig.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imgui.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imgui_impl_dx9.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imgui_impl_win32.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imgui_internal.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imgui_stdlib.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imstb_rectpack.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imstb_textedit.h">
-      <Filter>Third Party\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="third_party\imgui\imstb_truetype.h">
-      <Filter>Third Party\imgui</Filter>
     </ClInclude>
     <ClInclude Include="third_party\json\adl_serializer.h">
       <Filter>Third Party\json</Filter>

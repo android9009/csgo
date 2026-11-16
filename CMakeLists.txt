@@ -15,8 +15,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Base sources (everything except vendored third-party code).
 file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
-# The old ImGui menu is retained as reference, but is no longer used by the DLL.
-list(FILTER BASE_SOURCES EXCLUDE REGEX "/features/menu/")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/injector/")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/tests/")
 # In-source build trees contain CMake compiler-ID programs, not DLL sources.
@@ -34,7 +32,6 @@ add_library(csgo_base SHARED ${BASE_SOURCES} ${THIRDPARTY_SOURCES})
 target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
-  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook"
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json"
 )
