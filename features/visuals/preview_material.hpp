@@ -21,7 +21,7 @@ inline IMaterial* Resolve(int kind) {
     if(tried[kind])return cache[kind];
     tried[kind]=true;
     const bool borrowed=kind==7;
-    auto* material=borrowed ? Interfaces::MaterialSystem->FindMaterial("dev/glow_armsrace","Other textures",false) : FatalityMaterialFactory::Create(kind);
+    auto* material=borrowed ? Interfaces::MaterialSystem->FindMaterial("dev/glow_armsrace","Model textures",false) : FatalityMaterialFactory::Create(kind);
     // Never silently substitute a debug material for a missing chams shader.
     if(!material || material->IsErrorMaterial()){
         LOG_WARN("Fatality chams unavailable kind=%d; original model retained",kind);return nullptr;
