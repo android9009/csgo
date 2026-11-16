@@ -602,6 +602,12 @@
     <ClInclude Include="features\skins\equipment_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
+    <ClInclude Include="features\skins\local_inventory.hpp">
+      <Filter>Features\skins</Filter>
+    </ClInclude>
+    <ClInclude Include="features\skins\local_inventory_ids.hpp">
+      <Filter>Features\skins</Filter>
+    </ClInclude>
     <ClInclude Include="features\skins\skin_changer.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>

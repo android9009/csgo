@@ -30,7 +30,6 @@ struct Owner { std::uint64_t id; std::uint32_t type, padding; };
 struct Owned { Item* item; std::uint64_t id; SkinState::Choice choice; };
 using Key=std::pair<int,int>; // CT/T and definition, independent selections
 std::map<Key,Owned> owned;
-std::mutex run_mutex;
 std::atomic<bool> closing{false}, cleanup_complete{false};
 std::atomic<DWORD> game_thread{0};
 void* inventory{};
@@ -111,7 +110,6 @@ bool Attributes(Item* item,void* schema,const SkinState::Choice& choice) {
     return true;
 }
 void Run() {
-    std::lock_guard<std::mutex> lock(run_mutex);
     if(closing.load() && owned.empty()) {cleanup_complete.store(true);return;}
     if(stopped || (!enabled.load() && owned.empty()) || !Resolve()) return;
     auto* current=Slot<void*(__thiscall*)(void*)>(manager,23)(manager);

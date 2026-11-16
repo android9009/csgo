@@ -369,6 +369,8 @@
     <ClInclude Include="features\skins\skin_changer.hpp" />
     <ClInclude Include="features\skins\equipment_changer.hpp" />
     <ClInclude Include="features\skins\equipment_state.hpp" />
+    <ClInclude Include="features\skins\local_inventory.hpp" />
+    <ClInclude Include="features\skins\local_inventory_ids.hpp" />
     <ClInclude Include="features\skins\skin_state.hpp" />
     <ClInclude Include="features\skins\refresh_gate.hpp" />
     <ClInclude Include="features\skins\preview_state.hpp" />
