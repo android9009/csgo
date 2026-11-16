@@ -6,7 +6,7 @@ using namespace evo::gui;
 using namespace evo::ren;
 inline void Render() {
     using namespace VisualRuntime;
-    const auto frame=GetPlayers();if(!frame.count)return;
+    static Players frame;CopyPlayers(frame);if(!frame.count)return;
     const auto config=Get();auto& d=draw.layers[l_back];d->font=draw.fonts[GUI_HASH("gui_main")];
     const auto display=draw.display/draw.scale;
     for(int i=0;i<frame.count;++i) {

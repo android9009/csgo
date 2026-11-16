@@ -10,13 +10,13 @@
 namespace VisualRuntime {
 namespace {
 void CaptureImpl() {
-    Players output;
+    static Players output;output.count=0;
     const auto config=Get();bool any=false;for(const auto& style:config.esp)any=any || style.show[Enabled];
-    if(!any || !ctx.in_game || !ctx.local || !Interfaces::Engine || !Interfaces::EntityList) {PublishPlayers(output);return;}
-    WorldEsp::Frame projection;
+    if(!any || !ctx.in_game || !ctx.local || !Interfaces::Engine || !Interfaces::EntityList) {ClearPlayers();return;}
+    static WorldEsp::Frame projection;
     const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     const auto offset=offsets::Get("dwViewMatrix");
-    if(!base || !offset){PublishPlayers(output);return;}
+    if(!base || !offset){ClearPlayers();return;}
     std::memcpy(projection.matrix.data(),reinterpret_cast<void*>(base+offset),sizeof(float)*16);
     auto project=[&](const Vector& p,VisualPreview::Point& result) {
         WorldEsp::Item point;point.x=p.x;point.y=p.y;point.z=p.z;
@@ -87,7 +87,7 @@ void CaptureImpl() {
 void CapturePlayers() {
     __try {CaptureImpl();}
     __except(EXCEPTION_EXECUTE_HANDLER) {
-        PublishPlayers({});static bool logged=false;if(!logged){logged=true;LOG_WARN("player ESP: rejected entity/bone read; cleared frame");}
+        ClearPlayers();static bool logged=false;if(!logged){logged=true;LOG_WARN("player ESP: rejected entity/bone read; cleared frame");}
     }
 }
 }

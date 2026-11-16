@@ -17,7 +17,7 @@ inline void Configure() {
 }
 inline void Render() {
     const auto options=WorldEsp::GetOptions();if(!options.Any())return;
-    const auto frame=WorldEsp::GetFrame();if(!frame.valid)return;
+    static WorldEsp::Frame frame;WorldEsp::CopyFrame(frame);if(!frame.valid)return;
     auto& d=draw.layers[l_back];d->font=draw.fonts[GUI_HASH("gui_main")];
     const auto screen=draw.display/draw.scale;
     auto text=[&](vec2 p,const std::string& value,color c) {

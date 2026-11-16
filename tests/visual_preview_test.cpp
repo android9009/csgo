@@ -20,5 +20,6 @@ int main(){
     item.x=20.f;assert(!Project(f,item,x,y));item.x=0;f.matrix[15]=-1;assert(!Project(f,item,x,y));
     assert(BombDamage(100,100)<BombDamage(100,0));assert(BombDamage(1500,0)<BombDamage(100,0));
     assert(BombDamage(std::numeric_limits<float>::quiet_NaN(),0)==0);
+    static Frame snapshot;f.valid=true;f.count=1;Publish(f);CopyFrame(snapshot);assert(snapshot.valid && snapshot.count==1);
     Options o;o.enabled[0]=true;SetOptions(o);assert(GetOptions().Any());
 }

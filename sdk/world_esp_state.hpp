@@ -38,7 +38,7 @@ inline Frame frame_state;
 inline void SetOptions(const Options& v){std::lock_guard<std::mutex> lock(mutex);settings_state=v;}
 inline Options GetOptions(){std::lock_guard<std::mutex> lock(mutex);return settings_state;}
 inline void Publish(const Frame& v){std::lock_guard<std::mutex> lock(mutex);frame_state=v;}
-inline Frame GetFrame(){std::lock_guard<std::mutex> lock(mutex);return frame_state;}
+inline void CopyFrame(Frame& out){std::lock_guard<std::mutex> lock(mutex);out=frame_state;}
 inline bool Project(const Frame& f,const Item& item,float& x,float& y) {
     const auto& m=f.matrix;
     const float w=m[12]*item.x+m[13]*item.y+m[14]*item.z+m[15];

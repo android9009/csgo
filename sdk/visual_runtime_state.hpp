@@ -48,7 +48,10 @@ struct Player {
 };
 struct Players {std::array<Player,64> items{};int count{};};
 inline Players player_frame;
-inline Players GetPlayers(){std::lock_guard<std::mutex> lock(mutex);return player_frame;}
+// Fill a caller-owned persistent buffer; never return ~80 KiB by value on
+// the game's small render-thread stack (including disabled-feature frames).
+inline void CopyPlayers(Players& out){std::lock_guard<std::mutex> lock(mutex);out=player_frame;}
+inline void ClearPlayers(){std::lock_guard<std::mutex> lock(mutex);player_frame.count=0;}
 inline void PublishPlayers(const Players& p){std::lock_guard<std::mutex> lock(mutex);player_frame=p;}
 void CapturePlayers();
 void UpdateGlow();

@@ -877,15 +877,23 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     }
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
+    static bool first_frame=true;
+    const bool trace_first=first_frame;first_frame=false;
+    if(trace_first)LOG_INFO("render startup: configure visual snapshots");
     VisualSettings::Configure();
     WorldEspOverlay::Configure();
+    if(trace_first)LOG_INFO("render startup: begin frame / world overlay");
     draw.begin_frame();
     WorldEspOverlay::Render();
+    if(trace_first)LOG_INFO("render startup: player overlay");
     PlayerEspOverlay::Render();
+    if(trace_first)LOG_INFO("render startup: native GUI");
     ctx->render();
     draw.end_frame();
+    if(trace_first)LOG_INFO("render startup: submit DX9");
     draw.render();
     draw.flush();
+    if(trace_first)LOG_INFO("render startup: first frame complete");
 }
 bool Input(UINT msg, WPARAM wp, LPARAM lp, bool open) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);

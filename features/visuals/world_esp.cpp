@@ -27,7 +27,7 @@ bool ReadBool(void* entity,std::ptrdiff_t offset) {
 void CaptureImpl() {
     const auto options=GetOptions();
     if(!options.Any() || !ctx.in_game || !Interfaces::EntityList || !Interfaces::Globals) {
-        if(cached.valid){cached={};Publish(cached);}next_scan=0;return;
+        if(cached.valid){cached.valid=false;cached.count=0;Publish(cached);}next_scan=0;return;
     }
     auto& net=PropManager::Get();
     static const auto owner=net.GetOffset("DT_BaseEntity","m_hOwnerEntity");
@@ -80,7 +80,7 @@ void CaptureImpl() {
 void Capture() {
     __try { CaptureImpl(); }
     __except(EXCEPTION_EXECUTE_HANDLER) {
-        cached={};Publish(cached);next_scan=0;
+        cached.valid=false;cached.count=0;Publish(cached);next_scan=0;
         static bool logged=false;
         if(!logged){logged=true;LOG_WARN("world ESP: invalid entity read; cleared snapshot");}
     }

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <cmath>
 
 namespace Interfaces {
 using CreateInterfaceFn = void* (__cdecl*)(const char*, int*);
@@ -37,6 +38,16 @@ static void* ReadModulePointer(std::string_view module, std::uintptr_t rva) {
     std::memcpy(&value, reinterpret_cast<const void*>(base + rva), sizeof(std::uint32_t));
     return reinterpret_cast<void*>(value);
 }
+static bool ValidGlobals(IGlobalVarsBase* candidate) {
+    if(!candidate || (reinterpret_cast<std::uintptr_t>(candidate)&3u))return false;
+    __try {
+        return std::isfinite(candidate->realtime) && candidate->realtime>=0.f &&
+            std::isfinite(candidate->curtime) && std::isfinite(candidate->frametime) &&
+            candidate->frametime>=0.f && candidate->frametime<10.f &&
+            std::isfinite(candidate->interval_per_tick) && candidate->interval_per_tick>=.001f &&
+            candidate->interval_per_tick<=.1f && candidate->maxClients>=0 && candidate->maxClients<=128;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
+}
 bool Setup() {
     Client = Capture<IBaseClientDll>("client.dll", "VClient");
     EntityList = Capture<IClientEntityList>("client.dll", "VClientEntityList");
@@ -67,7 +78,14 @@ bool Setup() {
     NetworkContainer = Capture<void>("engine.dll", "VEngineClientStringTable");
 
     ClientState = static_cast<IClientState*>(ReadModulePointer("engine.dll", offsets::Get("dwClientState")));
-    Globals = static_cast<IGlobalVarsBase*>(ReadModulePointer("engine.dll", offsets::Get("dwGlobalVars")));
+    // The PUSH-immediate signature resolves the globals object itself.
+    // Dereferencing its first DWORD interprets realtime float bits as a pointer.
+    const auto globals_base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("engine.dll"));
+    const auto globals_rva=offsets::Get("dwGlobalVars");
+    auto* direct_globals=globals_base && globals_rva ? reinterpret_cast<IGlobalVarsBase*>(globals_base+globals_rva) : nullptr;
+    Globals=ValidGlobals(direct_globals) ? direct_globals : nullptr;
+    if(Globals)LOG_INFO("globals: validated direct object=%p interval=%.6f max_clients=%d",Globals,Globals->interval_per_tick,Globals->maxClients);
+    else LOG_WARN("globals: invalid direct candidate=%p; dependent game features will not read it",direct_globals);
     Input = static_cast<IInput*>(ReadModulePointer("client.dll", offsets::Get("dwInput")));
     // dwGlowObjectManager is the address of the CUtlVector-backed manager,
     // not a pointer slot. Dereferencing it here would yield the entry array.
