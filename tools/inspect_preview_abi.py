@@ -10,6 +10,14 @@ from pathlib import Path
 import struct
 import pefile
 
+# Candidates identified by static disassembly of the supplied client, not a
+# public ABI. Exact signatures are checked for uniqueness in executable sections.
+FUNCTIONS = {
+    'generated_material_update_candidate': '55 8B EC 53 56 57 8B 7D 10 8B F1 83 FF 09 74 0A 6A 00 8D 4E 10',
+    'weapon_material_generation_candidate': '55 8B EC 83 E4 F8 81 EC 9C 01 00 00 53 56 57 8B F9 89 7C 24 38',
+    'weapon_visuals_processor_constructor_candidate': '55 8B EC 53 8B D9 56 57 8D 4B 08 C7 43 04 01 00 00 00',
+}
+
 CLASSES = ('CCustomMaterialOwner', 'CCSWeaponVisualsDataProcessor', 'CCustomMaterialManager')
 
 
@@ -67,6 +75,13 @@ def inspect(path):
                                                method_rvas=methods))
         if candidates:
             result['classes'][name] = candidates
+    if path.name.lower() == 'client.dll':
+        result['function_candidates'] = {}
+        for name, signature in FUNCTIONS.items():
+            matches = [rva for rva in occurrences(data, bytes.fromhex(signature)) if executable(base + rva)]
+            result['function_candidates'][name] = dict(signature=signature,
+                matches=[hex(rva) for rva in matches], unique=len(matches) == 1,
+                callable_abi_verified=False)
     return result
 
 

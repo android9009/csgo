@@ -45,3 +45,33 @@ The inline viewport renders the base model and supports rotation/panning. It doe
 **not** render selected paint, seed, wear or stickers. No new unverified engine
 calls were introduced by this investigation. Runtime verification in CS:GO is
 still necessary after implementing the missing interfaces.
+
+## Further call-chain findings
+
+The inspector now uniquely locates these **candidates** in executable sections:
+
+| Candidate | Client RVA |
+| --- | --- |
+| Generated-material update | `0x719630` |
+| Weapon-material generation | `0x719770` |
+| Weapon visuals processor constructor | `0x408640` |
+
+The update candidate clears the custom-material owner at `this+0x10`, tests its
+count at `this+0x20`, calls static-data lookup (`0x715880`), compares item classes
+`tool` / `wearable_item`, and dispatches the weapon branch to `0x719770`. These
+operations match the source-level generation flow, but this binary's signature
+is **not** the two-argument declaration in the reference source: it returns with
+`ret 0x0c` and reads `[ebp+0x10]`. Its weapon branch passes four stack arguments,
+including a model handle consumed by the callee. Do not call through the old
+reference typedef: that would corrupt the stack.
+
+The processor constructor initializes its base/reference count, writes the RTTI
+identified derived vtable, stores a paintable-material pointer at `+0x58`, calls
+the compare-data copy routine and initializes the `CustomWeapon` shader. It also
+returns with `ret 0x0c`; the apparent third argument must be accounted for even
+though the shader string is constant in this build.
+
+The exact unique signatures are included in the JSON report and inspection tool.
+They are diagnostic candidates only, not registered as executable runtime hooks.
+The next missing link is constructing a valid isolated item view with attributes,
+then establishing the actual stack-argument semantics and asynchronous lifetime.

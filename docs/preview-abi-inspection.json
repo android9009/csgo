@@ -40,6 +40,32 @@
           ]
         }
       ]
+    },
+    "function_candidates": {
+      "generated_material_update_candidate": {
+        "signature": "55 8B EC 53 56 57 8B 7D 10 8B F1 83 FF 09 74 0A 6A 00 8D 4E 10",
+        "matches": [
+          "0x719630"
+        ],
+        "unique": true,
+        "callable_abi_verified": false
+      },
+      "weapon_material_generation_candidate": {
+        "signature": "55 8B EC 83 E4 F8 81 EC 9C 01 00 00 53 56 57 8B F9 89 7C 24 38",
+        "matches": [
+          "0x719770"
+        ],
+        "unique": true,
+        "callable_abi_verified": false
+      },
+      "weapon_visuals_processor_constructor_candidate": {
+        "signature": "55 8B EC 53 8B D9 56 57 8D 4B 08 C7 43 04 01 00 00 00",
+        "matches": [
+          "0x408640"
+        ],
+        "unique": true,
+        "callable_abi_verified": false
+      }
     }
   },
   {
