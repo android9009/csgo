@@ -152,8 +152,8 @@ namespace menu::group
 	{
 		{ const auto control = MAKE("misc>movement>extra>edge bugs", checkbox, cfg.misc.edge_bug); control->tooltip = "Experimental bounded trajectory search; Source-style simulation, not engine prediction."; e->add(make_control("Edge bugs", control)); }
 		{ const auto control = MAKE("misc>movement>extra>pixel surf", checkbox, cfg.misc.pixel_surf); control->tooltip = "Experimental trajectory search requiring repeated unsupported floor contacts."; e->add(make_control("Pixel surf", control)); }
-		ADD("Long jump", "misc>movement>extra>long jump", checkbox, cfg.misc.long_jump);
-		ADD("Ladder jump", "misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump);
+		{ const auto control = MAKE("misc>movement>extra>long jump", checkbox, cfg.misc.long_jump); control->tooltip = "Jump-duck assist after takeoff; no artificial speed boost. Paused while edge/pixel/no-fall assists are enabled."; e->add(make_control("Long jump", control)); }
+		{ const auto control = MAKE("misc>movement>extra>ladder jump", checkbox, cfg.misc.ladder_jump); control->tooltip = "Dismount assist near the ladder top while climbing forward; the server still enforces ladder-jump cooldown."; e->add(make_control("Ladder jump", control)); }
 
 	}
 

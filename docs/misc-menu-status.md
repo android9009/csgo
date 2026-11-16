@@ -10,18 +10,18 @@
 | Пункт и вложенные настройки | Состояние |
 |---|---|
 | Scoreboard: Reveal ranks, Reveal weapon, Reveal unmatched ranks; Horizontal/Vertical/Weapon/Unmatched scale | UI |
-| Logs: Hit, Miss, Buy, Hurt, Naded | Hit/Buy/Hurt/Naded подключены; Miss — UI |
-| Hit/Miss details: Damage dealt, Damage aimed, Hitchance, Shot, Backtrack, Safe point; дополнительно Miss reason | Только Damage dealt в Hit; остальные UI, нет shot/resolver attribution |
-| Buy log targets: Teammates, Enemy, Local, All | Подключено |
-| Hit/Miss/Buy/Hurt/Naded colors | Цвета подключённых категорий работают; Miss пока нет |
-| Console logs | Подключено, echo с очисткой строки |
+| Logs: Hit, Miss, Buy, Hurt, Naded | По последней просьбе пользователя ВСЕ категории теперь UI-only; runtime отключён |
+| Hit/Miss details: Damage dealt, Damage aimed, Hitchance, Shot, Backtrack, Safe point; дополнительно Miss reason | UI-only, отложено пользователем |
+| Buy log targets: Teammates, Enemy, Local, All | UI-only, отложено пользователем |
+| Hit/Miss/Buy/Hurt/Naded colors | UI-only, отложено пользователем |
+| Console logs | UI-only, отложено пользователем; диагностический DLL log сохранён |
 | Hitsound; Hit sound enable; Kill sound enable и отдельный Kill sound | Подключено |
 | Звуки: None, Bell, CoD, Fatality, Arena switch, Bepis, Phonk, Sparkle, Cock | Подключено |
-| Indicators: Manual anti-aim, Freestanding, LC, Double tap, Hide shot, Damage override, Force safety, Headshot only, Bodyaim, Ping | UI; не рисуются фиктивные exploit/antiaim состояния |
-| Clantag | UI |
+| Indicators: Manual anti-aim, Freestanding, LC, Double tap, Hide shot, Damage override, Force safety, Headshot only, Bodyaim, Ping | Состояния settings/hotkeys подключены для всех, кроме LC. PING — только реально применённый sequence rewind. Нет выдуманного DT charge; нет визуального 1:1 font parity |
+| Clantag | Анимация Pastaware, 30 фаз / 0.3s. Runtime fingerprint + проверка ClanTagChanged/tag/name. Нет бинарной проверки engine.dll локально |
 | Reveal enemy chat | UI |
-| Ragdoll thrust + Amount | UI |
-| Ping spike + Amount | UI; нет истории netchannel sequence/reliable-state |
+| Ragdoll thrust + Amount | Множитель cl_ragdoll_gravity 1–1000%; исходное значение восстанавливается при выключении/unload |
+| Ping spike + Amount | История sequence/reliable-state + SendDatagram rewind/restore. Только pinned engine profile; loopback пропускается; ограничение sv_maxunlag |
 
 ## Other
 
@@ -52,9 +52,9 @@
 |---|---|
 | Edge bugs | Экспериментальный поиск 8 вариантов × до 8 тиков; применение только текущей команды |
 | Pixel surf | Экспериментальный поиск: нужны 3 последовательных unsupported floor contacts с half-gravity signature; не просто сравнение velocity |
-| Jump bug | UI; duck/unduck origin transitions и reprediction ещё не доведены |
-| Long jump | UI |
-| Ladder jump | UI; ladder physics в новом solver не симулируется |
+| Jump bug | УДАЛЁН из меню и cfg по просьбе пользователя |
+| Long jump | Jump–duck assist после отрыва; не speed exploit. Отключается при активных edge/pixel/no-fall для исключения конфликтов |
+| Ladder jump | Forward/upward ladder-top dismount: нижняя ladder trace hit + верхняя clear -> IN_JUMP. Сервер контролирует cooldown. Ladder physics solver по-прежнему не симулирует |
 
 ## Buybot
 
@@ -120,3 +120,52 @@ duck/unduck под потолком, смерть/respawn/teleport, ladder/water
 проверить отсутствие изменения aim и prediction drift при выключенных assists.
 Сравнивать предсказанные маршруты с фактическим следующим тиком. До этого статуса
 «проверено в игре» ни у нового solver, ни у новых assists нет.
+
+
+## Следующий запрос: пользовательские Lua-референсы
+
+Просмотрены загруженные `Enemy team chat revealer.lua.txt` и
+`Scoreboard Equipment _18.lua (1).txt`.
+
+- Enemy chat: player_say, enemy/team check, cl_mute_enemy_team,
+  cl_mute_all_but_friends_and_party, индивидуальный mute через GameStateAPI,
+  отложенный вывод 0.2s и подавление дублей player_chat в окне 0.4s,
+  локализация T/CT + alive/dead + location. Нужны native usermessage/chat
+  receiver и Panorama mute/localization adapters. Не подключено: нельзя честно
+  объявить соответствие этому Lua, игнорируя индивидуальный mute и дубли.
+  Не может получить сообщения, которые сервер вообще не посылает клиенту.
+- Scoreboard Equipment: Panorama CSGOHud -> ScoreboardContainer ->
+  id-sb-name__nameicons, привязка к XUID; SVG ItemImage; сортировка оружия,
+  выделение active, armor/helmet/defuser/grenades; cleanup при disable;
+  update 0.1s. В исходнике cache сравнивает только playerArray: при переносе
+  нужно включить scale/color/filters, иначе настройки не обновятся.
+  Нужны native script host/panel lifecycle и inventory/event collector.
+  Native scoreboard пока не подключён; отдельный DX9-список рядом не выдавался
+  за перенос панелей из предоставленного Lua.
+
+Дополнительные просмотренные референсы текущего прохода (Skeet pinned commit
+из списка выше): misc/clan_tag.cpp, misc/ping_spike.cpp,
+engine/build_misc_engine_bindings.cpp, hud/feature_indicators.cpp,
+esp/indicators.cpp. Network ABI сверено также с Fatality sdk/CNetChannel.h
+(SendDatagram46, incoming sequence1C/reliable28, IEngineClient channel78).
+
+Ping использует историю вместо простого вычитания ticks из sequence.
+Выбирается запись не новее now-delay, обе пары полей восстанавливаются через
+__finally после отправки. Пустая/короткая история не подделывается. Лимит
+requested <= max(0,sv_maxunlag-current latency). На другом engine timestamp /
+SizeOfImage (не 64EE7E86 / 039C0000) сетевой hook не устанавливается.
+Смена канала сбрасывает историю. В игре и при reconnect/unload НЕ проверялось.
+
+Индикаторы берут текущие effective values после обработки GUI hotkeys.
+Текущий Rage General использует profile key 0; reference-only map 512 не читается.
+DT/OSAA отражают включение настройки, НЕ наличие работающего exploit/заряда.
+FS/Manual требуют соответствующих состояний AA. LC остаётся без реального
+поставщика состояния. Шрифт/метрики оригинального Skeet в этот проход не перенесены.
+
+Clantag восстанавливает сохранённый m_szClan через player resource; при disconnect
+не пытается отправить старый tag в отсутствующий channel. Fingerprint не совпал —
+callback не вызывается. Clock упрощён до wall-clock 0.3s, без native latency correction.
+
+Остались без подключения: native scoreboard (включая ranks/unmatched/scales),
+enemy chat, Console filter, SV Pure/Cheats bypass, LC и полная engine prediction.
+Все меню-логи намеренно отложены. Обещания «всё работает в игре» нет.

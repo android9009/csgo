@@ -147,13 +147,14 @@ int SendWithSequence(void* channel,void* data,const SequenceHistory::Entry& entr
 }
 int __fastcall SendDatagram(void* channel,void*,void* data){
     const auto original=datagram_original;if(!original)return 0;
-    const auto options=Get();if(channel!=ping_channel || data || !options.ping_spike || !Interfaces::Engine || !Interfaces::Engine->IsInGame())return original(channel,data);
-    const auto loopback=MEM::GetVFunc<bool(__thiscall*)(void*)>(channel,6);if(loopback(channel))return original(channel,data);
+    const auto options=Get();if(channel!=ping_channel || data || !options.ping_spike || !Interfaces::Engine || !Interfaces::Engine->IsInGame()){PingApplied(false);return original(channel,data);}
+    const auto loopback=MEM::GetVFunc<bool(__thiscall*)(void*)>(channel,6);if(loopback(channel)){PingApplied(false);return original(channel,data);}
     const auto latency=MEM::GetVFunc<float(__thiscall*)(void*,int)>(channel,9);
     const float existing=latency(channel,0)+latency(channel,1),max_unlag=ConVarFloat("sv_maxunlag",.2f);
     const float delay=std::clamp(options.ping_amount*.001f,0.f,(std::max)(0.f,max_unlag-existing));
     SequenceHistory::Entry selected;bool found{};
     {std::lock_guard<std::mutex> lock(sequence_mutex);found=sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);}
+    PingApplied(found);
     return found ? SendWithSequence(channel,data,selected) : original(channel,data);
 }
 bool PingEngineSupported(){
@@ -166,6 +167,7 @@ bool PingEngineSupported(){
     return supported==1;
 }
 void UpdatePing(){
+    if(!Get().ping_spike || !ctx.in_game)PingApplied(false);
     if(!PingEngineSupported())return;
     void* channel=ctx.in_game && Interfaces::Engine ? MEM::GetVFunc<void*(__thiscall*)(void*)>(Interfaces::Engine,78)(Interfaces::Engine) : nullptr;
     if(channel!=ping_channel){datagram_hook.detach();{std::lock_guard<std::mutex> lock(sequence_mutex);sequence_history.Reset();}ping_channel=channel;

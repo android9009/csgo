@@ -25,7 +25,9 @@ inline void Publish(const Settings& s){std::lock_guard<std::mutex> lock(mutex);s
 inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
 inline std::array<Message,8> Messages(){std::lock_guard<std::mutex> lock(mutex);return messages;}
 inline int live_weapon{};
-inline bool live_alive{};
+inline bool live_alive{},ping_applied{};
+inline void PingApplied(bool active){std::lock_guard<std::mutex> lock(mutex);ping_applied=active;}
+inline bool PingActive(){std::lock_guard<std::mutex> lock(mutex);return ping_applied;}
 inline int ActiveWeapon(){std::lock_guard<std::mutex> lock(mutex);return live_weapon;}
 inline bool Alive(){std::lock_guard<std::mutex> lock(mutex);return live_alive;}
 inline void PlayerState(int weapon,bool alive){std::lock_guard<std::mutex> lock(mutex);live_weapon=weapon;live_alive=alive;}

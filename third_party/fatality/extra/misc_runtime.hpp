@@ -11,7 +11,7 @@ inline void Configure(){
     // reference Fatality's general_id=512. Do not read non-existent overrides.
     constexpr unsigned key=0;
     auto mark=[&](int index,bool active){if(active)s.indicator_active|=1u<<index;};
-    mark(cfg_t::indicators_dt,cfg.aim.doubletap.get());mark(cfg_t::indicators_st,cfg.aim.hideshot.get());
+    mark(cfg_t::indicators_ping,MiscRuntime::PingActive());mark(cfg_t::indicators_dt,cfg.aim.doubletap.get());mark(cfg_t::indicators_st,cfg.aim.hideshot.get());
     mark(cfg_t::indicators_fs,cfg.aa.enabled.get() && cfg.aa.freestand.get());mark(cfg_t::indicators_manual,cfg.aa.manual.get() && (cfg.aa.manual_left.get() || cfg.aa.manual_right.get() || cfg.aa.manual_back.get()));
     mark(cfg_t::indicators_do,cfg.weapon_config.mindmg_override_enabled[key].get());mark(cfg_t::indicators_safe,cfg.weapon_config.safe_mode[key].get().test(2));
     mark(cfg_t::indicators_head,cfg.aim.hsmode.get());mark(cfg_t::indicators_baim,cfg.aim.baim_on_key.get() || cfg.weapon_config.body_mode[key].get().test(2));
@@ -31,7 +31,7 @@ inline void Render(){
     auto& d=draw.layers[l_back];d->font=draw.fonts[GUI_HASH("gui_main")];
     const auto display=draw.display/draw.scale;float y=display.y-90.f;
     struct Item {int bit;const char* label;};
-    const Item items[]={{cfg_t::indicators_manual,"MANUAL"},{cfg_t::indicators_fs,"FS"},{cfg_t::indicators_dt,"DT"},{cfg_t::indicators_st,"OSAA"},{cfg_t::indicators_do,"MD"},{cfg_t::indicators_safe,"SAFE"},{cfg_t::indicators_head,"HS"},{cfg_t::indicators_baim,"BODY"}};
+    const Item items[]={{cfg_t::indicators_ping,"PING"},{cfg_t::indicators_manual,"MANUAL"},{cfg_t::indicators_fs,"FS"},{cfg_t::indicators_dt,"DT"},{cfg_t::indicators_st,"OSAA"},{cfg_t::indicators_do,"MD"},{cfg_t::indicators_safe,"SAFE"},{cfg_t::indicators_head,"HS"},{cfg_t::indicators_baim,"BODY"}};
     for(const auto& item:items){if(!(active&(1u<<item.bit)))continue;
         d->add_rect_filled_multicolor({{0.f,y-2.f},{125.f,y+20.f}},{color{0,0,0,0},color{0,0,0,51},color{0,0,0,51},color{0,0,0,0}});
         d->add_text({30.f,y+1.f},item.label,color{0,0,0,220});d->add_text({29.f,y},item.label,color{255,255,255,200});y-=26.f;
