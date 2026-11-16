@@ -5,8 +5,8 @@
 #include <cstring>
 
 bool CBaseEntity::IsDormant() const {
-    const auto offset = offsets::Get("m_bDormant");
-    if (offset > 0x100000) return false;
+    static const auto offset = offsets::Get("m_bDormant");
+    if (!offset || offset > 0x100000) return false;
     return *reinterpret_cast<const bool*>(reinterpret_cast<std::uintptr_t>(this) + offset);
 }
 bool CBaseEntity::IsPlayer() const {

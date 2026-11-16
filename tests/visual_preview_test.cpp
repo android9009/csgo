@@ -13,6 +13,7 @@ int main(){
     using namespace WorldEsp;
     assert(Classify("CWeaponAWP")==WorldEsp::Weapon);assert(Classify("CAK47")==WorldEsp::Weapon);
     assert(Classify("CSmokeGrenadeProjectile")==Grenade);assert(Classify("CMolotovProjectile")==Grenade);
+    assert(Classify("CFlashbang")==Grenade);assert(Projectile("CSmokeGrenadeProjectile"));assert(!Projectile("CSmokeGrenade"));
     assert(Classify("CC4")==C4 && Classify("CPlantedC4")==C4);assert(Classify("CCSPlayer")==None);
     Frame f;f.matrix={1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};Item item;
     float x{},y{};assert(Project(f,item,x,y) && x==.5f && y==.5f);

@@ -9,7 +9,7 @@ namespace WorldEsp {
 enum Category { Weapon, Grenade, C4, None };
 inline Category Classify(std::string_view name) {
     if(name=="CPlantedC4" || name=="CC4")return C4;
-    if(name.find("Grenade")!=name.npos || name=="CMolotovProjectile" || name=="CInferno" || name=="CDecoyProjectile")return Grenade;
+    if(name=="CFlashbang" || name.find("Grenade")!=name.npos || name=="CMolotovProjectile" || name=="CInferno" || name=="CDecoyProjectile")return Grenade;
     if(name.substr(0,7)=="CWeapon" || name=="CAK47" || name=="CDEagle" || name=="CKnife")return Weapon;
     return None;
 }

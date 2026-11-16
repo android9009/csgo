@@ -158,6 +158,7 @@ namespace menu::group
 					{
 						const auto c = MAKE("visuals>esp>preview>type", combo_box, cfg.visuals.preview);
 						c->legacy_mode = true;
+						c->tooltip = "Enemy / Team / Local have separate settings. ESP PLAYER settings follow this Type.";
 						c->add(
 						{MAKE("visuals>esp>preview>type>enemy", selectable, XOR("Enemy"), 0), MAKE("visuals>esp>preview>type>team", selectable, XOR("Team"), 1),
 						 MAKE("visuals>esp>preview>type>local", selectable, XOR("Local"), 2),});
@@ -197,6 +198,7 @@ namespace menu::group
 					{
 						const auto c = MAKE("visuals>chams>preview>type", combo_box, cfg.visuals.preview);
 						c->legacy_mode = true;
+						c->tooltip = "Enemy / Team / Local have separate settings. ESP PLAYER settings follow this Type.";
 						c->add(
 						{MAKE("visuals>chams>preview>type>enemy", selectable, XOR("Enemy"), 0), MAKE("visuals>chams>preview>type>team", selectable, XOR("Team"), 1),
 						 MAKE("visuals>chams>preview>type>local", selectable, XOR("Local"), 2),});

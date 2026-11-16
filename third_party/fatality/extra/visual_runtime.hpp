@@ -39,7 +39,7 @@ inline void Configure() {
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.local.get(),esp.glow.local_color.get().rgba()}};
     s.object_enabled={w.weapon_enabled.get(),w.grenade_enabled.get(),w.c4_enabled.get()};
     auto object=[&](int index,auto& v) {
-        s.objects[index].enabled=s.object_enabled[index];s.objects[index].kind=v.material.get().first_set_bit().value_or(0);s.objects[index].primary=v.material_color.get().rgba();
+        s.objects[index].enabled=s.object_enabled[index];s.objects[index].kind=v.material.get().first_set_bit().value_or(0);s.objects[index].primary=v.material_color.get().rgba();s.objects[index].secondary=s.objects[index].primary;
         s.object_glow[index]={s.object_enabled[index] && v.glow_mode->test(1),v.glow_color.get().rgba()};
     };
     object(0,w.weapon_visuals);object(1,w.grenade_visuals);object(2,w.c4_visuals);
