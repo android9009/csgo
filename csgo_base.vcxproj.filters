@@ -620,6 +620,9 @@
     <ClInclude Include="sdk\skin_catalog.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\preview_sequence.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\skin_schema.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

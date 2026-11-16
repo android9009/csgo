@@ -7,6 +7,7 @@
 #include "../../third_party/fatality/preview_catalog.hpp"
 #include "../../sdk/skin_icon_file.hpp"
 #include "../../sdk/netvars.hpp"
+#include "../../sdk/preview_sequence.hpp"
 #include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
@@ -137,6 +138,21 @@ bool ModelExists(const char* path) {
     SkinIconFile::Slot<Close>(fs, 3)(fs, file);
     return true;
 }
+int AgentSequence(int weapon_index) {
+    static std::vector<std::uint8_t> animation_mdl;
+    static int sequences[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
+    static bool resolved[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
+    if (animation_mdl.empty()) animation_mdl=SkinIconFile::Read(Interfaces::BaseFileSystem,
+        "models/player/custom_player/uiplayer/animset_uiplayer.mdl",32u*1024u*1024u);
+    if (!resolved[weapon_index]) {
+        const int selected=PreviewSequence::Select(animation_mdl,PreviewCatalog::weapons[weapon_index].id);
+        sequences[weapon_index]=selected<0 ? 0 : selected;
+        resolved[weapon_index]=true;
+        LOG_INFO("agent preview: weapon=%s family=%s sequence=%d matched=%d",PreviewCatalog::weapons[weapon_index].id,
+            PreviewSequence::Family(PreviewCatalog::weapons[weapon_index].id).c_str(),sequences[weapon_index],selected>=0 ? 1 : 0);
+    }
+    return sequences[weapon_index];
+}
 bool InitializeModel(bool ct, int agent_index, int weapon_index) {
     auto* alloc = Interfaces::MemAlloc;
     const int team = ct ? 0 : 1;
@@ -160,8 +176,8 @@ bool InitializeModel(bool ct, int agent_index, int weapon_index) {
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
     phase = "merge weapon model";
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), PreviewCatalog::weapons[weapon_index].model, nullptr, nullptr, false);
-    *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = 113;
-    *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 20.f;
+    *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = AgentSequence(weapon_index);
+    *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 0.f;
     phase = "setup model bones";
     reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
     model_cache[model_count++] = {team, agent_index, weapon_index, model};
@@ -311,10 +327,10 @@ void PaintImpl() {
         // Each cached combination has its own merged model. Reset the known
         // Fatality sequence and playback basis when switching, before drawing.
         const auto root = reinterpret_cast<std::uintptr_t>(model) + 4;
-        *reinterpret_cast<int*>(root + 0x54) = 113;
-        *reinterpret_cast<float*>(root + 0x60) = 20.f;
+        *reinterpret_cast<int*>(root + 0x54) = AgentSequence(weapon_index);
+        *reinterpret_cast<float*>(root + 0x60) = 0.f;
         *reinterpret_cast<bool*>(root + 0x675) = false;
-        *reinterpret_cast<float*>(root + 0x67c) = 20.f;
+        *reinterpret_cast<float*>(root + 0x67c) = 0.f;
         reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
         last_agent_model = model;
     }
