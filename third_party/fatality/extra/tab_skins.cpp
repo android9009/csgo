@@ -930,9 +930,8 @@ namespace menu::group
                 const auto center=origin+vec2{136.f+37.f*static_cast<float>(i),slots_y+16.f};
                 layer->add_circle_filled(center,14.f,colors.bg_bottom,24);
                 layer->add_circle(center,14.f,colors.outline,24,1.f,1.f);
-                if (pending.stickers[i].name.empty())
-                    layer->add_text(center,"+",colors.text,text_params::with_vh(align_center,align_center));
-                else draw_decal(layer,pending.stickers[i],rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}},budget);
+                if (!pending.stickers[i].name.empty())
+                    draw_decal(layer,pending.stickers[i],rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}},budget);
             }
             if (!agent_editor && pending.souvenir)
                 layer->add_rect_filled_rounded(rect{origin+vec2{8.f,256.f},origin+vec2{310.f,334.f}},color{0,0,0,155},3.f);

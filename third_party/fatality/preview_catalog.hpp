@@ -36,7 +36,7 @@ inline constexpr Agent ct[] = {
  {"D Squadron Officer | NZSAS", "models/player/custom_player/legacy/ctm_sas_variantg.mdl", "customplayer_ctm_sas_variantg"},
 };
 inline constexpr Agent t[] = {
- {"Default", "models/player/custom_player/legacy/tm_leet.mdl", "customplayer_tm_leet"},
+ {"Default", "models/player/custom_player/legacy/tm_phoenix_varianta.mdl", "customplayer_tm_phoenix_varianta"},
  {"Bloody Darryl The Strapped | The Professionals", "models/player/custom_player/legacy/tm_professional_varf5.mdl", "customplayer_tm_professional_varf5"},
  {"Rezan the Redshirt | Sabre", "models/player/custom_player/legacy/tm_balkan_variantk.mdl", "customplayer_tm_balkan_variantk"},
  {"Sir Bloody Miami Darryl | The Professionals", "models/player/custom_player/legacy/tm_professional_varf.mdl", "customplayer_tm_professional_varf"},
