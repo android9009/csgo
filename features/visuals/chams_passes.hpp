@@ -6,7 +6,12 @@ namespace ChamsPasses {
 struct Pass {int kind{};std::uint32_t primary{},secondary{};bool ignore_z{};};
 struct Plan {std::array<Pass,4> passes{};int count{};};
 // Keep saved Flat / Legacy numeric values compatible with existing configs.
-inline int Selection(int kind){return kind==2 || kind==7 ? kind : 0;}
+inline constexpr int Shaded=9,Metallic=10,KindCount=11;
+inline int Selection(int kind){return kind==2 || kind==7 || kind==Shaded || kind==Metallic ? kind : 0;}
+// Skeet prepare_material kinds 2 / 3 use Secondary alpha for highlight
+// exponent / Fresnel response, not for diffuse opacity.
+inline int ShadedExponent(std::uint32_t color){return (std::max)(1,255-static_cast<int>(color>>24));}
+inline float MetallicFresnel(std::uint32_t color){return 1.f-float(color>>24)/255.f;}
 inline bool Composite(int kind){return kind==7;}
 inline bool FreshSnapshot(float captured,float now){return std::isfinite(captured) && std::isfinite(now) && now>=captured && now-captured<=.25f;}
 inline float GhostFade(float age){return !std::isfinite(age) || age<0.f || age>=1.f ? 0.f : std::clamp((1.f-age)/.4f,0.f,1.f);}

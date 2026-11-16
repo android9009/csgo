@@ -382,7 +382,9 @@ namespace menu::group
 	{
         c->add({MAKE_RUNTIME(id+"none",selectable,"None",cfg_t::cham_none),
             MAKE_RUNTIME(id+"flat",selectable,"Flat",cfg_t::cham_flat),
-            MAKE_RUNTIME(id+"glow",selectable,"Glow",cfg_t::cham_legacy)});
+            MAKE_RUNTIME(id+"glow",selectable,"Glow",cfg_t::cham_legacy),
+            MAKE_RUNTIME(id+"shaded",selectable,"Shaded",cfg_t::cham_shaded),
+            MAKE_RUNTIME(id+"metallic",selectable,"Metallic",cfg_t::cham_metallic)});
 	}
 
 	void visuals_models_local(std::shared_ptr<layout> &e)

@@ -8,10 +8,10 @@
 
 namespace PreviewMaterial {
 // Fatality-derived materials with a shared, explicitly planned pass sequence.
-inline IMaterial* cache[8]{};
-inline bool tried[8]{};
-struct Variables {IMaterialVar* env{};IMaterialVar* fresnel{};IMaterialVar* fresnel_range{};};
-inline Variables variables[8]{};
+inline IMaterial* cache[ChamsPasses::KindCount]{};
+inline bool tried[ChamsPasses::KindCount]{};
+struct Variables {IMaterialVar* env{};IMaterialVar* fresnel{};IMaterialVar* fresnel_range{};IMaterialVar* phong{};IMaterialVar* exponent{};};
+inline Variables variables[ChamsPasses::KindCount]{};
 inline IMaterialVar* Find(IMaterial* m,const char* name){bool found=false;auto* v=m->FindVar(name,&found,false);return found ? v : nullptr;}
 inline void Set(IMaterialVar* v,const std::array<float,3>& c){if(v)v->SetVecValue(c[0],c[1],c[2]);}
 inline IMaterial* active{};
@@ -32,8 +32,10 @@ inline IMaterial* Resolve(int kind) {
     }
     if(borrowed)material->IncrementReferenceCount();
     auto& v=variables[kind];
-    if(kind==7)v.env=Find(material,"$envmaptint");
+    if(kind==7 || kind==ChamsPasses::Metallic)v.env=Find(material,"$envmaptint");
     if(kind==7){v.fresnel=Find(material,"$envmapfresnel");v.fresnel_range=Find(material,"$envmapfresnelminmaxexp");}
+    if(kind==ChamsPasses::Shaded){v.phong=Find(material,"$phongtint");v.exponent=Find(material,"$phongexponent");}
+    if(kind==ChamsPasses::Metallic)v.fresnel=Find(material,"$envmapfresnel");
     if(kind==7 && !v.env)LOG_WARN("chams kind=%d has no envmap tint",kind);
     cache[kind]=material;
     LOG_INFO("Fatality chams resolved kind=%d material=%s wireframe=%d",kind,material->GetName(),material->GetMaterialVarFlag(MATERIAL_VAR_WIREFRAME));
@@ -85,6 +87,13 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
         material->SetMaterialVarFlag(MATERIAL_VAR_ADDITIVE,true);
         if(v.fresnel)v.fresnel->SetValue(1);
         Set(v.fresnel_range,{0.f,1.f,2.f});
+    }
+    if(kind==ChamsPasses::Shaded){
+        Set(v.phong,ChamsPasses::Tint(secondary));
+        if(v.exponent)v.exponent->SetValue(ChamsPasses::ShadedExponent(secondary));
+    }else if(kind==ChamsPasses::Metallic){
+        Set(v.env,ChamsPasses::Tint(secondary));
+        if(v.fresnel)v.fresnel->SetValue(ChamsPasses::MetallicFresnel(secondary));
     }
     material->AlphaModulate(alpha);
     material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);

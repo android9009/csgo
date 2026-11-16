@@ -109,3 +109,37 @@ Portable tests validate reduced selection, pass order, hidden colors, fade and
 snapshot freshness. Native event callbacks, attachment chains, all agent/ragdoll
 classes and ghost replay still require an in-game check; no runtime result is
 claimed from compilation alone.
+
+## Skeet-hook-source review and additional modes
+
+Reference reviewed: https://github.com/makavtoJJ1/Skeet-hook-source at
+`1bab8213bd866f4c366a2071a09b27d6ff76820e`.
+- src/effects/model_render.cpp: prepare_material, variable configuration,
+  resource names, classification and modulation.
+- src/menu/colored_models_menu.cpp: Default / Solid / Shaded / Metallic / Glow /
+  Bubble / Original choices.
+- include/skeet/effects/model_render.hpp: texture resource names.
+
+The repository contains model chams, not just Lua material bindings. Its native
+address cells, material-internal vfuncs (e.g. 99/69), cloned-vtable recovery and
+studio memory offsets are build-specific. None of those hooks/layouts are imported.
+No license file was identified in the recursive repository listing; no C++ source
+was copied. The material parameter configurations and provenance are documented
+here; no claim of an authenticated original Skeet source is made.
+
+At the user's later request, two choices are added without replacing Flat/Glow:
+- **Shaded (ID 9)**: VertexLitGeneric + Phong, Secondary RGB controls highlight
+  tint; Secondary alpha controls exponent max(1, 255-alphaByte), as in reference
+  kind 2. A flat normal map is supplied explicitly for the Phong path.
+- **Metallic (ID 10)**: VertexLitGeneric + editor/cube_vertigo_blurred_hdr,
+  Phong boost zero, Secondary RGB controls envmap tint; Secondary alpha controls
+  Fresnel response 1-alpha, as in reference kind 3.
+
+Primary alpha remains surface opacity. Unlike Glow's intensity alpha, the two
+new modes deliberately preserve the reference's Secondary-alpha semantics.
+New IDs do not reuse the removed Normal/Acrylic IDs or alter existing saves.
+Both modes share live/preview/ragdoll/attachment/shot-ghost pass infrastructure;
+all material lists show None / Flat / Glow / Shaded / Metallic. Bubble and the
+reference's alternate Glow are not blindly imported over the existing Glow.
+Rendering depends on Source shader support, cubemap assets and illumination;
+portable tests/native builds are not a substitute for a visual in-game check.

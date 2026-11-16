@@ -334,6 +334,8 @@ struct cfg_t {
 		cham_acrylic,
 		cham_legacy,
 		cham_sprite,
+		cham_shaded,
+		cham_metallic,
 		cham_max,
 	};
 
