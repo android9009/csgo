@@ -119,3 +119,14 @@ required. A raw pointer guard/SEH cannot make an incompatible ABI safe.
 This does not implement arbitrary skin generation, glove mesh replacement, or
 separate sticker projection. Gloves need verified bodygroup handling so the
 original agent's hand/glove geometry is not rendered on top of the replacement.
+
+## Superseded: unarmed static agent viewport
+
+The latest requested agent preview deliberately has **no held weapon** and no
+idle animation playback. Its cache is keyed only by team/agent; hovering weapon,
+knife or finish icons cannot append a weapon or switch its pose. The held-weapon
+material updater described above was removed from that viewport accordingly.
+The runtime looks for a standing unarmed/fists label in the animation MDL and
+logs whether it matched; absent such a label it freezes the legacy pose at time
+20 rather than playing an intro or choosing sequence zero. Exact hand posture
+still requires an in-game check. Game equipment application is unchanged.

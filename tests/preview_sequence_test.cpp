@@ -2,6 +2,9 @@
 #include <cassert>
 int main(){
  using namespace PreviewSequence;
+ assert(Score("fists_stand_idle","unarmed")>Score("stand_idle","unarmed"));
+ assert(Score("rifle_stand_idle","unarmed")==-1);
+ assert(Score("unarmed_crouch_idle","unarmed")==-1);
  assert(Family("weapon_glock")=="pistol");
  assert(Score("pistol_idle_stand","weapon_glock")>Score("rifle_idle_stand","weapon_glock"));
  assert(Score("pistol_crouch_idle","weapon_glock")==-1);

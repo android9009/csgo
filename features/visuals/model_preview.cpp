@@ -9,7 +9,6 @@
 #include "../../sdk/netvars.hpp"
 #include "../../sdk/preview_sequence.hpp"
 #include "../../features/skins/skin_state.hpp"
-#include "../../features/skins/preview_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <d3d9.h>
@@ -37,14 +36,11 @@ void* model{};
 void* last_agent_model{};
 // The engine destructor ABI is not verified. Keep a bounded cache instead of
 // repeatedly destroying merged models while the pointer moves over the grid.
-struct CachedModel { int team, agent, weapon; void* model;
-    DWORD material_refresh{}; std::uint64_t material_revision{}; bool had_material{}; int material_status{-1};
-};
-void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index);
+struct CachedModel { int team, agent; void* model; };
 CachedModel model_cache[128]{};
 size_t model_count{};
 bool cache_limit_logged{};
-bool missing_models[2][(std::max)(sizeof(PreviewCatalog::ct)/sizeof(*PreviewCatalog::ct), sizeof(PreviewCatalog::t)/sizeof(*PreviewCatalog::t))][sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
+bool missing_models[2][(std::max)(sizeof(PreviewCatalog::ct)/sizeof(*PreviewCatalog::ct), sizeof(PreviewCatalog::t)/sizeof(*PreviewCatalog::t))]{};
 bool failed{}, texture_retained{};
 const char* volatile phase = "not started";
 struct Fault { DWORD code{}; std::uintptr_t instruction{}, address{}; ULONG_PTR operation{}; };
@@ -153,25 +149,18 @@ const char* AvailableAgentPath(bool ct,int index) {
     else { for (const auto* path : t_defaults) if (ModelExists(path)) return path; }
     return requested;
 }
-int AgentSequence(int weapon_index) {
-    static std::vector<std::uint8_t> animation_mdl;
-    static int sequences[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
-    static bool resolved[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
-    if (animation_mdl.empty()) animation_mdl=SkinIconFile::Read(Interfaces::BaseFileSystem,
-        "models/player/custom_player/uiplayer/animset_uiplayer.mdl",32u*1024u*1024u);
-    if (!resolved[weapon_index]) {
-        const bool pistol=PreviewSequence::Family(PreviewCatalog::weapons[weapon_index].id)=="pistol";
-        const int selected=pistol ? PreviewSequence::Select(animation_mdl,PreviewCatalog::weapons[weapon_index].id) : -1;
-        // Restore the known animated ESP stance for large weapons. Sequence zero
-        // can be a reference pose, so it is not a usable missing-label fallback.
-        sequences[weapon_index]=selected<0 ? 113 : selected;
-        resolved[weapon_index]=true;
-        LOG_INFO("agent preview: weapon=%s family=%s sequence=%d matched=%d",PreviewCatalog::weapons[weapon_index].id,
-            PreviewSequence::Family(PreviewCatalog::weapons[weapon_index].id).c_str(),sequences[weapon_index],selected>=0 ? 1 : 0);
+int AgentSequence() {
+    static int sequence=-1;
+    if (sequence<0) {
+        const auto bytes=SkinIconFile::Read(Interfaces::BaseFileSystem,
+            "models/player/custom_player/uiplayer/animset_uiplayer.mdl",32u*1024u*1024u);
+        const int selected=PreviewSequence::Select(bytes,"unarmed");
+        sequence=selected<0 ? 113 : selected;
+        LOG_INFO("agent preview: unarmed static pose sequence=%d matched=%d; weapon merging disabled",sequence,selected>=0 ? 1 : 0);
     }
-    return sequences[weapon_index];
+    return sequence;
 }
-bool InitializeModel(bool ct, int agent_index, int weapon_index) {
+bool InitializeModel(bool ct, int agent_index) {
     auto* alloc = Interfaces::MemAlloc;
     const int team = ct ? 0 : 1;
     phase = "allocate merged model";
@@ -192,14 +181,15 @@ bool InitializeModel(bool ct, int agent_index, int weapon_index) {
     const char* agent = AvailableAgentPath(ct,agent_index);
     LOG_INFO("model preview: loading %s model %s", ct ? "CT" : "T", agent);
     reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), agent, nullptr, nullptr, false);
-    phase = "merge weapon model";
-    reinterpret_cast<SetMergedModelFn>(merged)(static_cast<MergedModel*>(model), PreviewCatalog::weapons[weapon_index].model, nullptr, nullptr, false);
-    *reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x54) = AgentSequence(weapon_index);
-    *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) = 0.f;
+    const auto root=reinterpret_cast<std::uintptr_t>(model)+4;
+    *reinterpret_cast<int*>(root+0x54)=AgentSequence();
+    *reinterpret_cast<float*>(root+0x60)=20.f;
+    *reinterpret_cast<float*>(root+0x67c)=20.f;
+    *reinterpret_cast<bool*>(root+0x675)=false;
     phase = "setup model bones";
     reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
-    model_cache[model_count++] = {team, agent_index, weapon_index, model};
-    LOG_INFO("model preview %s model initialized agent=%d weapon=%s (experimental Source 1)", ct ? "CT" : "T", agent_index, PreviewCatalog::weapons[weapon_index].id);
+    model_cache[model_count++] = {team, agent_index, model};
+    LOG_INFO("model preview %s model initialized agent=%d unarmed/static (experimental Source 1)",ct ? "CT" : "T",agent_index);
     return true;
 }
 
@@ -271,13 +261,7 @@ void DrawTarget(void* target, bool weapon_only) {
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
         matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;
     }
-    static DWORD last_time{};
-    const DWORD now = GetTickCount();
-    if (!weapon_only && last_time) {
-        const DWORD elapsed = now - last_time;
-        *reinterpret_cast<float*>(reinterpret_cast<std::uintptr_t>(model) + 4 + 0x60) += (elapsed < 100 ? elapsed : 100) * 0.001f;
-    }
-    last_time = now;
+    // Intentionally frozen: no weapon-dependent pose or idle/intro playback.
     auto* mr = Interfaces::ModelRender;
     phase = "suppress engine lighting";
     Slot<void(__thiscall*)(void*, bool)>(mr, 24)(mr, true);
@@ -315,22 +299,19 @@ void PaintImpl() {
     const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
     const int team = ct ? 0 : 1;
     int agent_index = skins ? FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed) : 0;
-    int weapon_index = skins ? FatalityPreviewBridge::weapon.load(std::memory_order_relaxed) : 0;
     if (agent_index < 0 || static_cast<size_t>(agent_index) >= PreviewCatalog::AgentCount(ct)) agent_index = 0;
-    if (weapon_index < 0 || static_cast<size_t>(weapon_index) >= PreviewCatalog::WeaponCount()) weapon_index = 0;
     model = nullptr;
     for (size_t i = 0; i < model_count; ++i)
-        if (model_cache[i].team == team && model_cache[i].agent == agent_index && model_cache[i].weapon == weapon_index) { model = model_cache[i].model; break; }
+        if (model_cache[i].team == team && model_cache[i].agent == agent_index) { model = model_cache[i].model; break; }
     if (!model) {
         // Check availability before asking the engine to merge a potentially absent model.
-        if (missing_models[team][agent_index][weapon_index]) {
+        if (missing_models[team][agent_index]) {
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
-        if (!ModelExists(AvailableAgentPath(ct,agent_index)) ||
-            !ModelExists(PreviewCatalog::weapons[weapon_index].model)) {
-            missing_models[team][agent_index][weapon_index] = true;
-            LOG_WARN("model preview: requested agent=%d weapon=%s is unavailable", agent_index, PreviewCatalog::weapons[weapon_index].id);
+        if (!ModelExists(AvailableAgentPath(ct,agent_index))) {
+            missing_models[team][agent_index] = true;
+            LOG_WARN("model preview: requested agent=%d is unavailable",agent_index);
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
@@ -339,22 +320,18 @@ void PaintImpl() {
             FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
             return;
         }
-        if (!InitializeModel(ct, agent_index, weapon_index)) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
+        if (!InitializeModel(ct, agent_index)) { failed = true; LOG_WARN("model preview model initialization failed"); return; }
     }
     if (model != last_agent_model) {
         // Each cached combination has its own merged model. Reset the known
         // Fatality sequence and playback basis when switching, before drawing.
         const auto root = reinterpret_cast<std::uintptr_t>(model) + 4;
-        *reinterpret_cast<int*>(root + 0x54) = AgentSequence(weapon_index);
-        *reinterpret_cast<float*>(root + 0x60) = 0.f;
+        *reinterpret_cast<int*>(root + 0x54) = AgentSequence();
+        *reinterpret_cast<float*>(root + 0x60) = 20.f;
         *reinterpret_cast<bool*>(root + 0x675) = false;
-        *reinterpret_cast<float*>(root + 0x67c) = 0.f;
+        *reinterpret_cast<float*>(root + 0x67c) = 20.f;
         reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
         last_agent_model = model;
-    }
-    if (skins) for (size_t i=0;i<model_count;++i) if (model_cache[i].model==model) {
-        phase="update agent weapon materials";
-        UpdateAgentWeaponMaterials(model_cache[i],ct,weapon_index); break;
     }
     DrawTarget(render_texture, false);
 }
@@ -418,40 +395,6 @@ void* FindLiveMaterialOwner(int index, int paint, int seed, float wear, int* rea
         if (any) { if(reason) *reason=0; return owner; } // Never cached beyond this render call.
     }
     return nullptr;
-}
-void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index) {
-    if (!LiveMaterialBuildCompatible()) return;
-    const auto finish=PreviewSkinState::Get(ct,PreviewCatalog::weapons[weapon_index].id);
-    const auto now=GetTickCount();
-    if (cached.material_revision==finish.revision && now-cached.material_refresh<500) return;
-    const bool request_changed=cached.material_revision!=finish.revision;
-    cached.material_refresh=now; cached.material_revision=finish.revision;
-    // Verified in client RVA 0x9af400/0x9af4f0: merged vector data +0x6d4,
-    // count +0x6e0, CMDL stride 0x6d0. Child 0 is agent, child 1 is weapon.
-    const auto base=reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
-    const unsigned char vector_probe[]={0x8b,0x91,0xe0,0x06,0x00,0x00};
-    if (std::memcmp(reinterpret_cast<void*>(base+0x9af4f3),vector_probe,sizeof(vector_probe))!=0) return;
-    auto* merged_bytes=static_cast<unsigned char*>(cached.model);
-    const int count=*reinterpret_cast<int*>(merged_bytes+0x6e0);
-    auto* children=*reinterpret_cast<unsigned char**>(merged_bytes+0x6d4);
-    if (count!=2 || !children) return;
-    void* destination=children+0x6d0;
-    const auto* table=*reinterpret_cast<std::uintptr_t**>(destination);
-    if (!table || table[1]!=base+0x1de6f0 || table[3]!=base+0x1ac360) return;
-    int reason=0;
-    void* source=finish.paint>0 ? FindLiveMaterialOwner(weapon_index,finish.paint,finish.seed,finish.wear,&reason) : nullptr;
-    if (finish.paint>0 && (cached.material_status!=reason || request_changed)) {
-        const char* reasons[]={"copied","outside game","missing netvars","unsupported definition","missing local player","no matching local weapon/paint/seed/wear","material owner ABI mismatch","generated materials absent"};
-        LOG_INFO("agent preview material: weapon=%s paint=%d seed=%d wear=%.6f status=%s",PreviewCatalog::weapons[weapon_index].id,finish.paint,finish.seed,finish.wear,reasons[reason]);
-    }
-    cached.material_status=reason;
-    using Clear=void(__thiscall*)(void*,bool);
-    using Copy=void(__thiscall*)(void*,void*);
-    if (cached.had_material || source) reinterpret_cast<Clear>(base+0x1acc80)(destination,false);
-    if (source) Slot<Copy>(source,3)(source,destination);
-    const bool applied=source!=nullptr;
-    if (applied!=cached.had_material) LOG_INFO("agent preview: weapon=%s live_materials=%d paint=%d",PreviewCatalog::weapons[weapon_index].id,applied ? 1 : 0,finish.paint);
-    cached.had_material=applied;
 }
 void UpdateWeaponMaterials(int index) {
     const auto now = GetTickCount();
