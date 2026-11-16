@@ -593,6 +593,9 @@
     <ClInclude Include="features\skins\skin_changer.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
+    <ClInclude Include="features\skins\preview_state.hpp">
+      <Filter>Features\skins</Filter>
+    </ClInclude>
     <ClInclude Include="features\skins\skin_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>

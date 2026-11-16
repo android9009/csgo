@@ -99,3 +99,23 @@ material composition is complete. This path does not generate arbitrary catalog
 finishes and does not implement separate sticker projection. It requires an
 in-game test and remains protected by the preview exception boundary, which does
 not guarantee safety after an engine fault.
+
+## Agent's held weapon
+
+The agent viewport now consumes a separate, copied CT/T finish state. On the
+supplied client build it refreshes custom materials in merged child 1 (the held
+weapon), not in the root animation model or child 0 (the agent). Default/missing
+matching live materials clears preview-owned references. Refresh is throttled to
+500 ms except when the selected finish revision changes. No extra merged models
+are appended, no entity pointer is cached, and no game entity is changed here.
+
+Additional binary evidence: RVA `0x9af4f0` searches merged model handles using data
+at +0x6d4, count +0x6e0 and stride 0x6d0. RVA `0x9af400` creates a child CMDL and
+invokes source-owner slot 3 with the child as destination. The updater checks the
+supplied-build fingerprint, a vector-access instruction sequence, child count
+(two), and destination owner methods before copying. Runtime validation is still
+required. A raw pointer guard/SEH cannot make an incompatible ABI safe.
+
+This does not implement arbitrary skin generation, glove mesh replacement, or
+separate sticker projection. Gloves need verified bodygroup handling so the
+original agent's hand/glove geometry is not rendered on top of the replacement.

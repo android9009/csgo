@@ -9,6 +9,7 @@
 #include "../../sdk/netvars.hpp"
 #include "../../sdk/preview_sequence.hpp"
 #include "../../features/skins/skin_state.hpp"
+#include "../../features/skins/preview_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <d3d9.h>
@@ -36,7 +37,10 @@ void* model{};
 void* last_agent_model{};
 // The engine destructor ABI is not verified. Keep a bounded cache instead of
 // repeatedly destroying merged models while the pointer moves over the grid.
-struct CachedModel { int team, agent, weapon; void* model; };
+struct CachedModel { int team, agent, weapon; void* model;
+    DWORD material_refresh{}; std::uint64_t material_revision{}; bool had_material{};
+};
+void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index);
 CachedModel model_cache[128]{};
 size_t model_count{};
 bool cache_limit_logged{};
@@ -348,6 +352,10 @@ void PaintImpl() {
         reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(model));
         last_agent_model = model;
     }
+    if (skins) for (size_t i=0;i<model_count;++i) if (model_cache[i].model==model) {
+        phase="update agent weapon materials";
+        UpdateAgentWeaponMaterials(model_cache[i],ct,weapon_index); break;
+    }
     DrawTarget(render_texture, false);
 }
 // Experimental read-only bridge: reuse an existing game's generated material owner.
@@ -401,6 +409,33 @@ void* FindLiveMaterialOwner(int index, int paint, int seed, float wear) {
         if (any) return owner; // Used synchronously; never cached beyond this render call.
     }
     return nullptr;
+}
+void UpdateAgentWeaponMaterials(CachedModel& cached,bool ct,int weapon_index) {
+    if (!LiveMaterialBuildCompatible()) return;
+    const auto finish=PreviewSkinState::Get(ct,PreviewCatalog::weapons[weapon_index].id);
+    const auto now=GetTickCount();
+    if (cached.material_revision==finish.revision && now-cached.material_refresh<500) return;
+    cached.material_refresh=now; cached.material_revision=finish.revision;
+    // Verified in client RVA 0x9af400/0x9af4f0: merged vector data +0x6d4,
+    // count +0x6e0, CMDL stride 0x6d0. Child 0 is agent, child 1 is weapon.
+    const auto base=reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
+    const unsigned char vector_probe[]={0x8b,0x91,0xe0,0x06,0x00,0x00};
+    if (std::memcmp(reinterpret_cast<void*>(base+0x9af4f3),vector_probe,sizeof(vector_probe))!=0) return;
+    auto* merged_bytes=static_cast<unsigned char*>(cached.model);
+    const int count=*reinterpret_cast<int*>(merged_bytes+0x6e0);
+    auto* children=*reinterpret_cast<unsigned char**>(merged_bytes+0x6d4);
+    if (count!=2 || !children) return;
+    void* destination=children+0x6d0;
+    const auto* table=*reinterpret_cast<std::uintptr_t**>(destination);
+    if (!table || table[1]!=base+0x1de6f0 || table[3]!=base+0x1ac360) return;
+    void* source=finish.paint>0 ? FindLiveMaterialOwner(weapon_index,finish.paint,finish.seed,finish.wear) : nullptr;
+    using Clear=void(__thiscall*)(void*,bool);
+    using Copy=void(__thiscall*)(void*,void*);
+    if (cached.had_material || source) reinterpret_cast<Clear>(base+0x1acc80)(destination,false);
+    if (source) Slot<Copy>(source,3)(source,destination);
+    const bool applied=source!=nullptr;
+    if (applied!=cached.had_material) LOG_INFO("agent preview: weapon=%s live_materials=%d paint=%d",PreviewCatalog::weapons[weapon_index].id,applied ? 1 : 0,finish.paint);
+    cached.had_material=applied;
 }
 void UpdateWeaponMaterials(int index) {
     const auto now = GetTickCount();

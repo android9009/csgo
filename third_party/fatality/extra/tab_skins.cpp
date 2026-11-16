@@ -8,6 +8,7 @@
 #include "../../../sdk/skin_catalog.hpp"
 #include "../../../sdk/skin_schema.hpp"
 #include "../../../features/skins/skin_state.hpp"
+#include "../../../features/skins/preview_state.hpp"
 #include "../preview_bridge.hpp"
 #include "../preview_catalog.hpp"
 #include "../skin_names.hpp"
@@ -621,7 +622,9 @@ namespace menu::group
         void commit_weapon() {
             if (!selected_weapon.internal) return;
             selection[team_ct ? 0 : 1][selected_weapon.internal] = pending;
-            if (equipment_weapon) return; // Menu preview only; knife/glove entity replacement is not implemented.
+            const auto preview_id=schema_metadata.paint_ids.find(pending.paint);
+            PreviewSkinState::Set(team_ct,selected_weapon.internal,preview_id==schema_metadata.paint_ids.end() ? 0 : preview_id->second,pending.seed,pending.wear);
+            if (equipment_weapon) return; // Knife/glove game-entity replacement is separate from preview.
             const int definition = SkinState::Definition(selected_weapon.internal);
             if (pending.paint.empty()) { SkinState::Remove(team_ct, definition); return; }
             const auto id = schema_metadata.paint_ids.find(pending.paint);
