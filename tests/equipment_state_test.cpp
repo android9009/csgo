@@ -1,5 +1,6 @@
 #include "features/skins/equipment_state.hpp"
 #include <cassert>
+#include "features/skins/local_inventory.hpp"
 #include <limits>
 #include <set>
 int main(){using namespace EquipmentState;
@@ -17,4 +18,13 @@ int main(){using namespace EquipmentState;
  const auto no_agent=Revision();Agent(true,"");assert(Revision()==no_agent);
  const auto defaults=Revision();assert(Select(true,false,""));assert(Revision()==defaults);
  finish.wear=std::numeric_limits<float>::quiet_NaN();assert(!Select(false,true,"sporty_gloves",finish));
+ InventorySelection(true,0,4711);InventorySelection(false,1,874);InventorySelection(true,2,42);
+ assert(Get(true).inventory_agent==4711 && Get(false).inventory_agent==0);
+ assert(Get(false).inventory_medal==874 && Get(true).inventory_music==42);
+ InventorySelection(true,0,0);assert(Get(true).inventory_agent==0);
+ LocalInventory::Loadout ct_loadout{true,{16,61,9}};
+ LocalInventory::Loadout t_loadout{true,{7,4,9}};
+ assert(ct_loadout.Contains(61) && !ct_loadout.Contains(32));
+ assert(t_loadout.Contains(4) && !t_loadout.Contains(61));
+ ct_loadout.ready=false;assert(!ct_loadout.Contains(61));
 }

@@ -188,7 +188,7 @@ void Run() {
     auto* schema=Slot<void*(__thiscall*)(void*)>(system,0)(system);
     if(!schema) return;
     for(const auto& pair:desired) {
-        if(owned.count(pair.first)) continue;
+        if(owned.count(pair.first) || pair.first.second<=0 || pair.first.second>65535) continue;
         if(!Slot<void*(__thiscall*)(void*,int)>(schema,4)(schema,pair.first.second)) continue;
         const int count=At<int>(cache,24);
         if(count<0||count>100000) return;

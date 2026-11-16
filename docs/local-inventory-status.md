@@ -39,7 +39,11 @@ one match in that binary. This does NOT establish complete ABI compatibility. Se
 ## Implemented opt-in backend
 
 `features/skins/local_inventory.cpp` and the Weapons gear's **Share to inventory**
-checkbox mirror copied SkinState CT/T selections plus selected knives/gloves.
+checkbox mirror copied SkinState CT/T selections plus selected knives/gloves,
+agents, medals and music kits. Agents/medals resolve item definitions by schema
+name or inventory image path; music resolves its kit ID from music_definitions
+and creates item definition 1314 with integer attribute 166. Default removes the
+corresponding synthetic item. No UI index is used as an economy definition.
 Enabling it also shares existing selections. FRAME_START processes the state on
 the game thread, including outside matches; no D3D-thread SOC calls or local
 player requirement. Choice changes are picked up on the next frame. No Apply button.
@@ -71,8 +75,8 @@ runtime safety; this remains experimental and defaults OFF.
 
 - No game is runnable here. SOC callbacks, Panorama refresh and main-menu images
   still require game verification. Inspect `%TEMP%/csgo_base.log` for `local inventory:`.
-- Agents, medals, music and stickers are not mirrored yet; current coverage is
-  weapon finishes, knives and gloves. Rarity metadata is not mirrored.
+- Stickers and rarity metadata are not mirrored. Agent/medal/music schema entries
+  missing from this installation are logged and skipped, never guessed.
 - The checkbox and selections use the existing session-only state, not persistence
   of synthetic Steam items. They do not survive a game restart automatically.
 - Sharing does not automatically equip the synthetic item into the game's loadout.
@@ -83,3 +87,24 @@ runtime safety; this remains experimental and defaults OFF.
   changes to wear/seed/name/StatTrak, Default, checkbox off/on, reconnect and unload.
 - Cross-weapon paint kits can be selected but the engine may render them incorrectly
   or not at all on a different model. This is not fixed by SOC insertion.
+
+## Live weapon-loadout filter
+
+The Weapons gear now has separate Show all skins, Show all weapons and Share to
+inventory checkboxes. Show all weapons defaults OFF. A read-only snapshot is
+refreshed on the game thread every 250 ms independently of Share to inventory.
+GetItemInLoadout is slot 8: the supplied client's CCSPlayerInventory primary
+vtable is RVA 0xcace34, with method RVA 0x6cc240. Disassembly confirms team <=3
+and slot <=56 checks. Its item static-data helper RVA 0x715880 reads the definition
+from view+0x1ea (not old builds' +0x1ba). Runtime checks the exact getter target
+before reading. Snapshots are copied under a mutex; no game pointers cross to GUI.
+Render and hit testing use the same filtered column builder, with independent CT/T
+selections. No snapshot means a waiting message, not an invented default loadout.
+Show all weapons restores the complete existing team catalogue and does not change
+which picked-up weapons receive configured fallback skins.
+
+Show all skins changes available paint kit IDs, not the selected item definition.
+Foreign paints no longer display a donor weapon's image. When this installation
+has no generated PNG for that weapon/paint pair, the selected model's base icon
+is used. This is NOT an implementation of arbitrary skinned icon generation;
+correctly rendering an AWP finish on a USP remains subject to engine compatibility.

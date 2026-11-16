@@ -492,6 +492,7 @@ namespace menu::group
                     load_catalog();
                     const auto id=inventory_metadata.items.find(PreviewCatalog::GetAgent(team_ct,index).icon);
                     EquipmentState::InventorySelection(team_ct,0,index==0 || id==inventory_metadata.items.end()?0:id->second);
+                    if(index && id==inventory_metadata.items.end()) LOG_WARN("local inventory: schema ID missing for agent %s",PreviewCatalog::GetAgent(team_ct,index).icon);
                     pending.stickers = agent_patches[team][agent_choice];
                     return;
                 }
@@ -1023,7 +1024,7 @@ namespace menu::group
             if(show_all_weapons) return columns;
             const auto loadout=LocalInventory::GetLoadout(team_ct);
             for(auto& column:columns) column.erase(std::remove_if(column.begin(),column.end(),[&](const WeaponIcon& item) {
-                return !loadout.ready || !loadout.definitions.count(SkinState::Definition(item.internal));
+                return !loadout.Contains(SkinState::Definition(item.internal));
             }),column.end());
             return columns;
         }
