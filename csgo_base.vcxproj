@@ -355,6 +355,7 @@
     <ClInclude Include="third_party\fatality\skin_names.hpp" />
     <ClInclude Include="third_party\fatality\equipment_paints.hpp" />
     <ClInclude Include="third_party\fatality\medal_catalog.hpp" />
+    <ClInclude Include="third_party\fatality\extra\skin_options_popup.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />
     <ClInclude Include="third_party\json\adl_serializer.h" />

@@ -545,6 +545,9 @@
     <ClInclude Include="third_party\fatality\medal_catalog.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
+    <ClInclude Include="third_party\fatality\extra\skin_options_popup.hpp">
+      <Filter>Menu (Fatality)</Filter>
+    </ClInclude>
     <ClInclude Include="third_party\fatality\preview_catalog.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
