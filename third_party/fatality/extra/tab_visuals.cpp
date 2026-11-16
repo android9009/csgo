@@ -33,8 +33,6 @@ namespace menu::group
 				layer->g.texture = texture;
 				layer->add_rect_filled(area_abs(), color::white());
 				layer->g.texture = {};
-				if (skins_preview && FatalityPreviewBridge::skins_selecting.load(std::memory_order_relaxed))
-					layer->add_rect_filled(area_abs(), color{0, 0, 0, 120});
 			} else {
 				layer->font = draw.fonts[GUI_HASH("gui_main")];
 				layer->add_text(area_abs().center(), "Model preview unavailable", colors.text_dark,
@@ -60,12 +58,12 @@ namespace menu::group
 			}
 		}
 
-		void on_mouse_wheel(float delta) override
+		void on_mouse_wheel(float) override
 		{
+			// Preview cameras have a fixed distance; the wheel must never zoom them.
 			input.consume_wheel();
-			const auto distance = FatalityPreviewBridge::distance.load(std::memory_order_relaxed);
-			FatalityPreviewBridge::distance.store(std::clamp(distance - delta * 15.f, 180.f, 500.f), std::memory_order_relaxed);
 		}
+
 	private:
 		bool skins_preview{};
 	};
@@ -143,7 +141,7 @@ namespace menu::group
 						ADD_INLINE("Type", c, preview_settings("visuals>esp>preview>type"));
 					}
 
-					e->add(MAKE("visuals>esp>preview>viewport", model_preview_viewport, vec2{220.f, 340.f}));
+					e->add(MAKE("visuals>esp>preview>viewport", model_preview_viewport, vec2{220.f, 380.f}));
 				}));
 
 		e->add(area);
@@ -182,7 +180,7 @@ namespace menu::group
 						ADD_INLINE("Type", c, preview_settings("visuals>chams>preview>type"));
 					}
 
-					e->add(MAKE("visuals>chams>preview>viewport", model_preview_viewport, vec2{220.f, 340.f}));
+					e->add(MAKE("visuals>chams>preview>viewport", model_preview_viewport, vec2{220.f, 380.f}));
 				}));
 
 		e->add(area);

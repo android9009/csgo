@@ -407,23 +407,28 @@ namespace menu::group
                     FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
                     return;
                 }
-                if (local.y < 42.f || local.x < 0.f) return;
+                const bool agents = equipment_screen == Equipment::Agent;
+                const float list_top = agents ? 104.f : 42.f;
+                if (agents && local.y >= 36.f && local.y < 72.f && local.x >= size.x - 111.f && local.x < size.x) {
+                    load_catalog(); agent_editor = true;
+                    agent_choice = FatalityPreviewBridge::agent[team_ct ? 0 : 1].load(std::memory_order_relaxed);
+                    pending.stickers = agent_patches[team_ct ? 0 : 1][agent_choice];
+                    decal_picker = static_cast<int>((local.x - (size.x - 111.f)) / 37.f); decal_scroll = 0.f; return;
+                }
+                if (local.y < list_top || local.x < 0.f) return;
                 const int col = static_cast<int>(local.x / (cell_width + 6.f));
-                const int row = static_cast<int>((local.y - 42.f + equipment_scroll) / 78.f);
+                const int row = static_cast<int>((local.y - list_top + equipment_scroll) / 78.f);
                 if (col < 0 || col >= 3 || row < 0 || local.x - static_cast<float>(col) * (cell_width + 6.f) >= cell_width) return;
                 const auto& items = equipment_items(equipment_screen, team_ct);
                 const size_t index = static_cast<size_t>(row * 3 + col);
                 if (index >= items.size()) return;
                 const int team = team_ct ? 0 : 1;
-                if (equipment_screen == Equipment::Agent && index != 0) {
-                    load_catalog();
-                    agent_editor = true; agent_choice = static_cast<int>(index);
-                    pending = SkinChoice{};
+                if (equipment_screen == Equipment::Agent) {
+                    agent_choice = static_cast<int>(index);
+                    FatalityPreviewBridge::agent[team].store(agent_choice, std::memory_order_relaxed);
                     pending.stickers = agent_patches[team][agent_choice];
-                    equipment_screen = Equipment::None; editor_open = true; decal_picker = -1;
                     return;
                 }
-                if (equipment_screen == Equipment::Agent) FatalityPreviewBridge::agent[team].store(0, std::memory_order_relaxed);
                 if ((equipment_screen == Equipment::Knife || equipment_screen == Equipment::Gloves) && index != 0) {
                     const auto item = items[index];
                     const auto kind = equipment_screen;
@@ -484,7 +489,7 @@ namespace menu::group
             }
             if (selected_weapon.internal && !editor_open && options_open) {
                 const auto local = input.cursor() - area_abs().tl();
-                if (local.x >= 105.f && local.x <= 250.f) {
+                if (local.x >= 120.f && local.x <= 300.f) {
                     if (local.y >= 105.f && local.y < 135.f) pending.seed = std::clamp(pending.seed + (delta > 0.f ? 1 : -1), 0, 1000);
                     else if (local.y >= 160.f && local.y < 190.f) pending.wear = std::clamp(pending.wear + (delta > 0.f ? .01f : -.01f), 0.f, 1.f);
                     else if (local.y >= 245.f && local.y < 275.f && pending.stattrak_mode == 1) pending.stattrak_count = std::clamp(pending.stattrak_count + (delta > 0.f ? 1 : -1), 0, 99999);
@@ -507,7 +512,7 @@ namespace menu::group
             }
             if (equipment_screen != Equipment::None) {
                 const float rows = static_cast<float>((equipment_items(equipment_screen, team_ct).size() + 2) / 3);
-                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 42.f));
+                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - (equipment_screen == Equipment::Agent ? 104.f : 42.f)));
                 equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
             } else if (selected_weapon.internal) {
                 const float rows = static_cast<float>((filtered_paints().size() + 4) / 5);
@@ -534,7 +539,7 @@ namespace menu::group
             }
             if (!editor_open && selected_weapon.internal && options_open && drag_slider) {
                 if (!input.is_mouse_down(m_left)) { drag_slider = 0; commit_weapon(); return; }
-                const float fraction = std::clamp((cursor.x - area_abs().tl().x - 105.f) / 145.f, 0.f, 1.f);
+                const float fraction = std::clamp((cursor.x - area_abs().tl().x - 120.f) / 180.f, 0.f, 1.f);
                 if (drag_slider == 1) pending.seed = static_cast<int>(fraction * 1000.f + .5f);
                 else if (drag_slider == 2) pending.wear = fraction;
                 else pending.stattrak_count = static_cast<int>(fraction * 99999.f + .5f);
@@ -648,7 +653,7 @@ namespace menu::group
             if (p.y >= 0.f && p.y < 28.f && p.x >= size.x - 35.f) { close_skins(); return; }
             if (options_open) {
                 if (stat_menu_open) {
-                    if (p.x >= 105.f && p.x < 250.f && p.y >= 212.f && p.y < 284.f) {
+                    if (p.x >= 120.f && p.x < 300.f && p.y >= 212.f && p.y < 284.f) {
                         pending.stattrak_mode = static_cast<int>((p.y - 212.f) / 24.f);
                         pending.stattrak = pending.stattrak_mode == 1;
                         if (pending.stattrak) pending.souvenir = false;
@@ -656,23 +661,23 @@ namespace menu::group
                     }
                     stat_menu_open = false; return;
                 }
-                if (p.x < 260.f && p.y >= 30.f && p.y < 340.f) {
-                    if (p.y < 60.f && p.x >= 225.f) { options_open = false; stop_name_input(); return; }
-                    if (p.y >= 70.f && p.y < 100.f && p.x >= 105.f && p.x < 250.f) {
+                if (p.x < 312.f && p.y >= 30.f && p.y < 340.f) {
+                    if (p.y < 60.f && p.x >= 285.f) { options_open = false; stop_name_input(); return; }
+                    if (p.y >= 70.f && p.y < 100.f && p.x >= 120.f && p.x < 300.f) {
                         editing_name = true; is_taking_text = true; is_taking_keys = true; return;
                     }
                     stop_name_input();
-                    if (p.x >= 105.f && p.x <= 250.f && p.y >= 105.f && p.y < 135.f) drag_slider = 1;
-                    else if (p.x >= 105.f && p.x <= 250.f && p.y >= 160.f && p.y < 190.f) drag_slider = 2;
-                    else if (p.y >= 195.f && p.y < 220.f && p.x >= 105.f) { stat_menu_open = true; return; }
-                    else if (p.x >= 105.f && p.x <= 250.f && p.y >= 245.f && p.y < 275.f && pending.stattrak_mode == 1) drag_slider = 3;
+                    if (p.x >= 120.f && p.x <= 300.f && p.y >= 105.f && p.y < 135.f) drag_slider = 1;
+                    else if (p.x >= 120.f && p.x <= 300.f && p.y >= 160.f && p.y < 190.f) drag_slider = 2;
+                    else if (p.y >= 195.f && p.y < 220.f && p.x >= 120.f) { stat_menu_open = true; return; }
+                    else if (p.x >= 120.f && p.x <= 300.f && p.y >= 245.f && p.y < 275.f && pending.stattrak_mode == 1) drag_slider = 3;
                     else if (p.y >= 285.f && p.y < 315.f) {
                         pending.souvenir = !pending.souvenir;
                         if (pending.souvenir && pending.stattrak_mode == 1) { pending.stattrak_mode = 2; pending.stattrak = false; }
                         commit_weapon(); return;
                     }
                     if (drag_slider) {
-                        const float f = std::clamp((p.x - 105.f) / 145.f, 0.f, 1.f);
+                        const float f = std::clamp((p.x - 120.f) / 180.f, 0.f, 1.f);
                         if (drag_slider == 1) pending.seed = static_cast<int>(f * 1000.f + .5f);
                         else if (drag_slider == 2) pending.wear = f;
                         else pending.stattrak_count = static_cast<int>(f * 99999.f + .5f);
@@ -681,11 +686,11 @@ namespace menu::group
                 }
                 options_open = false; stat_menu_open = false; stop_name_input();
             }
-            if (p.y >= 164.f && p.y < 195.f && p.x < 90.f) { options_open = true; stop_name_input(); return; }
+            if (p.y >= 164.f && p.y < 195.f && p.x >= 5.f && p.x < 34.f) { options_open = true; stop_name_input(); return; }
             const float slots_x = size.x - static_cast<float>(sticker_count()) * 37.f;
             if (p.y >= 164.f && p.y < 197.f && p.x >= slots_x && p.x < size.x) {
                 const int slot = static_cast<int>((p.x - slots_x) / 37.f);
-                if (slot >= 0 && slot < sticker_count()) { decal_picker = slot; decal_scroll = 0.f; stop_name_input(); }
+                if (slot >= 0 && slot < sticker_count()) { agent_editor = false; decal_picker = slot; decal_scroll = 0.f; stop_name_input(); }
                 return;
             }
             if (filter_open) {
@@ -712,7 +717,7 @@ namespace menu::group
         void decal_picker_click(const vec2& p) {
             if (p.y < 32.f) {
                 if (p.x >= size.x - 35.f) { decal_picker = -1; return; }
-                if (p.x < 130.f) { pending.stickers[decal_picker] = {}; decal_picker = -1; if (!agent_editor) commit_weapon(); return; }
+                if (p.x < 130.f) { pending.stickers[decal_picker] = {}; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; return; }
             }
             if (p.y < 42.f || p.x < 0.f) return;
             const float width = (size.x - 12.f) / 3.f;
@@ -721,7 +726,7 @@ namespace menu::group
             if (col < 0 || col >= 3 || row < 0 || p.x - static_cast<float>(col) * (width + 6.f) >= width) return;
             const auto visible = visible_decals();
             const size_t index = static_cast<size_t>(row * 3 + col);
-            if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; if (!agent_editor) commit_weapon(); }
+            if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; }
         }
         void editor_click(const vec2& p) {
             if (!agent_editor && p.y >= 0.f && p.y < 30.f && p.x >= 300.f && p.x < 435.f) {
@@ -937,13 +942,27 @@ namespace menu::group
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
             const auto& items = equipment_items(equipment_screen, team_ct);
             const float cell_width = (r.width() - 12.f) / 3.f;
-            const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
+            const bool agents = equipment_screen == Equipment::Agent;
+            const float list_top = agents ? 104.f : 42.f;
+            if (agents) {
+                const int team = team_ct ? 0 : 1;
+                const auto chosen = FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed);
+                bool patch_budget = true;
+                layer->add_text(r.tl()+vec2{4.f,54.f}, "Patches", colors.text, text_params::with_v(align_center));
+                for (int i=0; i<3; ++i) {
+                    const auto center = r.tl()+vec2{size.x-95.f+37.f*static_cast<float>(i),54.f};
+                    layer->add_circle_filled(center,14.f,colors.bg_block_light,24);
+                    layer->add_circle(center,14.f,colors.outline,24,1.f,1.f);
+                    draw_decal(layer,agent_patches[team][chosen][i],rect{center-vec2{11.f,11.f},center+vec2{11.f,11.f}},patch_budget);
+                }
+            }
+            const rect viewport{r.tl() + vec2{0.f, list_top}, r.br()};
             const auto old_clip = layer->g.clip_rect;
             layer->override_clip_rect(viewport);
             bool budget = true;
             for (size_t i = 0; i < items.size(); ++i) {
                 const float x = r.mins.x + static_cast<float>(i % 3) * (cell_width + 6.f);
-                const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - equipment_scroll;
+                const float y = r.mins.y + list_top + static_cast<float>(i / 3) * 78.f - equipment_scroll;
                 const rect cell{vec2{x, y}, vec2{x + cell_width, y + 72.f}};
                 if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
@@ -971,7 +990,6 @@ namespace menu::group
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 3.f);
             layer->add_text(close.center(), "X", colors.text_dark, text_params::with_vh(align_center, align_center));
-            layer->add_rect_filled(rect{r.tl() + vec2{0.f, 30.f}, r.tl() + vec2{size.x, 196.f}}, colors.bg_bottom);
             bool budget = true;
             const std::string preview_paint = equipment_weapon && pending.paint.empty() ? representative_glove_paint(selected_weapon.internal) : pending.paint;
             if (auto icon = get_weapon_icon(selected_weapon.internal, preview_paint, budget); icon && icon->obj) {
@@ -990,9 +1008,10 @@ namespace menu::group
                     }
                 }
             }
-            const rect options{r.tl() + vec2{3.f, 164.f}, r.tl() + vec2{88.f, 193.f}};
-            layer->add_rect_filled_rounded(options, options_open ? colors.bg_block_light : colors.bg_block, 4.f);
-            layer->add_text(options.center(), "Options", colors.text, text_params::with_vh(align_center, align_center));
+            const auto options_center = r.tl() + vec2{19.f, 179.f};
+            layer->add_circle_filled(options_center, 14.f, options_open ? colors.bg_block_light : colors.bg_block, 32);
+            layer->add_circle(options_center, 14.f, colors.outline, 32, 1.f, 1.f);
+            layer->add_text(options_center, "...", colors.text, text_params::with_vh(align_center, align_center));
             const float slots_x = size.x - static_cast<float>(sticker_count()) * 37.f;
             if (sticker_count()) layer->add_text(r.tl() + vec2{slots_x, 151.f}, "Stickers", colors.text_dark, text_params::with_v(align_center));
             for (int i = 0; i < sticker_count(); ++i) {
@@ -1043,20 +1062,20 @@ namespace menu::group
         }
         void render_weapon_options(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
             const auto origin = r.tl();
-            const rect panel{origin+vec2{0.f,30.f},origin+vec2{260.f,340.f}};
+            const rect panel{origin+vec2{0.f,30.f},origin+vec2{312.f,340.f}};
             layer->add_rect_filled_rounded(panel,colors.bg_block,6.f);
             layer->add_rect_rounded(panel,colors.outline,6.f);
             layer->add_text(origin+vec2{12.f,48.f},"Options",colors.text,text_params::with_v(align_center));
-            layer->add_text(origin+vec2{240.f,48.f},"X",colors.text_dark,text_params::with_vh(align_center,align_center));
+            layer->add_text(origin+vec2{294.f,48.f},"X",colors.text_dark,text_params::with_vh(align_center,align_center));
             auto label = [&](float y,const char* text) { layer->add_text(origin+vec2{12.f,y},text,colors.text,text_params::with_v(align_center)); };
             label(85.f,"Name");
-            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,70.f},origin+vec2{250.f,99.f}},colors.bg_bottom,4.f);
-            layer->add_text(origin+vec2{112.f,85.f},pending.custom_name.empty() ? (editing_name ? "|" : "Name tag") : pending.custom_name+(editing_name ? "|" : ""),pending.custom_name.empty() ? colors.text_dark : colors.text,text_params::with_v(align_center));
+            layer->add_rect_filled_rounded(rect{origin+vec2{120.f,70.f},origin+vec2{300.f,99.f}},colors.bg_bottom,4.f);
+            layer->add_text(origin+vec2{128.f,85.f},pending.custom_name.empty() ? (editing_name ? "|" : "Name tag") : pending.custom_name+(editing_name ? "|" : ""),pending.custom_name.empty() ? colors.text_dark : colors.text,text_params::with_v(align_center));
             auto slider = [&](float y,const char* name,float value,const char* display) {
                 label(y,name);
-                layer->add_rect_filled_rounded(rect{origin+vec2{105.f,y-2.f},origin+vec2{250.f,y+3.f}},colors.bg_bottom,2.f);
-                layer->add_rect_filled_rounded(rect{origin+vec2{105.f,y-2.f},origin+vec2{105.f+145.f*value,y+3.f}},colors.accent,2.f);
-                layer->add_text(origin+vec2{250.f,y-10.f},display,colors.text_dark,text_params::with_h(align_right));
+                layer->add_rect_filled_rounded(rect{origin+vec2{120.f,y-2.f},origin+vec2{300.f,y+3.f}},colors.bg_bottom,2.f);
+                layer->add_rect_filled_rounded(rect{origin+vec2{120.f,y-2.f},origin+vec2{120.f+180.f*value,y+3.f}},colors.accent,2.f);
+                layer->add_text(origin+vec2{300.f,y-10.f},display,colors.text_dark,text_params::with_h(align_right));
             };
             char number[32]; std::snprintf(number,sizeof(number),"%d",pending.seed); slider(120.f,"Seed",static_cast<float>(pending.seed)/1000.f,number);
             const char* wear_name = pending.wear < .07f ? "Factory New" : pending.wear < .15f ? "Minimal Wear" : pending.wear < .38f ? "Field-Tested" : pending.wear < .45f ? "Well-Worn" : "Battle-Scarred";
@@ -1064,13 +1083,13 @@ namespace menu::group
             std::snprintf(number,sizeof(number),"%.3f",pending.wear); slider(175.f,"Wear",pending.wear,number);
             label(207.f,"StatTrak");
             const char* modes[] = {"Default", "Static", "None"};
-            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,195.f},origin+vec2{250.f,220.f}},colors.bg_bottom,3.f);
-            layer->add_text(origin+vec2{115.f,207.f},std::string(modes[pending.stattrak_mode])+"  v",colors.text,text_params::with_v(align_center));
-            std::snprintf(number,sizeof(number),"%d",pending.stattrak_count); slider(260.f,"Value",static_cast<float>(pending.stattrak_count)/99999.f,number);
+            layer->add_rect_filled_rounded(rect{origin+vec2{120.f,195.f},origin+vec2{300.f,220.f}},colors.bg_bottom,3.f);
+            layer->add_text(origin+vec2{128.f,207.f},std::string(modes[pending.stattrak_mode])+"  v",colors.text,text_params::with_v(align_center));
+            std::snprintf(number,sizeof(number),"%d",pending.stattrak_count); slider(260.f,pending.stattrak_mode == 1 ? "Value" : "Value (Static)",static_cast<float>(pending.stattrak_count)/99999.f,number);
             label(300.f,"Souvenir");
-            layer->add_rect_filled_rounded(rect{origin+vec2{105.f,290.f},origin+vec2{125.f,310.f}},pending.souvenir ? colors.accent : colors.bg_bottom,3.f);
+            layer->add_rect_filled_rounded(rect{origin+vec2{120.f,290.f},origin+vec2{140.f,310.f}},pending.souvenir ? colors.accent : colors.bg_bottom,3.f);
             if (stat_menu_open) for (int i=0;i<3;++i) {
-                const rect row{origin+vec2{105.f,212.f+24.f*static_cast<float>(i)},origin+vec2{250.f,236.f+24.f*static_cast<float>(i)}};
+                const rect row{origin+vec2{120.f,212.f+24.f*static_cast<float>(i)},origin+vec2{300.f,236.f+24.f*static_cast<float>(i)}};
                 layer->add_rect_filled(row,pending.stattrak_mode == i ? colors.bg_block_light : colors.bg_bottom);
                 layer->add_text(row.tl()+vec2{10.f,12.f},modes[i],colors.text,text_params::with_v(align_center));
             }
