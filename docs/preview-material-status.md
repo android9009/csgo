@@ -75,3 +75,27 @@ The exact unique signatures are included in the JSON report and inspection tool.
 They are diagnostic candidates only, not registered as executable runtime hooks.
 The next missing link is constructing a valid isolated item view with attributes,
 then establishing the actual stack-argument semantics and asynchronous lifetime.
+
+## Experimental live-owner path
+
+An experimental alternative now reuses generated materials of a **matching local
+weapon** instead of constructing an item view. Requirements: matching weapon
+definition, fallback paint kit, seed and wear; nonempty material vector; inherited
+owner vtable functions; exact supplied-client timestamp and the verified owner
+copy instruction sequence. The preview checks the actual `SetMDL(const char*)`
+slot against the disassembled implementation before passing an owner.
+
+In this binary CMergedMDL's string overload is RVA `0x9aec30`; it delegates to the
+handle overload at `0x9aeb60`. At `0x9aebc2` the latter calls owner virtual slot 3
+with its own root CMDL (`this+4`) as destination. The previously inspected owner
+implementation copies through SetCustomMaterial, retaining references. The
+source entity pointer is used synchronously and is not cached. Before rebinding,
+only the preview owner's references are cleared via the build-specific owner
+clear routine (`0x1acc80`). This is guarded by the same build/slot checks.
+
+The UI reports whether live materials were copied, are unavailable on this build,
+or require the matching weapon in game. "Copied" is not a promise that asynchronous
+material composition is complete. This path does not generate arbitrary catalog
+finishes and does not implement separate sticker projection. It requires an
+in-game test and remains protected by the preview exception boundary, which does
+not guarantee safety after an engine fault.

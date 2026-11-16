@@ -6,6 +6,8 @@
 #include "../../third_party/fatality/preview_bridge.hpp"
 #include "../../third_party/fatality/preview_catalog.hpp"
 #include "../../sdk/skin_icon_file.hpp"
+#include "../../sdk/netvars.hpp"
+#include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <d3d9.h>
@@ -22,6 +24,9 @@ void* render_texture{};
 void* cubemap{};
 void* editor_target{};
 void* editor_models[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
+DWORD editor_material_refresh{};
+int editor_material_model{-1}, editor_material_paint{-1}, editor_material_seed{-1};
+float editor_material_wear{-1.f};
 bool editor_missing[sizeof(PreviewCatalog::weapons)/sizeof(*PreviewCatalog::weapons)]{};
 bool editor_failed{}, editor_target_retained{};
 bool* editor_allocation_flag{};
@@ -315,8 +320,93 @@ void PaintImpl() {
     }
     DrawTarget(render_texture, false);
 }
-// The editor renders a default-material model only. It never accesses a live
-// weapon entity or pretends that the currently selected paint is applied.
+// Experimental read-only bridge: reuse an existing game's generated material owner.
+// No synthetic CEconItemView, no generated-material calls, no live inventory mutation.
+// SetMDL's owner path duplicates references into the preview's own CMDL. This was
+// disassembled in the supplied client: RVA 0x9aebc2 -> owner virtual slot 3.
+bool LiveMaterialBuildCompatible() {
+    auto* base = reinterpret_cast<unsigned char*>(GetModuleHandleA("client.dll"));
+    if (!base) return false;
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 || nt->FileHeader.TimeDateStamp != 0x65272025 ||
+        nt->OptionalHeader.SizeOfImage <= 0xd139a8) return false;
+    const unsigned char copy_call[] = {0x85,0xc9,0x74,0x06,0x8b,0x01,0x53,0xff,0x50,0x0c};
+    return std::memcmp(base + 0x9aebc2, copy_call, sizeof(copy_call)) == 0;
+}
+void* FindLiveMaterialOwner(int index, int paint, int seed, float wear) {
+    if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Engine->IsInGame() ||
+        !PropManager::Get().IsReady()) return nullptr;
+    auto& net = PropManager::Get();
+    const auto weapons = net.GetOffset("DT_BaseCombatCharacter", "m_hMyWeapons");
+    const auto item = net.GetOffset("DT_BaseAttributableItem", "m_Item");
+    const auto definition = net.GetOffset("DT_BaseAttributableItem", "m_iItemDefinitionIndex");
+    const auto paint_offset = net.GetOffset("DT_BaseAttributableItem", "m_nFallbackPaintKit");
+    const auto seed_offset = net.GetOffset("DT_BaseAttributableItem", "m_nFallbackSeed");
+    const auto wear_offset = net.GetOffset("DT_BaseAttributableItem", "m_flFallbackWear");
+    for (const auto offset : {weapons,item,definition,paint_offset,seed_offset,wear_offset})
+        if (offset <= 0 || offset > 0x10000) return nullptr;
+    const int wanted = SkinState::Definition(PreviewCatalog::weapons[index].id);
+    if (!wanted) return nullptr;
+    auto* local = static_cast<unsigned char*>(Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer()));
+    if (!local) return nullptr;
+    const auto* handles = reinterpret_cast<const std::uint32_t*>(local + weapons);
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
+    for (int i=0; i<64; ++i) {
+        if (!handles[i] || handles[i] == 0xffffffffu) continue;
+        auto* entity = static_cast<unsigned char*>(Interfaces::EntityList->GetClientEntityFromHandle(handles[i]));
+        if (!entity || *reinterpret_cast<short*>(entity + definition) != wanted ||
+            *reinterpret_cast<int*>(entity + paint_offset) != paint ||
+            *reinterpret_cast<int*>(entity + seed_offset) != seed ||
+            std::fabs(*reinterpret_cast<float*>(entity + wear_offset) - wear) > .00001f) continue;
+        auto* owner = entity + item + 0x10;
+        const auto* table = *reinterpret_cast<std::uintptr_t**>(owner);
+        // Confirm inherited material-owner operations, not merely a plausible pointer.
+        if (!table || table[1] != base + 0x1de6f0 || table[3] != base + 0x1ac360) continue;
+        const int count = *reinterpret_cast<int*>(owner + 0x10);
+        auto** materials = *reinterpret_cast<void***>(owner + 4);
+        if (count <= 0 || count > 32 || !materials) continue;
+        bool any = false;
+        for (int slot=0; slot<count; ++slot) any = any || materials[slot] != nullptr;
+        if (any) return owner; // Used synchronously; never cached beyond this render call.
+    }
+    return nullptr;
+}
+void UpdateWeaponMaterials(int index) {
+    const auto now = GetTickCount();
+    const int paint = FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed);
+    const int seed = FatalityPreviewBridge::editor_seed.load(std::memory_order_relaxed);
+    const float wear = FatalityPreviewBridge::editor_wear.load(std::memory_order_relaxed);
+    const bool changed = editor_material_model != index || editor_material_paint != paint ||
+        editor_material_seed != seed || editor_material_wear != wear;
+    if (!changed && now - editor_material_refresh < 500) return;
+    editor_material_model = index; editor_material_refresh = now;
+    editor_material_paint = paint; editor_material_seed = seed; editor_material_wear = wear;
+    auto* preview = static_cast<MergedModel*>(editor_models[index]);
+    void* owner = nullptr;
+    int status = 0;
+    if (paint > 0) {
+        status = 3;
+        if (LiveMaterialBuildCompatible()) {
+            status = 1;
+            owner = FindLiveMaterialOwner(index, paint, seed, wear);
+            if (owner) status = 2;
+        }
+    }
+    // Rebinding also clears the previous copied finish when the request no longer matches.
+    const auto* table = *reinterpret_cast<std::uintptr_t**>(preview);
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
+    if (owner && table[4] != base + 0x9aec30) { owner = nullptr; status = 3; }
+    // SetMDL without an owner does not clear old custom materials. Release only
+    // the preview-owned references, using the pinned build's clear operation.
+    if (LiveMaterialBuildCompatible() && table[4] == base + 0x9aec30) {
+        using ClearFn = void(__thiscall*)(void*, bool);
+        reinterpret_cast<ClearFn>(base + 0x1acc80)(reinterpret_cast<unsigned char*>(preview) + 4, false);
+    }
+    preview->SetMDL(PreviewCatalog::weapons[index].model, owner, nullptr);
+    const int old = FatalityPreviewBridge::editor_material_status.exchange(status, std::memory_order_relaxed);
+    if (old != status) LOG_INFO("weapon preview: experimental live material status=%d paint=%d", status, paint);
+}
 void PaintWeaponImpl() {
     if (!render_texture) return; // normal preview owns common initialization
     if (!editor_target) {
@@ -353,6 +443,8 @@ void PaintWeaponImpl() {
         editor_models[index] = ptr;
         LOG_INFO("weapon preview: model loaded %s (default material only)", path);
     }
+    phase = "copy live weapon materials (experimental)";
+    UpdateWeaponMaterials(index);
     model = editor_models[index];
     DrawTarget(editor_target, true);
 }
@@ -413,6 +505,8 @@ void Shutdown() {
     texture_retained = false;
     if (editor_target && editor_target_retained) Slot<void(__thiscall*)(void*)>(editor_target, 11)(editor_target);
     editor_target = nullptr; editor_target_retained = false; editor_failed = false;
+    editor_material_refresh = 0; editor_material_model = -1;
+    FatalityPreviewBridge::editor_material_status.store(0, std::memory_order_relaxed);
     std::memset(editor_missing, 0, sizeof(editor_missing));
     model = render_texture = cubemap = nullptr;
 }

@@ -15,6 +15,11 @@ inline std::atomic<void*> texture{nullptr};
 // Separate editor target; never reuses or replaces the agent viewport.
 inline std::atomic<bool> weapon_editor_visible{false};
 inline std::atomic<int> editor_weapon{0};
+// Copied request only: the renderer never retains UI strings or live entity pointers.
+inline std::atomic<int> editor_paint{0}, editor_seed{0};
+inline std::atomic<float> editor_wear{0.f};
+// 0 base, 1 waiting for a matching live item, 2 copied live materials, 3 incompatible build.
+inline std::atomic<int> editor_material_status{0};
 inline std::atomic<float> editor_yaw{0.f}, editor_pitch{0.f}, editor_roll{0.f};
 inline std::atomic<float> editor_pan_x{0.f}, editor_pan_y{0.f};
 inline std::atomic<void*> editor_texture{nullptr};

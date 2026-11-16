@@ -1006,6 +1006,10 @@ namespace menu::group
                 FatalityPreviewBridge::editor_pan_x.store(0.f, std::memory_order_relaxed);
                 FatalityPreviewBridge::editor_pan_y.store(0.f, std::memory_order_relaxed);
             }
+            const auto paint_it = schema_metadata.paint_ids.find(pending.paint);
+            FatalityPreviewBridge::editor_paint.store(paint_it == schema_metadata.paint_ids.end() ? 0 : paint_it->second, std::memory_order_relaxed);
+            FatalityPreviewBridge::editor_seed.store(pending.seed, std::memory_order_relaxed);
+            FatalityPreviewBridge::editor_wear.store(pending.wear, std::memory_order_relaxed);
             FatalityPreviewBridge::editor_weapon.store(weapon_index, std::memory_order_relaxed);
             FatalityPreviewBridge::weapon_editor_visible.store(true, std::memory_order_relaxed);
             const rect model_area{r.tl()+vec2{8.f,38.f},r.tl()+vec2{size.x-8.f,166.f}};
@@ -1017,7 +1021,11 @@ namespace menu::group
                 layer->add_text(model_area.center(), "3D model unavailable / loading", colors.text_dark, text_params::with_vh(align_center,align_center));
             }
             layer->add_text(model_area.tl()+vec2{4.f,2.f}, "LMB: rotate / RMB: move", colors.text_dark);
-            layer->add_text(model_area.bl()-vec2{-4.f,4.f}, "Base model - paint / stickers not rendered", colors.text_dark);
+            const int material_status = FatalityPreviewBridge::editor_material_status.load(std::memory_order_relaxed);
+            const char* material_label = material_status == 2 ? "Experimental: live weapon materials" :
+                material_status == 1 ? "Equip this weapon/finish in game to preview materials" :
+                material_status == 3 ? "Live materials unavailable for this client build" : "Base model";
+            layer->add_text(model_area.bl()-vec2{-4.f,4.f}, material_label, colors.text_dark);
             const auto options_center = r.tl() + vec2{19.f, 179.f};
             layer->add_circle_filled(options_center, 14.f, options_open ? colors.bg_block_light : colors.bg_block, 32);
             layer->add_circle(options_center, 14.f, colors.outline, 32, 1.f, 1.f);
