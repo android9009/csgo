@@ -271,7 +271,7 @@ void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physic
 }
 void MoveImpl(CUserCmd* cmd){
     if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);movement_player=nullptr;peek_shot.store(false);return;}
-    if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();peek_shot.store(false);}
+    if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);}
     movement_player=ctx.local;last_command=cmd->command_number;
     const auto options=Get();PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);const auto velocity=ctx.local->m_vecVelocity();
     // Datamap entries in the supplied client.dll: m_MoveType=0x25C,

@@ -7,9 +7,9 @@ inline void Configure(){
     auto& m=cfg.misc;MiscRuntime::Settings s;
     s.ping_spike=m.ping_spike_enabled.get();s.ping_amount=cfg.aim.ping_spike_amt.get();s.clantag=m.clantag.get();s.ragdoll_gravity=m.ragdoll_thrust_enabled.get();s.ragdoll_amount=cfg.visuals.ragdoll_thrust.get();s.long_jump=m.long_jump.get();s.ladder_jump=m.ladder_jump.get();
     s.indicators=static_cast<unsigned>(static_cast<std::uint64_t>(cfg.aa.indicators.get()));
-    const auto weapon=static_cast<unsigned>(MiscRuntime::ActiveWeapon());unsigned key=group::general_id;std::size_t specificity=1000;
-    for(const auto& entry:group::grp_to_wep)if(cfg.weapon_config.cfgs[entry.first].get() && entry.second.size()<specificity && std::find(entry.second.begin(),entry.second.end(),weapon)!=entry.second.end()){key=entry.first;specificity=entry.second.size();}
-    if(weapon && cfg.weapon_config.cfgs[weapon].get())key=weapon;
+    // The current Rage page is built with profile key 0 (port.cpp), not
+    // reference Fatality's general_id=512. Do not read non-existent overrides.
+    constexpr unsigned key=0;
     auto mark=[&](int index,bool active){if(active)s.indicator_active|=1u<<index;};
     mark(cfg_t::indicators_dt,cfg.aim.doubletap.get());mark(cfg_t::indicators_st,cfg.aim.hideshot.get());
     mark(cfg_t::indicators_fs,cfg.aa.enabled.get() && cfg.aa.freestand.get());mark(cfg_t::indicators_manual,cfg.aa.manual.get() && (cfg.aa.manual_left.get() || cfg.aa.manual_right.get() || cfg.aa.manual_back.get()));
