@@ -19,6 +19,7 @@ inline std::array<rect,EspDock::Count> Render(std::shared_ptr<layer>& d,const re
     for(int f=0;f<11;++f)labels[6+f]=flag_names[f];
     items[0].visible=style.show[Name];items[4].visible=style.show[Weapon];items[5].visible=style.show[Icon] && !labels[5].empty();
     for(int id=1;id<=3;++id)items[id]={style.show[id==1 ? Health : id==2 ? Armor : Ammo],true,4.f,4.f};
+    items[3].visible=items[3].visible && data.ammo>=0 && data.max_ammo>0;
     for(int f=0;f<11;++f)items[6+f].visible=(style.flags&data.flags&(1ull<<f))!=0;
     for(int i=0;i<EspDock::Count;++i)if(!items[i].bar){const auto size=(i==5 ? icon_font : text_font)->get_text_size(labels[i]);items[i].width=size.x;items[i].height=size.y;}
     const auto arranged=EspDock::Arrange({box.tl().x,box.tl().y,box.width(),box.height()},items,style.layout);

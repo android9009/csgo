@@ -16,6 +16,8 @@ int main(){
     assert(r[6].w==45 && r[6].h==12);assert(layout[7].side==EspDock::Right);
     assert(EspDock::Nearest(10,180,box)==EspDock::Left);assert(EspDock::Nearest(120,310,box)==EspDock::Bottom);
     assert(!std::strcmp(WeaponGlyph::Get("weapon_ak47"),"W"));assert(!std::strcmp(WeaponGlyph::Get("SmokeGrenadeProjectile"),"k"));
+    assert(!std::strcmp(WeaponGlyph::Get("DEagle"),"A"));
+    assert(!std::strcmp(WeaponGlyph::Get("M4A1"),"S"));
     for(int i=0;i<1000;++i)EspDock::Move(layout,6,EspDock::Right,0);
     for(auto item:layout)assert(item.order<EspDock::Count);
 }
