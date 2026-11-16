@@ -100,7 +100,7 @@ namespace menu::group
         catalog = SkinCatalog::Parse(schema);
         schema_metadata = SkinSchema::Parse(schema);
         catalog_loaded = !catalog.empty();
-        LOG_INFO("skin menu: catalogue loaded for %zu weapons", catalog.size());
+        LOG_INFO("skin menu: catalogue loaded for %zu weapons, %zu paint kit IDs", catalog.size(), schema_metadata.paint_ids.size());
         return catalog_loaded;
     }
     struct SkinChoice {
@@ -448,6 +448,11 @@ namespace menu::group
                     const auto it = chosen.find(selected_weapon.internal);
                     pending = (it != chosen.end() && it->second.paint == paint) ? it->second : SkinChoice{};
                     pending.paint = paint;
+                    const auto paint_id = schema_metadata.paint_ids.find(paint);
+                    if (paint_id != schema_metadata.paint_ids.end())
+                        LOG_INFO("skin preview selection: weapon=%s paint=%s paintkit=%d seed=%d wear=%.3f; generated material not connected", selected_weapon.internal, paint.c_str(), paint_id->second, pending.seed, pending.wear);
+                    else
+                        LOG_WARN("skin preview selection: no paint kit ID for weapon=%s paint=%s", selected_weapon.internal, paint.c_str());
                     agent_editor = false; decal_picker = -1;
                     editor_3d = false; editor_drag = 0;
                     FatalityPreviewBridge::editor_weapon.store(PreviewCatalog::WeaponIndex(selected_weapon.internal), std::memory_order_relaxed);
