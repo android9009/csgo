@@ -390,10 +390,12 @@ void RevealRanks(CUserCmd& cmd,const Settings& options){
     MEM::GetVFunc<bool(__thiscall*)(void*,int,int,int,const void*)>(Interfaces::Client,38)(Interfaces::Client,50,0,sizeof(message),message);
 }
 void MoveImpl(CUserCmd* cmd){
+    const auto options=Get();
+    if(cmd && ctx.in_game && ctx.local)RevealRanks(*cmd,options);
     if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);EnginePrediction::Reset();movement_player=nullptr;peek_shot.store(false);return;}
     if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);}
     movement_player=ctx.local;last_command=cmd->command_number;
-    const auto options=Get();RevealRanks(*cmd,options);PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);auto velocity=ctx.local->m_vecVelocity();
+    PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);auto velocity=ctx.local->m_vecVelocity();
     // Datamap entries in the supplied client.dll: m_MoveType=0x25C,
     // m_nWaterLevel=0x25E. Both are byte fields, not 32-bit NETVAR reads.
     const auto* bytes=reinterpret_cast<const unsigned char*>(ctx.local);
@@ -413,20 +415,20 @@ void MoveImpl(CUserCmd* cmd){
         Interfaces::EngineTrace->TraceRay(lower,0x20000000u,&filter,&low);Interfaces::EngineTrace->TraceRay(upper,0x20000000u,&filter,&high);
         if(low.fraction<1.f && high.fraction==1.f && !high.startsolid && !high.allsolid)cmd->buttons|=2;
     }
-    if(!Walkable(type,water)){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);return;}
+    if(!Walkable(type,water)){EnginePrediction::Start(ctx.local,*cmd);peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);return;}
     auto pre=options;pre.quick_stop=false;
     Move(*cmd,pre,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
     const bool was_grounded=ground;
     const bool predicted=EnginePrediction::Start(ctx.local,*cmd);
     if(predicted){
         ground=(ctx.local->m_fFlags()&1)!=0;velocity=ctx.local->m_vecVelocity();
-        auto post=options;post.bhop=false;post.instant_duck=false;post.strafe=0;
-        Move(*cmd,post,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
         if(was_grounded && !ground && !(cmd->buttons&2)){
             if(options.edge_jump)EdgeJump(*cmd,true,true,false);
             else if(options.edge_stop)CounterMove(*cmd,velocity.x,velocity.y,physics);
         }
     }
+    auto post=options;post.bhop=false;post.instant_duck=false;post.strafe=0;
+    Move(*cmd,post,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
     const auto position=ctx.local->m_vecOrigin();
     const bool shot=peek_shot.exchange(false);
     peek_state.Update(*cmd,options.peek,options.retreat_on_release,ground,position,velocity,shot,physics,options.peek_distance);

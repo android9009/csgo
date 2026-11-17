@@ -136,8 +136,8 @@ bool Start(CCSPlayer* local,CUserCmd& cmd){
     if(!std::isfinite(interval) || interval<=0.f || interval>.1f)return false;
     if(Interfaces::ClientState){
         const int dt=Field<int>(Interfaces::ClientState,delta);const auto state=Field<CommandCounters>(Interfaces::ClientState,counters);
-        if(dt>0 && state.ack>=0 && state.outgoing>=state.ack && state.choked>=0 && state.choked<=64 && state.outgoing<0x7fffffff-state.choked)
-            MEM::GetVFunc<void(__thiscall*)(void*,int,bool,int,int)>(Interfaces::Prediction,3)(Interfaces::Prediction,dt,true,state.ack,state.outgoing+state.choked);
+        if(dt<=0 || state.ack<0 || state.outgoing<state.ack || state.choked<0 || state.choked>64 || state.outgoing>=0x7fffffff-state.choked)return false;
+        MEM::GetVFunc<void(__thiscall*)(void*,int,bool,int,int)>(Interfaces::Prediction,3)(Interfaces::Prediction,dt,true,state.ack,state.outgoing+state.choked);
     }
     backup={};backup.local=local;backup.flags=local->m_fFlags();backup.tickbase=local->m_nTickBase();
     backup.curtime=Interfaces::Globals->curtime;backup.frametime=Interfaces::Globals->frametime;backup.seed=*seed;backup.player=*prediction_player;
@@ -159,5 +159,5 @@ bool Start(CCSPlayer* local,CUserCmd& cmd){
     return true;
 }
 void Reset(){Detail::compressed={};}
-void Shutdown(){End();Detail::run_hook.detach();Detail::network_hook.detach();Reset();}
+void Shutdown(){End();Detail::run_hook.detach();Detail::network_hook.detach();Detail::resolved=false;Detail::failed=false;Reset();}
 }
