@@ -25,6 +25,7 @@ inline void Configure(){
     for(int i=0;i<5;++i){s.bloom_weights[i]=w.bloom_weights[i].get();s.bloom_colors[i]=w.bloom_weight_colors[i].get().rgba();}
     s.sunlight=w.sunlight.get();s.sunlight_color=w.sunlight_color.get().rgba();
     s.dof=w.depth_of_field.get();s.dof_mode=static_cast<unsigned>(static_cast<std::uint64_t>(w.dof_mode.get()));s.focus_distance=w.focus_distance.get();s.focus_speed=w.focus_speed.get();s.focus_range=w.focus_range.get();
+    s.penetration_crosshair=v.autowall_crosshair.get();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){
@@ -68,6 +69,7 @@ inline void Render(){
     RenderEvents();
     const auto frame=VisualMisc::GetLocal();if(!frame.alive)return;
     const auto s=VisualMisc::Get();auto& layer=draw.layers[l_back];const auto display=draw.display/draw.scale;const vec2 center=display*.5f;
+    if(s.penetration_crosshair){const color c=frame.penetrates ? color{80,220,100} : color{230,70,70};layer->add_line(center-vec2{2,0},center+vec2{2,0},c);layer->add_line(center-vec2{0,2},center+vec2{0,2},c);}
     std::array<float,16> matrix{};float radius=0.f;
     if(VisualMisc::CurrentMatrix(matrix))radius=std::clamp(frame.spread*std::abs(matrix[0])*display.x*.5f,0.f,display.y);
     if(s.spread && radius>0.f)layer->add_circle_filled_multicolor(center,radius,{cfg.visuals.spread_circle_color1.get(),cfg.visuals.spread_circle_color2.get()},64);

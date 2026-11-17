@@ -13,6 +13,7 @@ struct Settings {
     Vector vm_position{};QAngle vm_angles{};
     unsigned scope{},removals{};bool scope_invert{},crosshair{},spread{};
     float scope_size{100},texture_alpha{},prop_alpha{};std::uint32_t scope_color{0xff000000};
+    bool penetration_crosshair{};
     bool dof{};unsigned dof_mode{};float focus_distance{},focus_speed{9.f},focus_range{};
     bool arrows{};float arrow_distance{50.f},arrow_size{24.f};std::uint32_t arrow_color{};
     bool trajectory{};std::uint32_t trajectory_hit{},trajectory_miss{};
@@ -38,7 +39,7 @@ inline std::mutex settings_mutex;
 inline Settings settings;
 inline void Publish(const Settings& value){std::unique_lock<std::mutex> lock(settings_mutex,std::try_to_lock);if(lock.owns_lock())settings=value;}
 inline Settings Get(){static thread_local Settings copy;std::unique_lock<std::mutex> lock(settings_mutex,std::try_to_lock);if(lock.owns_lock())copy=settings;return copy;}
-struct LocalFrame {bool alive{},scoped{};float spread{};};
+struct LocalFrame {bool alive{},scoped{},penetrates{};float spread{};};
 inline std::mutex frame_mutex;
 inline LocalFrame local_frame;
 inline void PublishLocal(const LocalFrame& v){std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())local_frame=v;}

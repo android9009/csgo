@@ -4,6 +4,7 @@
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/model_preview.hpp"
 #include "../../sdk/material.hpp"
+#include "../../sdk/surface_props.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/offsets/offsets.hpp"
 #include "../../utils/detourhook.hpp"
@@ -320,6 +321,27 @@ void PredictGrenade(const Settings& s){
     }
     PublishTrajectory(result);
 }
+bool PenetrationCheck(){
+    if(!ctx.weapon || !ctx.local || !Interfaces::EngineTrace || !Interfaces::PhysicsProps)return false;
+    const auto* weapon=ctx.weapon->GetWeaponData();if(!weapon || weapon->weapon_type<1 || weapon->weapon_type>6 || weapon->penetration<=0.f)return false;
+    QAngle angles;Interfaces::Engine->GetViewAngles(angles);const Vector direction=Forward(angles),eye=ctx.local->GetEyePosition();
+    Ray_t ray;ray.Init(eye,eye+direction*(std::min)(weapon->range,8192.f));CTraceFilterSimple filter(ctx.local);CGameTrace entry;Interfaces::EngineTrace->TraceRay(ray,0x4600400Bu,&filter,&entry);
+    if(entry.fraction>=1.f || entry.startsolid || entry.allsolid)return false;
+    const auto* enter=Interfaces::PhysicsProps->GetSurfaceData(entry.surface.surfaceProps);if(!enter || enter->penetration_modifier<.1f)return false;
+    for(float distance=4.f;distance<=90.f;distance+=4.f){
+        const Vector point=entry.endpos+direction*distance;if(Interfaces::EngineTrace->GetPointContents(point,0x600400Bu)&0x600400B)continue;
+        CGameTrace exit;ray.Init(point,point-direction*4.f);Interfaces::EngineTrace->TraceRay(ray,0x4600400Bu,&filter,&exit);if(exit.startsolid || exit.allsolid || exit.fraction>=1.f)continue;
+        const auto* leave=Interfaces::PhysicsProps->GetSurfaceData(exit.surface.surfaceProps);if(!leave)return false;
+        float combined=(enter->penetration_modifier+leave->penetration_modifier)*.5f,loss_factor=.16f;
+        if(enter->material==89 || enter->material==71){combined=3.f;loss_factor=.05f;}
+        else if(enter->material==leave->material){if(enter->material==87 || enter->material==85)combined=3.f;else if(enter->material==76)combined=2.f;}
+        if(!std::isfinite(combined) || combined<=0.f)return false;
+        const float damage=static_cast<float>(weapon->damage)*std::pow(weapon->range_modifier,eye.Dist(entry.endpos)*.002f),inverse=1.f/combined;
+        const float loss=damage*loss_factor+inverse*3.f*(std::max)(0.f,3.f/weapon->penetration*1.25f)+entry.endpos.DistSqr(exit.endpos)*inverse/24.f;
+        return std::isfinite(damage) && damage-loss>1.f;
+    }
+    return false;
+}
 bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
@@ -335,6 +357,7 @@ void FrameImpl(int stage){
             if(std::isfinite(inaccuracy) && std::isfinite(spread))local.spread=std::clamp(inaccuracy+spread,0.f,2.f);
         }
     }
+    if(local.alive && s.penetration_crosshair)local.penetrates=PenetrationCheck();
     PublishLocal(local);
     float alpha=1.f;if(ctx.local && ctx.local->IsAlive() && s.third){if(ctx.local->m_bIsScoped())alpha=1.f-s.scope_alpha*.01f;const int item=ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0;if(item>=43 && item<=48)alpha=(std::min)(alpha,1.f-s.nade_alpha*.01f);}
     model_alpha.store(std::clamp(alpha,0.f,1.f),std::memory_order_relaxed);

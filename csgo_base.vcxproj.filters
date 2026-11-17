@@ -508,6 +508,7 @@
     <ClInclude Include="sdk\interfaces\interfaces.hpp">
       <Filter>SDK\interfaces</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\surface_props.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="sdk\material.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

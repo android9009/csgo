@@ -339,6 +339,7 @@
     <ClInclude Include="sdk\glow.hpp" />
     <ClInclude Include="sdk\interfaces\interfaces.hpp" />
     <ClInclude Include="sdk\material.hpp" />
+    <ClInclude Include="sdk\surface_props.hpp" />
     <ClInclude Include="sdk\netvars.hpp" />
     <ClInclude Include="sdk\recv.hpp" />
     <ClInclude Include="sdk\schema.hpp" />
