@@ -95,11 +95,12 @@ bool Setup() {
     GlowManager = glow_rva ? reinterpret_cast<IGlowObjectManager*>(reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll")) + glow_rva) : nullptr;
     DirectDevice = ReadModulePointer("shaderapidx9.dll", offsets::Get("dwppDirect3DDevice9"));
 
-    const auto client_mode_operand = ReadAbsoluteOperand("client.dll", "A1 ? ? ? ? 8B 80 ? ? ? ? 5D C3", 1);
+    const auto client_mode_operand = offsets::Get("client_mode_global");
     if (client_mode_operand) {
         std::uint32_t value = 0;
         std::memcpy(&value, reinterpret_cast<const void*>(client_mode_operand), sizeof(value));
         ClientMode = reinterpret_cast<IClientModeShared*>(value);
+        LOG_INFO("ClientMode: global=%p object=%p",reinterpret_cast<void*>(client_mode_operand),ClientMode);
     }
     const auto move_helper_operand = ReadAbsoluteOperand("client.dll", "8B 0D ? ? ? ? 8B 46 08 68", 2);
     if (move_helper_operand) {

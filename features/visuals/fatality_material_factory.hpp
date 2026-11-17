@@ -5,6 +5,7 @@
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
 #include <cstdint>
+#include <cstring>
 namespace FatalityMaterialFactory {
 // FromString calling convention follows Osiris csgo-end-of-life's
 // Helpers/KeyValuesFactory.h (MIT, see third_party/licenses/Osiris-inventory.txt).
@@ -32,12 +33,17 @@ inline IMaterial* Create(int kind) {
     if(!Interfaces::MaterialSystem)return nullptr;
     const char* name=nullptr;const char* definition=nullptr;
     switch(kind){
-        case 2:name="pastavar/chams_v2_flat";definition=FatalityMaterialDefinition::flat;break;
-        case ChamsPasses::Shaded:name="pastavar/chams_shaded_v1";definition=FatalityMaterialDefinition::shaded;break;
-        case ChamsPasses::Metallic:name="pastavar/chams_metallic_v1";definition=FatalityMaterialDefinition::metallic;break;
+        case 2:name="pastavar/chams_v3_flat";definition=FatalityMaterialDefinition::flat;break;
+        case ChamsPasses::Shaded:name="pastavar/chams_shaded_v3";definition=FatalityMaterialDefinition::shaded;break;
+        case ChamsPasses::Metallic:name="pastavar/chams_metallic_v3";definition=FatalityMaterialDefinition::metallic;break;
         default:return nullptr;
     }
-    auto* kv=Parse(name,definition);
+    // This is KeyValues::FromString(shader, flat key/value pairs), NOT
+    // LoadFromBuffer(resourceName, full VMT). Passing a full VMT here nests
+    // all shader parameters under a child and makes the root the file name.
+    const char* shader=kind==2 ? "UnlitGeneric" : "VertexLitGeneric";
+    const char* body=std::strchr(definition,'{');if(!body)return nullptr;
+    auto* kv=Parse(shader,body+1);
     if(!kv){LOG_WARN("Fatality material parser unavailable: kind=%d",kind);return nullptr;}
     auto* material=Interfaces::MaterialSystem->CreateMaterial(name,kv);
     if(material && !material->IsErrorMaterial())LOG_INFO("chams created kind=%d shader=%s",kind,material->GetShaderName());

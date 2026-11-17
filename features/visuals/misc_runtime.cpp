@@ -549,6 +549,7 @@ void Initialize(){
     if(Interfaces::DebugOverlay){box_original=MEM::GetVFunc<BoxFn>(Interfaces::DebugOverlay,1);impact_hook.attach(Interfaces::DebugOverlay,1,reinterpret_cast<void*>(&NativeImpact));}
     if(Interfaces::Engine){aspect_original=MEM::GetVFunc<AspectFn>(Interfaces::Engine,101);aspect_hook.attach(Interfaces::Engine,101,reinterpret_cast<void*>(&Aspect));}
     if(const auto address=offsets::Get("calc_viewmodel_view"))vm_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&Viewmodel),reinterpret_cast<void**>(&vm_original));
+    LOG_INFO("visual misc: hooks view=%d vm_fov=%d draw_vm=%d aspect=%d vm_transform=%d input=%p camera_flag=%X camera_offset=%X",view_hook.is_hooked(),fov_hook.is_hooked(),draw_vm_hook.is_hooked(),aspect_hook.is_hooked(),vm_hook.is_hooked(),Interfaces::Input,static_cast<unsigned>(camera_flag),static_cast<unsigned>(camera_offset));
 }
 void Shutdown(){
     VisualPost::Reset();

@@ -404,7 +404,7 @@ void DrawTarget(void* target, bool weapon_only) {
     phase = "draw merged model";
     if (!weapon_only && !fit_agent && appearance.enabled && appearance.kind > 0) {
         phase = "apply preview chams";
-        if(!PreviewMaterial::Draw(appearance,false,[&](){static_cast<MergedModel*>(model)->Draw(matrix);}))
+        if(!PreviewMaterial::Draw(appearance,false,[&](){PreviewMaterial::OverrideStudio();static_cast<MergedModel*>(model)->Draw(matrix);}))
             static_cast<MergedModel*>(model)->Draw(matrix);
     } else static_cast<MergedModel*>(model)->Draw(matrix);
     if(!weapon_only && !fit_agent){capture_view=nullptr;capture_geometry=nullptr;VisualPreview::SetGeometry(projected);}
