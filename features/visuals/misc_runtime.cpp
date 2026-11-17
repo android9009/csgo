@@ -242,7 +242,17 @@ bool CurrentMatrix(std::array<float,16>& matrix){
 }
 void Initialize(){
     smoke_count=reinterpret_cast<int*>(offsets::Get("visual_smoke_count"));
-    camera_flag=static_cast<std::ptrdiff_t>(offsets::Get("input_thirdperson_flag"));camera_offset=static_cast<std::ptrdiff_t>(offsets::Get("input_camera_offset"));
+    camera_flag=static_cast<std::ptrdiff_t>(offsets::Get("input_thirdperson_flag"));camera_offset=0;
+    // Bind CInput::GetCameraOffset (slot 34), not a global vector-getter
+    // signature: unrelated entity vector getters have the same instructions.
+    if(Interfaces::Input){
+        const auto* getter=MEM::GetVFunc<const unsigned char*>(Interfaces::Input,34);
+        const unsigned char prefix[]{0x55,0x8b,0xec,0x8b,0x55,0x08,0x8b,0x81};
+        if(getter && !std::memcmp(getter,prefix,sizeof prefix)){
+            int offset{};std::memcpy(&offset,getter+8,4);
+            if(Valid(offset) && offset>camera_flag && offset-camera_flag<=8)camera_offset=offset;
+        }
+    }
     observer_offset=PropManager::Get().GetOffset("DT_BasePlayer","m_iObserverMode");
     if(Interfaces::ClientMode){
         view_original=MEM::GetVFunc<ViewFn>(Interfaces::ClientMode,18);view_hook.attach(Interfaces::ClientMode,18,reinterpret_cast<void*>(&OverrideView));
