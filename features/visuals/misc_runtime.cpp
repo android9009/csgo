@@ -374,11 +374,51 @@ bool PenetrationCheck(){
     }
     return false;
 }
+struct WeatherEntity {CBaseEntity* entity{};void* networkable{};int index{};unsigned mode{};std::uint32_t color{};Vector center{};} weather_entity;
+void RestoreWeather(){
+    auto& w=weather_entity;
+    if(w.networkable && Interfaces::EntityList && Interfaces::EntityList->GetClientEntity(w.index)==w.entity){
+        const auto* cls=w.entity->GetClientClass();
+        if(cls && cls->m_pNetworkName && !std::strcmp(cls->m_pNetworkName,"CPrecipitation"))MEM::GetVFunc<void(__thiscall*)(void*)>(w.networkable,1)(w.networkable);
+    }
+    weather_entity={};
+}
+void Weather(const Settings& s){
+    unsigned mode=(s.weather&2u)?1u:(s.weather&4u)?2u:(s.weather&8u)?3u:0u;
+    if(!mode || !Interfaces::Engine || !Interfaces::Engine->IsInGame() || !Interfaces::Engine->IsConnected() || !ctx.local || !Interfaces::EntityList || !Interfaces::Client){RestoreWeather();return;}
+    static const auto type=PropManager::Get().GetOffset("DT_Precipitation","m_nPrecipType");
+    static const auto mins=PropManager::Get().GetOffset("DT_BaseEntity","m_vecMins"),maxs=PropManager::Get().GetOffset("DT_BaseEntity","m_vecMaxs"),render_color=PropManager::Get().GetOffset("DT_BaseEntity","m_clrRender");
+    if(!Valid(type) || !Valid(mins) || !Valid(maxs) || !Valid(render_color))return;
+    auto& w=weather_entity;
+    if(w.entity && (w.mode!=mode || Interfaces::EntityList->GetClientEntity(w.index)!=w.entity))RestoreWeather();
+    if(!w.entity){
+        ClientClass* cls=Interfaces::Client->GetAllClasses();for(;cls;cls=cls->m_pNext)if(cls->m_pNetworkName && !std::strcmp(cls->m_pNetworkName,"CPrecipitation"))break;
+        if(!cls || !cls->m_pCreateFn)return;
+        int index=2047;while(index>=1900 && Interfaces::EntityList->GetClientEntity(index))--index;if(index<1900)return;
+        static int serial{100};void* networkable=cls->m_pCreateFn(index,++serial&0x3ff);if(!networkable)return;
+        auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(index));
+        if(!entity){MEM::GetVFunc<void(__thiscall*)(void*)>(networkable,1)(networkable);return;}
+        w.entity=entity;w.networkable=networkable;w.index=index;w.mode=mode;w.center=ctx.local->GetEyePosition();
+        MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,6)(networkable,0);
+        MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,4)(networkable,0);
+        Field<int>(entity,type)=mode==1 ? 6 : mode==2 ? 0 : 1;
+        Field<Vector>(entity,mins)=w.center-Vector{2048,2048,1024};Field<Vector>(entity,maxs)=w.center+Vector{2048,2048,2048};
+        const auto color=s.weather_colors[mode];w.color=color;Field<std::uint32_t>(entity,render_color)=(color&0xff00ff00u)|((color&255u)<<16)|((color>>16)&255u);
+        MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,5)(networkable,0);
+        MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,7)(networkable,0);
+    }else if(w.color!=s.weather_colors[mode] || w.center.DistSqr(ctx.local->GetEyePosition())>512.f*512.f){
+        auto* networkable=w.networkable;MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,6)(networkable,1);MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,4)(networkable,1);
+        w.center=ctx.local->GetEyePosition();w.color=s.weather_colors[mode];const auto color=w.color;Field<std::uint32_t>(w.entity,render_color)=(color&0xff00ff00u)|((color&255u)<<16)|((color>>16)&255u);
+        Field<Vector>(w.entity,mins)=w.center-Vector{2048,2048,1024};Field<Vector>(w.entity,maxs)=w.center+Vector{2048,2048,2048};
+        MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,5)(networkable,1);MEM::GetVFunc<void(__thiscall*)(void*,int)>(networkable,7)(networkable,1);
+    }
+}
 bool connected{};
 void FrameImpl(int stage){
+    if(stage==0){Weather(Get());return;}
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected){RestoreEnvironment();ReleaseMaterials();}connected=false;ClearEvents();PublishWarnings({});he_throw_time={};PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected){RestoreWeather();RestoreEnvironment();ReleaseMaterials();}connected=false;ClearEvents();PublishWarnings({});he_throw_time={};PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
     connected=true;CaptureWarnings(s);Environment(s);CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
@@ -437,7 +477,7 @@ std::array<Vector,65> last_impact{};std::array<float,65> impact_time{};
 void VisualEventImpl(VisualEvent* e){
     if(!e)return;const char* name=e->Name();if(!name)return;
     if(!std::strcmp(name,"round_start") || !std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){ClearEvents();PublishWarnings({});he_throw_time={};last_impact={};impact_time={};
-        if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
+        if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();RestoreWeather();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
         return;}
     if(!Interfaces::Engine || !Interfaces::Engine->IsInGame() || !ctx.local || !Interfaces::EntityList || !Interfaces::Globals)return;
     const auto s=Get();const float now=Interfaces::Globals->curtime;
@@ -505,7 +545,7 @@ void Shutdown(){
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
     visual_registered=false;beams=nullptr;ClearEvents();PublishWarnings({});he_throw_time={};PublishTrajectory({});
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();
-    __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
+    __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();RestoreWeather();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
 }
 }

@@ -13,6 +13,7 @@ struct Settings {
     Vector vm_position{};QAngle vm_angles{};
     unsigned scope{},removals{};bool scope_invert{},crosshair{},spread{};
     float scope_size{100},texture_alpha{},prop_alpha{};std::uint32_t scope_color{0xff000000};
+    unsigned weather{1};std::array<std::uint32_t,4> weather_colors{0xffffffff,0xffffffff,0xffffffff,0xffffffff};
     bool penetration_crosshair{};
     bool dof{};unsigned dof_mode{};float focus_distance{},focus_speed{9.f},focus_range{};
     bool arrows{};float arrow_distance{50.f},arrow_size{24.f};std::uint32_t arrow_color{};

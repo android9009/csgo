@@ -28,6 +28,7 @@ inline void Configure(){
     s.dof=w.depth_of_field.get();s.dof_mode=static_cast<unsigned>(static_cast<std::uint64_t>(w.dof_mode.get()));s.focus_distance=w.focus_distance.get();s.focus_speed=w.focus_speed.get();s.focus_range=w.focus_range.get();
     s.penetration_crosshair=v.autowall_crosshair.get();
     s.grenade_warning=m.grenade_helper.get();s.warning_color=m.grenade_warning_color.get().rgba();
+    s.weather=static_cast<unsigned>(static_cast<std::uint64_t>(w.weather.get()));for(int i=1;i<4;++i)s.weather_colors[i]=w.weather_colors[i].get().rgba();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){
