@@ -27,6 +27,9 @@ struct Settings {
     bool night{},fullbright{},sky{},fog{},exposure{},bloom{};
     std::uint32_t night_color{0xffffffff},fullbright_color{0xffffffff},sky_color{0xffffffff},fog_color{0xffffffff};
     float exposure_value{50},bloom_value{50};
+    float bloom_screen{50.f},bloom_blur{},bloom_threshold{},bloom_width{};
+    std::array<float,5> bloom_weights{20.f,20.f,20.f,20.f,20.f};
+    std::array<std::uint32_t,5> bloom_colors{0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff};
 };
 inline std::mutex settings_mutex;
 inline Settings settings;

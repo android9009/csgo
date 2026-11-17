@@ -143,7 +143,7 @@ void Cvars(const Settings& s,bool active){
     cvars[12].Set(active && (s.prop_alpha>0.f || s.night),0.f);
     fog_color.Set(active && s.fog,s.fog_color);
     cvars[13].Set(active && s.fog,1.f);cvars[14].Set(active && s.fog,1.f);cvars[15].Set(active && s.fog,0.f);cvars[16].Set(active && s.fog,1200.f);
-    cvars[17].Set(active && s.exposure,(std::max)(.01f,s.exposure_value*.02f));cvars[18].Set(active && s.bloom,s.bloom_value*.02f);
+    cvars[17].Set(active && s.exposure,(std::max)(.01f,s.exposure_value*.02f));cvars[18].Set(false,0.f);
 }
 struct MaterialRecord {IMaterial* value{};std::array<float,3> rgb{};float alpha{};bool nodraw{};unsigned group{};};
 std::vector<MaterialRecord> materials;
