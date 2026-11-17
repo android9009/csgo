@@ -354,6 +354,7 @@
     <ClInclude Include="features\visuals\misc_runtime.hpp" />
     <ClInclude Include="features\visuals\misc_state.hpp" />
     <ClInclude Include="features\visuals\postprocess.hpp" />
+    <ClInclude Include="features\visuals\postprocess_shader.hpp" />
     <ClInclude Include="features\misc\engine_prediction.hpp" />
     <ClInclude Include="features\misc\prediction_compression.hpp" />
     <ClInclude Include="features\misc\state.hpp" />

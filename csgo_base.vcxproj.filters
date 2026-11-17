@@ -605,6 +605,7 @@
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="features\visuals\postprocess_shader.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="features\visuals\postprocess.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="features\visuals\misc_state.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\visuals\misc_runtime.hpp"><Filter>Features</Filter></ClInclude>

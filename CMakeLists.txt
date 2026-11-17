@@ -75,3 +75,8 @@ add_executable(injector WIN32 injector/main.cpp injector/status.hpp)
 target_compile_definitions(injector PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(injector PRIVATE /W4 /permissive- /EHsc /utf-8)
 target_link_libraries(injector PRIVATE user32)
+
+# Compile the runtime HLSL with the same compiler/profile used by DX9.
+add_executable(visual_shader_check tests/windows/visual_shader.cpp)
+target_compile_definitions(visual_shader_check PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(visual_shader_check PRIVATE d3dcompiler)
