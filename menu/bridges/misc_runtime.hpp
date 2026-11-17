@@ -34,7 +34,7 @@ inline void Render(){
     for(const auto& message:MiscRuntime::Messages()){
         if(!message.text[0] || now-message.time>5.f || now<message.time)continue;
         const auto rgba=message.color;
-        overlay->add_text({15.f,log_y},message.text,color{static_cast<int>((rgba>>16)&255),static_cast<int>((rgba>>8)&255),static_cast<int>(rgba&255),255});log_y+=20.f;
+        overlay->add_text({15.f,log_y},message.text,color{static_cast<int>((rgba>>16)&255),static_cast<int>((rgba>>8)&255),static_cast<int>(rgba&255),static_cast<int>((rgba>>24)&255)});log_y+=20.f;
     }
     if(!MiscRuntime::Alive())return;
     const auto settings=MiscRuntime::Get();const auto active=settings.indicators&settings.indicator_active;

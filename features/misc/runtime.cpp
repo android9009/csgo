@@ -119,13 +119,14 @@ void EventLog(const Settings& options,unsigned category,const char* text){
     Message message;std::snprintf(message.text,sizeof message.text,"%s",text);
     message.color=options.colors[category];message.time=static_cast<double>(GetTickCount64())*.001;
     {std::lock_guard<std::mutex> lock(message_mutex);
-        for(std::size_t i=messages.size()-1;i>0;--i)messages[i]=messages[i-1];messages[0]=message;}
+        for(std::size_t i=messages.size()-1;i>0;--i){messages[i]=messages[i-1];}
+        messages[0]=message;}
     if(options.console_logs){
         struct ConsoleColor {unsigned char r,g,b,a;};
         using Print=void(__cdecl*)(const ConsoleColor&,const char*,...);
         static auto print=reinterpret_cast<Print>(GetProcAddress(GetModuleHandleA("tier0.dll"),"?ConColorMsg@@YAXABVColor@@PBDZZ"));
         const auto c=message.color;
-        const ConsoleColor color{static_cast<unsigned char>(c>>16),static_cast<unsigned char>(c>>8),static_cast<unsigned char>(c),255};
+        const ConsoleColor color{static_cast<unsigned char>(c>>16),static_cast<unsigned char>(c>>8),static_cast<unsigned char>(c),static_cast<unsigned char>(c>>24)};
         if(print)print(color,"[Pastaware] %s\n",message.text);
         else LOG_INFO("misc event: %s",message.text);
     }
@@ -190,7 +191,7 @@ int __fastcall SendDatagram(void* channel,void*,void* data){
     const float existing=latency(channel,0)+latency(channel,1),max_unlag=ConVarFloat("sv_maxunlag",.2f);
     const float delay=std::clamp(options.ping_amount*.001f,0.f,(std::max)(0.f,max_unlag-existing));
     SequenceHistory::Entry selected;bool found{};
-    {std::lock_guard<std::mutex> lock(sequence_mutex);found=sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);}
+    {std::unique_lock<std::mutex> lock(sequence_mutex,std::try_to_lock);if(lock.owns_lock())found=sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);}
     PingApplied(found);
     return found ? SendWithSequence(channel,data,selected) : original(channel,data);
 }

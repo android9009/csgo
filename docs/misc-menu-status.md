@@ -10,11 +10,11 @@
 | Пункт и вложенные настройки | Состояние |
 |---|---|
 | Scoreboard: Reveal ranks, Reveal weapon, Reveal unmatched ranks; Horizontal/Vertical/Weapon/Unmatched scale | UI |
-| Logs: Hit, Miss, Buy, Hurt, Naded | По последней просьбе пользователя ВСЕ категории теперь UI-only; runtime отключён |
-| Hit/Miss details: Damage dealt, Damage aimed, Hitchance, Shot, Backtrack, Safe point; дополнительно Miss reason | UI-only, отложено пользователем |
-| Buy log targets: Teammates, Enemy, Local, All | UI-only, отложено пользователем |
-| Hit/Miss/Buy/Hurt/Naded colors | UI-only, отложено пользователем |
-| Console logs | UI-only, отложено пользователем; диагностический DLL log сохранён |
+| Logs: Hit, Miss, Buy, Hurt, Naded | Hit/Buy/Hurt/Naded подключены к событиям; Miss пока UI (нет shot acknowledgement/resolver history). Текст использует player index, не имя |
+| Hit/Miss details: Damage dealt, Damage aimed, Hitchance, Shot, Backtrack, Safe point; дополнительно Miss reason | Пока не применяются к формату текста; нельзя выводить выдуманные shot/hitchance/backtrack данные |
+| Buy log targets: Teammates, Enemy, Local, All | Подключены к item_purchase, All объединяет все стороны |
+| Hit/Miss/Buy/Hurt/Naded colors | Цвета работающих категорий применяются к overlay и console |
+| Console logs | ConColorMsg из tier0; при отсутствии export — fallback в диагностический DLL log |
 | Hitsound; Hit sound enable; Kill sound enable и отдельный Kill sound | Подключено |
 | Звуки: None, Bell, CoD, Fatality, Arena switch, Bepis, Phonk, Sparkle, Cock | Подключено |
 | Indicators: Manual anti-aim, Freestanding, LC, Double tap, Hide shot, Damage override, Force safety, Headshot only, Bodyaim, Ping | Состояния settings/hotkeys подключены для всех, кроме LC. PING — только реально применённый sequence rewind. Нет выдуманного DT charge; нет визуального 1:1 font parity |
@@ -50,9 +50,9 @@
 
 | Пункт | Состояние |
 |---|---|
-| Edge bugs | Экспериментальный поиск 8 вариантов × до 8 тиков; применение только текущей команды |
+| Edge bugs | Экспериментальный поиск с общим бюджетом 64 трассы, после одной proximity sweep; применение только текущей команды |
 | Pixel surf | Экспериментальный поиск: нужны 3 последовательных unsupported floor contacts с half-gravity signature; не просто сравнение velocity |
-| Jump bug | УДАЛЁН из меню и cfg по просьбе пользователя |
+| Jump bug | Отсутствует; последний запрос на реализацию пока не выполнен |
 | Long jump | Jump–duck assist после отрыва; не speed exploit. Отключается при активных edge/pixel/no-fall для исключения конфликтов |
 | Ladder jump | Forward/upward ladder-top dismount: нижняя ladder trace hit + верхняя clear -> IN_JUMP. Сервер контролирует cooldown. Ladder physics solver по-прежнему не симулирует |
 
@@ -61,7 +61,7 @@
 | Пункт | Состояние |
 |---|---|
 | Primary: None, AK47/M4A1, SG-556, AWP, SSG-08, SCAR-20/G3SG1, Negev | Подключено; для CT у SG используется AUG; успешность покупки решает сервер/loadout |
-| Secondary: None, Deagle/Revolver, Dual Berettas, Tec-9/Five-SeveN, P250 | Подключено, команда buy deagle использует доступный loadout slot |
+| Secondary: None, Desert Eagle, Dual Berettas, Tec-9/Five-SeveN, P250, CZ75-Auto, R8 Revolver | Раздельные команды deagle/cz75a/revolver; наличие в loadout решает сервер. Старое скрытое значение 5 теперь CZ75-Auto |
 | Armor: None, Kevlar, Kevlar + Helmet | Подключено |
 | Defuser, Taser, Grenades | Подключено; сторона, buy zone, round/spawn dedup |
 
@@ -74,7 +74,7 @@ shot history / native 32-command history / визуальные режимы н�
 
 `features/misc/prediction.hpp` — отдельная Source-style **read-only симуляция**,
 а не wrapper над IPrediction::SetupMove / IGameMovement::ProcessMovement.
-У каждого кандидата собственные origin/velocity/ground/duck, общий лимит 512 трасс.
+У каждого кандидата собственные origin/velocity/ground/duck, в runtime общий лимит 64 трассы после proximity sweep (у тестового API максимум 512).
 Есть half-gravity до/после движения, friction/acceleration, air speed cap 30,
 до четырёх collision bumps, до пяти clipping planes, движение по crease,
 ground categorization, проверка stand-up clearance и ограниченный duck blend.
@@ -169,3 +169,33 @@ callback не вызывается. Clock упрощён до wall-clock 0.3s, �
 Остались без подключения: native scoreboard (включая ranks/unmatched/scales),
 enemy chat, Console filter, SV Pure/Cheats bypass, LC и полная engine prediction.
 Все меню-логи намеренно отложены. Обещания «всё работает в игре» нет.
+
+
+## Аудит 2026-11-14 — выполненная часть и открытые блокеры
+
+Сверены origin/main `154ded7`, Skeet prediction command/player_simulation/entity_update
+и Fatality SDK. В main есть SetupMove/ProcessMovement/FinishMove, но также
+build-specific current-command offsets 0x3348/0x3298. Они не перенесены вслепую.
+
+Исправлено в этом проходе:
+- отсутствовавшая публикация log types/console/buy targets, регистрация item_purchase;
+- событийные hit/hurt/grenade/purchase сообщения (8 последних, 5 секунд),
+  Fatality overlay остаётся видимым после смерти, цвет AARRGGBB декодируется правильно;
+- кэш ConVar pointers отдельно для каждого вызывающего потока, значения остаются live;
+- immutable Settings snapshots, atomics для alive/weapon/ping вместо общего mutex;
+  это не обещание lock-free STL atomic_shared_ptr. Message mutex отдельный,
+  renderer использует try_lock + предыдущий snapshot, сетевой rewind тоже try_lock;
+- вместо unconditional 512-sweep route search: active-setting gate, proximity sweep,
+  shared 64-sweep budget, отказ от неполностью оценённого поиска;
+- CZ75-Auto и R8 отдельными вариантами buybot, тесты mapping/budget/snapshot consistency.
+
+Не завершено (не считать выполнением полного запроса): настоящий IPrediction wrapper,
+MoveHelper/MD5/random seed/prediction_player/current cmd lifecycle, prediction compression
+RunCommand/PostNetworkDataReceived, pre/predict/post pipeline, Jump bug, ground Peek indicator,
+полная WASD/wall/Peek переработка, miss logs/shot details, native scoreboard/enemy chat,
+LC, console filter, SV bypass. Ping timestamp gate **сохранён**: нет проверенного
+универсального channel layout; просто убрать gate означало бы писать в неизвестный объект.
+Прочие UI-only пункты отмечены в таблицах. Поэтому «каждый toggle работает» пока неверно.
+
+Локально нет Windows SDK/MSVC и игрового процесса. Portable-тесты не валидируют ABI,
+вызовы событий, in-game console/renderer, серверную физику или отсутствие prediction drift.

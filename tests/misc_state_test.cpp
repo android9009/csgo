@@ -1,6 +1,7 @@
 #include "../features/misc/state.hpp"
 #include <cassert>
 #include <limits>
+#include <thread>
 int main(){
     using namespace MiscRuntime;
     Settings s;s.bhop=true;s.instant_duck=true;
@@ -51,4 +52,8 @@ int main(){
     s.logs=13;Publish(s);assert(Get().logs==13);
     PlayerState(7,true);assert(Alive() && ActiveWeapon()==7);
     PingApplied(true);assert(PingActive());PingApplied(false);
+    std::atomic<bool> publishing{true};
+    std::thread writer([&]{for(unsigned n=0;n<10000;++n){Settings next;next.logs=n;next.hit_details=n^0x1234;Publish(next);}publishing.store(false);});
+    while(publishing.load()){const auto next=Get();assert((next.logs==13 && next.hit_details==0) || next.hit_details==(next.logs^0x1234));}
+    writer.join();
 }
