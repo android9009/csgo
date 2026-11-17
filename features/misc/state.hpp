@@ -9,7 +9,7 @@
 #include "../../sdk/structs.hpp"
 namespace MiscRuntime {
 struct Settings {
-    bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{};
+    bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{},console_filter{};
     bool peek{},retreat_on_release{},no_fall{},edge_jump{},autoaccept{},edge_bug{},pixel_surf{},edge_stop{};float peek_distance{-1.f};
     bool clantag{},ragdoll_gravity{},long_jump{},ladder_jump{},enemy_chat{},ping_spike{};float ping_amount{};float ragdoll_amount{100.f};
     unsigned indicators{},indicator_active{};int active_weapon{};bool alive{};
@@ -91,7 +91,10 @@ inline void CounterMove(CUserCmd& cmd,float vx,float vy,const Physics& p){
     float basis=(std::min)(250.f,p.max_speed);
     if(cmd.buttons&4)basis*=.34f;else if(cmd.buttons&(1<<17))basis*=.52f;
     const float acceleration=p.interval*p.accelerate*p.surface_friction*basis;
-    const float strength=acceleration>after ? .001f : 450.f;
+    // Solve the remaining speed against this tick's acceleration instead
+    // of emitting 0.001 movement, which left low-speed slides uncorrected.
+    const float factor=p.interval*p.accelerate*p.surface_friction;
+    const float strength=acceleration>after && factor>0.f ? (std::min)(450.f,after/factor) : 450.f;
     const float yaw=cmd.viewangles.y*.01745329252f,c=std::cos(yaw),sn=std::sin(yaw);
     cmd.forwardmove=-(vx*c+vy*sn)/speed*strength;
     cmd.sidemove=(vy*c-vx*sn)/speed*strength;
@@ -112,19 +115,28 @@ struct PeekState {
     bool valid{},returning{},moved{};Vector origin{};int command{};
     void Reset(){*this={};}
     void Update(CUserCmd& cmd,bool enabled,bool release,bool ground,const Vector& position,const Vector& velocity,bool shot,const Physics& physics,float limit=-1.f){
-        if(!enabled){Reset();return;}
+        if(!enabled || !position.IsValid() || !velocity.IsValid() || !std::isfinite(cmd.viewangles.y)){Reset();return;}
         if(!valid){if(!ground)return;origin=position;valid=true;}
+        const float dx=origin.x-position.x,dy=origin.y-position.y,distance=std::hypot(dx,dy);
+        // Discard stale anchors after teleports/floor changes, even in the air.
+        if(distance>512.f || std::abs(origin.z-position.z)>64.f){Reset();return;}
+        // A weapon_fire event may arrive while airborne. Latch it before the
+        // ground-only steering gate instead of losing it for the whole peek.
+        if(shot)returning=true;
         if(!ground)return;
         const bool input=(cmd.buttons&0x618)!=0 || std::hypot(cmd.forwardmove,cmd.sidemove)>.1f;
         if(input)moved=true;
         if(shot || (release && moved && !input))returning=true;
         if(!returning){
-            const float dx=origin.x-position.x,dy=origin.y-position.y,distance=std::hypot(dx,dy);
             if(std::isfinite(limit) && limit>=0.f && distance>limit && distance>.01f){origin.x=position.x+dx*limit/distance;origin.y=position.y+dy*limit/distance;}
             return;
         }
-        const float dx=origin.x-position.x,dy=origin.y-position.y,distance=std::hypot(dx,dy);
-        if(std::abs(origin.z-position.z)>64.f){Reset();return;}
+        const float closing=distance>.01f ? (velocity.x*dx+velocity.y*dy)/distance : 0.f;
+        const float speed=velocity.Length2D();
+        const float deceleration=(std::max)(speed,physics.stop_speed)*physics.friction*physics.surface_friction
+            +physics.accelerate*physics.max_speed*physics.surface_friction;
+        const float stopping=deceleration>0.f ? closing*closing/(2.f*deceleration) : 0.f;
+        if(closing>5.f && distance<=stopping+closing*physics.interval+3.f){CounterMove(cmd,velocity.x,velocity.y,physics);return;}
         if(distance<3.f){CounterMove(cmd,velocity.x,velocity.y,physics);if(velocity.Length2D()<5.f){returning=false;moved=false;}return;}
         const float yaw=cmd.viewangles.y*.01745329252f,c=std::cos(yaw),sn=std::sin(yaw);
         // Stop-position compensation prevents repeatedly overshooting the anchor.
@@ -134,6 +146,19 @@ struct PeekState {
         cmd.buttons&=~0x618;cmd.forwardmove=(x*c+y*sn)/length*strength;cmd.sidemove=(x*sn-y*c)/length*strength;
     }
 };
+struct PeekMarker {Vector origin{};std::array<float,16> matrix{};bool valid{},returning{};};
+inline std::mutex peek_marker_mutex;
+inline PeekMarker peek_marker;
+inline void PublishPeekMarker(const PeekMarker& frame){
+    std::unique_lock<std::mutex> lock(peek_marker_mutex,std::try_to_lock);
+    if(lock.owns_lock())peek_marker=frame;
+}
+inline PeekMarker GetPeekMarker(){
+    static thread_local PeekMarker frame;
+    std::unique_lock<std::mutex> lock(peek_marker_mutex,std::try_to_lock);
+    if(lock.owns_lock())frame=peek_marker;
+    return frame;
+}
 inline void Move(CUserCmd& cmd,const Settings& s,bool ground,int type,int water,float vx,float vy,bool server_bhop=false,const Physics& physics={}){
     constexpr int jump=1<<1,speed_key=1<<17,bullrush=1<<22;
     if(!Walkable(type,water) || !std::isfinite(vx) || !std::isfinite(vy) || !std::isfinite(cmd.viewangles.y))return;
@@ -147,12 +172,21 @@ inline void Move(CUserCmd& cmd,const Settings& s,bool ground,int type,int water,
         return;
     }
     if(!(s.strafe&3u) || (cmd.buttons&speed_key) || (!wants_jump && !(s.strafe&8u)))return;
-    const float original_forward=cmd.forwardmove,original_side=cmd.sidemove;
+    float original_forward=cmd.forwardmove,original_side=cmd.sidemove;
+    if(!std::isfinite(original_forward) || !std::isfinite(original_side))return;
+    // Buttons remain meaningful when another feature has zeroed analog move.
+    if((s.strafe&2u) && std::abs(original_forward)<.01f && std::abs(original_side)<.01f){
+        original_forward=((cmd.buttons&8) ? 450.f : 0.f)-((cmd.buttons&16) ? 450.f : 0.f);
+        original_side=((cmd.buttons&1024) ? 450.f : 0.f)-((cmd.buttons&512) ? 450.f : 0.f);
+    }
     if((s.strafe&1u) && !(s.strafe&2u) && ((cmd.buttons&16) || original_side!=0.f))return;
     float desired=cmd.viewangles.y;
     if((s.strafe&2u) && (std::abs(original_forward)>1.f || std::abs(original_side)>1.f))desired+=std::atan2(-original_side,original_forward)/radians;
     else if(!(s.strafe&1u))return;
-    if((s.strafe&4u) && std::abs(cmd.mousedx)>1){cmd.forwardmove=0.f;cmd.sidemove=cmd.mousedx>0 ? 450.f : -450.f;return;}
+    if((s.strafe&4u) && std::abs(cmd.mousedx)>1){
+        const float side=cmd.mousedx>0 ? 450.f : -450.f,rotation=(desired-cmd.viewangles.y)*radians;
+        cmd.forwardmove=std::sin(rotation)*side;cmd.sidemove=std::cos(rotation)*side;return;
+    }
     const float velocity_yaw=speed>1.f ? std::atan2(vy,vx)/radians : desired;
     const float delta=std::remainder(desired-velocity_yaw,360.f);
     const float ideal=(std::min)(90.f,845.5f/(std::max)(speed,1.f));

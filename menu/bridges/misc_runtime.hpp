@@ -5,7 +5,7 @@
 namespace MiscBridge {
 inline void Configure(){
     auto& m=cfg.misc;MiscRuntime::Settings s;
-    s.ping_spike=m.ping_spike_enabled.get();s.ping_amount=cfg.aim.ping_spike_amt.get();s.clantag=m.clantag.get();s.ragdoll_gravity=m.ragdoll_thrust_enabled.get();s.ragdoll_amount=cfg.visuals.ragdoll_thrust.get();s.long_jump=m.long_jump.get();s.ladder_jump=m.ladder_jump.get();
+    s.console_filter=m.console_filter.get();s.ping_spike=m.ping_spike_enabled.get();s.ping_amount=cfg.aim.ping_spike_amt.get();s.clantag=m.clantag.get();s.ragdoll_gravity=m.ragdoll_thrust_enabled.get();s.ragdoll_amount=cfg.visuals.ragdoll_thrust.get();s.long_jump=m.long_jump.get();s.ladder_jump=m.ladder_jump.get();
     s.indicators=static_cast<unsigned>(static_cast<std::uint64_t>(cfg.aa.indicators.get()));
     // The current Rage page is built with profile key 0 (port.cpp), not
     // reference Fatality's general_id=512. Do not read non-existent overrides.
@@ -26,8 +26,36 @@ inline void Configure(){
     s.hit_enabled=m.hit_sound_enabled.get();s.kill_enabled=m.kill_sound_enabled.get();s.hit_sound=m.hitsound_select.get().first_set_bit().value_or(0);s.kill_sound=m.kill_sound_select.get().first_set_bit().value_or(0);
     for(int i=0;i<5;++i)s.colors[i]=m.log_colors[i].get().rgba();MiscRuntime::Publish(s);
 }
+inline void RenderPeek(){
+    using namespace evo::ren;using namespace evo::gui;
+    const auto frame=MiscRuntime::GetPeekMarker();
+    if(!cfg.misc.peek_assist.get() || !MiscRuntime::Alive() || !frame.valid)return;
+    const auto& m=frame.matrix;const auto display=draw.display/draw.scale;
+    auto project=[&](const Vector& point,vec2& out){
+        const float w=m[12]*point.x+m[13]*point.y+m[14]*point.z+m[15];
+        if(!std::isfinite(w) || w<.01f)return false;
+        out={display.x*.5f*(1.f+(m[0]*point.x+m[1]*point.y+m[2]*point.z+m[3])/w),
+            display.y*.5f*(1.f-(m[4]*point.x+m[5]*point.y+m[6]*point.z+m[7])/w)};
+        return std::isfinite(out.x) && std::isfinite(out.y);
+    };
+    auto& layer=draw.layers[l_back];
+    const auto base=frame.returning ? cfg.misc.peek_assist_col2.get() : cfg.misc.peek_assist_col.get();
+    const bool filled=cfg.misc.peek_assist_visual.get().test(1);
+    const Vector origin=frame.origin+Vector{0.f,0.f,2.f};vec2 center;
+    const bool center_visible=project(origin,center);
+    for(int i=0;i<48;++i){
+        const float a=static_cast<float>(i)*6.283185307f/48.f,b=static_cast<float>(i+1)*6.283185307f/48.f;
+        vec2 first,second;
+        if(!project(origin+Vector{std::cos(a)*16.f,std::sin(a)*16.f,0.f},first) ||
+           !project(origin+Vector{std::cos(b)*16.f,std::sin(b)*16.f,0.f},second))continue;
+        if(filled && center_visible)layer->add_triangle_filled(center,first,second,color{base,base.value.a*.2f});
+        if(!filled){layer->add_line(first,second,color{base,base.value.a*.12f},7.f);layer->add_line(first,second,color{base,base.value.a*.3f},4.f);}
+        layer->add_line(first,second,base,1.5f);
+    }
+}
 inline void Render(){
     using namespace evo::ren;using namespace evo::gui;
+    RenderPeek();
     // Event logs remain visible after death; movement indicators do not.
     auto& overlay=draw.layers[l_back];overlay->font=draw.fonts[GUI_HASH("gui_main")];
     float log_y=15.f;const double now=static_cast<double>(GetTickCount64())*.001;

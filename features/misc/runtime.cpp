@@ -253,11 +253,38 @@ void UpdateRagdoll(const Settings& options){
     const float value=ragdoll_original*std::clamp(options.ragdoll_amount/100.f,.01f,10.f);
     if(!ragdoll_changed || std::abs(value-ragdoll_applied)>.01f){set(ragdoll_cvar,value);ragdoll_applied=value;ragdoll_changed=true;}
 }
+// Console filtering uses the public ConVar virtual API, never patches flags or
+// change callbacks. Restore only values still owned by us (do not clobber a
+// user's console edits while the feature is enabled).
+struct ConsoleFilterState {
+    void* enable{};void* text{};int original_enable{};std::string original_text;bool changed{};
+    void Update(bool active){
+        if(!Interfaces::ConVar)return;
+        const auto find=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14);
+        if(active && !enable)enable=find(Interfaces::ConVar,"con_filter_enable");
+        if(active && !text)text=find(Interfaces::ConVar,"con_filter_text");
+        if(!enable || !text)return;
+        const auto get_int=MEM::GetVFunc<int(__thiscall*)(void*)>(enable,13);
+        const auto set_int=MEM::GetVFunc<void(__thiscall*)(void*,int)>(enable,16);
+        const auto get_text=MEM::GetVFunc<const char*(__thiscall*)(void*)>(text,11);
+        const auto set_text=MEM::GetVFunc<void(__thiscall*)(void*,const char*)>(text,14);
+        if(active && !changed){
+            original_enable=get_int(enable);const char* previous=get_text(text);original_text=previous ? previous : "";
+            set_text(text,"[Pastaware]");set_int(enable,1);changed=true;
+        }else if(!active && changed){
+            const char* current=get_text(text);
+            if(current && !std::strcmp(current,"[Pastaware]"))set_text(text,original_text.c_str());
+            if(get_int(enable)==1)set_int(enable,original_enable);
+            changed=false;
+        }
+    }
+} console_filter;
+void UpdateConsoleFilter(bool active){console_filter.Update(active);}
 void InitializeExtras(){__try{ResolveClanTag();}__except(EXCEPTION_EXECUTE_HANDLER){set_clan_tag=nullptr;LOG_WARN("misc clantag: invalid fingerprint operands");}}
-void ShutdownExtras(){datagram_hook.detach();ping_channel=nullptr;__try{UpdateClan(false);Settings disabled;UpdateRagdoll(disabled);}__except(EXCEPTION_EXECUTE_HANDLER){}}
+void ShutdownExtras(){datagram_hook.detach();ping_channel=nullptr;__try{UpdateClan(false);UpdateConsoleFilter(false);Settings disabled;UpdateRagdoll(disabled);}__except(EXCEPTION_EXECUTE_HANDLER){}}
 void FrameImpl(){
     const auto options=Get();
-    UpdateClan(options.clantag);UpdateRagdoll(options);UpdatePing();
+    UpdateClan(options.clantag);UpdateRagdoll(options);UpdateConsoleFilter(options.console_filter);UpdatePing();
     if(!ctx.in_game || !ctx.local || !Interfaces::EntityList){for(auto& r:radar)r={};pending_buy=false;return;}
     if(!options.radar)RestoreRadar();
     else {
@@ -392,7 +419,7 @@ void Initialize(){
 void Shutdown(){
     ShutdownExtras();
     accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;
-    peek_state.Reset();peek_shot.store(false);
+    peek_state.Reset();PublishPeekMarker({});peek_shot.store(false);
     if(registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);
     registered=false;pending_buy=false;PlaySoundA(nullptr,nullptr,0);
     __try{RestoreRadar();}__except(EXCEPTION_EXECUTE_HANDLER){}
@@ -400,7 +427,10 @@ void Shutdown(){
 }
 void CreateMove(CUserCmd* cmd){
     if(!cmd)return;const float f=cmd->forwardmove,s=cmd->sidemove;const int buttons=cmd->buttons;
-    __try{MoveImpl(cmd);}__except(EXCEPTION_EXECUTE_HANDLER){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;}
+    __try{MoveImpl(cmd);}__except(EXCEPTION_EXECUTE_HANDLER){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;peek_state.Reset();}
+    PeekMarker frame;frame.origin=peek_state.origin;frame.valid=peek_state.valid;frame.returning=peek_state.returning;
+    static_assert(sizeof(ctx.view_matrix)==sizeof(frame.matrix),"matrix layout");
+    std::memcpy(frame.matrix.data(),&ctx.view_matrix,sizeof(ctx.view_matrix));PublishPeekMarker(frame);
 }
 void Frame(){__try{FrameImpl();}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged=false;if(!logged){logged=true;LOG_WARN("misc: rejected frame entity data");}}}
 }

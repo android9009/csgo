@@ -24,7 +24,7 @@ int main(){
     s.primary=6;Publish(s);assert(Get().primary==6);
     Physics p;c={};CounterMove(c,200,0,p);assert(c.forwardmove< -449.f && c.sidemove==0.f);
     c={};c.viewangles.y=90;CounterMove(c,200,0,p);assert(c.sidemove< -449.f && std::abs(c.forwardmove)<.001f);
-    c={};CounterMove(c,10,0,p);assert(std::abs(c.forwardmove)<=.0011f);
+    c={};CounterMove(c,10,0,p);assert(c.forwardmove< -1.f && c.forwardmove> -250.f);
     c={};EdgeJump(c,true,true,false);assert(c.buttons&2);
     c={};EdgeJump(c,true,false,false);assert(c.buttons==0);EdgeJump(c,false,true,false);assert(c.buttons==0);
     c={};c.buttons=4;FallButtons(c,10.f,-600.f,800.f,1.f/64);assert((c.buttons&2) && !(c.buttons&4));
@@ -56,4 +56,19 @@ int main(){
     std::thread writer([&]{for(unsigned n=0;n<10000;++n){Settings next;next.logs=n;next.hit_details=n^0x1234;Publish(next);}publishing.store(false);});
     while(publishing.load()){const auto next=Get();assert((next.logs==13 && next.hit_details==0) || next.hit_details==(next.logs^0x1234));}
     writer.join();
+    // Preserve a shot-triggered return across an airborne command.
+    peek.Reset();c={};peek.Update(c,true,false,true,{0,0,0},{},false,p);
+    peek.Update(c,true,false,false,{50,0,20},{},true,p);assert(peek.returning);
+    c={};peek.Update(c,true,false,true,{50,0,0},{},false,p);assert(c.forwardmove<0);
+    // Brake before crossing the anchor, not only inside the 3-unit radius.
+    c={};peek.Update(c,true,false,true,{8,0,0},{-200,0,0},false,p);assert(c.forwardmove>0);
+    peek.Update(c,true,false,false,{600,0,20},{},false,p);assert(!peek.valid);
+    peek.Update(c,true,false,true,{0,0,0},{},false,p);
+    peek.Update(c,true,false,false,{0,0,100},{},false,p);assert(!peek.valid);
+    s={};s.strafe=6;c={};c.buttons=2|16;c.mousedx=10;
+    Move(c,s,false,2,0,200,0);assert(c.sidemove< -449.f && std::abs(c.forwardmove)<.001f);
+    s.strafe=6;c={};c.buttons=2|512;c.mousedx=10;
+    Move(c,s,false,2,0,200,0);assert(c.forwardmove>449.f && std::abs(c.sidemove)<.001f);
+    PeekMarker marker;marker.valid=true;marker.origin={10,20,30};PublishPeekMarker(marker);
+    assert(GetPeekMarker().valid && GetPeekMarker().origin.y==20);PublishPeekMarker({});assert(!GetPeekMarker().valid);
 }
