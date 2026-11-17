@@ -75,7 +75,7 @@ inline std::ptrdiff_t delta{},counters{};
 inline bool ResolveUpdate(){
     delta=static_cast<std::ptrdiff_t>(Patterns::Get("clientstate_delta_ticks"));
     counters=static_cast<std::ptrdiff_t>(Patterns::Get("clientstate_last_outgoing_command"));
-    return Offset(delta) && Offset(counters);
+    return Offset(delta) && Offset(counters) && Patterns::Get("clientstate_choked_commands")==static_cast<std::uintptr_t>(counters)+sizeof(int);
 }
 inline int Acknowledged(){return Interfaces::ClientState && Offset(counters) ? Field<CommandCounters>(Interfaces::ClientState,counters).ack : 0;}
 inline void __fastcall RunCommand(void* self,void*,CCSPlayer* player,CUserCmd* cmd,IMoveHelper* helper){
@@ -120,6 +120,8 @@ void End(){
     if(!backup.active)return;
     if(backup.tracking){backup.tracking=false;__try{MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameMovement,4)(Interfaces::GameMovement,backup.local);}__except(EXCEPTION_EXECUTE_HANDLER){}}
     if(backup.host){backup.host=false;__try{MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::MoveHelper,1)(Interfaces::MoveHelper,nullptr);}__except(EXCEPTION_EXECUTE_HANDLER){}}
+    __try{MEM::GetVFunc<void(__thiscall*)(void*)>(Interfaces::GameMovement,2)(Interfaces::GameMovement);}
+    __except(EXCEPTION_EXECUTE_HANDLER){}
     Interfaces::Globals->curtime=backup.curtime;Interfaces::Globals->frametime=backup.frametime;
     backup.local->m_fFlags()=backup.flags;backup.local->m_nTickBase()=backup.tickbase;
     *seed=backup.seed;*prediction_player=backup.player;
