@@ -153,7 +153,8 @@ void Modulate(MaterialRecord& item,const MaterialSettings& s){
     if((item.group&3u) && s.fullbright)tint=s.bright;
     if((item.group&4u) && s.sky)tint=s.sky_color;
     const float red=static_cast<float>((tint>>16)&255)/255.f,green=static_cast<float>((tint>>8)&255)/255.f,blue=static_cast<float>(tint&255)/255.f;
-    item.value->ColorModulate(item.rgb[0]*red,item.rgb[1]*green,item.rgb[2]*blue);
+    const float shade=(item.group&3u) && s.night && !s.fullbright ? ((item.group&1u) ? .2f : .5f) : 1.f;
+    item.value->ColorModulate(item.rgb[0]*red*shade,item.rgb[1]*green*shade,item.rgb[2]*blue*shade);
     const float transparency=(item.group&1u) ? s.texture : (item.group&2u) ? s.prop : 0.f;
     item.value->AlphaModulate(item.alpha*(1.f-std::clamp(transparency*.01f,0.f,1.f)));
     const bool hide=((item.group&8u) && (s.removals&2u)) || ((item.group&16u) && (s.removals&(1u<<4))) || ((item.group&32u) && (s.removals&(1u<<5)));
@@ -161,7 +162,7 @@ void Modulate(MaterialRecord& item,const MaterialSettings& s){
 }
 void Materials(const Settings& s){
     if(!Interfaces::MaterialSystem)return;
-    MaterialSettings next{s.texture_alpha,s.prop_alpha,s.removals,s.night,s.fullbright,s.sky,s.night_color,s.fullbright_color,s.sky_color};
+    MaterialSettings next{s.texture_alpha,s.prop_alpha,s.removals&(2u|16u|32u),s.night,s.fullbright,s.sky,s.night_color,s.fullbright_color,s.sky_color};
     const bool requested=s.texture_alpha>0.f || s.prop_alpha>0.f || s.night || s.fullbright || s.sky || (s.removals&(2u|16u|32u));
     if(materials.empty() && !scanning && !requested)return;
     if(!material_settings_valid || !(next==material_settings)){material_settings=next;material_settings_valid=true;apply_cursor=0;}

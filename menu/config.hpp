@@ -552,7 +552,7 @@ struct cfg_t {
 			shared_esp_with_enemy, shared_esp, buybot_defuser, buybot_taser, buybot_grenades, debug_info, edge_jump, goblin_mode, scope_invert;
 		setting<color> peek_assist_col{ {46, 115, 201} }, peek_assist_col2{ {201, 48, 63} }, scope_line_color{ color::black( ) }, impacts_color{ {255, 0, 0} }, impacts_color2
 		{ {0, 0, 155} }, box_color{ color::white( ) }, tracer_color{ color::white( ) };
-		setting<float> fov_scope, fov{ 90.f }, vm_fov{ 90.f }, hitsound_volume, scope_line_size, autostrafe_smoothing, thirdperson_dist{ 30.f }, transparency_in_scope,
+		setting<float> fov_scope, fov{ 90.f }, vm_fov{ 90.f }, hitsound_volume, scope_line_size{100.f}, autostrafe_smoothing, thirdperson_dist{ 100.f }, transparency_in_scope,
 			transparency_nade, aspect;
 		setting<bitset> hitsound_select{ 1 << hitsound_none }, autostrafe, buybot_primary{ 0 }, buybot_pistol{ 0 }, noscope{ 1 << noscope_none }, buybot_kevlar_helmet{ 0 },
 			hitmarker{};
