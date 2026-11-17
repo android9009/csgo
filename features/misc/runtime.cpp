@@ -256,6 +256,20 @@ void UpdateRagdoll(const Settings& options){
 // Console filtering uses the public ConVar virtual API, never patches flags or
 // change callbacks. Restore only values still owned by us (do not clobber a
 // user's console edits while the feature is enabled).
+const char* FilterTextValue(void* variable){
+    // GetString is inline, NOT vfunc 11 (that slot is not a string getter).
+    // Source 1 x86 ConVar: parent 1C, m_Value.string 24, length 28.
+    // Validate object identity and bounds before reading this SDK layout.
+    if(!variable)return nullptr;
+    auto* parent=*reinterpret_cast<unsigned char**>(static_cast<unsigned char*>(variable)+0x1c);
+    if(!parent || *reinterpret_cast<void***>(parent)!=*reinterpret_cast<void***>(variable))return nullptr;
+    const char* name=MEM::GetVFunc<const char*(__thiscall*)(void*)>(parent,5)(parent);
+    if(!name || std::strcmp(name,"con_filter_text"))return nullptr;
+    const int length=*reinterpret_cast<const int*>(parent+0x28);
+    const char* value=*reinterpret_cast<const char**>(parent+0x24);
+    if(!value || length<1 || length>4096 || !std::memchr(value,0,static_cast<std::size_t>(length)))return nullptr;
+    return value;
+}
 struct ConsoleFilterState {
     void* enable{};void* text{};int original_enable{};std::string original_text;bool changed{};
     void Update(bool active){
@@ -266,13 +280,13 @@ struct ConsoleFilterState {
         if(!enable || !text)return;
         const auto get_int=MEM::GetVFunc<int(__thiscall*)(void*)>(enable,13);
         const auto set_int=MEM::GetVFunc<void(__thiscall*)(void*,int)>(enable,16);
-        const auto get_text=MEM::GetVFunc<const char*(__thiscall*)(void*)>(text,11);
         const auto set_text=MEM::GetVFunc<void(__thiscall*)(void*,const char*)>(text,14);
         if(active && !changed){
-            original_enable=get_int(enable);const char* previous=get_text(text);original_text=previous ? previous : "";
+            const char* previous=FilterTextValue(text);if(!previous)return;
+            original_enable=get_int(enable);original_text=previous;
             set_text(text,"[Pastaware]");set_int(enable,1);changed=true;
         }else if(!active && changed){
-            const char* current=get_text(text);
+            const char* current=FilterTextValue(text);
             if(current && !std::strcmp(current,"[Pastaware]"))set_text(text,original_text.c_str());
             if(get_int(enable)==1)set_int(enable,original_enable);
             changed=false;
