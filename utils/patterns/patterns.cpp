@@ -8,6 +8,20 @@
 #include <windows.h>
 namespace Patterns {
 static const std::vector<Definition> kDefinitions = {
+    // Native prediction bindings: absolute pointers/displacements, NO pinned fallback.
+    {"prediction_current_command", "client.dll", "89 BE ? ? ? ? E8 ? ? ? ? 85 FF", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_last_command", "client.dll", "8D 8E ? ? ? ? 89 5C 24 ? 89 BE", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_random_seed", "client.dll", "A3 ? ? ? ? 66 0F 6E 86", {1, 0, 0, 0}, 1, false, 0},
+    {"prediction_player", "client.dll", "89 35 ? ? ? ? F3 0F 10 48", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_move_helper", "client.dll", "8B 0D ? ? ? ? 8B 46 08 68", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_forced_buttons", "client.dll", "8B 86 ? ? ? ? 09 47 30 8B 86 ? ? ? ? F7 D0 21 47 30", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_disabled_buttons", "client.dll", "8B 86 ? ? ? ? 09 47 30 8B 86 ? ? ? ? F7 D0 21 47 30", {11, 0, 0, 0}, 1, false, 0},
+    {"prediction_buttons", "client.dll", "8B 86 ? ? ? ? 8B C8 33 CA 89 86 ? ? ? ? 8B C1 89 96", {2, 0, 0, 0}, 1, false, 0},
+    {"prediction_last_buttons", "client.dll", "8B 86 ? ? ? ? 8B C8 33 CA 89 86 ? ? ? ? 8B C1 89 96", {12, 0, 0, 0}, 1, false, 0},
+    {"prediction_pressed_buttons", "client.dll", "8B 86 ? ? ? ? 8B C8 33 CA 89 86 ? ? ? ? 8B C1 89 96", {30, 0, 0, 0}, 1, false, 0},
+    {"prediction_released_buttons", "client.dll", "8B 86 ? ? ? ? 8B C8 33 CA 89 86 ? ? ? ? 8B C1 89 96", {47, 0, 0, 0}, 1, false, 0},
+    {"prediction_md5_fastcall", "client.dll", "55 8B EC 83 E4 F8 83 EC 70 6A 58 8D 44 24 1C 89 4C 24 08", {0, 0, 0, 0}, 0, false, 0},
+    {"server_rank_reveal_handler", "client.dll", "55 8B EC 51 A1 ? ? ? ? 85 C0 75 37  A1 ? ? ? ? 68 ? ? ? ? 8B 08 8B 01 FF 50 04", {0, 0, 0, 0}, 0, false, 0},
     {"dwClientState", "engine.dll", "A1 ? ? ? ? 33 D2 6A 00 6A 00 33 C9 89 B0", {1, 0, 0, 0}, 1, true, 0},
     {"dwClientState_GetLocalPlayer", "engine.dll", "8B 80 ? ? ? ? 40 C3", {2, 0, 0, 0}, 1, false, 0},
     {"dwClientState_IsHLTV", "engine.dll", "80 BF ? ? ? ? ? 0F 84 ? ? ? ? 32 DB", {2, 0, 0, 0}, 1, false, 0},

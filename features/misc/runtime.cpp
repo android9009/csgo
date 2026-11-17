@@ -1,5 +1,7 @@
 #include "runtime.hpp"
 #include "prediction.hpp"
+#include "engine_prediction.hpp"
+#include "../../utils/patterns/patterns.hpp"
 #include "../../context.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/entity/player.hpp"
@@ -175,39 +177,68 @@ void RestoreRadar(){
 }
 VMT_Hook datagram_hook;void* ping_channel{};SequenceHistory sequence_history;std::mutex sequence_mutex;
 using DatagramFn=int(__thiscall*)(void*,void*);DatagramFn datagram_original{};
-int SendWithSequence(void* channel,void* data,const SequenceHistory::Entry& entry){
-    auto* sequence=reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x1c);
-    auto* reliable=reinterpret_cast<int*>(static_cast<unsigned char*>(channel)+0x28);
-    const int old_sequence=*sequence,old_reliable=*reliable;int result{};
-    __try{*sequence=entry.sequence;*reliable=entry.reliable;result=datagram_original(channel,data);}
-    __finally{*sequence=old_sequence;*reliable=old_reliable;}
-    return result;
+struct SequenceRestore {int sequence{},reliable{};bool active{};};
+bool ApplySequence(void* channel,const SequenceHistory::Entry& entry,SequenceRestore& restore){
+    __try{
+        auto* bytes=static_cast<unsigned char*>(channel);
+        restore.sequence=*reinterpret_cast<int*>(bytes+0x1c);restore.reliable=*reinterpret_cast<int*>(bytes+0x28);
+        if(restore.sequence<0 || restore.reliable<0 || restore.reliable>255 || entry.sequence<0 || entry.reliable<0 || entry.reliable>255)return false;
+        restore.active=true;*reinterpret_cast<int*>(bytes+0x1c)=entry.sequence;*reinterpret_cast<int*>(bytes+0x28)=entry.reliable;return true;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+void RestoreSequence(void* channel,const SequenceRestore& restore){
+    if(!restore.active)return;
+    __try{auto* bytes=static_cast<unsigned char*>(channel);*reinterpret_cast<int*>(bytes+0x1c)=restore.sequence;*reinterpret_cast<int*>(bytes+0x28)=restore.reliable;}
+    __except(EXCEPTION_EXECUTE_HANDLER){}
+}
+bool SelectSequence(void* channel,void* data,SequenceHistory::Entry& selected){
+    const auto options=Get();
+    if(channel!=ping_channel || data || !options.ping_spike || !Interfaces::Engine || !Interfaces::Engine->IsInGame())return false;
+    if(MEM::GetVFunc<bool(__thiscall*)(void*)>(channel,6)(channel))return false;
+    const auto latency=MEM::GetVFunc<float(__thiscall*)(void*,int)>(channel,9);
+    const float existing=latency(channel,0)+latency(channel,1),max_unlag=ConVarFloat("sv_maxunlag",.2f);
+    if(!std::isfinite(existing) || existing<0.f || !std::isfinite(options.ping_amount))return false;
+    const float delay=std::clamp(options.ping_amount*.001f,0.f,(std::max)(0.f,max_unlag-existing));
+    std::unique_lock<std::mutex> lock(sequence_mutex,std::try_to_lock);
+    return lock.owns_lock() && sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);
+}
+bool SafeSelectSequence(void* channel,void* data,SequenceHistory::Entry& selected){
+    __try{return SelectSequence(channel,data,selected);}__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 int __fastcall SendDatagram(void* channel,void*,void* data){
     const auto original=datagram_original;if(!original)return 0;
-    const auto options=Get();if(channel!=ping_channel || data || !options.ping_spike || !Interfaces::Engine || !Interfaces::Engine->IsInGame()){PingApplied(false);return original(channel,data);}
-    const auto loopback=MEM::GetVFunc<bool(__thiscall*)(void*)>(channel,6);if(loopback(channel)){PingApplied(false);return original(channel,data);}
-    const auto latency=MEM::GetVFunc<float(__thiscall*)(void*,int)>(channel,9);
-    const float existing=latency(channel,0)+latency(channel,1),max_unlag=ConVarFloat("sv_maxunlag",.2f);
-    const float delay=std::clamp(options.ping_amount*.001f,0.f,(std::max)(0.f,max_unlag-existing));
-    SequenceHistory::Entry selected;bool found{};
-    {std::unique_lock<std::mutex> lock(sequence_mutex,std::try_to_lock);if(lock.owns_lock())found=sequence_history.Select(static_cast<double>(GetTickCount64())*.001,delay,selected);}
-    PingApplied(found);
-    return found ? SendWithSequence(channel,data,selected) : original(channel,data);
+    SequenceHistory::Entry selected;SequenceRestore restore;
+    if(SafeSelectSequence(channel,data,selected)){
+        if(!ApplySequence(channel,selected,restore)){RestoreSequence(channel,restore);restore.active=false;}
+    }
+    PingApplied(restore.active);
+    int result{};
+    // Call the original exactly once, never retry it after an exception.
+    __try{result=original(channel,data);}__finally{RestoreSequence(channel,restore);}
+    return result;
 }
-bool PingEngineSupported(){
-    static int supported=-1;if(supported!=-1)return supported==1;
-    supported=0;auto* base=static_cast<unsigned char*>(MEM::GetModuleBase("engine.dll"));if(!base)return false;
-    const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(base);if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>0x1000)return false;
-    const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);
-    supported=nt->Signature==IMAGE_NT_SIGNATURE && nt->FileHeader.Machine==IMAGE_FILE_MACHINE_I386 && nt->FileHeader.TimeDateStamp==0x64ee7e86u && nt->OptionalHeader.SizeOfImage==0x39c0000u ? 1 : 0;
-    if(!supported)LOG_WARN("misc ping: unsupported engine build; channel hook disabled");
-    return supported==1;
+bool PingChannelSupported(void* channel){
+    if(!channel)return false;
+    auto* engine=static_cast<unsigned char*>(MEM::GetModuleBase("engine.dll"));if(!engine)return false;
+    const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(engine);
+    if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>0x1000)return false;
+    const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(engine+dos->e_lfanew);
+    if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_I386)return false;
+    const auto base=reinterpret_cast<std::uintptr_t>(engine),limit=base+nt->OptionalHeader.SizeOfImage;
+    const auto address=reinterpret_cast<std::uintptr_t>(channel==ping_channel && datagram_hook.is_hooked() ? datagram_original : MEM::GetVFunc<DatagramFn>(channel,46));
+    MEMORY_BASIC_INFORMATION memory{};
+    if(address<base || address>=limit || !VirtualQuery(reinterpret_cast<void*>(address),&memory,sizeof memory) || !(memory.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY)))return false;
+    const int sequence=*reinterpret_cast<const int*>(static_cast<const unsigned char*>(channel)+0x1c);
+    const int reliable=*reinterpret_cast<const int*>(static_cast<const unsigned char*>(channel)+0x28);
+    if(sequence<0 || reliable<0 || reliable>255)return false;
+    // Public INetChannelInfo::GetSequenceNr(FLOW_INCOMING) confirms +1C.
+    return MEM::GetVFunc<int(__thiscall*)(void*,int)>(channel,16)(channel,1)==sequence;
 }
+bool SafePingChannelSupported(void* channel){__try{return PingChannelSupported(channel);}__except(EXCEPTION_EXECUTE_HANDLER){return false;}}
 void UpdatePing(){
     if(!Get().ping_spike || !ctx.in_game)PingApplied(false);
-    if(!PingEngineSupported())return;
     void* channel=ctx.in_game && Interfaces::Engine ? MEM::GetVFunc<void*(__thiscall*)(void*)>(Interfaces::Engine,78)(Interfaces::Engine) : nullptr;
+    if(channel && !SafePingChannelSupported(channel)){PingApplied(false);return;}
     if(channel!=ping_channel){datagram_hook.detach();{std::lock_guard<std::mutex> lock(sequence_mutex);sequence_history.Reset();}ping_channel=channel;
         if(channel){datagram_original=MEM::GetVFunc<DatagramFn>(channel,46);if(!datagram_hook.attach(channel,46,reinterpret_cast<void*>(&SendDatagram)))ping_channel=nullptr;}
     }
@@ -322,7 +353,7 @@ void FrameImpl(){
     }
 }
 void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physics,bool ground,const Vector& position,const Vector& velocity){
-    if(!(options.edge_jump || options.edge_stop || options.edge_bug || options.pixel_surf) || !Interfaces::EngineTrace)return;
+    if(!(options.edge_bug || options.pixel_surf) || ground || !Interfaces::EngineTrace)return;
     const auto duck_offset=PropManager::Get().GetOffset("DT_CSPlayer","m_flDuckAmount");
     if(duck_offset<=0 || duck_offset>=0x10000)return;
     const float duck=*reinterpret_cast<const float*>(reinterpret_cast<const unsigned char*>(ctx.local)+duck_offset);
@@ -332,16 +363,6 @@ void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physic
         const auto native=Hull(start,end,mins,maxs);
         return MiscPrediction::Trace{native.fraction,native.endpos,native.plane.normal,native.startsolid,native.allsolid};
     };
-    if(ground){
-        auto future=initial;MiscPrediction::Budget budget;
-        const auto result=MiscPrediction::Tick(future,cmd,rules,trace,budget);
-        if(result.invalid)return;
-        if(result.left_ground && !(cmd.buttons&2)){
-            if(options.edge_jump)MiscRuntime::EdgeJump(cmd,true,true,false);
-            else if(options.edge_stop)CounterMove(cmd,velocity.x,velocity.y,physics);
-        }
-        return;
-    }
     // Do not search routes while far from contact. One proximity sweep plus
     // a strict shared budget replaces the old unconditional 512 sweeps.
     if(!(options.edge_bug || options.pixel_surf) || velocity.z>=-40.f)return;
@@ -357,15 +378,26 @@ void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physic
     static ULONGLONG reported{};const auto now=GetTickCount64();
     if(now-reported>2000){reported=now;LOG_INFO("misc forecast: selected %s route tick=%d traces=%d (experimental, not engine prediction)",choice.kind==2 ? "pixel-surf" : "edge-bug",choice.tick,choice.traces);}
 }
+void RevealRanks(CUserCmd& cmd,const Settings& options){
+    if(!options.reveal_ranks || !(cmd.buttons&(1<<16)) || !Interfaces::Client)return;
+    // The supplied client handler takes CCSUsrMsg_ServerRankRevealAll, not
+    // the historical int[3]. Dispatch constructs the right protobuf object.
+    if(!offsets::Get("server_rank_reveal_handler"))return;
+    static int last_reveal{};
+    if(cmd.command_number>=last_reveal && cmd.command_number-last_reveal<32)return;
+    last_reveal=cmd.command_number;
+    const unsigned char message[]{0x08,0x00}; // seconds_till_shutdown = 0
+    MEM::GetVFunc<bool(__thiscall*)(void*,int,int,int,const void*)>(Interfaces::Client,38)(Interfaces::Client,50,0,sizeof(message),message);
+}
 void MoveImpl(CUserCmd* cmd){
-    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);movement_player=nullptr;peek_shot.store(false);return;}
+    if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);EnginePrediction::Reset();movement_player=nullptr;peek_shot.store(false);return;}
     if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);}
     movement_player=ctx.local;last_command=cmd->command_number;
-    const auto options=Get();PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);const auto velocity=ctx.local->m_vecVelocity();
+    const auto options=Get();RevealRanks(*cmd,options);PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);auto velocity=ctx.local->m_vecVelocity();
     // Datamap entries in the supplied client.dll: m_MoveType=0x25C,
     // m_nWaterLevel=0x25E. Both are byte fields, not 32-bit NETVAR reads.
     const auto* bytes=reinterpret_cast<const unsigned char*>(ctx.local);
-    const int type=bytes[0x25c],water=bytes[0x25e];const bool ground=(ctx.local->m_fFlags()&1)!=0;
+    const int type=bytes[0x25c],water=bytes[0x25e];bool ground=(ctx.local->m_fFlags()&1)!=0;
     bool server_bhop=false;
     if(Interfaces::ConVar){
         static void* variable=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_autobunnyhopping");
@@ -382,7 +414,19 @@ void MoveImpl(CUserCmd* cmd){
         if(low.fraction<1.f && high.fraction==1.f && !high.startsolid && !high.allsolid)cmd->buttons|=2;
     }
     if(!Walkable(type,water)){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);return;}
-    Move(*cmd,options,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
+    auto pre=options;pre.quick_stop=false;
+    Move(*cmd,pre,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
+    const bool was_grounded=ground;
+    const bool predicted=EnginePrediction::Start(ctx.local,*cmd);
+    if(predicted){
+        ground=(ctx.local->m_fFlags()&1)!=0;velocity=ctx.local->m_vecVelocity();
+        auto post=options;post.bhop=false;post.instant_duck=false;post.strafe=0;
+        Move(*cmd,post,ground,type,water,velocity.x,velocity.y,server_bhop,physics);
+        if(was_grounded && !ground && !(cmd->buttons&2)){
+            if(options.edge_jump)EdgeJump(*cmd,true,true,false);
+            else if(options.edge_stop)CounterMove(*cmd,velocity.x,velocity.y,physics);
+        }
+    }
     const auto position=ctx.local->m_vecOrigin();
     const bool shot=peek_shot.exchange(false);
     peek_state.Update(*cmd,options.peek,options.retreat_on_release,ground,position,velocity,shot,physics,options.peek_distance);
@@ -431,6 +475,7 @@ void Initialize(){
     registered=true;LOG_INFO("misc: event listener registered");
 }
 void Shutdown(){
+    EnginePrediction::Shutdown();
     ShutdownExtras();
     accept_event_hook.detach();accept_destroy_hook.detach();accept_receiver=nullptr;ready=nullptr;
     peek_state.Reset();PublishPeekMarker({});peek_shot.store(false);
@@ -441,10 +486,11 @@ void Shutdown(){
 }
 void CreateMove(CUserCmd* cmd){
     if(!cmd)return;const float f=cmd->forwardmove,s=cmd->sidemove;const int buttons=cmd->buttons;
-    __try{MoveImpl(cmd);}__except(EXCEPTION_EXECUTE_HANDLER){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;peek_state.Reset();}
+    __try{
+        __try{MoveImpl(cmd);}__finally{EnginePrediction::End();}
+    }__except(EXCEPTION_EXECUTE_HANDLER){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;peek_state.Reset();}
     PeekMarker frame;frame.origin=peek_state.origin;frame.valid=peek_state.valid;frame.returning=peek_state.returning;
-    static_assert(sizeof(ctx.view_matrix)==sizeof(frame.matrix),"matrix layout");
-    std::memcpy(frame.matrix.data(),&ctx.view_matrix,sizeof(ctx.view_matrix));PublishPeekMarker(frame);
+    PublishPeekMarker(frame);
 }
 void Frame(){__try{FrameImpl();}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged=false;if(!logged){logged=true;LOG_WARN("misc: rejected frame entity data");}}}
 }

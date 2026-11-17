@@ -2,10 +2,12 @@
 #include "../tabs/tabs.hpp"
 #include "../config.hpp"
 #include "../../features/misc/state.hpp"
+#include "../../utils/memory.hpp"
+#include "../../utils/offsets/offsets.hpp"
 namespace MiscBridge {
 inline void Configure(){
     auto& m=cfg.misc;MiscRuntime::Settings s;
-    s.console_filter=m.console_filter.get();s.ping_spike=m.ping_spike_enabled.get();s.ping_amount=cfg.aim.ping_spike_amt.get();s.clantag=m.clantag.get();s.ragdoll_gravity=m.ragdoll_thrust_enabled.get();s.ragdoll_amount=cfg.visuals.ragdoll_thrust.get();s.long_jump=m.long_jump.get();s.ladder_jump=m.ladder_jump.get();
+    s.reveal_ranks=m.scoreboard_options.get().test(0);s.console_filter=m.console_filter.get();s.ping_spike=m.ping_spike_enabled.get();s.ping_amount=cfg.aim.ping_spike_amt.get();s.clantag=m.clantag.get();s.ragdoll_gravity=m.ragdoll_thrust_enabled.get();s.ragdoll_amount=cfg.visuals.ragdoll_thrust.get();s.long_jump=m.long_jump.get();s.ladder_jump=m.ladder_jump.get();
     s.indicators=static_cast<unsigned>(static_cast<std::uint64_t>(cfg.aa.indicators.get()));
     // The current Rage page is built with profile key 0 (port.cpp), not
     // reference Fatality's general_id=512. Do not read non-existent overrides.
@@ -26,11 +28,22 @@ inline void Configure(){
     s.hit_enabled=m.hit_sound_enabled.get();s.kill_enabled=m.kill_sound_enabled.get();s.hit_sound=m.hitsound_select.get().first_set_bit().value_or(0);s.kill_sound=m.kill_sound_select.get().first_set_bit().value_or(0);
     for(int i=0;i<5;++i)s.colors[i]=m.log_colors[i].get().rgba();MiscRuntime::Publish(s);
 }
+// Read the live matrix on the DX9 render thread once per rendered frame.
+// No tick-rate matrix or ctx data is shared with the marker publisher.
+inline bool PeekFrameMatrix(std::array<float,16>& matrix){
+    static const auto offset=offsets::Get("dwViewMatrix");
+    static const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    if(!base || !offset)return false;
+    __try{std::memcpy(matrix.data(),reinterpret_cast<const void*>(base+offset),sizeof(matrix));}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+    for(float value:matrix)if(!std::isfinite(value))return false;
+    return true;
+}
 inline void RenderPeek(){
     using namespace evo::ren;using namespace evo::gui;
     const auto frame=MiscRuntime::GetPeekMarker();
     if(!cfg.misc.peek_assist.get() || !MiscRuntime::Alive() || !frame.valid)return;
-    const auto& m=frame.matrix;const auto display=draw.display/draw.scale;
+    std::array<float,16> m{};if(!PeekFrameMatrix(m))return;const auto display=draw.display/draw.scale;
     auto project=[&](const Vector& point,vec2& out){
         const float w=m[12]*point.x+m[13]*point.y+m[14]*point.z+m[15];
         if(!std::isfinite(w) || w<.01f)return false;

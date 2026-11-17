@@ -9,7 +9,7 @@
 #include "../../sdk/structs.hpp"
 namespace MiscRuntime {
 struct Settings {
-    bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{},console_filter{};
+    bool bhop{},instant_duck{},quick_stop{},avoid_walls{},radar{},console_logs{},console_filter{},reveal_ranks{};
     bool peek{},retreat_on_release{},no_fall{},edge_jump{},autoaccept{},edge_bug{},pixel_surf{},edge_stop{};float peek_distance{-1.f};
     bool clantag{},ragdoll_gravity{},long_jump{},ladder_jump{},enemy_chat{},ping_spike{};float ping_amount{};float ragdoll_amount{100.f};
     unsigned indicators{},indicator_active{};int active_weapon{};bool alive{};
@@ -146,7 +146,7 @@ struct PeekState {
         cmd.buttons&=~0x618;cmd.forwardmove=(x*c+y*sn)/length*strength;cmd.sidemove=(x*sn-y*c)/length*strength;
     }
 };
-struct PeekMarker {Vector origin{};std::array<float,16> matrix{};bool valid{},returning{};};
+struct PeekMarker {Vector origin{};bool valid{},returning{};};
 inline std::mutex peek_marker_mutex;
 inline PeekMarker peek_marker;
 inline void PublishPeekMarker(const PeekMarker& frame){
