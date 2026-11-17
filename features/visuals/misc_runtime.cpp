@@ -63,9 +63,25 @@ void Camera(View& view,const Settings& s){
     Field<bool>(Interfaces::Input,camera_flag)=true;Field<Vector>(Interfaces::Input,camera_offset)={view.angles.x,view.angles.y,camera_distance};
     view.origin=eye-direction*camera_distance;
 }
+void DepthOfField(View& view,const Settings& s){
+    static float focus{};static int frame{-1};
+    if(!s.dof || (s.removals&8u)){focus=0.f;frame=-1;return;}
+    const int current=Interfaces::Globals ? Interfaces::Globals->framecount : -1;
+    if(current!=frame || current<0){
+        float target=16.f+std::clamp(s.focus_distance*.01f,0.f,1.f)*4080.f;
+        if((s.dof_mode&2u) && Interfaces::EngineTrace){Ray_t ray;ray.Init(view.origin,view.origin+Forward(view.angles)*8192.f);CTraceFilterSimple filter(ctx.local);CGameTrace trace;Interfaces::EngineTrace->TraceRay(ray,0x4600400Bu,&filter,&trace);target=(std::max)(16.f,trace.fraction*8192.f);}
+        if(focus<=0.f || !(s.dof_mode&2u))focus=target;else focus=Smooth(focus,target,Interfaces::Globals ? Interfaces::Globals->absoluteframetime : .016f,std::clamp(s.focus_speed,0.f,20.f));frame=current;
+    }
+    const float range=16.f+std::clamp(s.focus_range*.01f,0.f,1.f)*2048.f;
+    view.near_blur_depth=(std::max)(0.f,focus-range*2.f);view.near_focus_depth=(std::max)(view.near_blur_depth+.01f,focus-range);
+    view.far_focus_depth=focus+range;view.far_blur_depth=focus+range*2.f;view.near_blur_radius=10.f;view.far_blur_radius=5.f;view.dof_quality=0;
+    // CViewSetup::m_bDoDepthOfField is bit 3 after the off-center fields.
+    view.flags|=8u;
+}
 void ApplyView(View& view){
     const auto s=Get();if(!ctx.in_game || !ctx.local){RestoreCamera();return;}
     Camera(view,s);
+    DepthOfField(view,s);
     if(s.fov_enabled && ctx.local->IsAlive()){
         const bool scoped=ctx.local->m_bIsScoped();const float base=std::clamp(s.fov,60.f,140.f);
         const float zoomed=scoped && s.second_zoom ? (std::min)(view.fov,15.f) : view.fov;

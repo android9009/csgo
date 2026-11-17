@@ -34,6 +34,7 @@ struct ViewSetup {
 
 static_assert(offsetof(ViewSetup, fov) == 0xb0, "Source 1 view fov offset");
 static_assert(offsetof(ViewSetup, origin) == 0xb8, "Source 1 view origin offset");
+static_assert(offsetof(ViewSetup, flags) == 0x148, "Source 1 view postprocessing flags offset");
 static_assert(offsetof(ViewSetup, near_z) == 0xd0, "Source 1 view near plane offset");
 
 struct Plane { Vector normal{}; float distance{}; };
