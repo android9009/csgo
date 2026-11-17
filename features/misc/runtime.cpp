@@ -23,8 +23,18 @@ LongJumpState long_jump_state;
 std::atomic<bool> peek_shot{};
 void* movement_player{};int last_command{};
 float ConVarFloat(const char* name,float fallback){
+    // Per-thread cache avoids racing the network hook against CreateMove.
+    struct Cached {const char* name{};void* var{};};
+    static thread_local std::array<Cached,16> cache{};
+    static thread_local void* owner{};
     if(!Interfaces::ConVar)return fallback;
-    void* var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,name);
+    if(owner!=Interfaces::ConVar){cache={};owner=Interfaces::ConVar;}
+    void* var=nullptr;
+    for(auto& entry:cache){
+        if(entry.name && std::strcmp(entry.name,name))continue;
+        if(!entry.name){entry.name=name;entry.var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,name);}
+        var=entry.var;break;
+    }
     if(!var)return fallback;
     const float result=MEM::GetVFunc<float(__thiscall*)(void*)>(var,12)(var);
     return std::isfinite(result) ? result : fallback;
@@ -104,6 +114,22 @@ void Sound(int selection){
         case 5:wave=bepis;break;case 6:wave=phonk;break;case 7:wave=sparkle;break;case 8:wave=cock;break;default:return;}
     PlaySoundA(reinterpret_cast<LPCSTR>(wave),nullptr,SND_MEMORY|SND_ASYNC|SND_NODEFAULT);
 }
+void EventLog(const Settings& options,unsigned category,const char* text){
+    if(!(options.logs&(1u<<category)))return;
+    Message message;std::snprintf(message.text,sizeof message.text,"%s",text);
+    message.color=options.colors[category];message.time=static_cast<double>(GetTickCount64())*.001;
+    {std::lock_guard<std::mutex> lock(message_mutex);
+        for(std::size_t i=messages.size()-1;i>0;--i)messages[i]=messages[i-1];messages[0]=message;}
+    if(options.console_logs){
+        struct ConsoleColor {unsigned char r,g,b,a;};
+        using Print=void(__cdecl*)(const ConsoleColor&,const char*,...);
+        static auto print=reinterpret_cast<Print>(GetProcAddress(GetModuleHandleA("tier0.dll"),"?ConColorMsg@@YAXABVColor@@PBDZZ"));
+        const auto c=message.color;
+        const ConsoleColor color{static_cast<unsigned char>(c>>16),static_cast<unsigned char>(c>>8),static_cast<unsigned char>(c),255};
+        if(print)print(color,"[Pastaware] %s\n",message.text);
+        else LOG_INFO("misc event: %s",message.text);
+    }
+}
 void OnEvent(Event* event){
     if(!event || !Interfaces::Engine || !ctx.in_game)return;
     const char* name=event->Name();if(!name)return;
@@ -116,7 +142,18 @@ void OnEvent(Event* event){
         const int attacker=User(event->Int("attacker")),victim=User(event->Int("userid"));
         if(attacker==local && victim!=local){
             if(options.hit_enabled)Sound(options.hit_sound);
+            char text[192];std::snprintf(text,sizeof text,"Hit player #%d for %d damage (%d HP remaining, hitgroup %d)",victim,event->Int("dmg_health"),event->Int("health"),event->Int("hitgroup"));
+            EventLog(options,0,text);
+            const char* weapon=event->String("weapon");
+            if(!std::strcmp(weapon,"hegrenade") || !std::strcmp(weapon,"inferno"))EventLog(options,4,text);
+        }else if(victim==local){
+            char text[192];std::snprintf(text,sizeof text,"Hurt by player #%d for %d damage (%d HP remaining)",attacker,event->Int("dmg_health"),event->Int("health"));EventLog(options,3,text);
         }
+    }else if(!std::strcmp(name,"item_purchase")){
+        const int buyer=User(event->Int("userid"));if(buyer<=0)return;
+        const int team=event->Int("team");
+        const bool selected=(options.buy_targets&8u) || (buyer==local ? (options.buy_targets&4u)!=0 : ctx.local && (options.buy_targets&(team==ctx.local->m_iTeamNum() ? 1u : 2u))!=0);
+        if(selected){char text[192];std::snprintf(text,sizeof text,"Player #%d bought %.96s",buyer,event->String("weapon"));EventLog(options,2,text);}
     }else if(!std::strcmp(name,"player_death")){
         if(User(event->Int("attacker"))==local && User(event->Int("userid"))!=local && options.kill_enabled)Sound(options.kill_sound);
     }
@@ -127,7 +164,7 @@ public:
     virtual void FireGameEvent(Event* event){__try{OnEvent(event);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged=false;if(!logged){logged=true;LOG_WARN("misc: rejected event data");}}}
     virtual int GetEventDebugID(){return 42;}
 } listener;
-void ClearMessages(){std::lock_guard<std::mutex> lock(mutex);messages={};}
+void ClearMessages(){std::lock_guard<std::mutex> lock(message_mutex);messages={};}
 void RestoreRadar(){
     for(int i=1;i<=64;++i){auto& record=radar[i];
         if(record.written && spotted>0 && ctx.in_game && Interfaces::EntityList && Interfaces::EntityList->GetClientEntity(i)==record.entity)
@@ -263,7 +300,13 @@ void PredictMovement(CUserCmd& cmd,const Settings& options,const Physics& physic
         }
         return;
     }
-    const auto choice=MiscPrediction::Search(initial,cmd,rules,options.edge_bug,options.pixel_surf,trace);
+    // Do not search routes while far from contact. One proximity sweep plus
+    // a strict shared budget replaces the old unconditional 512 sweeps.
+    if(!(options.edge_bug || options.pixel_surf) || velocity.z>=-40.f)return;
+    const float reach=std::clamp(-velocity.z*physics.interval*4.f+4.f,8.f,64.f);
+    const auto nearby=Hull(position,position-Vector{0.f,0.f,reach},Vector{-16.f,-16.f,0.f},Vector{16.f,16.f,duck>.5f ? 54.f : 72.f});
+    if(nearby.fraction>=1.f || nearby.startsolid || nearby.allsolid)return;
+    const auto choice=MiscPrediction::Search(initial,cmd,rules,options.edge_bug,options.pixel_surf,trace,64);
     if(!choice.found)return;
     // Receding-horizon plan: only this command is changed. Every following
     // command starts from a fresh live snapshot; never replay stale trajectories.
@@ -341,7 +384,7 @@ void Initialize(){
     if(!accept_receiver)InstallAccept();
     if(registered || !Interfaces::GameEvent)return;
     auto add=MEM::GetVFunc<bool(__thiscall*)(void*,void*,const char*,bool)>(Interfaces::GameEvent,3);
-    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","weapon_fire","player_hurt","player_death"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
+    bool ok=true;for(const char* event:{"round_start","round_end","game_newmap","player_spawn","weapon_fire","player_hurt","player_death","item_purchase"})ok=add(Interfaces::GameEvent,&listener,event,false) && ok;
     if(!ok){MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&listener);LOG_WARN("misc: event listener unavailable");return;}
     registered=true;LOG_INFO("misc: event listener registered");
 }

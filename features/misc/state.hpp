@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <atomic>
+#include <memory>
 #include <string>
 #include "../../sdk/structs.hpp"
 namespace MiscRuntime {
@@ -17,20 +19,26 @@ struct Settings {
     bool defuser{},taser{},grenades{},hit_enabled{},kill_enabled{};
     std::array<std::uint32_t,5> colors{};
 };
-struct Message {char text[192]{};std::uint32_t color{};float time{};};
-inline std::mutex mutex;
-inline Settings settings;
+struct Message {char text[192]{};std::uint32_t color{};double time{};};
+// Immutable publication: event/network readers never wait on the UI message lock.
+inline std::shared_ptr<const Settings> settings=std::make_shared<const Settings>();
+inline std::mutex message_mutex;
 inline std::array<Message,8> messages{};
-inline void Publish(const Settings& s){std::lock_guard<std::mutex> lock(mutex);settings=s;}
-inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
-inline std::array<Message,8> Messages(){std::lock_guard<std::mutex> lock(mutex);return messages;}
-inline int live_weapon{};
-inline bool live_alive{},ping_applied{};
-inline void PingApplied(bool active){std::lock_guard<std::mutex> lock(mutex);ping_applied=active;}
-inline bool PingActive(){std::lock_guard<std::mutex> lock(mutex);return ping_applied;}
-inline int ActiveWeapon(){std::lock_guard<std::mutex> lock(mutex);return live_weapon;}
-inline bool Alive(){std::lock_guard<std::mutex> lock(mutex);return live_alive;}
-inline void PlayerState(int weapon,bool alive){std::lock_guard<std::mutex> lock(mutex);live_weapon=weapon;live_alive=alive;}
+inline void Publish(const Settings& s){std::atomic_store(&settings,std::make_shared<const Settings>(s));}
+inline Settings Get(){return *std::atomic_load(&settings);}
+inline std::array<Message,8> Messages(){
+    static thread_local std::array<Message,8> snapshot{};
+    std::unique_lock<std::mutex> lock(message_mutex,std::try_to_lock);
+    if(lock.owns_lock())snapshot=messages;
+    return snapshot;
+}
+inline std::atomic<int> live_weapon{};
+inline std::atomic<bool> live_alive{},ping_applied{};
+inline void PingApplied(bool active){ping_applied.store(active,std::memory_order_relaxed);}
+inline bool PingActive(){return ping_applied.load(std::memory_order_relaxed);}
+inline int ActiveWeapon(){return live_weapon.load(std::memory_order_relaxed);}
+inline bool Alive(){return live_alive.load(std::memory_order_relaxed);}
+inline void PlayerState(int weapon,bool alive){live_weapon.store(weapon,std::memory_order_relaxed);live_alive.store(alive,std::memory_order_relaxed);}
 inline std::string ClanFrame(unsigned tick){
     constexpr char text[]="             Pastaware                ";
     constexpr std::array<unsigned,30> frames{0,1,2,3,4,5,6,7,8,9,10,11,11,11,11,11,11,11,11,12,13,14,15,16,17,18,19,20,21,22};
@@ -154,7 +162,7 @@ inline std::string BuyCommands(const Settings& s,int team){
     if(team!=2 && team!=3)return {};
     std::string result;auto buy=[&](const char* name){result+="buy ";result+=name;result+=';';};
     switch(s.primary){case 1:buy(team==3 ? "m4a1" : "ak47");break;case 2:buy(team==3 ? "aug" : "sg556");break;case 3:buy("awp");break;case 4:buy("ssg08");break;case 5:buy(team==3 ? "scar20" : "g3sg1");break;case 6:buy("negev");break;default:break;}
-    switch(s.pistol){case 1:buy("deagle");break;case 2:buy("elite");break;case 3:buy(team==3 ? "fiveseven" : "tec9");break;case 4:buy("p250");break;case 5:buy("fiveseven");break;default:break;}
+    switch(s.pistol){case 1:buy("deagle");break;case 2:buy("elite");break;case 3:buy(team==3 ? "fiveseven" : "tec9");break;case 6:buy("revolver");break;case 4:buy("p250");break;case 5:buy("cz75a");break;default:break;}
     if(s.armor==1)buy("vest");else if(s.armor==2)buy("vesthelm");
     if(s.defuser && team==3)buy("defuser");
     if(s.taser)buy("taser");

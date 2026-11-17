@@ -98,8 +98,8 @@ Contact Tick(State& s,const CUserCmd& cmd,const Rules& r,TraceFn& trace,Budget& 
 }
 struct Choice {bool found{},duck{};float forward{},side{};int tick{},kind{},traces{};};
 template<class TraceFn>
-Choice Search(const State& initial,const CUserCmd& original,const Rules& rules,bool edge,bool pixel,TraceFn& trace){
-    Choice best;Budget budget;
+Choice Search(const State& initial,const CUserCmd& original,const Rules& rules,bool edge,bool pixel,TraceFn& trace,int trace_limit=512){
+    Choice best;Budget budget;budget.remaining=std::clamp(trace_limit,0,512);const int initial_budget=budget.remaining;
     if(initial.grounded || initial.velocity.z>=-40.f || !Valid(initial,rules))return best;
     int best_score=100000;
     for(int candidate=0;candidate<8;++candidate){
@@ -124,6 +124,6 @@ Choice Search(const State& initial,const CUserCmd& original,const Rules& rules,b
         }
         if(budget.exhausted)return {}; // Never select a partially evaluated search.
     }
-    best.traces=512-budget.remaining;return best;
+    best.traces=initial_budget-budget.remaining;return best;
 }
 }

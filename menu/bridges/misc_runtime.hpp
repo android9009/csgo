@@ -19,6 +19,8 @@ inline void Configure(){
     s.peek=m.peek_assist.get();s.retreat_on_release=m.peek_assist_retreat_on_release.get();s.peek_distance=m.peek_assist_distance.get();s.no_fall=m.no_fall_damage.get();s.edge_jump=m.edge_jump.get();s.autoaccept=m.autoaccept.get();
     s.bhop=m.bhop.get();s.instant_duck=m.instant_unduck.get();s.quick_stop=cfg.legit.quick_stop.get();
     s.strafe=static_cast<unsigned>(static_cast<std::uint64_t>(m.autostrafe.get()));s.smoothing=m.autostrafe_smoothing.get();s.avoid_walls=m.avoid_walls.get();s.radar=m.radar.get();
+    s.logs=static_cast<unsigned>(static_cast<std::uint64_t>(m.log_types.get()));s.console_logs=m.console_logs.get();
+    s.hit_details=static_cast<unsigned>(static_cast<std::uint64_t>(m.hit_log_details.get()));s.buy_targets=static_cast<unsigned>(static_cast<std::uint64_t>(m.buy_log_targets.get()));
     s.primary=static_cast<int>(m.buybot_primary.get());s.pistol=static_cast<int>(m.buybot_pistol.get());s.armor=static_cast<int>(m.buybot_kevlar_helmet.get());
     s.defuser=m.buybot_defuser.get();s.taser=m.buybot_taser.get();s.grenades=m.buybot_grenades.get();
     s.hit_enabled=m.hit_sound_enabled.get();s.kill_enabled=m.kill_sound_enabled.get();s.hit_sound=m.hitsound_select.get().first_set_bit().value_or(0);s.kill_sound=m.kill_sound_select.get().first_set_bit().value_or(0);
@@ -26,6 +28,14 @@ inline void Configure(){
 }
 inline void Render(){
     using namespace evo::ren;using namespace evo::gui;
+    // Event logs remain visible after death; movement indicators do not.
+    auto& overlay=draw.layers[l_back];overlay->font=draw.fonts[GUI_HASH("gui_main")];
+    float log_y=15.f;const double now=static_cast<double>(GetTickCount64())*.001;
+    for(const auto& message:MiscRuntime::Messages()){
+        if(!message.text[0] || now-message.time>5.f || now<message.time)continue;
+        const auto rgba=message.color;
+        overlay->add_text({15.f,log_y},message.text,color{static_cast<int>((rgba>>16)&255),static_cast<int>((rgba>>8)&255),static_cast<int>(rgba&255),255});log_y+=20.f;
+    }
     if(!MiscRuntime::Alive())return;
     const auto settings=MiscRuntime::Get();const auto active=settings.indicators&settings.indicator_active;
     auto& d=draw.layers[l_back];d->font=draw.fonts[GUI_HASH("gui_main")];

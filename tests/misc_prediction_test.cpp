@@ -41,4 +41,7 @@ int main(){
     choice=Search(original,cmd,rules,true,false,lips);assert(choice.found && choice.kind==1 && choice.tick==1);
     choice=Search(original,cmd,rules,false,true,lips);assert(choice.found && choice.kind==2 && choice.tick>=3);
     State grounded{{0,0,0},{100,0,0},true,0};assert(!Search(grounded,cmd,rules,true,true,lips).found);
+    int calls=0;auto counted=[&](const Vector&,const Vector& end,const Vector&,const Vector&){++calls;Trace t;t.end=end;return t;};
+    choice=Search(original,cmd,rules,true,true,counted,64);assert(!choice.found && calls<=64);
+    calls=0;choice=Search(original,cmd,rules,true,true,counted,0);assert(!choice.found && calls==0);
 }

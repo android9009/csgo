@@ -180,10 +180,12 @@ namespace menu::group
 			c->legacy_mode = true;
 			c->add(
 			{MAKE("misc>buybot>secondary>none", selectable, XOR("None"), cfg_t::buybot_pistol_none), MAKE(
-				 "misc>buybot>secondary>deagle / revolver", selectable, XOR("Deagle / Revolver"), cfg_t::buybot_pistol_deagle),
+				 "misc>buybot>secondary>deagle / revolver", selectable, XOR("Desert Eagle"), cfg_t::buybot_pistol_deagle),
 			 MAKE("misc>buybot>secondary>dual berettas", selectable, XOR("Dual Berettas"), cfg_t::buybot_pistol_elites),
 			 MAKE("misc>buybot>secondary>tec-9 / five-seven", selectable, XOR("Tec-9 / Five-SeveN"), cfg_t::buybot_pistol_tec9), MAKE(
-				 "misc>buybot>secondary>p250", selectable, XOR("P250"), cfg_t::buybot_pistol_p250),});
+				 "misc>buybot>secondary>p250", selectable, XOR("P250"), cfg_t::buybot_pistol_p250),
+             MAKE("misc>buybot>secondary>cz75a", selectable, XOR("CZ75-Auto"), cfg_t::buybot_pistol_cz75a),
+             MAKE("misc>buybot>secondary>revolver", selectable, XOR("R8 Revolver"), cfg_t::buybot_pistol_revolver),});
 
 			ADD_INLINE("Secondary", c);
 		}

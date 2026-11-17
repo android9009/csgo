@@ -268,7 +268,8 @@ struct cfg_t {
 		buybot_pistol_elites,
 		buybot_pistol_tec9,
 		buybot_pistol_p250,
-		buybot_pistol_fiveseven,
+		buybot_pistol_cz75a,
+		buybot_pistol_revolver,
 		buybot_pistol_max,
 	};
 

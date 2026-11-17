@@ -46,4 +46,9 @@ int main(){
     assert(history.Select(1.25,.1,entry) && entry.sequence==11 && entry.reliable==0);
     assert(!history.Select(1.25,.5,entry));history.Record(1,0,2);assert(history.count==1);
     history.Record(1,0,2.1);assert(history.count==1);
+    s={};s.pistol=5;assert(BuyCommands(s,2)=="buy cz75a;");
+    s.pistol=6;assert(BuyCommands(s,3)=="buy revolver;");
+    s.logs=13;Publish(s);assert(Get().logs==13);
+    PlayerState(7,true);assert(Alive() && ActiveWeapon()==7);
+    PingApplied(true);assert(PingActive());PingApplied(false);
 }
