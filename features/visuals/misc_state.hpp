@@ -17,8 +17,9 @@ struct Settings {
     bool trajectory{};std::uint32_t trajectory_hit{},trajectory_miss{};
     unsigned tracer_targets{},hitmarkers{};bool impacts{};
     std::array<unsigned,3> tracer_styles{};
-    std::array<std::uint32_t,3> tracer_colors{},hit_colors{};
-    std::array<float,3> hit_duration{1.f,1.f,1.f};
+    std::array<std::uint32_t,3> tracer_colors{};
+    std::array<std::uint32_t,4> hit_colors{};
+    std::array<float,4> hit_duration{0.f,1.f,1.f,1.f};
     std::uint32_t impact_color{};
     bool vignette{},local_contrast{},correction{},grayscale{};
     unsigned tone_curve{};std::uint32_t vignette_color{};

@@ -206,7 +206,7 @@ bool LivePlayer(CCSPlayer* player){return player && Interfaces::Engine && Interf
 void RestorePunch(){if(punch_saved && LivePlayer(punch_player)){punch_player->m_aimPunchAngle()=aim_backup;punch_player->m_viewPunchAngle()=view_backup;}punch_saved=false;punch_player=nullptr;}
 void RestoreFlash(){if(flash_saved && LivePlayer(flash_player))flash_player->m_flFlashMaxAlpha()=flash_backup;flash_saved=false;flash_player=nullptr;}
 struct EnvironmentField {
-    CBaseEntity* entity{};int index{};std::ptrdiff_t offset{};unsigned size{};
+    CBaseEntity* entity{};int index{};std::ptrdiff_t offset{};unsigned size{},kind{};
     std::array<unsigned char,4> original{},applied{};bool owned{};
     bool Live()const{return entity && Interfaces::EntityList && Interfaces::EntityList->GetClientEntity(index)==entity;}
     void Restore(){if(owned && Live() && !std::memcmp(&Field<unsigned char>(entity,offset),applied.data(),size))std::memcpy(&Field<unsigned char>(entity,offset),original.data(),size);owned=false;}
@@ -236,18 +236,15 @@ void Environment(const Settings& s){
             else if(!std::strcmp(cls->m_pNetworkName,"CFogController")){table="DT_FogController";names[0]="m_fog.colorPrimary";}
             else if(!std::strcmp(cls->m_pNetworkName,"CEnvTonemapController")){table="DT_EnvTonemapController";names[0]="m_bUseCustomAutoExposureMin";names[1]="m_bUseCustomAutoExposureMax";names[2]="m_flCustomAutoExposureMin";names[3]="m_flCustomAutoExposureMax";}
             if(!table)continue;
-            for(const auto* name:names){if(!name)continue;const auto offset=PropManager::Get().GetOffset(table,name);if(!Valid(offset))continue;EnvironmentField field;field.entity=entity;field.index=index;field.offset=offset;environment.push_back(field);}
+            for(const auto* name:names){if(!name)continue;const auto offset=PropManager::Get().GetOffset(table,name);if(!Valid(offset))continue;EnvironmentField field;field.entity=entity;field.index=index;field.offset=offset;field.kind=!std::strcmp(cls->m_pNetworkName,"CCascadeLight") ? 0u : !std::strcmp(cls->m_pNetworkName,"CFogController") ? 1u : std::strstr(name,"m_bUse") ? 2u : 3u;environment.push_back(field);}
         }
     }
     for(auto& field:environment){
-        if(!field.Live())continue;const auto* cls=field.entity->GetClientClass();if(!cls || !cls->m_pNetworkName)continue;
-        if(!std::strcmp(cls->m_pNetworkName,"CCascadeLight") || !std::strcmp(cls->m_pNetworkName,"CFogController")){
-            const bool sun=!std::strcmp(cls->m_pNetworkName,"CCascadeLight");const auto color=sun ? s.sunlight_color : s.fog_color;
+        if(!field.Live())continue;
+        if(field.kind<2){
+            const bool sun=field.kind==0;const auto color=sun ? s.sunlight_color : s.fog_color;
             const std::uint32_t packed=(color&0xff00ff00u)|((color&255u)<<16)|((color>>16)&255u);field.Set(sun ? s.sunlight : s.fog,packed);
-        }else{
-            const auto min_flag=PropManager::Get().GetOffset("DT_EnvTonemapController","m_bUseCustomAutoExposureMin"),max_flag=PropManager::Get().GetOffset("DT_EnvTonemapController","m_bUseCustomAutoExposureMax");
-            if(field.offset==min_flag || field.offset==max_flag)field.Set(s.exposure,true);else field.Set(s.exposure,(std::max)(.01f,s.exposure_value*.02f));
-        }
+        }else if(field.kind==2)field.Set(s.exposure,true);else field.Set(s.exposure,(std::max)(.01f,s.exposure_value*.02f));
     }
 }
 void CaptureArrows(const Settings& s){

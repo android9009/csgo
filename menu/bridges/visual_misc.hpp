@@ -13,8 +13,9 @@ inline void Configure(){
     s.night=w.nightmode.get();s.fullbright=w.fullbright.get();s.sky=w.sky.get();s.fog=w.fog.get();s.exposure=w.exposure_enabled.get();s.bloom=w.bloom.get();
     s.night_color=w.nightmode_color.get().rgba();s.fullbright_color=w.fullbright_color.get().rgba();s.sky_color=w.sky_color.get().rgba();s.fog_color=w.fog_color.get().rgba();s.exposure_value=w.exposure.get();s.bloom_value=w.bloom_strength.get();
     s.tracer_targets=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_targets.get()));s.hitmarkers=static_cast<unsigned>(static_cast<std::uint64_t>(m.hitmarker.get()));s.impacts=m.impacts.get();s.impact_color=m.impacts_color2.get().rgba();
-    for(int i=0;i<3;++i){s.tracer_styles[i]=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_style[i].get()));s.tracer_colors[i]=m.tracer_colors[i].get().rgba();s.hit_duration[i]=m.hitmarker_duration[i].get();}
-    s.hit_colors={m.hitmarker_world_color.get().rgba(),m.hitmarker_screen_color.get().rgba(),m.hitmarker_kibit_color.get().rgba()};
+    for(int i=0;i<3;++i){s.tracer_styles[i]=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_style[i].get()));s.tracer_colors[i]=m.tracer_colors[i].get().rgba();}
+    for(int i=1;i<4;++i)s.hit_duration[i]=m.hitmarker_duration[i].get();
+    s.hit_colors={0,m.hitmarker_world_color.get().rgba(),m.hitmarker_screen_color.get().rgba(),m.hitmarker_kibit_color.get().rgba()};
     s.vignette=w.vignette.get();s.local_contrast=w.local_contrast.get();s.correction=w.color_correction.get();s.grayscale=w.grayscale.get();s.tone_curve=static_cast<unsigned>(static_cast<std::uint64_t>(w.tone_curve.get()));s.vignette_color=w.vignette_color.get().rgba();
     s.contrast=w.correction_contrast.get();s.highlights=w.highlights.get();s.shadows=w.shadows.get();s.saturation=w.saturation.get();s.vibrance=w.vibrance.get();s.temperature=w.temperature.get();s.tint=w.tint.get();
     s.local_strength=w.contrast_strength.get();s.edge_strength=w.contrast_edge_strength.get();s.vignette_start=w.contrast_vignette_start.get();s.vignette_end=w.contrast_vignette_end.get();s.vignette_blur=w.contrast_vignette_blur.get();
@@ -56,8 +57,8 @@ inline void RenderEvents(){
             std::array<vec2,8> points;bool visible=true;for(unsigned j=0;j<8;++j)visible=project(r.end+Vector{(j&1)?2.f:-2.f,(j&2)?2.f:-2.f,(j&4)?2.f:-2.f},points[j]) && visible;
             if(visible)for(unsigned j=0;j<8;++j)for(unsigned bit:{1u,2u,4u})if(!(j&bit))d->add_line(points[j],points[j|bit],color{s.impact_color});
         }
-        if(r.kind==1)for(unsigned mode=0;mode<3;++mode){const float duration=std::clamp(s.hit_duration[mode],0.f,10.f);if(!(s.hitmarkers&(1u<<mode)) || duration<=0.f || age>=duration)continue;
-            const color c{color{s.hit_colors[mode]},1.f-age/duration};if(mode==0){if(project(r.end,a))cross(a,c,7.f);}else if(mode==1)cross(display*.5f,c,8.f);else{const vec2 p=display*.5f;d->add_line(p+vec2{-7,0},p+vec2{0,7},c);d->add_line(p+vec2{0,7},p+vec2{7,-5},c);}
+        if(r.kind==1)for(unsigned mode=1;mode<4;++mode){const float duration=std::clamp(s.hit_duration[mode],0.f,10.f);if(!(s.hitmarkers&(1u<<mode)) || duration<=0.f || age>=duration)continue;
+            const color c{color{s.hit_colors[mode]},1.f-age/duration};if(mode==1){if(project(r.end,a))cross(a,c,7.f);}else if(mode==2)cross(display*.5f,c,8.f);else{const vec2 p=display*.5f;d->add_line(p+vec2{-7,0},p+vec2{0,7},c);d->add_line(p+vec2{0,7},p+vec2{7,-5},c);}
         }
     }
 }
