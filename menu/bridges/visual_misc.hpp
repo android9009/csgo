@@ -19,6 +19,7 @@ inline void Configure(){
     s.contrast=w.correction_contrast.get();s.highlights=w.highlights.get();s.shadows=w.shadows.get();s.saturation=w.saturation.get();s.vibrance=w.vibrance.get();s.temperature=w.temperature.get();s.tint=w.tint.get();
     s.local_strength=w.contrast_strength.get();s.edge_strength=w.contrast_edge_strength.get();s.vignette_start=w.contrast_vignette_start.get();s.vignette_end=w.contrast_vignette_end.get();s.vignette_blur=w.contrast_vignette_blur.get();
     s.trajectory=m.grenade_tracer.get();s.trajectory_hit=m.tracer_color.get().rgba();s.trajectory_miss=m.box_color.get().rgba();
+    s.arrows=v.out_of_fov.get();s.arrow_distance=v.out_of_fov_dst.get();s.arrow_size=v.out_of_fov_size.get();s.arrow_color=v.out_of_fov_col.get().rgba();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){
@@ -27,6 +28,18 @@ inline void RenderEvents(){
     const auto s=VisualMisc::Get();std::array<float,16> m{};if(!VisualMisc::CurrentMatrix(m))return;
     const auto display=draw.display/draw.scale;auto& d=draw.layers[l_back];
     auto project=[&](const Vector& v,vec2& p){const float w=m[12]*v.x+m[13]*v.y+m[14]*v.z+m[15];if(w<.01f)return false;p={display.x*.5f*(1.f+(m[0]*v.x+m[1]*v.y+m[2]*v.z+m[3])/w),display.y*.5f*(1.f-(m[4]*v.x+m[5]*v.y+m[6]*v.z+m[7])/w)};return true;};
+    VisualMisc::ArrowFrame arrows;
+    if(s.arrows && VisualMisc::CopyArrows(arrows))for(const auto& point:arrows.points){
+        if(point.alpha<.01f)continue;vec2 screen;
+        if(project(point.position,screen) && screen.x>=0.f && screen.x<=display.x && screen.y>=0.f && screen.y<=display.y)continue;
+        const Vector delta=point.position-arrows.eye;
+        const float right=m[0]*delta.x+m[1]*delta.y+m[2]*delta.z;
+        const float forward=m[12]*delta.x+m[13]*delta.y+m[14]*delta.z;
+        const float angle=std::atan2(-forward,right);const vec2 direction{std::cos(angle),std::sin(angle)},side{-direction.y,direction.x};
+        const vec2 center=display*.5f;const float radius=(std::min)(display.x,display.y)*.45f*std::clamp(s.arrow_distance*.01f,.01f,1.f),size=std::clamp(s.arrow_size,1.f,50.f);
+        const vec2 tip=center+direction*radius,base=tip-direction*size;const color c{color{s.arrow_color},point.alpha};
+        d->add_line(tip,base+side*(size*.5f),c);d->add_line(tip,base-side*(size*.5f),c);d->add_line(base+side*(size*.5f),base-side*(size*.5f),c);
+    }
     VisualMisc::Trajectory path;
     if(s.trajectory && VisualMisc::CopyTrajectory(path)){
         const color c{path.hit?s.trajectory_hit:s.trajectory_miss};vec2 a,b;

@@ -13,6 +13,7 @@ struct Settings {
     Vector vm_position{};QAngle vm_angles{};
     unsigned scope{},removals{};bool scope_invert{},crosshair{},spread{};
     float scope_size{100},texture_alpha{},prop_alpha{};std::uint32_t scope_color{0xff000000};
+    bool arrows{};float arrow_distance{50.f},arrow_size{24.f};std::uint32_t arrow_color{};
     bool trajectory{};std::uint32_t trajectory_hit{},trajectory_miss{};
     unsigned tracer_targets{},hitmarkers{};bool impacts{};
     std::array<unsigned,3> tracer_styles{};
@@ -36,6 +37,12 @@ inline std::mutex frame_mutex;
 inline LocalFrame local_frame;
 inline void PublishLocal(const LocalFrame& v){std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())local_frame=v;}
 inline LocalFrame GetLocal(){static thread_local LocalFrame v;std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())v=local_frame;return v;}
+struct ArrowPoint {Vector position{};float alpha{};};
+struct ArrowFrame {std::array<ArrowPoint,64> points{};Vector eye{};};
+inline std::mutex arrow_mutex;
+inline ArrowFrame arrow_frame;
+inline void PublishArrows(const ArrowFrame& v){std::unique_lock<std::mutex> lock(arrow_mutex,std::try_to_lock);if(lock.owns_lock())arrow_frame=v;}
+inline bool CopyArrows(ArrowFrame& v){std::unique_lock<std::mutex> lock(arrow_mutex,std::try_to_lock);if(!lock.owns_lock())return false;v=arrow_frame;return true;}
 struct Trajectory {std::array<Vector,256> points{};std::array<bool,256> bounces{};std::size_t count{};bool hit{},detonated{};};
 inline std::mutex trajectory_mutex;
 inline Trajectory trajectory;

@@ -197,6 +197,22 @@ CCSPlayer* flash_player{};float flash_backup{};bool flash_saved{};
 bool LivePlayer(CCSPlayer* player){return player && Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer())==player;}
 void RestorePunch(){if(punch_saved && LivePlayer(punch_player)){punch_player->m_aimPunchAngle()=aim_backup;punch_player->m_viewPunchAngle()=view_backup;}punch_saved=false;punch_player=nullptr;}
 void RestoreFlash(){if(flash_saved && LivePlayer(flash_player))flash_player->m_flFlashMaxAlpha()=flash_backup;flash_saved=false;flash_player=nullptr;}
+void CaptureArrows(const Settings& s){
+    static ArrowFrame frame;static std::array<void*,64> identities{};
+    if(!s.arrows || !ctx.local || !ctx.local->IsAlive() || !Interfaces::EntityList){frame={};identities={};PublishArrows(frame);return;}
+    frame.eye=ctx.local->GetEyePosition();
+    const float dt=Interfaces::Globals ? Interfaces::Globals->absoluteframetime : .016f;
+    for(int i=1;i<=64;++i){
+        auto* player=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(i));auto& point=frame.points[i-1];
+        if(identities[i-1]!=player){point={};identities[i-1]=player;}
+        const bool enemy=player && player!=ctx.local && player->IsAlive() && player->m_iTeamNum()!=ctx.local->m_iTeamNum();
+        const bool active=enemy && !player->IsDormant();
+        if(active)point.position=player->m_vecOrigin()+Vector{0,0,36};
+        point.alpha=Smooth(point.alpha,active ? 1.f : 0.f,dt,active ? 12.f : 2.f);
+        if(!enemy)point.alpha=0.f;
+    }
+    PublishArrows(frame);
+}
 void PredictGrenade(const Settings& s){
     static int previous_tick{-1};static Vector previous_eye{},previous_velocity{};static QAngle previous_angles{};static int previous_item{};static float previous_strength{-1.f};
     static const auto strength_offset=PropManager::Get().GetOffset("DT_BaseCSGrenade","m_flThrowStrength");
@@ -242,8 +258,8 @@ bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
-    connected=true;PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    connected=true;CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
         const auto* data=ctx.weapon->GetWeaponData();
