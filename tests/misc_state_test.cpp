@@ -3,6 +3,8 @@
 #include <limits>
 #include <thread>
 int main(){
+    MiscRuntime::Settings movement_off;assert(!MiscRuntime::MovementEnabled(movement_off));movement_off.edge_jump=true;assert(MiscRuntime::MovementEnabled(movement_off));
+
     using namespace MiscRuntime;
     Settings s;s.bhop=true;s.instant_duck=true;
     CUserCmd c;c.buttons=2;
