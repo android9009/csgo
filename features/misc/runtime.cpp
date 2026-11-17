@@ -224,7 +224,8 @@ bool PingChannelSupported(void* channel){
     if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 || dos->e_lfanew>0x1000)return false;
     const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(engine+dos->e_lfanew);
     if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_I386)return false;
-    const auto base=reinterpret_cast<std::uintptr_t>(engine),limit=base+nt->OptionalHeader.SizeOfImage;
+    const auto base=reinterpret_cast<std::uintptr_t>(engine);
+    const auto limit=base+static_cast<std::uintptr_t>(nt->OptionalHeader.SizeOfImage);
     const auto address=reinterpret_cast<std::uintptr_t>(channel==ping_channel && datagram_hook.is_hooked() ? datagram_original.load(std::memory_order_acquire) : MEM::GetVFunc<DatagramFn>(channel,46));
     MEMORY_BASIC_INFORMATION memory{};
     if(address<base || address>=limit || !VirtualQuery(reinterpret_cast<void*>(address),&memory,sizeof memory) || !(memory.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY)))return false;
