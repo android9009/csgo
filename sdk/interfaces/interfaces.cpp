@@ -86,7 +86,9 @@ bool Setup() {
     Globals=ValidGlobals(direct_globals) ? direct_globals : nullptr;
     if(Globals)LOG_INFO("globals: validated direct object=%p interval=%.6f max_clients=%d",Globals,Globals->interval_per_tick,Globals->maxClients);
     else LOG_WARN("globals: invalid direct candidate=%p; dependent game features will not read it",direct_globals);
-    Input = static_cast<IInput*>(ReadModulePointer("client.dll", offsets::Get("dwInput")));
+    // dwInput is a `mov ecx, &g_Input` operand: an object, NOT a pointer slot.
+    const auto input_rva=offsets::Get("dwInput");
+    Input=input_rva ? reinterpret_cast<IInput*>(reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"))+input_rva) : nullptr;
     // dwGlowObjectManager is the address of the CUtlVector-backed manager,
     // not a pointer slot. Dereferencing it here would yield the entry array.
     const auto glow_rva = offsets::Get("dwGlowObjectManager");

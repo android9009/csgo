@@ -8,6 +8,9 @@
 #include <windows.h>
 namespace Patterns {
 static const std::vector<Definition> kDefinitions = {
+    {"input_thirdperson_flag", "client.dll", "55 8B EC 8B 45 08 83 F8 FF 75 ? 80 B9 ? ? ? ? 00", {13,0,0,0}, 1, false, 0},
+    {"input_camera_offset", "client.dll", "55 8B EC 8B 55 08 8B 81 ? ? ? ? 89 02 8B 81", {8,0,0,0}, 1, false, 0},
+    {"calc_viewmodel_view", "client.dll", "55 8B EC 83 EC 58 56 57 8B 7D 08 8B F1", {0,0,0,0}, 0, false, 0},
     // Native prediction bindings: absolute pointers/displacements, NO pinned fallback.
     {"prediction_current_command", "client.dll", "89 BE ? ? ? ? E8 ? ? ? ? 85 FF", {2, 0, 0, 0}, 1, false, 0},
     {"prediction_last_command", "client.dll", "8D 8E ? ? ? ? 89 5C 24 ? 89 BE", {2, 0, 0, 0}, 1, false, 0},

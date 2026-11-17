@@ -77,6 +77,7 @@
 #include "overlays/world_esp_overlay.hpp"
 #include "bridges/visual_runtime.hpp"
 #include "bridges/misc_runtime.hpp"
+#include "bridges/visual_misc.hpp"
 #include "overlays/player_esp_overlay.hpp"
 #include <chrono>
 #include <mutex>
@@ -451,11 +452,13 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     const bool trace_first=first_frame;first_frame=false;
     if(trace_first)LOG_INFO("render startup: configure visual snapshots");
     MiscBridge::Configure();
+    VisualMiscBridge::Configure();
     VisualSettings::Configure();
     WorldEspOverlay::Configure();
     if(trace_first)LOG_INFO("render startup: begin frame / world overlay");
     draw.begin_frame();
     MiscBridge::Render();
+    VisualMiscBridge::Render();
     WorldEspOverlay::Render();
     if(trace_first)LOG_INFO("render startup: player overlay");
     PlayerEspOverlay::Render();

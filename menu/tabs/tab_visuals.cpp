@@ -735,7 +735,7 @@ namespace menu::group
 			c->callback = [](bits &v)
 			{
 				FIND_SAFE(rss, "visuals>misc>local>remove scope>settings");
-				rss->set_visible(v.test(cfg_t::noscope_gradient_static) || v.test(cfg_t::noscope_gradient_dynamic));
+				rss->set_visible(v.test(cfg_t::noscope_static) || v.test(cfg_t::noscope_dynamic) || v.test(cfg_t::noscope_gradient_static) || v.test(cfg_t::noscope_gradient_dynamic));
 			};
 
 			ADD_INLINE(

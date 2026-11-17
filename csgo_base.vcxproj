@@ -156,6 +156,7 @@
     <ClCompile Include="sdk\hooks\framestage.cpp" />
     <ClCompile Include="menu\preview\model_preview.cpp" />
     <ClCompile Include="features\misc\runtime.cpp" />
+    <ClCompile Include="features\visuals\misc_runtime.cpp" />
     <ClCompile Include="features\misc\engine_prediction.cpp" />
     <ClCompile Include="features\visuals\shot_chams.cpp" />
     <ClCompile Include="features\visuals\world_esp.cpp" />
@@ -350,11 +351,14 @@
     <ClInclude Include="features\visuals\material_renderer.hpp" />
     <ClInclude Include="features\visuals\chams_entities.hpp" />
     <ClInclude Include="features\misc\runtime.hpp" />
+    <ClInclude Include="features\visuals\misc_runtime.hpp" />
+    <ClInclude Include="features\visuals\misc_state.hpp" />
     <ClInclude Include="features\misc\engine_prediction.hpp" />
     <ClInclude Include="features\misc\prediction_compression.hpp" />
     <ClInclude Include="features\misc\state.hpp" />
     <ClInclude Include="features\misc\prediction.hpp" />
     <ClInclude Include="menu\bridges\misc_runtime.hpp" />
+    <ClInclude Include="menu\bridges\visual_misc.hpp" />
     <ClInclude Include="sdk\third_party\fatality\resources\misc_sounds.h" />
     <ClInclude Include="features\visuals\shot_chams.hpp" />
     <ClInclude Include="features\visuals\chams_passes.hpp" />

@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../../features/visuals/misc_runtime.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/entity.hpp"
@@ -19,6 +20,16 @@ int LogChamsFault(EXCEPTION_POINTERS* info){
         LOG_ERROR("chams pass exception code=0x%08lX instruction=%p",e->ExceptionCode,e->ExceptionAddress);
     }
     return EXCEPTION_EXECUTE_HANDLER;
+}
+void DrawWithAlpha(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones){
+    auto original=Hooks::GetDrawModelExecuteOriginal();if(!original)return;
+    const float alpha=VisualMisc::LocalAlpha(info.entity_index);
+    if(alpha>=1.f || !Interfaces::RenderView){original(ecx,context,state,info,bones);return;}
+    const auto get=MEM::GetVFunc<float(__thiscall*)(void*)>(Interfaces::RenderView,5);
+    const auto set=MEM::GetVFunc<void(__thiscall*)(void*,float)>(Interfaces::RenderView,4);
+    const float old=get(Interfaces::RenderView);
+    __try{set(Interfaces::RenderView,old*alpha);original(ecx,context,state,info,bones);}
+    __finally{set(Interfaces::RenderView,old);}
 }
 bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones) {
     if(!VisualRuntime::any_material.load(std::memory_order_relaxed) || !ctx.in_game || !ctx.local || !Interfaces::ModelInfo || !Interfaces::EntityList || !Interfaces::ModelRender ||
@@ -64,7 +75,7 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
         }
     } else return false;
     if(!choice.enabled || choice.kind<=0)return false;
-    return PreviewMaterial::Draw(choice,true,[&](){original(ecx,context,state,info,bones);});
+    return PreviewMaterial::Draw(choice,true,[&](){DrawWithAlpha(ecx,context,state,info,bones);});
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
@@ -74,6 +85,6 @@ void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelSt
         __try {PreviewMaterial::Restore();}__except(EXCEPTION_EXECUTE_HANDLER){}
         static bool logged=false;if(!logged){logged=true;LOG_WARN("chams: model pass raised exception; restored material override");}
     }
-    if(!handled)if(auto original=Hooks::GetDrawModelExecuteOriginal())original(ecx,context,state,info,bone_to_world);
+    if(!handled)DrawWithAlpha(ecx,context,state,info,bone_to_world);
 }
 }

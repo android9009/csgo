@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../../features/visuals/misc_runtime.hpp"
 #include "../../menu/preview/model_preview.hpp"
 #include "../world_esp_state.hpp"
 #include "../visual_runtime_state.hpp"
@@ -13,7 +14,9 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_POSTDATAUPDATE_START=2, FRAME_NET_UPDATE_POSTDATAUPDATE_END=3,
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
+    VisualMisc::BeforeFrame(stage);
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
+    VisualMisc::Frame(stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
     if (stage == 6) {

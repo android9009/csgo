@@ -1,4 +1,5 @@
 #include "hooks.hpp"
+#include "../../features/visuals/misc_runtime.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/player.hpp"
@@ -9,6 +10,8 @@
 #include <cstring>
 namespace HooksInternal {
 void __fastcall PaintTraverse(void* ecx, void* /*edx*/, unsigned int panel, bool force_repaint, bool allow_force) {
+    __try{const char* name=Interfaces::Panel ? Interfaces::Panel->GetName(panel) : nullptr;if(VisualMisc::HideScopePanel(name))return;}
+    __except(EXCEPTION_EXECUTE_HANDLER){}
     if (auto original = Hooks::GetPaintTraverseOriginal()) original(ecx, panel, force_repaint, allow_force);
     // SEH: panel/entity pointers come from the game and may be transient; the
     // raw view-matrix read must never crash the process from a hook.
