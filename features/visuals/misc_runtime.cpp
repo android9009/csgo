@@ -25,7 +25,8 @@ using FovFn=float(__thiscall*)(void*);
 using AspectFn=float(__thiscall*)(void*,int,int);
 using DrawVmFn=bool(__thiscall*)(void*);
 using VmFn=void(__thiscall*)(void*,CCSPlayer*,const Vector&,const QAngle&);
-VMT_Hook view_hook,fov_hook,aspect_hook,draw_vm_hook;
+VMT_Hook view_hook,fov_hook,aspect_hook,draw_vm_hook,impact_hook;
+using BoxFn=void(__thiscall*)(void*,const Vector&,const Vector&,const Vector&,const QAngle&,int,int,int,int,float);BoxFn box_original{};
 Detour_Hook vm_hook,bob_hook;
 using BobFn=void(__thiscall*)(void*,Vector&);BobFn bob_original{};
 ViewFn view_original{};FovFn fov_original{};AspectFn aspect_original{};DrawVmFn draw_vm_original{};VmFn vm_original{};
@@ -116,6 +117,13 @@ void __fastcall LandingBob(void* self,void*,Vector& position){
     const Vector original=position;bob_original(self,position);
     const auto s=Get();if(self==ctx.local && ctx.in_game && s.vm_enabled && s.landing_bob)position=original;
 }
+void __fastcall NativeImpact(void* self,void*,const Vector& origin,const Vector& mins,const Vector& maxs,const QAngle& angles,int red,int green,int blue,int alpha,float duration){
+    // sv_showimpacts=2 emits the client's actual simulated impact boxes in blue.
+    // Capture those boxes rather than guessing a shot direction from an event.
+    const auto s=Get();
+    if(s.impacts && ctx.in_game && red==0 && green==0 && blue==255 && mins==Vector{-2,-2,-2} && maxs==Vector{2,2,2} && Interfaces::Globals){AddEvent({{},origin,Interfaces::Globals->curtime,2,0});return;}
+    box_original(self,origin,mins,maxs,angles,red,green,blue,alpha,duration);
+}
 struct OwnedCvar {
     const char* name;void* variable{};bool resolved{},owned{};float original{},applied{};
     void Set(bool enabled,float value){
@@ -129,7 +137,7 @@ struct OwnedCvar {
         if(!owned || value!=applied){set(variable,value);applied=value;owned=true;}
     }
 };
-OwnedCvar cvars[]={ {"weapon_debug_spread_show"},{"mat_fullbright"},{"mat_postprocess_enable"},{"cl_csm_enabled"},{"r_drawparticles"},{"r_drawtracers_firstperson"},{"r_waterdrawreflection"},{"r_waterdrawrefraction"},{"violence_hblood"},{"violence_ablood"},{"r_drawdecals"},{"cl_ragdoll_physics_enable"},{"r_drawspecificstaticprop"},{"fog_override"},{"fog_enable"},{"fog_start"},{"fog_end"},{"mat_force_tonemap_scale"},{"mat_bloom_scalefactor_scalar"} };
+OwnedCvar cvars[]={ {"weapon_debug_spread_show"},{"mat_fullbright"},{"mat_postprocess_enable"},{"cl_csm_enabled"},{"r_drawparticles"},{"r_drawtracers_firstperson"},{"r_waterdrawreflection"},{"r_waterdrawrefraction"},{"violence_hblood"},{"violence_ablood"},{"r_drawdecals"},{"cl_ragdoll_physics_enable"},{"r_drawspecificstaticprop"},{"fog_override"},{"fog_enable"},{"fog_start"},{"fog_end"},{"mat_force_tonemap_scale"},{"mat_bloom_scalefactor_scalar"},{"sv_showimpacts"} };
 struct FogColor {
     void* variable{};bool resolved{},owned{};std::string original,applied;
     const char* Value(){
@@ -160,7 +168,7 @@ void Cvars(const Settings& s,bool active){
     cvars[12].Set(active && (s.prop_alpha>0.f || s.night),0.f);
     fog_color.Set(active && s.fog,s.fog_color);
     cvars[13].Set(active && s.fog,1.f);cvars[14].Set(active && s.fog,1.f);cvars[15].Set(active && s.fog,0.f);cvars[16].Set(active && s.fog,1200.f);
-    cvars[17].Set(active && s.exposure,(std::max)(.01f,s.exposure_value*.02f));cvars[18].Set(false,0.f);
+    cvars[17].Set(active && s.exposure,(std::max)(.01f,s.exposure_value*.02f));cvars[18].Set(false,0.f);cvars[19].Set(active && s.impacts,2.f);
 }
 struct MaterialRecord {IMaterial* value{};std::array<float,3> rgb{};float alpha{};bool nodraw{};unsigned group{};};
 std::vector<MaterialRecord> materials;
@@ -537,6 +545,7 @@ void Initialize(){
         fov_original=MEM::GetVFunc<FovFn>(Interfaces::ClientMode,35);fov_hook.attach(Interfaces::ClientMode,35,reinterpret_cast<void*>(&ViewmodelFov));
         draw_vm_original=MEM::GetVFunc<DrawVmFn>(Interfaces::ClientMode,27);draw_vm_hook.attach(Interfaces::ClientMode,27,reinterpret_cast<void*>(&DrawViewmodel));
     }
+    if(Interfaces::DebugOverlay){box_original=MEM::GetVFunc<BoxFn>(Interfaces::DebugOverlay,1);impact_hook.attach(Interfaces::DebugOverlay,1,reinterpret_cast<void*>(&NativeImpact));}
     if(Interfaces::Engine){aspect_original=MEM::GetVFunc<AspectFn>(Interfaces::Engine,101);aspect_hook.attach(Interfaces::Engine,101,reinterpret_cast<void*>(&Aspect));}
     if(const auto address=offsets::Get("calc_viewmodel_view"))vm_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&Viewmodel),reinterpret_cast<void**>(&vm_original));
 }
@@ -544,7 +553,7 @@ void Shutdown(){
     VisualPost::Reset();
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
     visual_registered=false;beams=nullptr;ClearEvents();PublishWarnings({});he_throw_time={};PublishTrajectory({});
-    view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();
+    view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();impact_hook.detach();
     __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();RestoreWeather();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
 }
