@@ -86,7 +86,8 @@ void ApplyView(View& view){
     DepthOfField(view,s);
     if(s.fov_enabled && ctx.local->IsAlive()){
         const bool scoped=ctx.local->m_bIsScoped();const float base=std::clamp(s.fov,60.f,140.f);
-        const float zoomed=scoped && s.second_zoom ? (std::min)(view.fov,15.f) : view.fov;
+        float zoomed=view.fov;
+        if(scoped && s.second_zoom && ctx.weapon){const auto* data=ctx.weapon->GetWeaponData();if(data && data->weapon_type==5){const int native=MEM::GetVFunc<int(__thiscall*)(void*,int)>(ctx.weapon,457)(ctx.weapon,2);if(native>0 && native<90)zoomed=static_cast<float>(native);}}
         view.fov=scoped ? ZoomFov(zoomed,base,s.zoom) : base;
     }
     if(s.vm_enabled)view.viewmodel_fov=std::clamp(s.vm_fov,60.f,140.f);
