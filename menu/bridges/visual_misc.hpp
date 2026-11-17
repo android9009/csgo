@@ -18,6 +18,7 @@ inline void Configure(){
     s.vignette=w.vignette.get();s.local_contrast=w.local_contrast.get();s.correction=w.color_correction.get();s.grayscale=w.grayscale.get();s.tone_curve=static_cast<unsigned>(static_cast<std::uint64_t>(w.tone_curve.get()));s.vignette_color=w.vignette_color.get().rgba();
     s.contrast=w.correction_contrast.get();s.highlights=w.highlights.get();s.shadows=w.shadows.get();s.saturation=w.saturation.get();s.vibrance=w.vibrance.get();s.temperature=w.temperature.get();s.tint=w.tint.get();
     s.local_strength=w.contrast_strength.get();s.edge_strength=w.contrast_edge_strength.get();s.vignette_start=w.contrast_vignette_start.get();s.vignette_end=w.contrast_vignette_end.get();s.vignette_blur=w.contrast_vignette_blur.get();
+    s.trajectory=m.grenade_tracer.get();s.trajectory_hit=m.tracer_color.get().rgba();s.trajectory_miss=m.box_color.get().rgba();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){
@@ -26,6 +27,12 @@ inline void RenderEvents(){
     const auto s=VisualMisc::Get();std::array<float,16> m{};if(!VisualMisc::CurrentMatrix(m))return;
     const auto display=draw.display/draw.scale;auto& d=draw.layers[l_back];
     auto project=[&](const Vector& v,vec2& p){const float w=m[12]*v.x+m[13]*v.y+m[14]*v.z+m[15];if(w<.01f)return false;p={display.x*.5f*(1.f+(m[0]*v.x+m[1]*v.y+m[2]*v.z+m[3])/w),display.y*.5f*(1.f-(m[4]*v.x+m[5]*v.y+m[6]*v.z+m[7])/w)};return true;};
+    VisualMisc::Trajectory path;
+    if(s.trajectory && VisualMisc::CopyTrajectory(path)){
+        const color c{path.hit?s.trajectory_hit:s.trajectory_miss};vec2 a,b;
+        for(std::size_t i=1;i<path.count;++i)if(project(path.points[i-1],a) && project(path.points[i],b)){d->add_line(a,b,c);if(path.bounces[i]){d->add_line(b-vec2{3,0},b+vec2{3,0},c);d->add_line(b-vec2{0,3},b+vec2{0,3},c);}}
+        if(path.count && path.detonated && project(path.points[path.count-1],b)){d->add_line(b-vec2{5,5},b+vec2{5,5},c);d->add_line(b-vec2{-5,5},b+vec2{-5,5},c);}
+    }
     auto cross=[&](vec2 p,color c,float size){for(float x:{-1.f,1.f})for(float y:{-1.f,1.f})d->add_line(p+vec2{x*2.f,y*2.f},p+vec2{x*size,y*size},c);};
     for(std::size_t i=0;i<frame.count;++i){const auto& r=frame.records[i];const float age=frame.time-r.time;vec2 a,b;
         if(r.kind==0 && age<1.5f && (s.tracer_targets&(1u<<r.group)) && (s.tracer_styles[r.group]&2u) && project(r.start,a) && project(r.end,b))d->add_line(a,b,color{color{s.tracer_colors[r.group]},1.f-age/1.5f});

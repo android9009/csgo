@@ -197,12 +197,53 @@ CCSPlayer* flash_player{};float flash_backup{};bool flash_saved{};
 bool LivePlayer(CCSPlayer* player){return player && Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer())==player;}
 void RestorePunch(){if(punch_saved && LivePlayer(punch_player)){punch_player->m_aimPunchAngle()=aim_backup;punch_player->m_viewPunchAngle()=view_backup;}punch_saved=false;punch_player=nullptr;}
 void RestoreFlash(){if(flash_saved && LivePlayer(flash_player))flash_player->m_flFlashMaxAlpha()=flash_backup;flash_saved=false;flash_player=nullptr;}
+void PredictGrenade(const Settings& s){
+    static int previous_tick{-1};static Vector previous_eye{},previous_velocity{};static QAngle previous_angles{};static int previous_item{};static float previous_strength{-1.f};
+    static const auto strength_offset=PropManager::Get().GetOffset("DT_BaseCSGrenade","m_flThrowStrength");
+    static void* gravity_var{};
+    if(!s.trajectory || !ctx.local || !ctx.local->IsAlive() || !ctx.weapon || !Interfaces::EngineTrace || !Interfaces::Globals){PublishTrajectory({});previous_tick=-1;return;}
+    const int item=ctx.weapon->m_iItemDefinitionIndex();if(item<43 || item>48 || !Valid(strength_offset)){PublishTrajectory({});previous_tick=-1;return;}
+    const int tick=Interfaces::Globals->tickcount;if(tick==previous_tick)return;
+    QAngle angles;Interfaces::Engine->GetViewAngles(angles);Vector eye=ctx.local->GetEyePosition(),player_velocity=ctx.local->m_vecVelocity();
+    const float strength=std::clamp(Field<float>(ctx.weapon,strength_offset),0.f,1.f);
+    if(previous_tick>=0 && tick-previous_tick<8 && previous_item==item && previous_strength==strength && previous_eye.DistSqr(eye)<.01f && previous_velocity.DistSqr(player_velocity)<.01f && previous_angles.x==angles.x && previous_angles.y==angles.y)return;
+    previous_tick=tick;previous_eye=eye;previous_velocity=player_velocity;previous_angles=angles;previous_item=item;previous_strength=strength;
+    if(!gravity_var && Interfaces::ConVar)gravity_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_gravity");
+    float gravity=gravity_var ? MEM::GetVFunc<float(__thiscall*)(void*)>(gravity_var,12)(gravity_var)*.4f : 320.f;if(!std::isfinite(gravity))gravity=320.f;
+    if(angles.x>90.f)angles.x-=360.f;else if(angles.x< -90.f)angles.x+=360.f;
+    angles.x-=(90.f-std::abs(angles.x))*10.f/90.f;
+    const Vector forward=Forward(angles);eye.z+=strength*12.f-12.f;
+    CTraceFilterSimple filter(ctx.local);Ray_t ray;CGameTrace trace;
+    ray.Init(eye,eye+forward*22.f,{-2,-2,-2},{2,2,2});Interfaces::EngineTrace->TraceRay(ray,0x200400Bu,&filter,&trace);
+    Vector position=trace.endpos-forward*6.f;
+    const auto* data=ctx.weapon->GetWeaponData();const float speed=data && std::isfinite(data->throw_velocity) && data->throw_velocity>0.f ? data->throw_velocity : 750.f;
+    Vector velocity=player_velocity*1.25f+forward*(std::clamp(speed*.9f,15.f,750.f)*(strength*.7f+.3f));
+    Trajectory result;result.points[result.count++]=position;
+    const float dt=std::clamp(Interfaces::Globals->interval_per_tick,.0078125f,.03125f);
+    for(int step=0;step<512 && result.count<result.points.size();++step){
+        const float time=static_cast<float>(step+1)*dt;Vector movement=velocity*dt;movement.z-=.5f*gravity*dt*dt;velocity.z-=gravity*dt;
+        ray.Init(position,position+movement,{-2,-2,-2},{2,2,2});trace=CGameTrace{};Interfaces::EngineTrace->TraceRay(ray,0x200400Bu,&filter,&trace);
+        if(trace.allsolid || trace.startsolid)break;position=trace.endpos;const bool collision=trace.fraction<1.f;
+        if(collision){velocity=(velocity-trace.plane.normal*(2.f*velocity.Dot(trace.plane.normal)))*.45f;if(trace.plane.normal.z>.7f && velocity.LengthSqr()<400.f)velocity={0,0,0};}
+        const bool fire=item==46 || item==48;
+        const bool detonate=((item==43 || item==44) && time>=1.5f) || (fire && ((collision && trace.plane.normal.z>.7f) || time>=3.5f)) || ((item==45 || item==47) && time>=.2f && velocity.LengthSqr()<.01f);
+        if(collision || step%2==0 || detonate){result.points[result.count]=position;result.bounces[result.count]=collision;++result.count;}
+        if(detonate){result.detonated=true;break;}
+    }
+    if(result.detonated && (item==44 || item==46 || item==48))for(int i=1;i<=64;++i){
+        auto* enemy=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(i));if(!enemy || enemy==ctx.local || !enemy->IsAlive() || enemy->IsDormant() || enemy->m_iTeamNum()==ctx.local->m_iTeamNum())continue;
+        if(enemy->m_vecOrigin().DistSqr(position)>(item==44 ? 350.f*350.f : 150.f*150.f))continue;
+        ray.Init(position+Vector{0,0,2},enemy->GetEyePosition());trace=CGameTrace{};Interfaces::EngineTrace->TraceRay(ray,0x200400Bu,&filter,&trace);
+        if(trace.fraction>.97f || trace.m_pEnt==enemy){result.hit=true;break;}
+    }
+    PublishTrajectory(result);
+}
 bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
-    connected=true;if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    connected=true;PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
         const auto* data=ctx.weapon->GetWeaponData();
@@ -322,7 +363,7 @@ void Initialize(){
 void Shutdown(){
     VisualPost::Reset();
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
-    visual_registered=false;beams=nullptr;ClearEvents();
+    visual_registered=false;beams=nullptr;ClearEvents();PublishTrajectory({});
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();
     __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
