@@ -16,6 +16,7 @@ struct Settings {
     bool penetration_crosshair{};
     bool dof{};unsigned dof_mode{};float focus_distance{},focus_speed{9.f},focus_range{};
     bool arrows{};float arrow_distance{50.f},arrow_size{24.f};std::uint32_t arrow_color{};
+    bool grenade_warning{};std::uint32_t warning_color{};
     bool trajectory{};std::uint32_t trajectory_hit{},trajectory_miss{};
     unsigned tracer_targets{},hitmarkers{};bool impacts{};
     std::array<unsigned,3> tracer_styles{};
@@ -44,6 +45,12 @@ inline std::mutex frame_mutex;
 inline LocalFrame local_frame;
 inline void PublishLocal(const LocalFrame& v){std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())local_frame=v;}
 inline LocalFrame GetLocal(){static thread_local LocalFrame v;std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())v=local_frame;return v;}
+struct Warning {Vector position{};float remaining{},duration{},radius{};bool fire{};};
+struct WarningFrame {std::array<Warning,64> records{};std::size_t count{};Vector eye{};};
+inline std::mutex warning_mutex;
+inline WarningFrame warning_frame;
+inline void PublishWarnings(const WarningFrame& v){std::unique_lock<std::mutex> lock(warning_mutex,std::try_to_lock);if(lock.owns_lock())warning_frame=v;}
+inline bool CopyWarnings(WarningFrame& v){std::unique_lock<std::mutex> lock(warning_mutex,std::try_to_lock);if(!lock.owns_lock())return false;v=warning_frame;return true;}
 struct ArrowPoint {Vector position{};float alpha{};};
 struct ArrowFrame {std::array<ArrowPoint,64> points{};Vector eye{};};
 inline std::mutex arrow_mutex;

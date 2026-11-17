@@ -1,6 +1,7 @@
 #pragma once
 #include "../tabs/tabs.hpp"
 #include "../config.hpp"
+#include <cstdio>
 #include "../../features/visuals/misc_runtime.hpp"
 namespace VisualMiscBridge {
 inline void Configure(){
@@ -26,6 +27,7 @@ inline void Configure(){
     s.sunlight=w.sunlight.get();s.sunlight_color=w.sunlight_color.get().rgba();
     s.dof=w.depth_of_field.get();s.dof_mode=static_cast<unsigned>(static_cast<std::uint64_t>(w.dof_mode.get()));s.focus_distance=w.focus_distance.get();s.focus_speed=w.focus_speed.get();s.focus_range=w.focus_range.get();
     s.penetration_crosshair=v.autowall_crosshair.get();
+    s.grenade_warning=m.grenade_helper.get();s.warning_color=m.grenade_warning_color.get().rgba();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){
@@ -34,6 +36,15 @@ inline void RenderEvents(){
     const auto s=VisualMisc::Get();std::array<float,16> m{};if(!VisualMisc::CurrentMatrix(m))return;
     const auto display=draw.display/draw.scale;auto& d=draw.layers[l_back];
     auto project=[&](const Vector& v,vec2& p){const float w=m[12]*v.x+m[13]*v.y+m[14]*v.z+m[15];if(w<.01f)return false;p={display.x*.5f*(1.f+(m[0]*v.x+m[1]*v.y+m[2]*v.z+m[3])/w),display.y*.5f*(1.f-(m[4]*v.x+m[5]*v.y+m[6]*v.z+m[7])/w)};return true;};
+    VisualMisc::WarningFrame warnings;
+    if(s.grenade_warning && VisualMisc::CopyWarnings(warnings))for(std::size_t i=0;i<warnings.count;++i){
+        const auto& warning=warnings.records[i];vec2 p;const color c{s.warning_color};
+        const bool onscreen=project(warning.position,p) && p.x>=20.f && p.x<=display.x-20.f && p.y>=20.f && p.y<=display.y-20.f;
+        if(!onscreen){const Vector delta=warning.position-warnings.eye;const float right=m[0]*delta.x+m[1]*delta.y+m[2]*delta.z,forward=m[12]*delta.x+m[13]*delta.y+m[14]*delta.z;const float angle=std::atan2(-forward,right);p=display*.5f+vec2{std::cos(angle),std::sin(angle)}*((std::min)(display.x,display.y)*.4f);}
+        d->font=draw.fonts[GUI_HASH("gui_main")];char text[32];std::snprintf(text,sizeof text,"%s %.1fs",warning.fire?"FIRE":"HE",warning.remaining);d->add_text(p,text,c,text_params::with_h(align_center));
+        const float fill=std::clamp(warning.remaining/warning.duration,0.f,1.f);d->add_line(p+vec2{-20,14},p+vec2{-20+40.f*fill,14},c);
+        if(onscreen)for(int segment=0;segment<32;++segment){const float a=static_cast<float>(segment)*.19634954f,b=a+.19634954f;vec2 x,y;if(project(warning.position+Vector{std::cos(a)*warning.radius,std::sin(a)*warning.radius,2},x) && project(warning.position+Vector{std::cos(b)*warning.radius,std::sin(b)*warning.radius,2},y))d->add_line(x,y,c);}
+    }
     VisualMisc::ArrowFrame arrows;
     if(s.arrows && VisualMisc::CopyArrows(arrows))for(const auto& point:arrows.points){
         if(point.alpha<.01f)continue;vec2 screen;

@@ -264,6 +264,38 @@ void Environment(const Settings& s){
         }else if(field.kind==2)field.Set(s.exposure,true);else field.Set(s.exposure,(std::max)(.01f,s.exposure_value*.02f));
     }
 }
+std::array<float,65> he_throw_time{};
+void CaptureWarnings(const Settings& s){
+    static int previous_tick{-1};static void* lifetime_var{};
+    if(!s.grenade_warning || !ctx.local || !ctx.local->IsAlive() || !Interfaces::Globals || !Interfaces::EntityList){PublishWarnings({});previous_tick=-1;return;}
+    const int tick=Interfaces::Globals->tickcount;if(tick>=previous_tick && tick-previous_tick<4)return;previous_tick=tick;
+    static const auto thrower_offset=PropManager::Get().GetOffset("DT_BaseGrenade","m_hThrower");
+    static const auto fire_tick=PropManager::Get().GetOffset("DT_Inferno","m_nFireEffectTickBegin");
+    static const auto explode_tick=PropManager::Get().GetOffset("DT_BaseCSGrenadeProjectile","m_nExplodeEffectTickBegin");
+    if(!lifetime_var && Interfaces::ConVar)lifetime_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"inferno_flame_lifetime");
+    const float now=Interfaces::Globals->curtime;
+    float lifetime=lifetime_var ? MEM::GetVFunc<float(__thiscall*)(void*)>(lifetime_var,12)(lifetime_var) : 7.f;if(!std::isfinite(lifetime) || lifetime<=0.f)lifetime=7.f;
+    WarningFrame frame;frame.eye=ctx.local->GetEyePosition();
+    const int highest=(std::min)(Interfaces::EntityList->GetHighestEntityIndex(),4095);
+    for(int i=65;i<=highest && frame.count<frame.records.size();++i){
+        auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(i));if(!entity || entity->IsDormant())continue;
+        const auto* cls=entity->GetClientClass();if(!cls || !cls->m_pNetworkName)continue;
+        Warning warning;warning.position=entity->m_vecOrigin();
+        if(warning.position.DistSqr(frame.eye)>1500.f*1500.f)continue;
+        if(!std::strcmp(cls->m_pNetworkName,"CInferno") && Valid(fire_tick)){
+            warning.duration=lifetime;warning.remaining=static_cast<float>(Field<int>(entity,fire_tick))*Interfaces::Globals->interval_per_tick+lifetime-now;warning.radius=150.f;warning.fire=true;
+        }else if(!std::strcmp(cls->m_pNetworkName,"CBaseCSGrenadeProjectile") && Valid(thrower_offset)){
+            if(Valid(explode_tick) && Field<int>(entity,explode_tick)>0)continue;
+            const char* model=entity->GetModelName();if(!model || !std::strstr(model,"fraggrenade"))continue;
+            const auto handle=Field<std::uint32_t>(entity,thrower_offset);auto* owner=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntityFromHandle(handle));
+            if(!owner || owner==ctx.local || owner->m_iTeamNum()==ctx.local->m_iTeamNum())continue;
+            const int index=owner->GetIndex();if(index<1 || index>64 || he_throw_time[index]<=0.f)continue;
+            warning.duration=1.5f;warning.remaining=he_throw_time[index]+1.5f-now;warning.radius=350.f;
+        }else continue;
+        if(warning.remaining>0.f && warning.remaining<=warning.duration)frame.records[frame.count++]=warning;
+    }
+    PublishWarnings(frame);
+}
 void CaptureArrows(const Settings& s){
     static ArrowFrame frame;static std::array<void*,64> identities{};
     if(!s.arrows || !ctx.local || !ctx.local->IsAlive() || !Interfaces::EntityList){frame={};identities={};PublishArrows(frame);return;}
@@ -346,8 +378,8 @@ bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected){RestoreEnvironment();ReleaseMaterials();}connected=false;ClearEvents();PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
-    connected=true;Environment(s);CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected){RestoreEnvironment();ReleaseMaterials();}connected=false;ClearEvents();PublishWarnings({});he_throw_time={};PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    connected=true;CaptureWarnings(s);Environment(s);CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
         const auto* data=ctx.weapon->GetWeaponData();
@@ -398,12 +430,13 @@ void* beams{};
 struct VisualEvent {
     const char* Name(){return MEM::GetVFunc<const char*(__thiscall*)(void*)>(this,1)(this);}
     int Int(const char* key){return MEM::GetVFunc<int(__thiscall*)(void*,const char*,int)>(this,6)(this,key,0);}
+    const char* String(const char* key){return MEM::GetVFunc<const char*(__thiscall*)(void*,const char*,const char*)>(this,9)(this,key,"");}
     float Float(const char* key){return MEM::GetVFunc<float(__thiscall*)(void*,const char*,float)>(this,8)(this,key,0.f);}
 };
 std::array<Vector,65> last_impact{};std::array<float,65> impact_time{};
 void VisualEventImpl(VisualEvent* e){
     if(!e)return;const char* name=e->Name();if(!name)return;
-    if(!std::strcmp(name,"round_start") || !std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){ClearEvents();last_impact={};impact_time={};
+    if(!std::strcmp(name,"round_start") || !std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){ClearEvents();PublishWarnings({});he_throw_time={};last_impact={};impact_time={};
         if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
         return;}
     if(!Interfaces::Engine || !Interfaces::Engine->IsInGame() || !ctx.local || !Interfaces::EntityList || !Interfaces::Globals)return;
@@ -412,6 +445,7 @@ void VisualEventImpl(VisualEvent* e){
     const int index=user(e->Int("userid"));if(index<1 || index>64)return;
     auto* player=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(index));if(!player)return;
     const int local=Interfaces::Engine->GetLocalPlayer();
+    if(!std::strcmp(name,"grenade_thrown")){const char* weapon=e->String("weapon");if(weapon && !std::strcmp(weapon,"hegrenade"))he_throw_time[index]=now;return;}
     if(!std::strcmp(name,"bullet_impact")){
         const Vector end{e->Float("x"),e->Float("y"),e->Float("z")};if(!std::isfinite(end.x) || !std::isfinite(end.y) || !std::isfinite(end.z))return;
         last_impact[index]=end;impact_time[index]=now;
@@ -438,7 +472,7 @@ void RegisterVisualEvents(){
     beams=reinterpret_cast<void*>(offsets::Get("visual_render_beams"));
     if(!Interfaces::GameEvent)return;
     bool ok=true;auto add=MEM::GetVFunc<bool(__thiscall*)(void*,void*,const char*,bool)>(Interfaces::GameEvent,3);
-    for(const char* name:{"bullet_impact","player_hurt","round_start","game_newmap","cs_game_disconnected"})ok=add(Interfaces::GameEvent,&visual_listener,name,false) && ok;
+    for(const char* name:{"grenade_thrown","bullet_impact","player_hurt","round_start","game_newmap","cs_game_disconnected"})ok=add(Interfaces::GameEvent,&visual_listener,name,false) && ok;
     if(!ok){MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);LOG_WARN("visual misc: event registration failed");return;}visual_registered=true;
 }
 }
@@ -469,7 +503,7 @@ void Initialize(){
 void Shutdown(){
     VisualPost::Reset();
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
-    visual_registered=false;beams=nullptr;ClearEvents();PublishTrajectory({});
+    visual_registered=false;beams=nullptr;ClearEvents();PublishWarnings({});he_throw_time={};PublishTrajectory({});
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();
     __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
