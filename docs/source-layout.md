@@ -8,7 +8,7 @@ menu/
   menu.cpp, menu.hpp       menu lifecycle, construction, input/render entry points
   config.hpp              GUI setting declarations
   bridge.cpp              GUI helper adapters
-  tabs/                   Misc, Visuals, Skins, Legit tab builders and declarations
+  tabs/                   Rage/Anti-aim, Misc, Visuals, Skins, Legit tab builders and declarations
   controls/               custom popups and control-building helpers
   preview/                model renderer, ESP editor, preview catalog/state/helpers
   bridges/                publish GUI settings to runtime snapshots

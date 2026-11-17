@@ -145,6 +145,7 @@
     <ClCompile Include="menu\menu.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\bridge.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\tab_legit.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="menu\tabs\tab_rage.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\tab_misc.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\tab_skins.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\tab_visuals.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>

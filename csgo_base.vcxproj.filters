@@ -251,6 +251,7 @@
     <ClCompile Include="menu\tabs\tab_legit.cpp">
       <Filter>Menu\tabs</Filter>
     </ClCompile>
+    <ClCompile Include="menu\tabs\tab_rage.cpp"><Filter>Menu\tabs</Filter></ClCompile>
     <ClCompile Include="menu\tabs\tab_misc.cpp">
       <Filter>Menu\tabs</Filter>
     </ClCompile>
