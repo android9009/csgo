@@ -205,6 +205,51 @@ CCSPlayer* flash_player{};float flash_backup{};bool flash_saved{};
 bool LivePlayer(CCSPlayer* player){return player && Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer())==player;}
 void RestorePunch(){if(punch_saved && LivePlayer(punch_player)){punch_player->m_aimPunchAngle()=aim_backup;punch_player->m_viewPunchAngle()=view_backup;}punch_saved=false;punch_player=nullptr;}
 void RestoreFlash(){if(flash_saved && LivePlayer(flash_player))flash_player->m_flFlashMaxAlpha()=flash_backup;flash_saved=false;flash_player=nullptr;}
+struct EnvironmentField {
+    CBaseEntity* entity{};int index{};std::ptrdiff_t offset{};unsigned size{};
+    std::array<unsigned char,4> original{},applied{};bool owned{};
+    bool Live()const{return entity && Interfaces::EntityList && Interfaces::EntityList->GetClientEntity(index)==entity;}
+    void Restore(){if(owned && Live() && !std::memcmp(&Field<unsigned char>(entity,offset),applied.data(),size))std::memcpy(&Field<unsigned char>(entity,offset),original.data(),size);owned=false;}
+    template<class T> void Set(bool enabled,const T& value){
+        static_assert(sizeof(T)<=4,"network environment scalar");
+        if(!enabled){Restore();return;}if(!Live() || !Valid(offset))return;
+        auto* target=&Field<unsigned char>(entity,offset);if(!owned){std::memcpy(original.data(),target,sizeof(T));owned=true;}
+        size=sizeof(T);std::memcpy(applied.data(),&value,sizeof(T));std::memcpy(target,&value,sizeof(T));
+    }
+};
+std::vector<EnvironmentField> environment;
+int environment_tick{-1};
+void RestoreEnvironment(){for(auto& field:environment)field.Restore();environment.clear();environment_tick=-1;}
+void Environment(const Settings& s){
+    if(!Interfaces::EntityList || !Interfaces::Globals)return;
+    const bool wanted=s.sunlight || s.fog || s.exposure;
+    if(!wanted){if(!environment.empty())RestoreEnvironment();return;}
+    const int tick=Interfaces::Globals->tickcount;
+    if(environment_tick<0 || tick<environment_tick || tick-environment_tick>=64){
+        RestoreEnvironment();environment_tick=tick;
+        const int highest=(std::min)(Interfaces::EntityList->GetHighestEntityIndex(),4095);
+        for(int index=1;index<=highest;++index){
+            auto* entity=static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(index));if(!entity)continue;
+            const auto* cls=entity->GetClientClass();if(!cls || !cls->m_pNetworkName)continue;
+            const char* table=nullptr;const char* names[4]{};
+            if(!std::strcmp(cls->m_pNetworkName,"CCascadeLight")){table="DT_CascadeLight";names[0]="m_LightColor";}
+            else if(!std::strcmp(cls->m_pNetworkName,"CFogController")){table="DT_FogController";names[0]="m_fog.colorPrimary";}
+            else if(!std::strcmp(cls->m_pNetworkName,"CEnvTonemapController")){table="DT_EnvTonemapController";names[0]="m_bUseCustomAutoExposureMin";names[1]="m_bUseCustomAutoExposureMax";names[2]="m_flCustomAutoExposureMin";names[3]="m_flCustomAutoExposureMax";}
+            if(!table)continue;
+            for(const auto* name:names){if(!name)continue;const auto offset=PropManager::Get().GetOffset(table,name);if(!Valid(offset))continue;EnvironmentField field;field.entity=entity;field.index=index;field.offset=offset;environment.push_back(field);}
+        }
+    }
+    for(auto& field:environment){
+        if(!field.Live())continue;const auto* cls=field.entity->GetClientClass();if(!cls || !cls->m_pNetworkName)continue;
+        if(!std::strcmp(cls->m_pNetworkName,"CCascadeLight") || !std::strcmp(cls->m_pNetworkName,"CFogController")){
+            const bool sun=!std::strcmp(cls->m_pNetworkName,"CCascadeLight");const auto color=sun ? s.sunlight_color : s.fog_color;
+            const std::uint32_t packed=(color&0xff00ff00u)|((color&255u)<<16)|((color>>16)&255u);field.Set(sun ? s.sunlight : s.fog,packed);
+        }else{
+            const auto min_flag=PropManager::Get().GetOffset("DT_EnvTonemapController","m_bUseCustomAutoExposureMin"),max_flag=PropManager::Get().GetOffset("DT_EnvTonemapController","m_bUseCustomAutoExposureMax");
+            if(field.offset==min_flag || field.offset==max_flag)field.Set(s.exposure,true);else field.Set(s.exposure,(std::max)(.01f,s.exposure_value*.02f));
+        }
+    }
+}
 void CaptureArrows(const Settings& s){
     static ArrowFrame frame;static std::array<void*,64> identities{};
     if(!s.arrows || !ctx.local || !ctx.local->IsAlive() || !Interfaces::EntityList){frame={};identities={};PublishArrows(frame);return;}
@@ -266,8 +311,8 @@ bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
-    connected=true;CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected){RestoreEnvironment();ReleaseMaterials();}connected=false;ClearEvents();PublishArrows({});PublishTrajectory({});PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    connected=true;Environment(s);CaptureArrows(s);PredictGrenade(s);if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
         const auto* data=ctx.weapon->GetWeaponData();
@@ -323,7 +368,7 @@ std::array<Vector,65> last_impact{};std::array<float,65> impact_time{};
 void VisualEventImpl(VisualEvent* e){
     if(!e)return;const char* name=e->Name();if(!name)return;
     if(!std::strcmp(name,"round_start") || !std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){ClearEvents();last_impact={};impact_time={};
-        if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
+        if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
         return;}
     if(!Interfaces::Engine || !Interfaces::Engine->IsInGame() || !ctx.local || !Interfaces::EntityList || !Interfaces::Globals)return;
     const auto s=Get();const float now=Interfaces::Globals->curtime;
@@ -390,7 +435,7 @@ void Shutdown(){
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
     visual_registered=false;beams=nullptr;ClearEvents();PublishTrajectory({});
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();
-    __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
+    __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();RestoreEnvironment();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
 }
 }

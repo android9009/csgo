@@ -22,6 +22,7 @@ inline void Configure(){
     s.arrows=v.out_of_fov.get();s.arrow_distance=v.out_of_fov_dst.get();s.arrow_size=v.out_of_fov_size.get();s.arrow_color=v.out_of_fov_col.get().rgba();
     s.bloom_screen=w.bloom_screen_strength.get();s.bloom_blur=w.bloom_blur_strength.get();s.bloom_threshold=w.bloom_threshold.get();s.bloom_width=w.bloom_threshold_width.get();
     for(int i=0;i<5;++i){s.bloom_weights[i]=w.bloom_weights[i].get();s.bloom_colors[i]=w.bloom_weight_colors[i].get().rgba();}
+    s.sunlight=w.sunlight.get();s.sunlight_color=w.sunlight_color.get().rgba();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){

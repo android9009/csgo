@@ -24,7 +24,8 @@ struct Settings {
     unsigned tone_curve{};std::uint32_t vignette_color{};
     float contrast{},highlights{},shadows{},saturation{},vibrance{},temperature{},tint{};
     float local_strength{},edge_strength{},vignette_start{},vignette_end{},vignette_blur{};
-    bool night{},fullbright{},sky{},fog{},exposure{},bloom{};
+    bool night{},fullbright{},sky{},fog{},exposure{},bloom{},sunlight{};
+    std::uint32_t sunlight_color{0xffffffff};
     std::uint32_t night_color{0xffffffff},fullbright_color{0xffffffff},sky_color{0xffffffff},fog_color{0xffffffff};
     float exposure_value{50},bloom_value{50};
     float bloom_screen{50.f},bloom_blur{},bloom_threshold{},bloom_width{};
