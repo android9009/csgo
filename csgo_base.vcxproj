@@ -368,6 +368,7 @@
     <ClInclude Include="features\visuals\fatality_material_definitions.hpp" />
     <ClInclude Include="features\visuals\fatality_material_factory.hpp" />
     <ClInclude Include="sdk\world_esp_state.hpp" />
+    <ClInclude Include="sdk\visual_entity_read.hpp" />
     <ClInclude Include="sdk\visual_preview_state.hpp" />
     <ClInclude Include="sdk\weapon_glyph.hpp" />
     <ClInclude Include="sdk\esp_docking.hpp" />

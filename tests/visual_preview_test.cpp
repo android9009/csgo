@@ -15,9 +15,9 @@ int main(){
     assert(Classify("CSmokeGrenadeProjectile")==Grenade);assert(Classify("CMolotovProjectile")==Grenade);
     assert(Classify("CFlashbang")==Grenade);assert(Projectile("CSmokeGrenadeProjectile"));assert(!Projectile("CSmokeGrenade"));
     assert(Classify("CC4")==C4 && Classify("CPlantedC4")==C4);assert(Classify("CCSPlayer")==None);
-    Frame f;f.matrix={1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};Item item;
+    Frame f;f.matrix={1,0,0,0,0,1,0,0,0,0,1,-1,0,0,1,0};Item item;item.z=10;
     float x{},y{};assert(Project(f,item,x,y) && x==.5f && y==.5f);
-    item.x=20.f;assert(!Project(f,item,x,y));item.x=0;f.matrix[15]=-1;assert(!Project(f,item,x,y));
+    item.x=20.f;assert(!Project(f,item,x,y));item.x=0;f.matrix[14]=-1;assert(!Project(f,item,x,y));
     assert(BombDamage(100,100)<BombDamage(100,0));assert(BombDamage(1500,0)<BombDamage(100,0));
     assert(BombDamage(std::numeric_limits<float>::quiet_NaN(),0)==0);
     static Frame snapshot;f.valid=true;f.count=1;Publish(f);CopyFrame(snapshot);assert(snapshot.valid && snapshot.count==1);

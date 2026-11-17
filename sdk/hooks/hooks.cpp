@@ -1,5 +1,6 @@
 #include "hooks.hpp"
 #include "../visual_runtime_state.hpp"
+#include "../world_esp_state.hpp"
 #include "../../utils/detourhook.hpp"
 #include "../../utils/log.hpp"
 #include "../interfaces/interfaces.hpp"
@@ -190,6 +191,7 @@ bool Setup() {
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
+    WorldEsp::Initialize();
     ShotChams::Initialize();
     MiscRuntime::Initialize();
     VisualMisc::Initialize();

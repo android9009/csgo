@@ -58,5 +58,6 @@ inline void ClearPlayers(){std::lock_guard<std::mutex> lock(mutex);player_frame.
 inline void PublishPlayers(const Players& p){std::lock_guard<std::mutex> lock(mutex);player_frame=p;}
 void CapturePlayers();
 void UpdateGlow();
+void RestoreGlow();
 void ShutdownGlow();
 }

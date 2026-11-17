@@ -18,6 +18,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
+    if(stage==6)VisualRuntime::RestoreGlow();
     if (stage == 6) {
         static bool first_capture=true;
         const bool trace_first=first_capture;first_capture=false;
@@ -41,12 +42,13 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     // frame; never let a bad read crash the process from a hook.
     __try {
         ctx.frame_stage = stage;
-        if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Globals) { VisualMisc::Frame(stage);return; }
+        if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Globals) { ctx.reset(); }
         // Refresh the entity context once the client has applied network updates
         // (and at render start, when the local weapon may have changed).
-        if (stage == 0 || stage == 4 || stage == 5) {
+        if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; VisualMisc::Frame(stage);return; }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; }
+            else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
             ctx.weapon = ctx.local ? ctx.local->GetActiveWeapon() : nullptr;
@@ -55,10 +57,12 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             ctx.curtime = Interfaces::Globals->curtime;
             ctx.frametime = Interfaces::Globals->frametime;
             if (ctx.local) ctx.eye_pos = ctx.local->GetEyePosition();
+            }
             // TODO: features/visuals (glow/chams state), features/rage (lagcomp) entry points go here
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
+    if(stage==4 || (stage==0 && !ctx.in_game))WorldEsp::Scan();
     VisualMisc::Frame(stage);
 }
 }

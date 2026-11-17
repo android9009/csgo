@@ -629,6 +629,7 @@
     <ClInclude Include="features\visuals\fatality_material_factory.hpp">
       <Filter>Features</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\visual_entity_read.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="sdk\world_esp_state.hpp">
       <Filter>SDK</Filter>
     </ClInclude>

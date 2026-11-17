@@ -624,6 +624,7 @@ struct cfg_t {
 			struct {
 				setting<bool> weapon_icons;
 				setting<bool> weapon_enabled, grenade_enabled, grenade_icons, c4_enabled;
+                setting<bool> weapon_glow, grenade_glow, c4_glow;
 				setting<bitset> c4_options;
 				setting<color> weapon_color{color::white()}, grenade_color{color::white()}, c4_color{color::white()}, c4_timer_color{color::white()};
 				setting<bitset> enabled;

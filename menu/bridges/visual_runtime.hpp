@@ -39,7 +39,6 @@ inline void Configure() {
         bits=evo::gui::bits{1ull<<kind};
     };
     for(auto* entry:{&c.team_pl,&c.team_rag,&c.team_att,&c.enemy_pl,&c.enemy_backtrack,&c.enemy_shot,&c.enemy_rag,&c.enemy_att,&c.local_pl,&c.local_fake,&c.local_arms,&c.local_att})selection(entry->mat);
-    selection(w.weapon_visuals.material);selection(w.grenade_visuals.material);selection(w.c4_visuals.material);
     VisualRuntime::Settings s;s.chams_enabled=c.enable.get();
     s.players={Material(c.enemy_pl),Material(c.team_pl),Material(c.local_pl)};
     s.ragdolls={Material(c.enemy_rag),Material(c.team_rag),Material(c.local_pl)};
@@ -47,12 +46,11 @@ inline void Configure() {
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.team.get(),esp.glow.team_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.local.get(),esp.glow.local_color.get().rgba()}};
-    s.object_enabled={w.weapon_enabled.get(),w.grenade_enabled.get(),w.c4_enabled.get()};
-    auto object=[&](int index,auto& v) {
-        s.objects[index].enabled=s.object_enabled[index];s.objects[index].kind=ChamsPasses::Selection(v.material.get().first_set_bit().value_or(0));s.objects[index].primary=v.material_color.get().rgba();s.objects[index].secondary=s.objects[index].primary;
-        s.object_glow[index]={s.object_enabled[index] && v.glow_mode->test(1),v.glow_color.get().rgba()};
+    auto object=[&](int index,auto& v,bool glow_enabled) {
+        s.objects[index].kind=ChamsPasses::Selection(v.material.get().first_set_bit().value_or(0));s.objects[index].enabled=s.objects[index].kind>0;s.object_enabled[index]=s.objects[index].enabled;s.objects[index].primary=v.material_color.get().rgba();s.objects[index].secondary=s.objects[index].primary;
+        s.object_glow[index]={glow_enabled,v.glow_color.get().rgba()};
     };
-    object(0,w.weapon_visuals);object(1,w.grenade_visuals);object(2,w.c4_visuals);
+    object(0,w.weapon_visuals,w.weapon_glow.get());object(1,w.grenade_visuals,w.grenade_glow.get());object(2,w.c4_visuals,w.c4_glow.get());
     for(int i=0;i<3;++i)s.esp[i]=ReadEsp(i==esp.active_profile ? static_cast<cfg_t::visuals_t::esp_player_t&>(esp) : esp.profiles[i],i);
     VisualRuntime::Publish(s);
 }
