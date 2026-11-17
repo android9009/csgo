@@ -75,4 +75,3 @@ add_executable(injector WIN32 injector/main.cpp injector/status.hpp)
 target_compile_definitions(injector PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(injector PRIVATE /W4 /permissive- /EHsc /utf-8)
 target_link_libraries(injector PRIVATE user32)
-

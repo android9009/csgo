@@ -190,7 +190,7 @@ void Restore() {
     model_render_hook.detach(); view_render_hook.detach(); client_hook.detach();
     reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
-    cursor_hook.detach(); panel_hook.detach(); 
+    cursor_hook.detach(); panel_hook.detach();
     LOG_INFO("hooks restored");
 }
 }
