@@ -77,7 +77,7 @@ inline void Render(IDirect3DDevice9* dev){
         {s.contrast*.01f,s.shadows*.01f,s.highlights*.01f,s.saturation*.01f},
         {s.temperature*.01f,s.tint*.01f,s.vibrance*.01f,(s.tone_curve&2u)?1.f:0.f},
         {s.correction?1.f:0.f,s.local_contrast?1.f:0.f,s.grayscale?1.f:0.f,s.vignette?1.f:0.f},
-        {static_cast<float>(s.vignette_color&255)/255.f,static_cast<float>((s.vignette_color>>8)&255)/255.f,static_cast<float>((s.vignette_color>>16)&255)/255.f,static_cast<float>((s.vignette_color>>24)&255)/255.f},
+        {static_cast<float>((s.vignette_color>>16)&255)/255.f,static_cast<float>((s.vignette_color>>8)&255)/255.f,static_cast<float>(s.vignette_color&255)/255.f,static_cast<float>((s.vignette_color>>24)&255)/255.f},
         {s.local_strength*.01f,s.edge_strength*.01f,0,0},
         {s.vignette_start*.01f,s.vignette_end*.01f,s.vignette_blur*.01f,0}
     };

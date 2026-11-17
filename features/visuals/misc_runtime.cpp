@@ -13,6 +13,7 @@
 #include <atomic>
 #include <string>
 #include <cstdio>
+#include <unordered_set>
 namespace VisualMisc {
 namespace {
 template<class T> T& Field(void* p,std::ptrdiff_t n){return *reinterpret_cast<T*>(static_cast<unsigned char*>(p)+n);}
@@ -146,13 +147,14 @@ void Cvars(const Settings& s,bool active){
 }
 struct MaterialRecord {IMaterial* value{};std::array<float,3> rgb{};float alpha{};bool nodraw{};unsigned group{};};
 std::vector<MaterialRecord> materials;
+std::unordered_set<IMaterial*> known_materials;int known_material_count{-1};
 unsigned short material_cursor{};bool scanning{};std::size_t apply_cursor{};
 struct MaterialSettings {
     float texture{},prop{};unsigned removals{};bool night{},fullbright{},sky{};std::uint32_t world{},bright{},sky_color{};
     bool operator==(const MaterialSettings& v)const{return texture==v.texture && prop==v.prop && removals==v.removals && night==v.night && fullbright==v.fullbright && sky==v.sky && world==v.world && bright==v.bright && sky_color==v.sky_color;}
 };
 MaterialSettings material_settings;bool material_settings_valid{};
-void ReleaseMaterials(){for(auto& item:materials){item.value->ColorModulate(item.rgb[0],item.rgb[1],item.rgb[2]);item.value->AlphaModulate(item.alpha);item.value->SetMaterialVarFlag(1<<2,item.nodraw);item.value->DecrementReferenceCount();}materials.clear();scanning=false;apply_cursor=0;material_settings_valid=false;}
+void ReleaseMaterials(){for(auto& item:materials){item.value->ColorModulate(item.rgb[0],item.rgb[1],item.rgb[2]);item.value->AlphaModulate(item.alpha);item.value->SetMaterialVarFlag(1<<2,item.nodraw);item.value->DecrementReferenceCount();}materials.clear();known_materials.clear();known_material_count=-1;scanning=false;apply_cursor=0;material_settings_valid=false;}
 void Modulate(MaterialRecord& item,const MaterialSettings& s){
     std::uint32_t tint=0xffffffff;
     if((item.group&3u) && s.night)tint=s.world;
@@ -177,13 +179,14 @@ void Materials(const Settings& s){
     const auto advance=MEM::GetVFunc<unsigned short(__thiscall*)(void*,unsigned short)>(system,87);
     const auto invalid=MEM::GetVFunc<unsigned short(__thiscall*)(void*)>(system,88)(system);
     const auto get=MEM::GetVFunc<IMaterial*(__thiscall*)(void*,unsigned short)>(system,89);
-    if(materials.empty() && !scanning){material_cursor=first(system);scanning=true;}
+    const int count=MEM::GetVFunc<int(__thiscall*)(void*)>(system,90)(system);
+    if(!scanning && (materials.empty() || count!=known_material_count)){known_material_count=count;material_cursor=first(system);scanning=true;}
     // Amortized map scan and dirty application; never a full per-frame walk.
     int budget=128;
     while(scanning && budget-- >0){
         if(material_cursor==invalid){scanning=false;break;}
         auto* value=get(system,material_cursor);material_cursor=advance(system,material_cursor);
-        if(!value || value->IsErrorMaterial())continue;
+        if(!value || known_materials.count(value) || value->IsErrorMaterial())continue;
         const char* group=value->GetTextureGroupName();const char* name=value->GetName();if(!group || !name)continue;
         unsigned kind=std::strstr(group,"World") ? 1u : std::strstr(group,"StaticProp") ? 2u : std::strstr(group,"SkyBox") ? 4u : 0u;
         if(std::strstr(name,"vistasmoke") || std::strstr(name,"smokegrenade"))kind|=8u;
@@ -191,7 +194,7 @@ void Materials(const Settings& s){
         if(std::strstr(name,"blood"))kind|=32u;
         if(!kind)continue;
         MaterialRecord record;record.value=value;record.group=kind;record.alpha=value->GetAlphaModulation();value->GetColorModulation(&record.rgb[0],&record.rgb[1],&record.rgb[2]);record.nodraw=value->GetMaterialVarFlag(1<<2);
-        value->IncrementReferenceCount();materials.push_back(record);
+        value->IncrementReferenceCount();materials.push_back(record);known_materials.insert(value);
     }
     budget=128;while(apply_cursor<materials.size() && budget-- >0)Modulate(materials[apply_cursor++],material_settings);
 }
@@ -284,7 +287,7 @@ void BeforeFrame(int stage){
     __try{
         if(stage==0 || stage==1 || stage==5){RestorePunch();RestoreSmoke();}
         if(stage==5 && ctx.in_game && smoke_count && (Get().removals&2u) && *smoke_count>=0 && *smoke_count<=4096){smoke_backup=*smoke_count;smoke_saved=true;*smoke_count=0;}
-        if(stage==5 && ctx.local && ctx.in_game && (Get().removals&(1u<<8))){punch_player=ctx.local;aim_backup=ctx.local->m_aimPunchAngle();view_backup=ctx.local->m_viewPunchAngle();punch_saved=true;ctx.local->m_aimPunchAngle()={};ctx.local->m_viewPunchAngle()={};}
+        if(stage==5 && LivePlayer(ctx.local) && ctx.in_game && (Get().removals&(1u<<8))){punch_player=ctx.local;aim_backup=ctx.local->m_aimPunchAngle();view_backup=ctx.local->m_viewPunchAngle();punch_saved=true;ctx.local->m_aimPunchAngle()={};ctx.local->m_viewPunchAngle()={};}
     }__except(EXCEPTION_EXECUTE_HANDLER){}
 }
 void Frame(int stage){__try{if(stage==6){RestorePunch();RestoreSmoke();}FrameImpl(stage);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged{};if(!logged){logged=true;LOG_WARN("visual misc: invalid frame resource");}}}
@@ -334,12 +337,12 @@ void VisualEventImpl(VisualEvent* e){
         const unsigned group=index==local ? 0u : player->m_iTeamNum()!=ctx.local->m_iTeamNum() ? 1u : 2u;
         if((s.tracer_targets&(1u<<group)) || (s.impacts && group==0))AddEvent({player->GetEyePosition(),end,now,0,group});
         if(beams && (s.tracer_targets&(1u<<group)) && (s.tracer_styles[group]&1u)){
-            BeamInfo info;info.start=player->GetEyePosition();info.end=end;const auto c=s.tracer_colors[group];info.red=static_cast<float>(c&255);info.green=static_cast<float>((c>>8)&255);info.blue=static_cast<float>((c>>16)&255);info.brightness=static_cast<float>((c>>24)&255);
+            BeamInfo info;info.start=player->GetEyePosition();info.end=end;const auto c=s.tracer_colors[group];info.red=static_cast<float>((c>>16)&255);info.green=static_cast<float>((c>>8)&255);info.blue=static_cast<float>(c&255);info.brightness=static_cast<float>((c>>24)&255);
             auto* beam=MEM::GetVFunc<void*(__thiscall*)(void*,BeamInfo&)>(beams,12)(beams,info);
             if(beam)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(beams,5)(beams,beam);
         }
     }else if(!std::strcmp(name,"player_hurt") && user(e->Int("attacker"))==local && s.hitmarkers){
-        Vector position=player->GetEyePosition();if(now-impact_time[local]>=0.f && now-impact_time[local]<.25f)position=last_impact[local];
+        Vector position=player->GetEyePosition();if(impact_time[local]>0.f && now-impact_time[local]>=0.f && now-impact_time[local]<.25f)position=last_impact[local];
         AddEvent({{},position,now,1,0});
     }
 }

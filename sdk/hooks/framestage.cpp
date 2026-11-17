@@ -16,7 +16,6 @@ namespace HooksInternal {
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     VisualMisc::BeforeFrame(stage);
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
-    VisualMisc::Frame(stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
     if (stage == 6) {
@@ -42,12 +41,12 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     // frame; never let a bad read crash the process from a hook.
     __try {
         ctx.frame_stage = stage;
-        if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Globals) return;
+        if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Globals) { VisualMisc::Frame(stage);return; }
         // Refresh the entity context once the client has applied network updates
         // (and at render start, when the local weapon may have changed).
         if (stage == 0 || stage == 4 || stage == 5) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; return; }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; VisualMisc::Frame(stage);return; }
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
             ctx.weapon = ctx.local ? ctx.local->GetActiveWeapon() : nullptr;
@@ -60,5 +59,6 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
+    VisualMisc::Frame(stage);
 }
 }
