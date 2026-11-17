@@ -7,7 +7,7 @@
 #include "../../utils/log.hpp"
 #include "../../utils/detourhook.hpp"
 #include <atomic>
-#include "../../third_party/fatality/resources/misc_sounds.h"
+#include "../../sdk/third_party/fatality/resources/misc_sounds.h"
 #include <windows.h>
 #include <mmsystem.h>
 #include <cstdio>

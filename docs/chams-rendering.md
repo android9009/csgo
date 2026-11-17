@@ -4,7 +4,7 @@ This revision intentionally differs from a literal copy of Fatality's VMTs.
 Reference: reversed2603/fatality_source dee7327, misc/init.cpp,
 features/chams.cpp, features/entity_rendering.cpp and sdk interfaces.
 Also reviewed: Osiris csgo-end-of-life, ChamsMaterialKeyValuesFactory.h
-(MIT attribution in third_party/licenses/Osiris-inventory.txt).
+(MIT attribution in sdk/third_party/licenses/Osiris-inventory.txt).
 
 ## Materials and passes
 
@@ -122,7 +122,7 @@ Reference reviewed: https://github.com/makavtoJJ1/Skeet-hook-source at
 
 The repository contains model chams, not just Lua material bindings. Its native
 address cells, material-internal vfuncs (e.g. 99/69), cloned-vtable recovery and
-studio memory offsets are build-specific. None of those hooks/layouts are imported.
+studio memory offsets are build-specific. None of those sdk/hooks/layouts are imported.
 No license file was identified in the recursive repository listing; no C++ source
 was copied. The material parameter configurations and provenance are documented
 here; no claim of an authenticated original Skeet source is made.

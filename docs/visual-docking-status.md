@@ -25,7 +25,7 @@ No license file was found in that checkout; this attribution does not grant
 redistribution rights. The font is not a newly drawn vector icon set. Glyph
 mapping and appearance still require a visual check.
 The KeyValues FromString calling convention is adapted from MIT-licensed
-Osiris, covered by `third_party/licenses/Osiris-inventory.txt`.
+Osiris, covered by `sdk/third_party/licenses/Osiris-inventory.txt`.
 
 ## Evidence and limitations
 

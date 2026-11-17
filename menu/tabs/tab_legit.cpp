@@ -1,7 +1,7 @@
 #include <gui/popups/action_list_popup.h>
 
 #include "../config.hpp"
-#include "../../third_party/fatality/src/gui/helpers.h"
+#include "../../sdk/third_party/fatality/src/gui/helpers.h"
 #include "../controls/macros.h"
 #include "tabs.hpp"
 

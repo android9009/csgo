@@ -31,7 +31,7 @@ previous third-party directory. The Visual Studio project and filters mirror the
 new physical paths.
 
 Third-party Fatality GUI controls, DX9 renderer, resources and upstream reference
-files remain in `third_party/fatality/`: moving application integration does not
+files remain in `sdk/third_party/fatality/`: moving application integration does not
 turn vendored dependencies into application-owned code. `reference_main.cpp` is
 an archived upstream reference, is not compiled, and is intentionally unchanged.
 
@@ -44,6 +44,17 @@ implementation does not duplicate those shared types or change their ABI.
 Portable preview tests now include helpers from `menu/preview/`.
 
 Shared C++ utilities are grouped under the existing `utils/` directory:
-`utils/math/`, `utils/offsets/`, and `utils/patterns/`. `tools/` is reserved for
-standalone analysis scripts. There are no forwarding copies at the former
+`utils/math/`, `utils/offsets/`, and `utils/patterns/`. The old `tools/` analysis scripts were removed at the user's request. There are no forwarding copies at the former
 repository-root locations; includes and Visual Studio filters use the new paths.
+
+Hooks now live in `sdk/hooks/`, and vendored dependencies in
+`sdk/third_party/`. CMake keeps the latter excluded from the recursive application
+source list and adds only the intended dependency sources. Include roots and
+Visual Studio filters follow these physical locations.
+
+`tests/` is intentionally retained: the fifteen portable regression programs
+check movement prediction, inventory identifiers, preview state and rendering
+plans. They are excluded from DLL compilation, take approximately 64 KiB, and
+are useful for catching regressions after file-layout changes. The removed
+`tools/` directory contained only the two standalone ABI inspection scripts;
+none were required to build or run the DLL.

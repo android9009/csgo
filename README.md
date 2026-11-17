@@ -10,6 +10,8 @@
 ├── context.hpp                единый runtime-контекст: local/weapon/view/prediction
 ├── CMakeLists.txt           x86 DLL для Visual Studio 2022
 ├── sdk/
+│   ├── hooks/               VMT manager и игровые хуки
+│   ├── third_party/         Fatality GUI/renderer, MinHook, JSON и лицензии
 │   ├── interfaces/          Capture<T>, ключевые Source-интерфейсы и vfunc-обёртки
 │   ├── entity/              CBaseEntity, CCSPlayer, CBaseWeapon и netvar accessors
 │   ├── datatypes/           CUtlVector/CUtlString и совместимые типы
@@ -23,9 +25,7 @@
 │   ├── math/                Vector, QAngle, Color, VMatrix, математические функции
 │   ├── offsets/             CS:GO snapshot-таблицы и runtime-адреса
 │   └── patterns/            каталог сигнатур
-├── tools/                   отдельные Python-скрипты анализа ABI
 ├── menu/                    меню, табы, контролы, UI-превью и адаптеры
-├── hooks/                   VMT manager; отдельные CreateMove/PaintTraverse/EndScene/WndProc
 └── features/
     ├── visuals/              простой player ESP; glow/world — точки расширения
     ├── misc/                 bunnyhop; сюда добавляются movement/misc функции
@@ -73,7 +73,7 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 - Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bunnyhop, **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
 - `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
 
-Новая фича обычно состоит из `<feature>.h/.cpp` в подходящей папке и одного вызова из `hooks/client.cpp` или `hooks/paint.cpp`. Netvar-поля объявляйте рядом с соответствующим SDK-классом; runtime-адреса получайте через `offsets::Get()` / `Patterns::Get()`, а не хардкодьте в feature-коде.
+Новая фича обычно состоит из `<feature>.h/.cpp` в подходящей папке и одного вызова из `sdk/hooks/client.cpp` или `sdk/hooks/paint.cpp`. Netvar-поля объявляйте рядом с соответствующим SDK-классом; runtime-адреса получайте через `offsets::Get()` / `Patterns::Get()`, а не хардкодьте в feature-коде.
 
 ## Injector (Win32)
 

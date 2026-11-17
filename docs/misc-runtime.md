@@ -27,7 +27,7 @@ No speculative autoaccept/clantag signatures were installed.
 Reference: reversed2603/fatality_source, dee7327e3b55c03ee93e9eaa0c4dcada64e49110,
 features/misc.cpp, features/autostrafer.cpp, features/hitmarker.h and misc/hitsounds.h.
 Seven original embedded WAV payloads are stored as immutable arrays in
-third_party/fatality/resources/misc_sounds.h; Arena switch uses a game sound.
+sdk/third_party/fatality/resources/misc_sounds.h; Arena switch uses a game sound.
 No LICENSE was identified for that reference; these assets are not represented as
 original or independently licensed. Skeet material reference used in the previous
 change does not establish movement/prediction compatibility with this client.

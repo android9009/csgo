@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Base sources (everything except vendored third-party code).
 file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/sdk/third_party/")
 # Menu integration/tabs use C++20 in the GUI library; the native preview stays C++17.
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/menu/")
 list(APPEND BASE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/menu/preview/model_preview.cpp")
@@ -25,18 +25,18 @@ list(FILTER BASE_SOURCES EXCLUDE REGEX "/build/")
 
 # Vendored MinHook (Win32).
 set(THIRDPARTY_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/buffer.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/hook.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/trampoline.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook/hde/hde32.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook/buffer.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook/hook.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook/trampoline.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook/hde/hde32.c
 )
 
 add_library(csgo_base SHARED ${BASE_SOURCES} ${THIRDPARTY_SOURCES})
 target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
-  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook"
-  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/json"
 )
 target_compile_definitions(csgo_base PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_compile_options(csgo_base PRIVATE /W4 /permissive- /EHsc /utf-8)
@@ -45,8 +45,8 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:
 
 # The original GUI and DX9 renderer are built as a C++20 library.
   file(GLOB_RECURSE FATALITY_GUI_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src/gui/*.cpp")
-  set(FATALITY_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/deps/renderer")
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/src/gui/*.cpp")
+  set(FATALITY_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/deps/renderer")
   set(FATALITY_RENDERER_SOURCES
     ${FATALITY_RENDERER_DIR}/src/adapters/adapter_dx9.cpp
     ${FATALITY_RENDERER_DIR}/src/buffers/cmd_buffer.cpp
@@ -62,8 +62,8 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:
   add_library(fatality_port_check STATIC ${FATALITY_EXTRA_SOURCES} ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
   set_target_properties(fatality_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   target_include_directories(fatality_port_check PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/src"
     "${FATALITY_RENDERER_DIR}/include")
   target_compile_definitions(fatality_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
   target_compile_options(fatality_port_check PRIVATE /utf-8)

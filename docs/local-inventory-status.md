@@ -60,7 +60,7 @@ player requirement. Choice changes are picked up on the next frame. No Apply but
   callbacks on the unload worker. If unavailable, it logs and leaves the engine's
   cache intact rather than touching it from the wrong thread.
 - No explicit GC/Steam requests, account ownership grants or real-item edits.
-- Reference attribution/license retained in `third_party/licenses/Osiris-inventory.txt`.
+- Reference attribution/license retained in `sdk/third_party/licenses/Osiris-inventory.txt`.
 
 The supplied binary's factory operand resolves to RVA `0x6ea210`: allocation is
 `0x38` bytes and construction tail-calls `0x6d8b20`. Offline disassembly confirms

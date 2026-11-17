@@ -17,7 +17,7 @@
 #include "utils/event_listener.hpp"
 #include "utils/log.hpp"
 #include "utils/memory.hpp"
-#include "hooks/hooks.hpp"
+#include "sdk/hooks/hooks.hpp"
 #include "menu/preview/model_preview.hpp"
 #include "features/skins/skin_changer.hpp"
 

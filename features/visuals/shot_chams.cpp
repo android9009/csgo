@@ -2,7 +2,7 @@
 #include "../../sdk/visual_runtime_state.hpp"
 #include "material_renderer.hpp"
 #include "chams_entities.hpp"
-#include "../../hooks/hooks.hpp"
+#include "../../sdk/hooks/hooks.hpp"
 #include "../../context.hpp"
 #include "../../sdk/entity/player.hpp"
 #include "../../sdk/model_preview_render.hpp"
