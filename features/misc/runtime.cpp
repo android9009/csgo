@@ -226,7 +226,11 @@ bool PingChannelSupported(void* channel){
     if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_I386)return false;
     const auto base=reinterpret_cast<std::uintptr_t>(engine);
     const auto limit=base+static_cast<std::uintptr_t>(nt->OptionalHeader.SizeOfImage);
-    const auto address=reinterpret_cast<std::uintptr_t>(channel==ping_channel && datagram_hook.is_hooked() ? datagram_original.load(std::memory_order_acquire) : MEM::GetVFunc<DatagramFn>(channel,46));
+    auto method=MEM::GetVFunc<DatagramFn>(channel,46);
+    // CNetChannel instances share their vtable: on reconnect a new object may
+    // already expose our hook before ping_channel has been switched.
+    if(method==reinterpret_cast<DatagramFn>(&SendDatagram) && datagram_hook.is_hooked())method=datagram_original.load(std::memory_order_acquire);
+    const auto address=reinterpret_cast<std::uintptr_t>(method);
     MEMORY_BASIC_INFORMATION memory{};
     if(address<base || address>=limit || !VirtualQuery(reinterpret_cast<void*>(address),&memory,sizeof memory) || !(memory.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY)))return false;
     const int sequence=*reinterpret_cast<const int*>(static_cast<const unsigned char*>(channel)+0x1c);

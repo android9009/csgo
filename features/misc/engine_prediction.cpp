@@ -145,7 +145,7 @@ bool Start(CCSPlayer* local,CUserCmd& cmd){
     backup.command=Field<CUserCmd*>(local,current_cmd);backup.last=Field<CUserCmd>(local,last_cmd);
     backup.buttons={Field<int>(local,buttons),Field<int>(local,last_buttons),Field<int>(local,pressed),Field<int>(local,released)};
     backup.in_prediction=Field<bool>(Interfaces::Prediction,8);backup.first=Field<bool>(Interfaces::Prediction,0x18);backup.active=true;
-    Interfaces::Globals->curtime=static_cast<float>(backup.tickbase)*interval;Interfaces::Globals->frametime=(backup.flags&64) ? 0.f : interval;
+    Interfaces::Globals->curtime=static_cast<float>(backup.tickbase)*interval;Interfaces::Globals->frametime=((backup.flags&64) || Field<bool>(Interfaces::Prediction,0x0a)) ? 0.f : interval;
     cmd.random_seed=static_cast<int>(md5(static_cast<unsigned>(cmd.command_number))&0x7fffffff);*seed=cmd.random_seed;*prediction_player=local;
     Field<bool>(Interfaces::Prediction,8)=true;Field<bool>(Interfaces::Prediction,0x18)=false;
     Field<CUserCmd*>(local,current_cmd)=&cmd;Field<CUserCmd>(local,last_cmd)=cmd;
