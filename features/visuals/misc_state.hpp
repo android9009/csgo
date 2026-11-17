@@ -13,6 +13,11 @@ struct Settings {
     Vector vm_position{};QAngle vm_angles{};
     unsigned scope{},removals{};bool scope_invert{},crosshair{},spread{};
     float scope_size{100},texture_alpha{},prop_alpha{};std::uint32_t scope_color{0xff000000};
+    unsigned tracer_targets{},hitmarkers{};bool impacts{};
+    std::array<unsigned,3> tracer_styles{};
+    std::array<std::uint32_t,3> tracer_colors{},hit_colors{};
+    std::array<float,3> hit_duration{1.f,1.f,1.f};
+    std::uint32_t impact_color{};
     bool night{},fullbright{},sky{},fog{},exposure{},bloom{};
     std::uint32_t night_color{0xffffffff},fullbright_color{0xffffffff},sky_color{0xffffffff},fog_color{0xffffffff};
     float exposure_value{50},bloom_value{50};
@@ -26,6 +31,25 @@ inline std::mutex frame_mutex;
 inline LocalFrame local_frame;
 inline void PublishLocal(const LocalFrame& v){std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())local_frame=v;}
 inline LocalFrame GetLocal(){static thread_local LocalFrame v;std::unique_lock<std::mutex> lock(frame_mutex,std::try_to_lock);if(lock.owns_lock())v=local_frame;return v;}
+struct EventVisual {Vector start{},end{};float time{};unsigned kind{},group{};};
+struct EventFrame {std::array<EventVisual,256> records{};std::size_t count{};float time{};};
+inline std::mutex event_mutex;
+inline EventFrame event_frame;
+inline void ClearEvents(){std::lock_guard<std::mutex> lock(event_mutex);event_frame={};}
+inline void AddEvent(const EventVisual& value){
+    std::lock_guard<std::mutex> lock(event_mutex);
+    if(event_frame.count==event_frame.records.size()){
+        std::move(event_frame.records.begin()+1,event_frame.records.end(),event_frame.records.begin());--event_frame.count;
+    }
+    event_frame.records[event_frame.count++]=value;
+}
+inline void TickEvents(float now){
+    std::lock_guard<std::mutex> lock(event_mutex);
+    if(now<event_frame.time)event_frame.count=0;
+    auto end=std::remove_if(event_frame.records.begin(),event_frame.records.begin()+event_frame.count,[now](const EventVisual& v){return now-v.time>10.f || now<v.time;});
+    event_frame.count=static_cast<std::size_t>(end-event_frame.records.begin());event_frame.time=now;
+}
+inline bool CopyEvents(EventFrame& out){std::unique_lock<std::mutex> lock(event_mutex,std::try_to_lock);if(!lock.owns_lock())return false;out=event_frame;return true;}
 inline float Smooth(float current,float target,float seconds,float rate=15.f){
     if(!std::isfinite(current))current=target;
     if(!std::isfinite(seconds) || seconds<=0.f)return current;

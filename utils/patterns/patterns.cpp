@@ -8,6 +8,7 @@
 #include <windows.h>
 namespace Patterns {
 static const std::vector<Definition> kDefinitions = {
+    {"visual_render_beams", "client.dll", "B9 ? ? ? ? A1 ? ? ? ? FF 10 A1 ? ? ? ? B9", {1,0,0,0}, 1, false, 0},
     {"visual_smoke_count", "client.dll", "55 8B EC 83 EC 08 8B 15 ? ? ? ? 0F 57 C0", {8,0,0,0}, 1, false, 0},
     {"input_thirdperson_flag", "client.dll", "55 8B EC 8B 45 08 83 F8 FF 75 ? 80 B9 ? ? ? ? 00", {13,0,0,0}, 1, false, 0},
     {"calc_viewmodel_view", "client.dll", "55 8B EC 83 EC 58 56 57 8B 7D 08 8B F1", {0,0,0,0}, 0, false, 0},

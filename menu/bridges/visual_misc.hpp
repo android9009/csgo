@@ -12,10 +12,32 @@ inline void Configure(){
     s.spread=v.spread_circle_type.get().test(cfg_t::spread_circle_gradient);s.removals=static_cast<unsigned>(static_cast<std::uint64_t>(m.removals.get()));s.texture_alpha=m.texture_transparency.get();s.prop_alpha=v.prop_transparency.get();
     s.night=w.nightmode.get();s.fullbright=w.fullbright.get();s.sky=w.sky.get();s.fog=w.fog.get();s.exposure=w.exposure_enabled.get();s.bloom=w.bloom.get();
     s.night_color=w.nightmode_color.get().rgba();s.fullbright_color=w.fullbright_color.get().rgba();s.sky_color=w.sky_color.get().rgba();s.fog_color=w.fog_color.get().rgba();s.exposure_value=w.exposure.get();s.bloom_value=w.bloom_strength.get();
+    s.tracer_targets=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_targets.get()));s.hitmarkers=static_cast<unsigned>(static_cast<std::uint64_t>(m.hitmarker.get()));s.impacts=m.impacts.get();s.impact_color=m.impacts_color2.get().rgba();
+    for(int i=0;i<3;++i){s.tracer_styles[i]=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_style[i].get()));s.tracer_colors[i]=m.tracer_colors[i].get().rgba();s.hit_duration[i]=m.hitmarker_duration[i].get();}
+    s.hit_colors={m.hitmarker_world_color.get().rgba(),m.hitmarker_screen_color.get().rgba(),m.hitmarker_kibit_color.get().rgba()};
     VisualMisc::Publish(s);
+}
+inline void RenderEvents(){
+    using namespace evo::ren;using namespace evo::gui;
+    VisualMisc::EventFrame frame;if(!VisualMisc::CopyEvents(frame))return;
+    const auto s=VisualMisc::Get();std::array<float,16> m{};if(!VisualMisc::CurrentMatrix(m))return;
+    const auto display=draw.display/draw.scale;auto& d=draw.layers[l_back];
+    auto project=[&](const Vector& v,vec2& p){const float w=m[12]*v.x+m[13]*v.y+m[14]*v.z+m[15];if(w<.01f)return false;p={display.x*.5f*(1.f+(m[0]*v.x+m[1]*v.y+m[2]*v.z+m[3])/w),display.y*.5f*(1.f-(m[4]*v.x+m[5]*v.y+m[6]*v.z+m[7])/w)};return true;};
+    auto cross=[&](vec2 p,color c,float size){for(float x:{-1.f,1.f})for(float y:{-1.f,1.f})d->add_line(p+vec2{x*2.f,y*2.f},p+vec2{x*size,y*size},c);};
+    for(std::size_t i=0;i<frame.count;++i){const auto& r=frame.records[i];const float age=frame.time-r.time;vec2 a,b;
+        if(r.kind==0 && age<1.5f && (s.tracer_targets&(1u<<r.group)) && (s.tracer_styles[r.group]&2u) && project(r.start,a) && project(r.end,b))d->add_line(a,b,color{color{s.tracer_colors[r.group]},1.f-age/1.5f});
+        if(r.kind==0 && s.impacts && r.group==0 && age<4.f){
+            std::array<vec2,8> points;bool visible=true;for(unsigned j=0;j<8;++j)visible=project(r.end+Vector{(j&1)?2.f:-2.f,(j&2)?2.f:-2.f,(j&4)?2.f:-2.f},points[j]) && visible;
+            if(visible)for(unsigned j=0;j<8;++j)for(unsigned bit:{1u,2u,4u})if(!(j&bit))d->add_line(points[j],points[j|bit],color{s.impact_color});
+        }
+        if(r.kind==1)for(unsigned mode=0;mode<3;++mode){const float duration=std::clamp(s.hit_duration[mode],0.f,10.f);if(!(s.hitmarkers&(1u<<mode)) || duration<=0.f || age>=duration)continue;
+            const color c{color{s.hit_colors[mode]},1.f-age/duration};if(mode==0){if(project(r.end,a))cross(a,c,7.f);}else if(mode==1)cross(display*.5f,c,8.f);else{const vec2 p=display*.5f;d->add_line(p+vec2{-7,0},p+vec2{0,7},c);d->add_line(p+vec2{0,7},p+vec2{7,-5},c);}
+        }
+    }
 }
 inline void Render(){
     using namespace evo::ren;using namespace evo::gui;
+    RenderEvents();
     const auto frame=VisualMisc::GetLocal();if(!frame.alive)return;
     const auto s=VisualMisc::Get();auto& layer=draw.layers[l_back];const auto display=draw.display/draw.scale;const vec2 center=display*.5f;
     std::array<float,16> matrix{};float radius=0.f;

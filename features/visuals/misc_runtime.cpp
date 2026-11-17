@@ -200,8 +200,8 @@ bool connected{};
 void FrameImpl(int stage){
     if(stage!=5)return;
     const auto s=Get();const bool active=Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
-    connected=true;Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
+    if(!active){RestorePunch();RestoreFlash();RestoreCamera();if(connected)ReleaseMaterials();connected=false;ClearEvents();PublishLocal({});Cvars(s,false);model_alpha.store(1.f);removal_bits.store(0);return;}
+    connected=true;if(Interfaces::Globals)TickEvents(Interfaces::Globals->curtime);Cvars(s,true);Materials(s);removal_bits.store(s.removals,std::memory_order_relaxed);
     LocalFrame local;local.alive=ctx.local && ctx.local->IsAlive();local.scoped=local.alive && ctx.local->m_bIsScoped();
     if(local.alive && (s.spread || (s.scope&~1u)) && ctx.weapon){
         const auto* data=ctx.weapon->GetWeaponData();
@@ -240,7 +240,63 @@ bool CurrentMatrix(std::array<float,16>& matrix){
     for(float value:matrix)if(!std::isfinite(value))return false;
     return true;
 }
+namespace {
+struct BeamInfo {
+    int type{};void* start_entity{};int start_attachment{};void* end_entity{};int end_attachment{};
+    Vector start{},end{};int model{-1};const char* model_name{"sprites/physbeam.vmt"};int halo{-1};const char* halo_name{};
+    float halo_scale{},life{1.5f},width{1.5f},end_width{1.5f},fade{},amplitude{},brightness{255.f},speed{};
+    int start_frame{};float frame_rate{},red{},green{},blue{};bool renderable{true};int segments{2},flags{};Vector center{};float start_radius{},end_radius{};
+};
+void* beams{};
+struct VisualEvent {
+    const char* Name(){return MEM::GetVFunc<const char*(__thiscall*)(void*)>(this,1)(this);}
+    int Int(const char* key){return MEM::GetVFunc<int(__thiscall*)(void*,const char*,int)>(this,6)(this,key,0);}
+    float Float(const char* key){return MEM::GetVFunc<float(__thiscall*)(void*,const char*,float)>(this,8)(this,key,0.f);}
+};
+std::array<Vector,65> last_impact{};std::array<float,65> impact_time{};
+void VisualEventImpl(VisualEvent* e){
+    if(!e)return;const char* name=e->Name();if(!name)return;
+    if(!std::strcmp(name,"round_start") || !std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){ClearEvents();last_impact={};impact_time={};
+        if(!std::strcmp(name,"game_newmap") || !std::strcmp(name,"cs_game_disconnected")){RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);connected=false;}
+        return;}
+    if(!Interfaces::Engine || !Interfaces::Engine->IsInGame() || !ctx.local || !Interfaces::EntityList || !Interfaces::Globals)return;
+    const auto s=Get();const float now=Interfaces::Globals->curtime;
+    const auto user=[&](int id){return MEM::GetVFunc<int(__thiscall*)(void*,int)>(Interfaces::Engine,9)(Interfaces::Engine,id);};
+    const int index=user(e->Int("userid"));if(index<1 || index>64)return;
+    auto* player=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(index));if(!player)return;
+    const int local=Interfaces::Engine->GetLocalPlayer();
+    if(!std::strcmp(name,"bullet_impact")){
+        const Vector end{e->Float("x"),e->Float("y"),e->Float("z")};if(!std::isfinite(end.x) || !std::isfinite(end.y) || !std::isfinite(end.z))return;
+        last_impact[index]=end;impact_time[index]=now;
+        const unsigned group=index==local ? 0u : player->m_iTeamNum()!=ctx.local->m_iTeamNum() ? 1u : 2u;
+        if((s.tracer_targets&(1u<<group)) || (s.impacts && group==0))AddEvent({player->GetEyePosition(),end,now,0,group});
+        if(beams && (s.tracer_targets&(1u<<group)) && (s.tracer_styles[group]&1u)){
+            BeamInfo info;info.start=player->GetEyePosition();info.end=end;const auto c=s.tracer_colors[group];info.red=static_cast<float>(c&255);info.green=static_cast<float>((c>>8)&255);info.blue=static_cast<float>((c>>16)&255);info.brightness=static_cast<float>((c>>24)&255);
+            auto* beam=MEM::GetVFunc<void*(__thiscall*)(void*,BeamInfo&)>(beams,12)(beams,info);
+            if(beam)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(beams,5)(beams,beam);
+        }
+    }else if(!std::strcmp(name,"player_hurt") && user(e->Int("attacker"))==local && s.hitmarkers){
+        Vector position=player->GetEyePosition();if(now-impact_time[local]>=0.f && now-impact_time[local]<.25f)position=last_impact[local];
+        AddEvent({{},position,now,1,0});
+    }
+}
+class VisualListener {
+public:
+    virtual ~VisualListener()=default;
+    virtual void FireGameEvent(VisualEvent* e){__try{VisualEventImpl(e);}__except(EXCEPTION_EXECUTE_HANDLER){}}
+    virtual int GetEventDebugID(){return 42;}
+} visual_listener;
+bool visual_registered{};
+void RegisterVisualEvents(){
+    beams=reinterpret_cast<void*>(offsets::Get("visual_render_beams"));
+    if(!Interfaces::GameEvent)return;
+    bool ok=true;auto add=MEM::GetVFunc<bool(__thiscall*)(void*,void*,const char*,bool)>(Interfaces::GameEvent,3);
+    for(const char* name:{"bullet_impact","player_hurt","round_start","game_newmap","cs_game_disconnected"})ok=add(Interfaces::GameEvent,&visual_listener,name,false) && ok;
+    if(!ok){MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);LOG_WARN("visual misc: event registration failed");return;}visual_registered=true;
+}
+}
 void Initialize(){
+    RegisterVisualEvents();
     smoke_count=reinterpret_cast<int*>(offsets::Get("visual_smoke_count"));
     camera_flag=static_cast<std::ptrdiff_t>(offsets::Get("input_thirdperson_flag"));camera_offset=0;
     // Bind CInput::GetCameraOffset (slot 34), not a global vector-getter
@@ -263,6 +319,8 @@ void Initialize(){
     if(const auto address=offsets::Get("calc_viewmodel_view"))vm_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&Viewmodel),reinterpret_cast<void**>(&vm_original));
 }
 void Shutdown(){
+    if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
+    visual_registered=false;beams=nullptr;ClearEvents();
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();
     __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
