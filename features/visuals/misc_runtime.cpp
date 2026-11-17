@@ -24,7 +24,8 @@ using AspectFn=float(__thiscall*)(void*,int,int);
 using DrawVmFn=bool(__thiscall*)(void*);
 using VmFn=void(__thiscall*)(void*,CCSPlayer*,const Vector&,const QAngle&);
 VMT_Hook view_hook,fov_hook,aspect_hook,draw_vm_hook;
-Detour_Hook vm_hook;
+Detour_Hook vm_hook,bob_hook;
+using BobFn=void(__thiscall*)(void*,Vector&);BobFn bob_original{};
 ViewFn view_original{};FovFn fov_original{};AspectFn aspect_original{};DrawVmFn draw_vm_original{};VmFn vm_original{};
 std::ptrdiff_t camera_flag{},camera_offset{},observer_offset{};
 bool camera_owned{},old_camera{};Vector old_offset{};float camera_distance{},aspect_value{};int aspect_frame{-1};
@@ -92,6 +93,10 @@ void __fastcall Viewmodel(void* self,void*,CCSPlayer* owner,const Vector& eye,co
     const auto s=Get();Vector position=eye;QAngle rotation=angles;
     if(owner && owner==ctx.local && ctx.in_game && s.vm_enabled){position+=ViewmodelOffset(angles,s.vm_position);rotation.x+=s.vm_angles.x;rotation.y+=s.vm_angles.y;rotation.z+=s.vm_angles.z;}
     vm_original(self,owner,position,rotation);
+}
+void __fastcall LandingBob(void* self,void*,Vector& position){
+    const Vector original=position;bob_original(self,position);
+    const auto s=Get();if(self==ctx.local && ctx.in_game && s.vm_enabled && s.landing_bob)position=original;
 }
 struct OwnedCvar {
     const char* name;void* variable{};bool resolved{},owned{};float original{},applied{};
@@ -367,6 +372,7 @@ void Initialize(){
             if(Valid(offset) && offset>camera_flag && offset-camera_flag<=8)camera_offset=offset;
         }
     }
+    if(const auto address=offsets::Get("calc_viewmodel_landing_bob"))bob_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&LandingBob),reinterpret_cast<void**>(&bob_original));
     observer_offset=PropManager::Get().GetOffset("DT_BasePlayer","m_iObserverMode");
     if(Interfaces::ClientMode){
         view_original=MEM::GetVFunc<ViewFn>(Interfaces::ClientMode,18);view_hook.attach(Interfaces::ClientMode,18,reinterpret_cast<void*>(&OverrideView));
@@ -380,7 +386,7 @@ void Shutdown(){
     VisualPost::Reset();
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
     visual_registered=false;beams=nullptr;ClearEvents();PublishTrajectory({});
-    view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();
+    view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();bob_hook.detach();
     __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
 }
