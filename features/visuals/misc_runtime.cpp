@@ -298,7 +298,7 @@ void CaptureWarnings(const Settings& s){
             const char* model=entity->GetModelName();if(!model || !std::strstr(model,"fraggrenade"))continue;
             const auto handle=Field<std::uint32_t>(entity,thrower_offset);auto* owner=static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntityFromHandle(handle));
             if(!owner || owner==ctx.local || owner->m_iTeamNum()==ctx.local->m_iTeamNum())continue;
-            const int index=owner->GetIndex();if(index<1 || index>64 || he_throw_time[index]<=0.f)continue;
+            const int index=static_cast<int>(handle&0xfffu);if(index<1 || index>64 || he_throw_time[index]<=0.f)continue;
             warning.duration=1.5f;warning.remaining=he_throw_time[index]+1.5f-now;warning.radius=350.f;
         }else continue;
         if(warning.remaining>0.f && warning.remaining<=warning.duration)frame.records[frame.count++]=warning;
@@ -315,7 +315,7 @@ void CaptureArrows(const Settings& s){
         if(identities[i-1]!=player){point={};identities[i-1]=player;}
         const bool enemy=player && player!=ctx.local && player->IsAlive() && player->m_iTeamNum()!=ctx.local->m_iTeamNum();
         const bool active=enemy && !player->IsDormant();
-        if(active)point.position=player->m_vecOrigin()+Vector{0,0,36};
+        if(active){const Vector target=player->m_vecOrigin()+Vector{0,0,36};if(point.alpha<.01f || target.DistSqr(point.position)>256.f*256.f)point.position=target;else{point.position.x=Smooth(point.position.x,target.x,dt,20.f);point.position.y=Smooth(point.position.y,target.y,dt,20.f);point.position.z=Smooth(point.position.z,target.z,dt,20.f);}}
         point.alpha=Smooth(point.alpha,active ? 1.f : 0.f,dt,active ? 12.f : 2.f);
         if(!enemy)point.alpha=0.f;
     }
@@ -330,7 +330,7 @@ void PredictGrenade(const Settings& s){
     const int tick=Interfaces::Globals->tickcount;if(tick==previous_tick)return;
     QAngle angles;Interfaces::Engine->GetViewAngles(angles);Vector eye=ctx.local->GetEyePosition(),player_velocity=ctx.local->m_vecVelocity();
     const float strength=std::clamp(Field<float>(ctx.weapon,strength_offset),0.f,1.f);
-    if(previous_tick>=0 && tick-previous_tick<8 && previous_item==item && previous_strength==strength && previous_eye.DistSqr(eye)<.01f && previous_velocity.DistSqr(player_velocity)<.01f && previous_angles.x==angles.x && previous_angles.y==angles.y)return;
+    if(previous_tick>=0 && tick>=previous_tick && tick-previous_tick<8 && previous_item==item && previous_strength==strength && previous_eye.DistSqr(eye)<.01f && previous_velocity.DistSqr(player_velocity)<.01f && previous_angles.x==angles.x && previous_angles.y==angles.y)return;
     previous_tick=tick;previous_eye=eye;previous_velocity=player_velocity;previous_angles=angles;previous_item=item;previous_strength=strength;
     if(!gravity_resolved && Interfaces::ConVar){gravity_resolved=true;gravity_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_gravity");}
     float gravity=gravity_var ? MEM::GetVFunc<float(__thiscall*)(void*)>(gravity_var,12)(gravity_var)*.4f : 320.f;if(!std::isfinite(gravity))gravity=320.f;
@@ -454,7 +454,7 @@ void BeforeFrame(int stage){
 }
 void Frame(int stage){__try{if(stage==6){RestorePunch();RestoreSmoke();}FrameImpl(stage);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged{};if(!logged){logged=true;LOG_WARN("visual misc: invalid frame resource");}}}
 bool HideScopePanel(const char* name){return name && !std::strcmp(name,"HudZoom") && GetLocal().scoped && (Get().scope&~1u)!=0;}
-float LocalAlpha(int index){const float alpha=model_alpha.load(std::memory_order_relaxed);return alpha<1.f && ctx.local && index==ctx.local->GetIndex() ? alpha : 1.f;}
+float LocalAlpha(int index){const float alpha=model_alpha.load(std::memory_order_relaxed);return alpha<1.f && ctx.local && Interfaces::Engine && index==Interfaces::Engine->GetLocalPlayer() ? alpha : 1.f;}
 bool RemovingRagdolls(){return (removal_bits.load(std::memory_order_relaxed)&(1u<<7))!=0;}
 bool HideRagdoll(void* entity){if(!entity || !RemovingRagdolls())return false;const auto* cls=static_cast<CBaseEntity*>(entity)->GetClientClass();return cls && cls->m_pNetworkName && !std::strcmp(cls->m_pNetworkName,"CCSRagdoll");}
 static bool ReadMatrix(std::uintptr_t address,std::array<float,16>& matrix){
