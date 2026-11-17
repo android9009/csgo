@@ -1,6 +1,6 @@
 #pragma once
-#include "esp_drawing.hpp"
-#include "visual_runtime.hpp"
+#include "../overlays/esp_drawing.hpp"
+#include "../bridges/visual_runtime.hpp"
 namespace EspPreview {
 using namespace evo::gui;using namespace evo::ren;
 class Overlay {

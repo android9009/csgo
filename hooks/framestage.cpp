@@ -1,5 +1,5 @@
 #include "hooks.hpp"
-#include "../features/visuals/model_preview.hpp"
+#include "../menu/preview/model_preview.hpp"
 #include "../sdk/world_esp_state.hpp"
 #include "../sdk/visual_runtime_state.hpp"
 #include "../features/skins/skin_changer.hpp"

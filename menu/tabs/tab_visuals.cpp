@@ -1,14 +1,14 @@
-#include "menu.h"
+#include "tabs.hpp"
 
 #include <gui/controls/image.h>
 #include <array>
 #include <algorithm>
 #include <cmath>
 
-#include "../cfg.h"
-#include "../preview_bridge.hpp"
-#include "macros.h"
-#include "esp_preview.hpp"
+#include "../config.hpp"
+#include "../preview/bridge.hpp"
+#include "../controls/macros.h"
+#include "../preview/esp_preview.hpp"
 
 using namespace evo::gui;
 using namespace evo::gui::helpers;

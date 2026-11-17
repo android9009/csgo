@@ -4,7 +4,7 @@
 #include "../sdk/entity/entity.hpp"
 #include "../sdk/world_esp_state.hpp"
 #include "../sdk/visual_runtime_state.hpp"
-#include "../features/visuals/preview_material.hpp"
+#include "../features/visuals/material_renderer.hpp"
 #include "../features/visuals/chams_entities.hpp"
 #include "../features/visuals/shot_chams.hpp"
 #include "../utils/log.hpp"

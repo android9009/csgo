@@ -1,7 +1,7 @@
 #pragma once
-#include "menu.h"
-#include "../cfg.h"
-#include "../../../features/misc/state.hpp"
+#include "../tabs/tabs.hpp"
+#include "../config.hpp"
+#include "../../features/misc/state.hpp"
 namespace MiscBridge {
 inline void Configure(){
     auto& m=cfg.misc;MiscRuntime::Settings s;

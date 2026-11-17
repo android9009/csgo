@@ -1,22 +1,22 @@
-#include "menu.h"
-#include "skin_options_popup.hpp"
+#include "tabs.hpp"
+#include "../controls/skin_options_popup.hpp"
 
-#include "../cfg.h"
-#include "gui/controls/combo_box_agent.h"
-#include "macros.h"
-#include "../../../sdk/interfaces/interfaces.hpp"
-#include "../../../sdk/skin_icon_file.hpp"
-#include "../../../sdk/skin_catalog.hpp"
-#include "../../../sdk/skin_schema.hpp"
-#include "../../../features/skins/skin_state.hpp"
-#include "../../../features/skins/local_inventory.hpp"
-#include "../../../features/skins/preview_state.hpp"
-#include "../../../features/skins/equipment_state.hpp"
-#include "../preview_bridge.hpp"
-#include "../preview_catalog.hpp"
-#include "../skin_names.hpp"
-#include "../equipment_paints.hpp"
-#include "../../../utils/log.hpp"
+#include "../config.hpp"
+#include "../../third_party/fatality/src/gui/controls/combo_box_agent.h"
+#include "../controls/macros.h"
+#include "../../sdk/interfaces/interfaces.hpp"
+#include "../../sdk/skin_icon_file.hpp"
+#include "../../sdk/skin_catalog.hpp"
+#include "../../sdk/skin_schema.hpp"
+#include "../../features/skins/skin_state.hpp"
+#include "../../features/skins/local_inventory.hpp"
+#include "../preview/skin_state.hpp"
+#include "../../features/skins/equipment_state.hpp"
+#include "../preview/bridge.hpp"
+#include "../preview/catalog.hpp"
+#include "../../third_party/fatality/skin_names.hpp"
+#include "../../third_party/fatality/equipment_paints.hpp"
+#include "../../utils/log.hpp"
 #include <algorithm>
 #include <array>
 #include <map>
@@ -262,7 +262,7 @@ namespace menu::group
     };
     const std::vector<EquipmentItem> medal_items{
         {"Default", ""},
-#include "../medal_catalog.hpp"
+#include "../../third_party/fatality/medal_catalog.hpp"
     };
     const std::vector<EquipmentItem> default_item{{"Default", ""}};
     std::vector<EquipmentItem> make_agents(bool ct) {

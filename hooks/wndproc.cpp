@@ -4,7 +4,7 @@
 #include "../utils/config.hpp"
 #include "../utils/log.hpp"
 #include <windows.h>
-#include "../third_party/fatality/port.hpp"
+#include "../menu/menu.hpp"
 
 namespace HooksInternal {
 static int LogGuiInputException(EXCEPTION_POINTERS* info) {

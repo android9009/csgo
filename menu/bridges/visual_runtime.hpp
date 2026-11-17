@@ -1,8 +1,8 @@
 #pragma once
-#include "menu.h"
-#include "../cfg.h"
-#include "../../../sdk/visual_runtime_state.hpp"
-#include "../../../features/visuals/chams_passes.hpp"
+#include "../tabs/tabs.hpp"
+#include "../config.hpp"
+#include "../../sdk/visual_runtime_state.hpp"
+#include "../../features/visuals/chams_passes.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;

@@ -1,7 +1,7 @@
 #pragma once
-#include "menu.h"
-#include "../../../sdk/visual_runtime_state.hpp"
-#include "../../../sdk/weapon_glyph.hpp"
+#include "../tabs/tabs.hpp"
+#include "../../sdk/visual_runtime_state.hpp"
+#include "../../sdk/weapon_glyph.hpp"
 namespace EspDrawing {
 using namespace evo::gui;using namespace evo::ren;
 struct Data {

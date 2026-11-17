@@ -15,6 +15,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Base sources (everything except vendored third-party code).
 file(GLOB_RECURSE BASE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/third_party/")
+# Menu integration/tabs use C++20 in the GUI library; the native preview stays C++17.
+list(FILTER BASE_SOURCES EXCLUDE REGEX "/menu/")
+list(APPEND BASE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/menu/preview/model_preview.cpp")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/injector/")
 list(FILTER BASE_SOURCES EXCLUDE REGEX "/tests/")
 # In-source build trees contain CMake compiler-ID programs, not DLL sources.
@@ -55,8 +58,8 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:
     ${FATALITY_RENDERER_DIR}/src/types/font.cpp
     ${FATALITY_RENDERER_DIR}/src/types/shader.cpp
     ${FATALITY_RENDERER_DIR}/src/types/texture.cpp)
-  file(GLOB FATALITY_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/extra/*.cpp")
-  add_library(fatality_port_check STATIC ${FATALITY_EXTRA_SOURCES} ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality/port.cpp")
+  file(GLOB FATALITY_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
+  add_library(fatality_port_check STATIC ${FATALITY_EXTRA_SOURCES} ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
   set_target_properties(fatality_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   target_include_directories(fatality_port_check PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fatality"

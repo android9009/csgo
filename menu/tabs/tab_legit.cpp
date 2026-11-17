@@ -1,9 +1,9 @@
 #include <gui/popups/action_list_popup.h>
 
-#include "../cfg.h"
-#include "gui/helpers.h"
-#include "macros.h"
-#include "menu.h"
+#include "../config.hpp"
+#include "../../third_party/fatality/src/gui/helpers.h"
+#include "../controls/macros.h"
+#include "tabs.hpp"
 
 using namespace evo::gui;
 using namespace evo::gui::helpers;

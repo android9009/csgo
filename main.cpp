@@ -18,7 +18,7 @@
 #include "utils/log.hpp"
 #include "utils/memory.hpp"
 #include "hooks/hooks.hpp"
-#include "features/visuals/model_preview.hpp"
+#include "menu/preview/model_preview.hpp"
 #include "features/skins/skin_changer.hpp"
 
 namespace {

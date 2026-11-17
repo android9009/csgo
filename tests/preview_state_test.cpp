@@ -1,4 +1,4 @@
-#include "features/skins/preview_state.hpp"
+#include "../menu/preview/skin_state.hpp"
 #include <cassert>
 int main(){
  using namespace PreviewSkinState;

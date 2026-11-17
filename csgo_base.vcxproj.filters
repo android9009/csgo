@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Menu"><UniqueIdentifier>{1CFA5BB1-E389-52D3-8A6F-7C3420340EC8}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\bridges"><UniqueIdentifier>{9CDCED7D-41A4-5856-B469-90FAA65CD3A1}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\controls"><UniqueIdentifier>{BC82F4FF-1748-582B-AAE6-6C029895FFE0}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\overlays"><UniqueIdentifier>{AA96A066-B801-5A24-A84A-6CB671C52E2D}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\preview"><UniqueIdentifier>{69512119-13E3-57B6-89B6-4381405C00B9}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\tabs"><UniqueIdentifier>{8B45B771-7471-51FB-A0F5-53390B046177}</UniqueIdentifier></Filter>
+
     <Filter Include="Core">
       <UniqueIdentifier>{903E4E56-FDBD-5793-BEC8-BD410BD7E538}</UniqueIdentifier>
     </Filter>
@@ -150,8 +157,8 @@
     <ClCompile Include="features\skins\skin_changer.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\model_preview.cpp">
-      <Filter>Features</Filter>
+    <ClCompile Include="menu\preview\model_preview.cpp">
+      <Filter>Menu\preview</Filter>
     </ClCompile>
     <ClCompile Include="features\misc\runtime.cpp"><Filter>Features</Filter></ClCompile>
     <ClCompile Include="features\visuals\shot_chams.cpp">
@@ -238,23 +245,23 @@
     <ClCompile Include="third_party\fatality\deps\renderer\src\types\texture.cpp">
       <Filter>Menu (Fatality)\Renderer\src\types</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\extra\bridge.cpp">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClCompile Include="menu\bridge.cpp">
+      <Filter>Menu</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\extra\tab_legit.cpp">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClCompile Include="menu\tabs\tab_legit.cpp">
+      <Filter>Menu\tabs</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\extra\tab_misc.cpp">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClCompile Include="menu\tabs\tab_misc.cpp">
+      <Filter>Menu\tabs</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\extra\tab_skins.cpp">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClCompile Include="menu\tabs\tab_skins.cpp">
+      <Filter>Menu\tabs</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\extra\tab_visuals.cpp">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClCompile Include="menu\tabs\tab_visuals.cpp">
+      <Filter>Menu\tabs</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\fatality\port.cpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClCompile Include="menu\menu.cpp">
+      <Filter>Menu</Filter>
     </ClCompile>
     <ClCompile Include="third_party\fatality\src\gui\anim.cpp">
       <Filter>Menu (Fatality)\gui</Filter>
@@ -534,8 +541,8 @@
     <ClInclude Include="features\skins\skin_changer.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
-    <ClInclude Include="features\skins\preview_state.hpp">
-      <Filter>Features\skins</Filter>
+    <ClInclude Include="menu\preview\skin_state.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
     <ClInclude Include="features\skins\refresh_gate.hpp">
       <Filter>Features\skins</Filter>
@@ -543,11 +550,11 @@
     <ClInclude Include="features\skins\skin_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\model_preview.hpp">
-      <Filter>Features</Filter>
+    <ClInclude Include="menu\preview\model_preview.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\preview_bridge.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\preview\bridge.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
     <ClInclude Include="third_party\fatality\equipment_paints.hpp">
       <Filter>Menu (Fatality)</Filter>
@@ -558,26 +565,26 @@
     <ClInclude Include="third_party\fatality\medal_catalog.hpp">
       <Filter>Menu (Fatality)</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\skin_options_popup.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\controls\skin_options_popup.hpp">
+      <Filter>Menu\controls</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\world_esp_overlay.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\overlays\world_esp_overlay.hpp">
+      <Filter>Menu\overlays</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\esp_preview.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\preview\esp_preview.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\esp_drawing.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\overlays\esp_drawing.hpp">
+      <Filter>Menu\overlays</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\player_esp_overlay.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\overlays\player_esp_overlay.hpp">
+      <Filter>Menu\overlays</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\visual_runtime.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\bridges\visual_runtime.hpp">
+      <Filter>Menu\bridges</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\preview_catalog.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\preview\catalog.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
     <ClInclude Include="sdk\model_preview_render.hpp">
       <Filter>SDK</Filter>
@@ -585,16 +592,16 @@
     <ClInclude Include="sdk\skin_catalog.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\preview_sequence.hpp">
-      <Filter>SDK</Filter>
+    <ClInclude Include="menu\preview\sequence.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\preview_framing.hpp">
-      <Filter>SDK</Filter>
+    <ClInclude Include="menu\preview\framing.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\preview_subject.hpp">
-      <Filter>SDK</Filter>
+    <ClInclude Include="menu\preview\subject.hpp">
+      <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\preview_material.hpp">
+    <ClInclude Include="features\visuals\material_renderer.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\chams_entities.hpp">
@@ -603,7 +610,7 @@
     <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\prediction.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\state.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="third_party\fatality\extra\misc_runtime.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="menu\bridges\misc_runtime.hpp"><Filter>Menu\bridges</Filter></ClInclude>
     <ClInclude Include="third_party\fatality\resources\misc_sounds.h"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\visuals\shot_chams.hpp">
       <Filter>Features</Filter>
@@ -653,8 +660,8 @@
     <ClInclude Include="sdk\trace_ray.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\cfg.h">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\config.hpp">
+      <Filter>Menu</Filter>
     </ClInclude>
     <ClInclude Include="third_party\fatality\deps\renderer\include\lib\image.h">
       <Filter>Menu (Fatality)\Renderer\include\lib</Filter>
@@ -734,14 +741,14 @@
     <ClInclude Include="third_party\fatality\deps\renderer\include\ren\types\vertex.h">
       <Filter>Menu (Fatality)\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\macros.h">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClInclude Include="menu\controls\macros.h">
+      <Filter>Menu\controls</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\extra\menu.h">
-      <Filter>Menu (Fatality)\Tabs</Filter>
+    <ClInclude Include="menu\tabs\tabs.hpp">
+      <Filter>Menu\tabs</Filter>
     </ClInclude>
-    <ClInclude Include="third_party\fatality\port.hpp">
-      <Filter>Menu (Fatality)</Filter>
+    <ClInclude Include="menu\menu.hpp">
+      <Filter>Menu</Filter>
     </ClInclude>
     <ClInclude Include="third_party\fatality\resources\cursor.h">
       <Filter>Menu (Fatality)\Resources</Filter>

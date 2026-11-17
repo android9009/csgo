@@ -1,4 +1,4 @@
-#include "sdk/preview_sequence.hpp"
+#include "../menu/preview/sequence.hpp"
 #include <cassert>
 int main(){
  using namespace PreviewSequence;

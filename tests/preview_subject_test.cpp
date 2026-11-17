@@ -1,4 +1,4 @@
-#include "sdk/preview_subject.hpp"
+#include "../menu/preview/subject.hpp"
 #include <cassert>
 int main() {
     using namespace PreviewSubject;

@@ -1,6 +1,6 @@
 #pragma once
-#include "menu.h"
-#include "../../../sdk/skin_schema.hpp"
+#include "../tabs/tabs.hpp"
+#include "../../sdk/skin_schema.hpp"
 #include <array>
 #include <functional>
 

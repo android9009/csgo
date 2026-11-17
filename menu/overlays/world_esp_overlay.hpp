@@ -1,9 +1,9 @@
 #pragma once
-#include "menu.h"
-#include "../cfg.h"
-#include "../../../sdk/world_esp_state.hpp"
+#include "../tabs/tabs.hpp"
+#include "../config.hpp"
+#include "../../sdk/world_esp_state.hpp"
 #include <cstdio>
-#include "../../../sdk/weapon_glyph.hpp"
+#include "../../sdk/weapon_glyph.hpp"
 namespace WorldEspOverlay {
 using namespace evo::gui;
 using namespace evo::ren;

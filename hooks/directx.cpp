@@ -1,8 +1,8 @@
 #include "hooks.hpp"
-#include "../features/visuals/model_preview.hpp"
+#include "../menu/preview/model_preview.hpp"
 #include "../utils/config.hpp"
 #include "../utils/log.hpp"
-#include "../third_party/fatality/port.hpp"
+#include "../menu/menu.hpp"
 
 bool Menu_IsOpen() { return Config::settings.show_menu; }
 

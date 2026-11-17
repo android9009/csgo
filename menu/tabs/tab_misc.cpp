@@ -1,7 +1,7 @@
-#include "menu.h"
+#include "tabs.hpp"
 
-#include "../cfg.h"
-#include "macros.h"
+#include "../config.hpp"
+#include "../controls/macros.h"
 
 using namespace evo::gui;
 using namespace evo::gui::helpers;
