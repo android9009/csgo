@@ -79,6 +79,8 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
+    __try{if(VisualMisc::RemovingRagdolls() && Interfaces::EntityList && info.entity_index>0 && VisualMisc::HideRagdoll(Interfaces::EntityList->GetClientEntity(info.entity_index)))return;}
+    __except(EXCEPTION_EXECUTE_HANDLER){}
     bool handled=false;
     __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);}
     __except(LogChamsFault(GetExceptionInformation())) {

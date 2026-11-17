@@ -8,5 +8,6 @@ void BeforeFrame(int stage);
 void Frame(int stage);
 bool HideScopePanel(const char* name);
 float LocalAlpha(int entity_index);
-bool HideRagdoll(const char* model_name);
+bool RemovingRagdolls();
+bool HideRagdoll(void* entity);
 }

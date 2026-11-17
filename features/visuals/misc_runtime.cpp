@@ -10,6 +10,8 @@
 #include <vector>
 #include <cstring>
 #include <atomic>
+#include <string>
+#include <cstdio>
 namespace VisualMisc {
 namespace {
 template<class T> T& Field(void* p,std::ptrdiff_t n){return *reinterpret_cast<T*>(static_cast<unsigned char*>(p)+n);}
@@ -30,7 +32,7 @@ std::atomic<float> model_alpha{1.f};std::atomic<unsigned> removal_bits{};
 void RestoreCamera(){
     if(camera_owned && Interfaces::Input){Field<bool>(Interfaces::Input,camera_flag)=old_camera;Field<Vector>(Interfaces::Input,camera_offset)=old_offset;}
     camera_owned=false;camera_distance=0.f;
-    if(observer_player && ctx.local==observer_player && Valid(observer_offset) && Field<int>(observer_player,observer_offset)==5)Field<int>(observer_player,observer_offset)=observer_original;
+    if(observer_player && Interfaces::Engine && Interfaces::Engine->IsInGame() && ctx.local==observer_player && Valid(observer_offset) && Field<int>(observer_player,observer_offset)==5)Field<int>(observer_player,observer_offset)=observer_original;
     observer_player=nullptr;
 }
 void Camera(View& view,const Settings& s){
@@ -100,6 +102,26 @@ struct OwnedCvar {
     }
 };
 OwnedCvar cvars[]={ {"weapon_debug_spread_show"},{"mat_fullbright"},{"mat_postprocess_enable"},{"cl_csm_enabled"},{"r_drawparticles"},{"r_drawtracers_firstperson"},{"r_waterdrawreflection"},{"r_waterdrawrefraction"},{"violence_hblood"},{"violence_ablood"},{"r_drawdecals"},{"cl_ragdoll_physics_enable"},{"r_drawspecificstaticprop"},{"fog_override"},{"fog_enable"},{"fog_start"},{"fog_end"},{"mat_force_tonemap_scale"},{"mat_bloom_scalefactor_scalar"} };
+struct FogColor {
+    void* variable{};bool resolved{},owned{};std::string original,applied;
+    const char* Value(){
+        auto* parent=Field<unsigned char*>(variable,0x1c);if(!parent || *reinterpret_cast<void***>(parent)!=*reinterpret_cast<void***>(variable))return nullptr;
+        const char* name=MEM::GetVFunc<const char*(__thiscall*)(void*)>(parent,5)(parent);if(!name || std::strcmp(name,"fog_color"))return nullptr;
+        const int length=Field<int>(parent,0x28);const char* value=Field<const char*>(parent,0x24);
+        return length>0 && length<=4096 && value && std::memchr(value,0,static_cast<std::size_t>(length)) ? value : nullptr;
+    }
+    void Set(bool enabled,std::uint32_t color){
+        if(!enabled && !owned)return;
+        if(!resolved){if(!Interfaces::ConVar)return;resolved=true;variable=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"fog_color");}
+        if(!variable)return;
+        const auto set=MEM::GetVFunc<void(__thiscall*)(void*,const char*)>(variable,14);
+        if(!enabled){const char* current=Value();if(current && applied==current)set(variable,original.c_str());owned=false;return;}
+        char text[32];std::snprintf(text,sizeof text,"%u %u %u",(color>>16)&255,(color>>8)&255,color&255);
+        if(owned && applied==text)return;
+        if(!owned){const char* value=Value();if(!value)return;original=value;}
+        applied=text;set(variable,applied.c_str());owned=true;
+    }
+} fog_color;
 void Cvars(const Settings& s,bool active){
     const auto removed=[&](unsigned bit){return active && (s.removals&(1u<<bit));};
     cvars[0].Set(active && s.crosshair && ctx.local && ctx.local->IsAlive() && !ctx.local->m_bIsScoped(),3.f);
@@ -108,6 +130,7 @@ void Cvars(const Settings& s,bool active){
     cvars[6].Set(removed(4),0.f);cvars[7].Set(removed(4),0.f);
     cvars[8].Set(removed(5),0.f);cvars[9].Set(removed(5),0.f);cvars[10].Set(removed(6),0.f);cvars[11].Set(removed(7),0.f);
     cvars[12].Set(active && (s.prop_alpha>0.f || s.night),0.f);
+    fog_color.Set(active && s.fog,s.fog_color);
     cvars[13].Set(active && s.fog,1.f);cvars[14].Set(active && s.fog,1.f);cvars[15].Set(active && s.fog,0.f);cvars[16].Set(active && s.fog,1200.f);
     cvars[17].Set(active && s.exposure,(std::max)(.01f,s.exposure_value*.02f));cvars[18].Set(active && s.bloom,s.bloom_value*.02f);
 }
@@ -196,7 +219,8 @@ void BeforeFrame(int stage){
 void Frame(int stage){__try{if(stage==6)RestorePunch();FrameImpl(stage);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged{};if(!logged){logged=true;LOG_WARN("visual misc: invalid frame resource");}}}
 bool HideScopePanel(const char* name){return name && !std::strcmp(name,"HudZoom") && GetLocal().scoped && (Get().scope&~1u)!=0;}
 float LocalAlpha(int index){const float alpha=model_alpha.load(std::memory_order_relaxed);return alpha<1.f && ctx.local && index==ctx.local->GetIndex() ? alpha : 1.f;}
-bool HideRagdoll(const char* name){return name && (removal_bits.load(std::memory_order_relaxed)&(1u<<7)) && std::strstr(name,"models/player") && std::strstr(name,"ragdoll");}
+bool RemovingRagdolls(){return (removal_bits.load(std::memory_order_relaxed)&(1u<<7))!=0;}
+bool HideRagdoll(void* entity){if(!entity || !RemovingRagdolls())return false;const auto* cls=static_cast<CBaseEntity*>(entity)->GetClientClass();return cls && cls->m_pNetworkName && !std::strcmp(cls->m_pNetworkName,"CCSRagdoll");}
 static bool ReadMatrix(std::uintptr_t address,std::array<float,16>& matrix){
     __try{std::memcpy(matrix.data(),reinterpret_cast<const void*>(address),sizeof(matrix));return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
