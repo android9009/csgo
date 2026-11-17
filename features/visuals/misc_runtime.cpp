@@ -275,13 +275,13 @@ void Environment(const Settings& s){
 }
 std::array<float,65> he_throw_time{};
 void CaptureWarnings(const Settings& s){
-    static int previous_tick{-1};static void* lifetime_var{};
+    static int previous_tick{-1};static void* lifetime_var{};static bool lifetime_resolved{};
     if(!s.grenade_warning || !ctx.local || !ctx.local->IsAlive() || !Interfaces::Globals || !Interfaces::EntityList){PublishWarnings({});previous_tick=-1;return;}
     const int tick=Interfaces::Globals->tickcount;if(tick>=previous_tick && tick-previous_tick<4)return;previous_tick=tick;
     static const auto thrower_offset=PropManager::Get().GetOffset("DT_BaseGrenade","m_hThrower");
     static const auto fire_tick=PropManager::Get().GetOffset("DT_Inferno","m_nFireEffectTickBegin");
     static const auto explode_tick=PropManager::Get().GetOffset("DT_BaseCSGrenadeProjectile","m_nExplodeEffectTickBegin");
-    if(!lifetime_var && Interfaces::ConVar)lifetime_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"inferno_flame_lifetime");
+    if(!lifetime_resolved && Interfaces::ConVar){lifetime_resolved=true;lifetime_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"inferno_flame_lifetime");}
     const float now=Interfaces::Globals->curtime;
     float lifetime=lifetime_var ? MEM::GetVFunc<float(__thiscall*)(void*)>(lifetime_var,12)(lifetime_var) : 7.f;if(!std::isfinite(lifetime) || lifetime<=0.f)lifetime=7.f;
     WarningFrame frame;frame.eye=ctx.local->GetEyePosition();
@@ -324,7 +324,7 @@ void CaptureArrows(const Settings& s){
 void PredictGrenade(const Settings& s){
     static int previous_tick{-1};static Vector previous_eye{},previous_velocity{};static QAngle previous_angles{};static int previous_item{};static float previous_strength{-1.f};
     static const auto strength_offset=PropManager::Get().GetOffset("DT_BaseCSGrenade","m_flThrowStrength");
-    static void* gravity_var{};
+    static void* gravity_var{};static bool gravity_resolved{};
     if(!s.trajectory || !ctx.local || !ctx.local->IsAlive() || !ctx.weapon || !Interfaces::EngineTrace || !Interfaces::Globals){PublishTrajectory({});previous_tick=-1;return;}
     const int item=ctx.weapon->m_iItemDefinitionIndex();if(item<43 || item>48 || !Valid(strength_offset)){PublishTrajectory({});previous_tick=-1;return;}
     const int tick=Interfaces::Globals->tickcount;if(tick==previous_tick)return;
@@ -332,7 +332,7 @@ void PredictGrenade(const Settings& s){
     const float strength=std::clamp(Field<float>(ctx.weapon,strength_offset),0.f,1.f);
     if(previous_tick>=0 && tick-previous_tick<8 && previous_item==item && previous_strength==strength && previous_eye.DistSqr(eye)<.01f && previous_velocity.DistSqr(player_velocity)<.01f && previous_angles.x==angles.x && previous_angles.y==angles.y)return;
     previous_tick=tick;previous_eye=eye;previous_velocity=player_velocity;previous_angles=angles;previous_item=item;previous_strength=strength;
-    if(!gravity_var && Interfaces::ConVar)gravity_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_gravity");
+    if(!gravity_resolved && Interfaces::ConVar){gravity_resolved=true;gravity_var=MEM::GetVFunc<void*(__thiscall*)(void*,const char*)>(Interfaces::ConVar,14)(Interfaces::ConVar,"sv_gravity");}
     float gravity=gravity_var ? MEM::GetVFunc<float(__thiscall*)(void*)>(gravity_var,12)(gravity_var)*.4f : 320.f;if(!std::isfinite(gravity))gravity=320.f;
     if(angles.x>90.f)angles.x-=360.f;else if(angles.x< -90.f)angles.x+=360.f;
     angles.x-=(90.f-std::abs(angles.x))*10.f/90.f;
@@ -401,7 +401,7 @@ void Weather(const Settings& s){
     auto& w=weather_entity;
     if(w.entity && (w.mode!=mode || Interfaces::EntityList->GetClientEntity(w.index)!=w.entity))RestoreWeather();
     if(!w.entity){
-        ClientClass* cls=Interfaces::Client->GetAllClasses();for(;cls;cls=cls->m_pNext)if(cls->m_pNetworkName && !std::strcmp(cls->m_pNetworkName,"CPrecipitation"))break;
+        static ClientClass* cls=[](){for(auto* entry=Interfaces::Client->GetAllClasses();entry;entry=entry->m_pNext)if(entry->m_pNetworkName && !std::strcmp(entry->m_pNetworkName,"CPrecipitation"))return entry;return static_cast<ClientClass*>(nullptr);}();
         if(!cls || !cls->m_pCreateFn)return;
         int index=2047;while(index>=1900 && Interfaces::EntityList->GetClientEntity(index))--index;if(index<1900)return;
         static int serial{100};void* networkable=cls->m_pCreateFn(index,++serial&0x3ff);if(!networkable)return;
