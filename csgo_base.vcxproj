@@ -455,6 +455,7 @@
     <ClInclude Include="sdk\third_party\minhook\trampoline.h" />
     <ClInclude Include="utils\config.hpp" />
     <ClInclude Include="utils\detourhook.hpp" />
+    <ClInclude Include="utils\native_guard.hpp" />
     <ClInclude Include="utils\displacement.hpp" />
     <ClInclude Include="utils\event_listener.hpp" />
     <ClInclude Include="utils\hash.hpp" />

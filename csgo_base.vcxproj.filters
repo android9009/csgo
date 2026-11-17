@@ -1215,6 +1215,7 @@
     <ClInclude Include="utils\config.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
+    <ClInclude Include="utils\native_guard.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="utils\detourhook.hpp">
       <Filter>Utils</Filter>
     </ClInclude>

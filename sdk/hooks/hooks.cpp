@@ -2,6 +2,7 @@
 #include "../visual_runtime_state.hpp"
 #include "../world_esp_state.hpp"
 #include "../../utils/detourhook.hpp"
+#include "../../utils/native_guard.hpp"
 #include "../../utils/log.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../../utils/memory.hpp"
@@ -176,8 +177,10 @@ bool Setup() {
 
     // Feature hooks are best-effort: missing interfaces only disable features.
     if (Interfaces::ClientMode) {
-        client_mode_hook.attach(Interfaces::ClientMode, 24, reinterpret_cast<void*>(&HooksInternal::CreateMove));
-        mouse_input_hook.attach(Interfaces::ClientMode, 23, reinterpret_cast<void*>(&OverrideMouseInput));
+        if(!NativeCall::CallerChecked(MEM::GetVFunc<void*>(Interfaces::ClientMode,24)))client_mode_hook.attach(Interfaces::ClientMode,24,reinterpret_cast<void*>(&HooksInternal::CreateMove));
+        else LOG_ERROR("CreateMove: caller-checked entry; incompatible VMT hook NOT installed (command features unavailable)");
+        if(!NativeCall::CallerChecked(MEM::GetVFunc<void*>(Interfaces::ClientMode,23)))mouse_input_hook.attach(Interfaces::ClientMode,23,reinterpret_cast<void*>(&OverrideMouseInput));
+        else LOG_WARN("mouse input: caller-checked entry; incompatible VMT hook NOT installed");
     }
     else
         LOG_WARN("ClientMode is null; CreateMove not hooked");

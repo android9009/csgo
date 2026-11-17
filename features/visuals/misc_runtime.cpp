@@ -8,6 +8,7 @@
 #include "../../utils/memory.hpp"
 #include "../../utils/offsets/offsets.hpp"
 #include "../../utils/detourhook.hpp"
+#include "../../utils/native_guard.hpp"
 #include "../../utils/log.hpp"
 #include <vector>
 #include <cstring>
@@ -542,8 +543,10 @@ void Initialize(){
     if(const auto address=offsets::Get("calc_viewmodel_landing_bob"))bob_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&LandingBob),reinterpret_cast<void**>(&bob_original));
     observer_offset=PropManager::Get().GetOffset("DT_BasePlayer","m_iObserverMode");
     if(Interfaces::ClientMode){
-        view_original=MEM::GetVFunc<ViewFn>(Interfaces::ClientMode,18);view_hook.attach(Interfaces::ClientMode,18,reinterpret_cast<void*>(&OverrideView));
-        fov_original=MEM::GetVFunc<FovFn>(Interfaces::ClientMode,35);fov_hook.attach(Interfaces::ClientMode,35,reinterpret_cast<void*>(&ViewmodelFov));
+        view_original=MEM::GetVFunc<ViewFn>(Interfaces::ClientMode,18);if(!NativeCall::CallerChecked(reinterpret_cast<void*>(view_original)))view_hook.attach(Interfaces::ClientMode,18,reinterpret_cast<void*>(&OverrideView));
+        else LOG_ERROR("OverrideView: caller-checked entry; incompatible VMT hook NOT installed (camera/FOV unavailable)");
+        fov_original=MEM::GetVFunc<FovFn>(Interfaces::ClientMode,35);if(!NativeCall::CallerChecked(reinterpret_cast<void*>(fov_original)))fov_hook.attach(Interfaces::ClientMode,35,reinterpret_cast<void*>(&ViewmodelFov));
+        else LOG_ERROR("ViewmodelFov: caller-checked entry; incompatible VMT hook NOT installed");
         draw_vm_original=MEM::GetVFunc<DrawVmFn>(Interfaces::ClientMode,27);draw_vm_hook.attach(Interfaces::ClientMode,27,reinterpret_cast<void*>(&DrawViewmodel));
     }
     if(Interfaces::DebugOverlay){box_original=MEM::GetVFunc<BoxFn>(Interfaces::DebugOverlay,1);impact_hook.attach(Interfaces::DebugOverlay,1,reinterpret_cast<void*>(&NativeImpact));}
