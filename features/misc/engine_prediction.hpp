@@ -6,6 +6,7 @@ namespace EnginePrediction {
 // entity state available to post movement; End restores prediction bookkeeping.
 bool Start(CCSPlayer* local,CUserCmd& command);
 void End();
+const char* Phase();
 void Reset();
 void Shutdown();
 }

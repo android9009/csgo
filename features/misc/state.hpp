@@ -18,6 +18,7 @@ struct Settings {
     bool defuser{},taser{},grenades{},hit_enabled{},kill_enabled{};
     std::array<std::uint32_t,5> colors{};
 };
+inline bool MovementEnabled(const Settings& s){return s.bhop || s.instant_duck || s.quick_stop || s.avoid_walls || s.peek || s.no_fall || s.edge_jump || s.edge_bug || s.pixel_surf || s.edge_stop || s.long_jump || s.ladder_jump || s.strafe!=0;}
 struct Message {char text[192]{};std::uint32_t color{};double time{};};
 // Nonblocking snapshot exchange; never hold a lock while calling game/UI code.
 // A contended reader keeps its own last complete copy. A contended publisher

@@ -34,6 +34,8 @@ inline int* seed{};inline void** prediction_player{};inline IMoveHelper** helper
 inline unsigned(__fastcall* md5)(unsigned){};
 inline std::ptrdiff_t current_cmd{},last_cmd{},forced{},disabled{},buttons{},last_buttons{},pressed{},released{};
 inline bool resolved{},failed{};
+inline const char* phase="idle";inline unsigned traced_commands{};
+inline void Trace(const char* value){phase=value;if(traced_commands<2)LOG_INFO("prediction: phase=%s",value); }
 struct Compressed {
     CCSPlayer* player{};int tick{},command{};std::array<Vector,4> vectors{};float fall{};
 };
@@ -128,7 +130,7 @@ void End(){
     Field<CUserCmd*>(backup.local,current_cmd)=backup.command;Field<CUserCmd>(backup.local,last_cmd)=backup.last;
     Field<int>(backup.local,buttons)=backup.buttons[0];Field<int>(backup.local,last_buttons)=backup.buttons[1];Field<int>(backup.local,pressed)=backup.buttons[2];Field<int>(backup.local,released)=backup.buttons[3];
     Field<bool>(Interfaces::Prediction,8)=backup.in_prediction;Field<bool>(Interfaces::Prediction,0x18)=backup.first;
-    backup.active=false;
+    backup.active=false;Trace("restored");++traced_commands;
 }
 bool Start(CCSPlayer* local,CUserCmd& cmd){
     using namespace Detail;
@@ -137,11 +139,11 @@ bool Start(CCSPlayer* local,CUserCmd& cmd){
     if(!Interfaces::MoveHelper)return false;
     const float interval=Interfaces::Globals->interval_per_tick;
     if(!std::isfinite(interval) || interval<=0.f || interval>.1f)return false;
-    if(Interfaces::ClientState){
-        const int dt=Field<int>(Interfaces::ClientState,delta);const auto state=Field<CommandCounters>(Interfaces::ClientState,counters);
-        if(dt<=0 || state.ack<0 || state.outgoing<state.ack || state.choked<0 || state.choked>64 || state.outgoing>=0x7fffffff-state.choked)return false;
-        MEM::GetVFunc<void(__thiscall*)(void*,int,bool,int,int)>(Interfaces::Prediction,3)(Interfaces::Prediction,dt,true,state.ack,state.outgoing+state.choked);
-    }
+    // CL_Move owns IPrediction::Update. Re-entering its command replay from
+    // ClientMode::CreateMove runs the engine's prediction pipeline recursively
+    // while the new command is still being assembled. Only the explicit
+    // SetupMove / ProcessMovement / FinishMove transaction belongs here.
+    Trace("backup");
     backup={};backup.local=local;backup.flags=local->m_fFlags();backup.tickbase=local->m_nTickBase();
     backup.curtime=Interfaces::Globals->curtime;backup.frametime=Interfaces::Globals->frametime;backup.seed=*seed;backup.player=*prediction_player;
     backup.command=Field<CUserCmd*>(local,current_cmd);backup.last=Field<CUserCmd>(local,last_cmd);
@@ -154,13 +156,14 @@ bool Start(CCSPlayer* local,CUserCmd& cmd){
     if(Offset(forced))cmd.buttons|=Field<int>(local,forced);if(Offset(disabled))cmd.buttons&=~Field<int>(local,disabled);
     const int changed=cmd.buttons^backup.buttons[0];Field<int>(local,last_buttons)=backup.buttons[0];Field<int>(local,buttons)=cmd.buttons;
     Field<int>(local,pressed)=changed&cmd.buttons;Field<int>(local,released)=changed&~cmd.buttons;
-    move_data={};backup.host=true;MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::MoveHelper,1)(Interfaces::MoveHelper,local);
-    backup.tracking=true;MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameMovement,3)(Interfaces::GameMovement,local);
-    MEM::GetVFunc<void(__thiscall*)(void*,void*,void*,void*,void*)>(Interfaces::Prediction,20)(Interfaces::Prediction,local,&cmd,Interfaces::MoveHelper,move_data.data());
-    MEM::GetVFunc<void(__thiscall*)(void*,void*,void*)>(Interfaces::GameMovement,1)(Interfaces::GameMovement,local,move_data.data());
-    MEM::GetVFunc<void(__thiscall*)(void*,void*,void*,void*)>(Interfaces::Prediction,21)(Interfaces::Prediction,local,&cmd,move_data.data());
+    Trace("set_host");move_data={};backup.host=true;MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::MoveHelper,1)(Interfaces::MoveHelper,local);
+    Trace("start_tracking");backup.tracking=true;MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameMovement,3)(Interfaces::GameMovement,local);
+    Trace("setup_move");MEM::GetVFunc<void(__thiscall*)(void*,void*,void*,void*,void*)>(Interfaces::Prediction,20)(Interfaces::Prediction,local,&cmd,Interfaces::MoveHelper,move_data.data());
+    Trace("process_movement");MEM::GetVFunc<void(__thiscall*)(void*,void*,void*)>(Interfaces::GameMovement,1)(Interfaces::GameMovement,local,move_data.data());
+    Trace("finish_move");MEM::GetVFunc<void(__thiscall*)(void*,void*,void*,void*)>(Interfaces::Prediction,21)(Interfaces::Prediction,local,&cmd,move_data.data());
     return true;
 }
+const char* Phase(){return Detail::phase;}
 void Reset(){Detail::compressed={};}
 void Shutdown(){End();Detail::run_hook.detach();Detail::network_hook.detach();Detail::resolved=false;Detail::failed=false;Reset();}
 }

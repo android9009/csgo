@@ -395,6 +395,7 @@ void MoveImpl(CUserCmd* cmd){
     const auto options=Get();
     if(cmd && ctx.in_game && ctx.local)RevealRanks(*cmd,options);
     if(!cmd || !ctx.in_game || !ctx.local || !ctx.local->IsAlive()){peek_state.Reset();long_jump_state.Reset();PlayerState(0,false);EnginePrediction::Reset();movement_player=nullptr;peek_shot.store(false);return;}
+    if(!MovementEnabled(options)){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);movement_player=nullptr;PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);return;}
     if(ctx.local!=movement_player || cmd->command_number<=last_command || cmd->command_number-last_command>128){peek_state.Reset();long_jump_state.Reset();peek_shot.store(false);}
     movement_player=ctx.local;last_command=cmd->command_number;
     PlayerState(ctx.weapon ? ctx.weapon->m_iItemDefinitionIndex() : 0,true);auto velocity=ctx.local->m_vecVelocity();
@@ -488,11 +489,12 @@ void Shutdown(){
     __try{RestoreRadar();}__except(EXCEPTION_EXECUTE_HANDLER){}
     ClearMessages();
 }
+int LogMovementFault(EXCEPTION_POINTERS* info){if(info && info->ExceptionRecord)LOG_ERROR("misc CreateMove: exception code=0x%08lX address=%p prediction_phase=%s",info->ExceptionRecord->ExceptionCode,info->ExceptionRecord->ExceptionAddress,EnginePrediction::Phase());return EXCEPTION_EXECUTE_HANDLER;}
 void CreateMove(CUserCmd* cmd){
     if(!cmd)return;const float f=cmd->forwardmove,s=cmd->sidemove;const int buttons=cmd->buttons;
     __try{
         __try{MoveImpl(cmd);}__finally{EnginePrediction::End();}
-    }__except(EXCEPTION_EXECUTE_HANDLER){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;peek_state.Reset();}
+    }__except(LogMovementFault(GetExceptionInformation())){cmd->forwardmove=f;cmd->sidemove=s;cmd->buttons=buttons;peek_state.Reset();}
     PeekMarker frame;frame.origin=peek_state.origin;frame.valid=peek_state.valid;frame.returning=peek_state.returning;
     PublishPeekMarker(frame);
 }
