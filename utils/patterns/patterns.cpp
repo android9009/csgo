@@ -1,6 +1,6 @@
 #include "patterns.hpp"
-#include "../utils/memory.hpp"
-#include "../utils/log.hpp"
+#include "../memory.hpp"
+#include "../log.hpp"
 #include <array>
 #include <cstring>
 #include <string>

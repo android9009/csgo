@@ -2,9 +2,9 @@
 #include "../netvars.hpp"
 #include "../clientclass.hpp"
 #include "../studiohdr.hpp"
-#include "../../math/vector.hpp"
-#include "../../math/matrix.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/math/vector.hpp"
+#include "../../utils/math/matrix.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include <cstdint>
 
 class CBaseEntity {

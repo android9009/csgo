@@ -2,7 +2,7 @@
 #include <windows.h>
 #include <d3d9.h>
 #include "../sdk/studiohdr.hpp"
-#include "../math/matrix.hpp"
+#include "../utils/math/matrix.hpp"
 struct CUserCmd;
 namespace Hooks {
     bool Setup();

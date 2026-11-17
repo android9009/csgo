@@ -1,9 +1,9 @@
 #pragma once
 // Глобальный контекст — по образцу Havoc HAVOCCTX (base/context.hpp) + Fatality globals.
 // Один объект на весь чит, обновляется в хуках. Никаких разбросанных глобалок.
-#include "math/vector.hpp"
-#include "math/qangle.hpp"
-#include "math/matrix.hpp"
+#include "utils/math/vector.hpp"
+#include "utils/math/qangle.hpp"
+#include "utils/math/matrix.hpp"
 #include "sdk/entity/player.hpp"
 #include "sdk/entity/weapon.hpp"
 

@@ -1,6 +1,6 @@
 #include "displacement.hpp"
-#include "../offsets/offsets.hpp"
-#include "../patterns/patterns.hpp"
+#include "offsets/offsets.hpp"
+#include "patterns/patterns.hpp"
 namespace Displacement {
 data_t data{};
 void Init() {

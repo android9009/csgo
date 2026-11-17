@@ -1,6 +1,6 @@
 #include "offsets.hpp"
 #include "../patterns/patterns.hpp"
-#include "../utils/log.hpp"
+#include "../log.hpp"
 #include <string>
 
 namespace offsets {

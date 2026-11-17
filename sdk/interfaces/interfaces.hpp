@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <windows.h>
 #include "../clientclass.hpp"
-#include "../../math/vector.hpp"
-#include "../../math/qangle.hpp"
-#include "../../math/matrix.hpp"
+#include "../../utils/math/vector.hpp"
+#include "../../utils/math/qangle.hpp"
+#include "../../utils/math/matrix.hpp"
 #include "../trace_ray.hpp"
 #include "../studiohdr.hpp"
 

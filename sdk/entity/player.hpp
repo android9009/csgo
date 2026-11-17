@@ -1,7 +1,7 @@
 #pragma once
 #include "entity.hpp"
 #include "weapon.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 class CCSPlayer : public CBaseEntity {
 public:
     NETVAR_FALLBACK(float, m_flFlashDuration, "DT_CSPlayer", "m_flFlashDuration", offsets::netvars::m_flFlashDuration)

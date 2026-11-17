@@ -1,5 +1,5 @@
 #pragma once
-#include "../math/color.hpp"
+#include "math/color.hpp"
 namespace Config {
 struct settings_t {
     bool player_esp = true;

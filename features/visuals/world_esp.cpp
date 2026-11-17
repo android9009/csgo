@@ -5,7 +5,7 @@
 #include "../../context.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include <windows.h>
 #include <cstring>
 #include <cstdio>

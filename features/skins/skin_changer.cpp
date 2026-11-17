@@ -5,7 +5,7 @@
 #include "refresh_gate.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <cstdint>

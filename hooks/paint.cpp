@@ -2,8 +2,8 @@
 #include "../context.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include "../sdk/entity/player.hpp"
-#include "../offsets/offsets.hpp"
-#include "../math/math.hpp"
+#include "../utils/offsets/offsets.hpp"
+#include "../utils/math/math.hpp"
 #include "../utils/memory.hpp"
 #include "../utils/detourhook.hpp"
 #include <cstring>

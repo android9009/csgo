@@ -2,7 +2,7 @@
 #include "../skin_icon_file.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <string>

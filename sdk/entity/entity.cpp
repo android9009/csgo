@@ -1,6 +1,6 @@
 #include "entity.hpp"
 #include "../interfaces/interfaces.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include "../../utils/memory.hpp"
 #include <cstring>
 

@@ -4,9 +4,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include "../math/vector.hpp"
-#include "../math/qangle.hpp"
-#include "../math/matrix.hpp"
+#include "../utils/math/vector.hpp"
+#include "../utils/math/qangle.hpp"
+#include "../utils/math/matrix.hpp"
 
 namespace SourceModelPreview {
 struct ViewSetup {

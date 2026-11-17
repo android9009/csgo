@@ -42,3 +42,8 @@ transport types consumed by runtime and the editor; moving the actual preview
 implementation does not duplicate those shared types or change their ABI.
 
 Portable preview tests now include helpers from `menu/preview/`.
+
+Shared C++ utilities are grouped under the existing `utils/` directory:
+`utils/math/`, `utils/offsets/`, and `utils/patterns/`. `tools/` is reserved for
+standalone analysis scripts. There are no forwarding copies at the former
+repository-root locations; includes and Visual Studio filters use the new paths.

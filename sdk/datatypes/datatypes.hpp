@@ -1,9 +1,9 @@
 #pragma once
 // Совместимость имён Fatality/Havoc: Vector/QAngle/Color/Matrix лежат в math/.
-#include "../../math/vector.hpp"
-#include "../../math/qangle.hpp"
-#include "../../math/color.hpp"
-#include "../../math/matrix.hpp"
+#include "../../utils/math/vector.hpp"
+#include "../../utils/math/qangle.hpp"
+#include "../../utils/math/color.hpp"
+#include "../../utils/math/matrix.hpp"
 #include <vector>
 #include <string>
 

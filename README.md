@@ -9,7 +9,6 @@
 ├── main.cpp                 DllMain, поток Entry и контролируемое завершение
 ├── context.hpp                единый runtime-контекст: local/weapon/view/prediction
 ├── CMakeLists.txt           x86 DLL для Visual Studio 2022
-├── math/                    Vector, Vector2D, QAngle, Color, VMatrix, функции математики
 ├── sdk/
 │   ├── interfaces/          Capture<T>, ключевые Source-интерфейсы и vfunc-обёртки
 │   ├── entity/              CBaseEntity, CCSPlayer, CBaseWeapon и netvar accessors
@@ -21,14 +20,17 @@
 │   ├── schema.hpp             общий фасад для RecvTable, datamap и статических полей
 │   └── structs.hpp            CUserCmd, glow/animation структуры
 ├── utils/                   memory scanner, XOR/hash, logging, config, input, events, render
-├── patterns/                58 Hazedumper-сигнатур
-├── offsets/                 CS:GO snapshot-таблицы + runtime-результаты паттернов
+│   ├── math/                Vector, QAngle, Color, VMatrix, математические функции
+│   ├── offsets/             CS:GO snapshot-таблицы и runtime-адреса
+│   └── patterns/            каталог сигнатур
+├── tools/                   отдельные Python-скрипты анализа ABI
+├── menu/                    меню, табы, контролы, UI-превью и адаптеры
 ├── hooks/                   VMT manager; отдельные CreateMove/PaintTraverse/EndScene/WndProc
 └── features/
     ├── visuals/              простой player ESP; glow/world — точки расширения
     ├── misc/                 bunnyhop; сюда добавляются movement/misc функции
     ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
-    └── menu/                 лёгкое VGUI-меню, hotkeys и настройки
+    └── skins/                применение скинов и инвентарь
 ```
 
 ## Слои и ответственность
@@ -43,7 +45,7 @@
 
 | Источник | Применённые идеи/данные |
 |---|---|
-| [hazedumper](https://github.com/frk1/hazedumper) | Модель «IDA signature → operand chain → RVA»; перенесён каталог из 58 CS:GO сигнатур и таблицы `csgo.hpp` (snapshot `2023-09-05`, 94 netvar-константы и 58 signature-констант). В базе это собственный scanner/registry в `patterns/` и собственные типизированные fallback-таблицы в `offsets/`. |
+| [hazedumper](https://github.com/frk1/hazedumper) | Модель «IDA signature → operand chain → RVA»; перенесён каталог из 58 CS:GO сигнатур и таблицы `csgo.hpp` (snapshot `2023-09-05`, 94 netvar-константы и 58 signature-констант). В базе это собственный scanner/registry в `utils/patterns/` и собственные типизированные fallback-таблицы в `utils/offsets/`. |
 | [fatality_source](https://github.com/reversed2603/fatality_source) | Группировка SDK/interfaces/features, разбиение хуков и feature-модулей по файлам, компактные typed-accessors и структура CUserCmd. Реализация здесь новая, без копирования исходников. |
 | [VeryElusive/game-hack (Havoc)](https://github.com/VeryElusive/game-hack/tree/main/base) | Слои `context` → `sdk/utils/hooks/features`, единый контекст вместо множества singleton-глобалок, отдельный memory/pattern helper, `Capture<T>` интерфейсов и staged Entry-инициализация. |
 
@@ -60,7 +62,7 @@ cmake --build build --config Release
 
 ## Паттерны и актуальность
 
-В `patterns/patterns.cpp` находится каталог из 58 Hazedumper patterns. `offsets/offsets.hpp` хранит fallback значения из последнего известного Hazedumper snapshot — **5 сентября 2023 года**. Это известная зафиксированная база для CS:GO Legacy, не live-обновляемый источник и не обещание совместимости с любым исполняемым файлом. Перед использованием на конкретной сборке проверяйте успешность сканирования и адреса в отладчике; неподходящие fallback-данные надо обновить.
+В `utils/patterns/patterns.cpp` находится каталог из 58 Hazedumper patterns. `utils/offsets/offsets.hpp` хранит fallback значения из последнего известного Hazedumper snapshot — **5 сентября 2023 года**. Это известная зафиксированная база для CS:GO Legacy, не live-обновляемый источник и не обещание совместимости с любым исполняемым файлом. Перед использованием на конкретной сборке проверяйте успешность сканирования и адреса в отладчике; неподходящие fallback-данные надо обновить.
 
 CS:GO Source 1 использует RecvTables и datamaps; отдельной Source 2 `SchemaSystem` в этой базе нет. `sdk/schema.hpp` даёт единый фасад к этим Source 1-метаданным, чтобы не путать их с CS2-схемой.
 

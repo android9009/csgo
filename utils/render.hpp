@@ -1,6 +1,6 @@
 #pragma once
-#include "../math/vector.hpp"
-#include "../math/color.hpp"
+#include "math/vector.hpp"
+#include "math/color.hpp"
 #include <string_view>
 namespace Render {
     void CreateFonts();

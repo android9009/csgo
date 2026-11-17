@@ -2,7 +2,7 @@
 #include "../context.hpp"
 #include "../features/visuals/shot_chams.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
-#include "../offsets/offsets.hpp"
+#include "../utils/offsets/offsets.hpp"
 #include "../utils/memory.hpp"
 #include <cstring>
 namespace HooksInternal {

@@ -1,6 +1,6 @@
 #pragma once
 #include "entity.hpp"
-#include "../../offsets/offsets.hpp"
+#include "../../utils/offsets/offsets.hpp"
 #include <cstdint>
 
 // CCSWeaponInfo layout as returned by IWeaponSystem::GetWeaponData.

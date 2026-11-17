@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="Utils\patterns"><UniqueIdentifier>{85304863-49B2-5463-8D37-E88AD2886982}</UniqueIdentifier></Filter>
+    <Filter Include="Utils\offsets"><UniqueIdentifier>{0D7A7040-BDDA-52C7-A9FD-497DD12A1B88}</UniqueIdentifier></Filter>
+    <Filter Include="Utils\math"><UniqueIdentifier>{362753B2-86E8-5CA4-9C8A-5F0703C4288E}</UniqueIdentifier></Filter>
     <Filter Include="Menu"><UniqueIdentifier>{1CFA5BB1-E389-52D3-8A6F-7C3420340EC8}</UniqueIdentifier></Filter>
     <Filter Include="Menu\bridges"><UniqueIdentifier>{9CDCED7D-41A4-5856-B469-90FAA65CD3A1}</UniqueIdentifier></Filter>
     <Filter Include="Menu\controls"><UniqueIdentifier>{BC82F4FF-1748-582B-AAE6-6C029895FFE0}</UniqueIdentifier></Filter>
@@ -19,9 +22,6 @@
     </Filter>
     <Filter Include="Hooks">
       <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Math">
-      <UniqueIdentifier>{ED16866E-FEFF-5150-8807-A5E54D6EA62B}</UniqueIdentifier>
     </Filter>
     <Filter Include="Menu (Fatality)">
       <UniqueIdentifier>{9130C2DE-DB21-5ACD-961E-36A33341DBA3}</UniqueIdentifier>
@@ -73,12 +73,6 @@
     </Filter>
     <Filter Include="Menu (Fatality)\Tabs">
       <UniqueIdentifier>{9E40483C-6174-5832-83B1-6441F3E9D302}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Offsets">
-      <UniqueIdentifier>{855F5E8A-B1D2-5805-8112-5F8607FFE292}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Patterns">
-      <UniqueIdentifier>{9885CC74-8EC8-5126-B58A-9462B483666D}</UniqueIdentifier>
     </Filter>
     <Filter Include="SDK">
       <UniqueIdentifier>{B36CCE51-4EDD-57CA-94D8-7904697B6D73}</UniqueIdentifier>
@@ -191,14 +185,14 @@
     <ClCompile Include="main.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="math\math.cpp">
-      <Filter>Math</Filter>
+    <ClCompile Include="utils\math\math.cpp">
+      <Filter>Utils\math</Filter>
     </ClCompile>
-    <ClCompile Include="offsets\offsets.cpp">
-      <Filter>Offsets</Filter>
+    <ClCompile Include="utils\offsets\offsets.cpp">
+      <Filter>Utils\offsets</Filter>
     </ClCompile>
-    <ClCompile Include="patterns\patterns.cpp">
-      <Filter>Patterns</Filter>
+    <ClCompile Include="utils\patterns\patterns.cpp">
+      <Filter>Utils\patterns</Filter>
     </ClCompile>
     <ClCompile Include="sdk\entity\entity.cpp">
       <Filter>SDK\entity</Filter>
@@ -467,26 +461,26 @@
     <ClInclude Include="hooks\hooks.hpp">
       <Filter>Hooks</Filter>
     </ClInclude>
-    <ClInclude Include="math\color.hpp">
-      <Filter>Math</Filter>
+    <ClInclude Include="utils\math\color.hpp">
+      <Filter>Utils\math</Filter>
     </ClInclude>
-    <ClInclude Include="math\math.hpp">
-      <Filter>Math</Filter>
+    <ClInclude Include="utils\math\math.hpp">
+      <Filter>Utils\math</Filter>
     </ClInclude>
-    <ClInclude Include="math\matrix.hpp">
-      <Filter>Math</Filter>
+    <ClInclude Include="utils\math\matrix.hpp">
+      <Filter>Utils\math</Filter>
     </ClInclude>
-    <ClInclude Include="math\qangle.hpp">
-      <Filter>Math</Filter>
+    <ClInclude Include="utils\math\qangle.hpp">
+      <Filter>Utils\math</Filter>
     </ClInclude>
-    <ClInclude Include="math\vector.hpp">
-      <Filter>Math</Filter>
+    <ClInclude Include="utils\math\vector.hpp">
+      <Filter>Utils\math</Filter>
     </ClInclude>
-    <ClInclude Include="offsets\offsets.hpp">
-      <Filter>Offsets</Filter>
+    <ClInclude Include="utils\offsets\offsets.hpp">
+      <Filter>Utils\offsets</Filter>
     </ClInclude>
-    <ClInclude Include="patterns\patterns.hpp">
-      <Filter>Patterns</Filter>
+    <ClInclude Include="utils\patterns\patterns.hpp">
+      <Filter>Utils\patterns</Filter>
     </ClInclude>
     <ClInclude Include="sdk\clientclass.hpp">
       <Filter>SDK</Filter>

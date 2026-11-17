@@ -2,8 +2,8 @@
 // Studio header / hitbox / bone structures + DrawModelExecute payloads.
 // Layouts follow the legacy sdk/game/structs.hpp (Airflow) definitions,
 // adapted to the math/ types used by this codebase.
-#include "../math/vector.hpp"
-#include "../math/matrix.hpp"
+#include "../utils/math/vector.hpp"
+#include "../utils/math/matrix.hpp"
 #include <cstdint>
 
 struct quaternion_t {
