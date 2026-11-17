@@ -64,7 +64,7 @@ inline bool ProjectUnclipped(const Frame& f,const Item& item,float& x,float& y) 
     if(!std::isfinite(w) || w<=.01f)return false;
     x=.5f+(m[0]*item.x+m[1]*item.y+m[2]*item.z+m[3])/(2.f*w);
     y=.5f-(m[4]*item.x+m[5]*item.y+m[6]*item.z+m[7])/(2.f*w);
-    return std::isfinite(x) && std::isfinite(y);
+    return std::isfinite(x) && std::isfinite(y) && std::abs(x)<=1.e4f && std::abs(y)<=1.e4f;
 }
 inline bool Project(const Frame& f,const Item& item,float& x,float& y){
     return ProjectUnclipped(f,item,x,y) && x>=0.f && x<=1.f && y>=0.f && y<=1.f;

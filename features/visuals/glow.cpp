@@ -12,17 +12,21 @@ struct Backup {int index{};void* entity{};float r{},g{},b{},a{};bool occluded{},
 std::array<Backup,4096> backups;
 int saved{};IGlowObjectManager* manager{};CGlowObjectDefinition* storage{};
 VisualRead::Module client;
+constexpr auto owner_offset=offsets::netvars::m_hOwnerEntity;
 std::atomic<DWORD> game_thread{0};
 std::atomic<bool> cleaned{false};
-void RestoreImpl() {
+void RestoreEntry(const Backup& b){
+    if(!Interfaces::EntityList || !manager)return;
+    auto* item=manager->GetGlowObject(b.index);
+    if(!item || item->m_nNextFreeSlot!=-2 || item->m_pEntity!=b.entity || !VisualRead::Class(static_cast<CBaseEntity*>(item->m_pEntity),client))return;
+    if(!reinterpret_cast<const Vector*>(static_cast<const unsigned char*>(item->m_pEntity)+offsets::netvars::m_vecOrigin)->IsValid())return;
+    item->r=b.r;item->g=b.g;item->b=b.b;item->a=b.a;
+    item->m_bRenderWhenOccluded=b.occluded;item->m_bRenderWhenUnoccluded=b.visible;item->m_bFullBloom=b.bloom;
+}
+void RestoreEntrySafe(const Backup& b){__try{RestoreEntry(b);}__except(EXCEPTION_EXECUTE_HANDLER){}}
+void RestoreImpl(){
     auto* current=Interfaces::GlowManager;
-    if(current && current==manager && current->Objects()==storage)for(int i=0;i<saved;++i) {
-        const auto& b=backups[i];auto* item=current->GetGlowObject(b.index);
-        if(!item || !Interfaces::EntityList || item->m_nNextFreeSlot!=-2 || item->m_pEntity!=b.entity || !VisualRead::Class(static_cast<CBaseEntity*>(item->m_pEntity),client))continue;
-        if(!reinterpret_cast<const Vector*>(static_cast<const unsigned char*>(item->m_pEntity)+offsets::netvars::m_vecOrigin)->IsValid())continue;
-        item->r=b.r;item->g=b.g;item->b=b.b;item->a=b.a;
-        item->m_bRenderWhenOccluded=b.occluded;item->m_bRenderWhenUnoccluded=b.visible;item->m_bFullBloom=b.bloom;
-    }
+    if(current && current==manager && current->Objects()==storage)for(int i=0;i<saved;++i)RestoreEntrySafe(backups[i]);
     saved=0;manager=nullptr;storage=nullptr;
 }
 void Restore(){__try{RestoreImpl();}__except(EXCEPTION_EXECUTE_HANDLER){saved=0;manager=nullptr;storage=nullptr;}}
@@ -62,7 +66,6 @@ void UpdateImpl(const Effects& config) {
     if(!any)return;
     manager=Interfaces::GlowManager;storage=manager->Objects();
     const int count=manager->GetGlowObjectCount();
-    const auto owner_offset=offsets::netvars::m_hOwnerEntity;
     if(!storage || count<0 || count>4096 || !VisualRead::Readable(storage,static_cast<std::size_t>(count)*sizeof(*storage))){Restore();return;}
     for(int i=0;i<count;++i)ApplyEntrySafe(i,config);
 
