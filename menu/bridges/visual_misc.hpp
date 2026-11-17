@@ -15,6 +15,9 @@ inline void Configure(){
     s.tracer_targets=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_targets.get()));s.hitmarkers=static_cast<unsigned>(static_cast<std::uint64_t>(m.hitmarker.get()));s.impacts=m.impacts.get();s.impact_color=m.impacts_color2.get().rgba();
     for(int i=0;i<3;++i){s.tracer_styles[i]=static_cast<unsigned>(static_cast<std::uint64_t>(m.tracer_style[i].get()));s.tracer_colors[i]=m.tracer_colors[i].get().rgba();s.hit_duration[i]=m.hitmarker_duration[i].get();}
     s.hit_colors={m.hitmarker_world_color.get().rgba(),m.hitmarker_screen_color.get().rgba(),m.hitmarker_kibit_color.get().rgba()};
+    s.vignette=w.vignette.get();s.local_contrast=w.local_contrast.get();s.correction=w.color_correction.get();s.grayscale=w.grayscale.get();s.tone_curve=static_cast<unsigned>(static_cast<std::uint64_t>(w.tone_curve.get()));s.vignette_color=w.vignette_color.get().rgba();
+    s.contrast=w.correction_contrast.get();s.highlights=w.highlights.get();s.shadows=w.shadows.get();s.saturation=w.saturation.get();s.vibrance=w.vibrance.get();s.temperature=w.temperature.get();s.tint=w.tint.get();
+    s.local_strength=w.contrast_strength.get();s.edge_strength=w.contrast_edge_strength.get();s.vignette_start=w.contrast_vignette_start.get();s.vignette_end=w.contrast_vignette_end.get();s.vignette_blur=w.contrast_vignette_blur.get();
     VisualMisc::Publish(s);
 }
 inline void RenderEvents(){

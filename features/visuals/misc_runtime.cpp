@@ -1,4 +1,5 @@
 #include "misc_runtime.hpp"
+#include "postprocess.hpp"
 #include "../../context.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/model_preview.hpp"
@@ -319,6 +320,7 @@ void Initialize(){
     if(const auto address=offsets::Get("calc_viewmodel_view"))vm_hook.attach(reinterpret_cast<void*>(address),reinterpret_cast<void*>(&Viewmodel),reinterpret_cast<void**>(&vm_original));
 }
 void Shutdown(){
+    VisualPost::Reset();
     if(visual_registered && Interfaces::GameEvent)MEM::GetVFunc<void(__thiscall*)(void*,void*)>(Interfaces::GameEvent,5)(Interfaces::GameEvent,&visual_listener);
     visual_registered=false;beams=nullptr;ClearEvents();
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();

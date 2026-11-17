@@ -18,6 +18,10 @@ struct Settings {
     std::array<std::uint32_t,3> tracer_colors{},hit_colors{};
     std::array<float,3> hit_duration{1.f,1.f,1.f};
     std::uint32_t impact_color{};
+    bool vignette{},local_contrast{},correction{},grayscale{};
+    unsigned tone_curve{};std::uint32_t vignette_color{};
+    float contrast{},highlights{},shadows{},saturation{},vibrance{},temperature{},tint{};
+    float local_strength{},edge_strength{},vignette_start{},vignette_end{},vignette_blur{};
     bool night{},fullbright{},sky{},fog{},exposure{},bloom{};
     std::uint32_t night_color{0xffffffff},fullbright_color{0xffffffff},sky_color{0xffffffff},fog_color{0xffffffff};
     float exposure_value{50},bloom_value{50};
