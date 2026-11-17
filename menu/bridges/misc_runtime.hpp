@@ -30,12 +30,15 @@ inline void Configure(){
 }
 // Read the live matrix on the DX9 render thread once per rendered frame.
 // No tick-rate matrix or ctx data is shared with the marker publisher.
+inline bool ReadPeekMatrix(std::uintptr_t address,std::array<float,16>& matrix){
+    __try{std::memcpy(matrix.data(),reinterpret_cast<const void*>(address),sizeof(matrix));return true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
 inline bool PeekFrameMatrix(std::array<float,16>& matrix){
     static const auto offset=offsets::Get("dwViewMatrix");
     static const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     if(!base || !offset)return false;
-    __try{std::memcpy(matrix.data(),reinterpret_cast<const void*>(base+offset),sizeof(matrix));}
-    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+    if(!ReadPeekMatrix(base+offset,matrix))return false;
     for(float value:matrix)if(!std::isfinite(value))return false;
     return true;
 }
