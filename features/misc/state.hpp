@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <mutex>
 #include <atomic>
-#include <memory>
 #include <string>
 #include "../../sdk/structs.hpp"
 namespace MiscRuntime {
@@ -20,12 +19,23 @@ struct Settings {
     std::array<std::uint32_t,5> colors{};
 };
 struct Message {char text[192]{};std::uint32_t color{};double time{};};
-// Immutable publication: event/network readers never wait on the UI message lock.
-inline std::shared_ptr<const Settings> settings=std::make_shared<const Settings>();
+// Nonblocking snapshot exchange; never hold a lock while calling game/UI code.
+// A contended reader keeps its own last complete copy. A contended publisher
+// retries naturally on the next menu frame, rather than stalling a game thread.
+inline std::mutex settings_mutex;
+inline Settings settings;
 inline std::mutex message_mutex;
 inline std::array<Message,8> messages{};
-inline void Publish(const Settings& s){std::atomic_store(&settings,std::make_shared<const Settings>(s));}
-inline Settings Get(){return *std::atomic_load(&settings);}
+inline void Publish(const Settings& s){
+    std::unique_lock<std::mutex> lock(settings_mutex,std::try_to_lock);
+    if(lock.owns_lock())settings=s;
+}
+inline Settings Get(){
+    static thread_local Settings snapshot;
+    std::unique_lock<std::mutex> lock(settings_mutex,std::try_to_lock);
+    if(lock.owns_lock())snapshot=settings;
+    return snapshot;
+}
 inline std::array<Message,8> Messages(){
     static thread_local std::array<Message,8> snapshot{};
     std::unique_lock<std::mutex> lock(message_mutex,std::try_to_lock);

@@ -182,8 +182,9 @@ build-specific current-command offsets 0x3348/0x3298. Они не перенес
 - событийные hit/hurt/grenade/purchase сообщения (8 последних, 5 секунд),
   Fatality overlay остаётся видимым после смерти, цвет AARRGGBB декодируется правильно;
 - кэш ConVar pointers отдельно для каждого вызывающего потока, значения остаются live;
-- immutable Settings snapshots, atomics для alive/weapon/ping вместо общего mutex;
-  это не обещание lock-free STL atomic_shared_ptr. Message mutex отдельный,
+- Settings snapshots с try_lock и предыдущей полной копией при contention,
+  atomics для alive/weapon/ping вместо общего mutex; publisher при contention
+  повторяет попытку на следующем UI frame. Message mutex отдельный,
   renderer использует try_lock + предыдущий snapshot, сетевой rewind тоже try_lock;
 - вместо unconditional 512-sweep route search: active-setting gate, proximity sweep,
   shared 64-sweep budget, отказ от неполностью оценённого поиска;
