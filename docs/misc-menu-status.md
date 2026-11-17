@@ -29,7 +29,7 @@
 |---|---|
 | Bypass SV Pure | UI |
 | Bypass SV Cheats | UI |
-| Console filter | UI (не путать с работающим Console logs) |
+| Console filter | Подключён: con_filter_enable=1 и con_filter_text=[Pastaware], restore при выключении/unload; пользовательские изменения не перетираются. Требует проверяемый Source 1 x86 ConVar layout |
 | Auto-accept | Подключено экспериментально: проверенный callback client.dll, Panorama ABI из референса; match-found не тестировался |
 | Radar | Подключено, запись spotted; восстановление при выключении |
 | DPI scale: Automatic, 50%, 75%, 100%, 125%, 150%, 200% | Подключено к меню |
@@ -52,7 +52,7 @@
 |---|---|
 | Edge bugs | Экспериментальный поиск с общим бюджетом 64 трассы, после одной proximity sweep; применение только текущей команды |
 | Pixel surf | Экспериментальный поиск: нужны 3 последовательных unsupported floor contacts с half-gravity signature; не просто сравнение velocity |
-| Jump bug | Отсутствует; последний запрос на реализацию пока не выполнен |
+| Jump bug | Намеренно отсутствует в меню, cfg и runtime; пользователь подтвердил удаление |
 | Long jump | Jump–duck assist после отрыва; не speed exploit. Отключается при активных edge/pixel/no-fall для исключения конфликтов |
 | Ladder jump | Forward/upward ladder-top dismount: нижняя ladder trace hit + верхняя clear -> IN_JUMP. Сервер контролирует cooldown. Ladder physics solver по-прежнему не симулирует |
 
@@ -66,9 +66,13 @@
 | Defuser, Taser, Grenades | Подключено; сторона, buy zone, round/spawn dedup |
 
 Peek assist находится **в Rage → General**, а не во вкладке Misc. Его runtime общий
-с Misc: grounded anchor, возврат после weapon_fire / отпускания movement keys,
-торможение, distance limit и простая collision steering. Полная acknowledged
-shot history / native 32-command history / визуальные режимы не готовы.
+с Misc: grounded anchor, возврат после weapon_fire (включая выстрел в воздухе) / отпускания movement keys,
+торможение с оценкой остановочного пути, distance limit и простая collision steering.
+При телепорте >512 units / смене высоты >64 anchor сбрасывается. Добавлены
+наземные Glow/Filled режимы и два цвета (ожидание/возврат), renderer получает
+отдельный snapshot через try_lock. Полная acknowledged shot history / native
+32-command history не готовы. Маркер — DX9 overlay на плоскости anchor, не world material;
+на неровном полу нет отдельного mesh с прилеганием к поверхности.
 
 ## Что именно добавлено в prediction
 
@@ -192,11 +196,35 @@ build-specific current-command offsets 0x3348/0x3298. Они не перенес
 
 Не завершено (не считать выполнением полного запроса): настоящий IPrediction wrapper,
 MoveHelper/MD5/random seed/prediction_player/current cmd lifecycle, prediction compression
-RunCommand/PostNetworkDataReceived, pre/predict/post pipeline, Jump bug, ground Peek indicator,
+RunCommand/PostNetworkDataReceived, pre/predict/post pipeline,
 полная WASD/wall/Peek переработка, miss logs/shot details, native scoreboard/enemy chat,
-LC, console filter, SV bypass. Ping timestamp gate **сохранён**: нет проверенного
+LC, SV bypass. Ping timestamp gate **сохранён**: нет проверенного
 универсального channel layout; просто убрать gate означало бы писать в неизвестный объект.
 Прочие UI-only пункты отмечены в таблицах. Поэтому «каждый toggle работает» пока неверно.
 
 Локально нет Windows SDK/MSVC и игрового процесса. Portable-тесты не валидируют ABI,
 вызовы событий, in-game console/renderer, серверную физику или отсутствие prediction drift.
+
+
+## Продолжение после уточнения пользователя
+
+Jump bug не возвращать. Логи в этом проходе не менялись и дальнейшей доработки
+по последней просьбе не требуют.
+
+Дополнительно исправлены:
+- Quick stop: вместо фиктивного 0.001 counter-movement рассчитывается сила
+  по оставшейся после friction скорости и live accelerate/interval;
+- WASD-strafe: fallback на IN_FORWARD/BACK/MOVELEFT/MOVERIGHT при нулевых analog
+  значениях, Easy strafe учитывает выбранное направление WASD, не только view;
+- Peek: выстрел в воздухе latch до проверки ground, ранний сброс старого anchor,
+  физически мотивированный braking gate перед пересечением точки;
+- наземный Peek overlay: 48 сегментов, Filled/Glow, цвета ожидания/возврата,
+  independent nonblocking snapshot с view matrix; near-plane сегменты пропускаются;
+- Console filter: сохранение исходных enable/text, восстановление только своих
+  значений; callbacks/flags ConVar не патчатся. GetString не является virtual:
+  используется проверяемый x86 ConVar parent/string layout, не неверный vfunc 11.
+
+Полный engine prediction/compression pipeline и оставшиеся UI-only адаптеры из
+таблицы по-прежнему не реализованы. Из этого прохода не следует, что весь Misc
+готов или проверен в игре. Portable-тесты дополнены для airborne shot, braking,
+teleport/vertical reset, WASD Easy strafe, low-speed quick stop и marker snapshot.
