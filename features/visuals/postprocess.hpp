@@ -39,6 +39,7 @@ inline void Render(IDirect3DDevice9* dev){
     D3DSURFACE_DESC desc{};const HRESULT described=target->GetDesc(&desc);
     if(FAILED(described) || !Prepare(dev,desc) || FAILED(dev->StretchRect(target,nullptr,surface,nullptr,D3DTEXF_NONE))){Release(target);return;}
     Release(target);
+    if(Interfaces::Globals)last_frame=Interfaces::Globals->framecount;
     IDirect3DStateBlock9* state=nullptr;
     if(FAILED(dev->CreateStateBlock(D3DSBT_ALL,&state)) || !state)return;
     if(FAILED(state->Capture())){Release(state);return;}

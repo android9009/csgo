@@ -43,7 +43,7 @@ inline void RenderEvents(){
         const float forward=m[12]*delta.x+m[13]*delta.y+m[14]*delta.z;
         const float angle=std::atan2(-forward,right);const vec2 direction{std::cos(angle),std::sin(angle)},side{-direction.y,direction.x};
         const vec2 center=display*.5f;const float radius=(std::min)(display.x,display.y)*.45f*std::clamp(s.arrow_distance*.01f,.01f,1.f),size=std::clamp(s.arrow_size,1.f,50.f);
-        const vec2 tip=center+direction*radius,base=tip-direction*size;const color c{color{s.arrow_color},point.alpha};
+        const vec2 tip=center+direction*radius,base=tip-direction*size;const color c{color{s.arrow_color},point.alpha*static_cast<float>(s.arrow_color>>24)/255.f};
         d->add_line(tip,base+side*(size*.5f),c);d->add_line(tip,base-side*(size*.5f),c);d->add_line(base+side*(size*.5f),base-side*(size*.5f),c);
     }
     VisualMisc::Trajectory path;
@@ -54,7 +54,7 @@ inline void RenderEvents(){
     }
     auto cross=[&](vec2 p,color c,float size){for(float x:{-1.f,1.f})for(float y:{-1.f,1.f})d->add_line(p+vec2{x*2.f,y*2.f},p+vec2{x*size,y*size},c);};
     for(std::size_t i=0;i<frame.count;++i){const auto& r=frame.records[i];const float age=frame.time-r.time;vec2 a,b;
-        if(r.kind==0 && age<1.5f && (s.tracer_targets&(1u<<r.group)) && (s.tracer_styles[r.group]&2u) && project(r.start,a) && project(r.end,b))d->add_line(a,b,color{color{s.tracer_colors[r.group]},1.f-age/1.5f});
+        if(r.kind==0 && age<1.5f && (s.tracer_targets&(1u<<r.group)) && (s.tracer_styles[r.group]&2u) && project(r.start,a) && project(r.end,b))d->add_line(a,b,color{color{s.tracer_colors[r.group]},(1.f-age/1.5f)*static_cast<float>(s.tracer_colors[r.group]>>24)/255.f});
         if(r.kind==0 && s.impacts && r.group==0 && age<4.f){
             std::array<vec2,8> points;bool visible=true;for(unsigned j=0;j<8;++j)visible=project(r.end+Vector{(j&1)?2.f:-2.f,(j&2)?2.f:-2.f,(j&4)?2.f:-2.f},points[j]) && visible;
             if(visible)for(unsigned j=0;j<8;++j)for(unsigned bit:{1u,2u,4u})if(!(j&bit))d->add_line(points[j],points[j|bit],color{s.impact_color});
