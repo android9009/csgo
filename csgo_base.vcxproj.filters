@@ -605,6 +605,7 @@
     </ClInclude>
     <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\engine_prediction.hpp"><Filter>Features</Filter></ClInclude>
+    <ClInclude Include="features\misc\prediction_compression.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\prediction.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\misc\state.hpp"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="menu\bridges\misc_runtime.hpp"><Filter>Menu\bridges</Filter></ClInclude>

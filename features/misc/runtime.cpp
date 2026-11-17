@@ -175,8 +175,8 @@ void RestoreRadar(){
         record={};
     }
 }
-VMT_Hook datagram_hook;void* ping_channel{};SequenceHistory sequence_history;std::mutex sequence_mutex;
-using DatagramFn=int(__thiscall*)(void*,void*);DatagramFn datagram_original{};
+VMT_Hook datagram_hook;std::atomic<void*> ping_channel{};SequenceHistory sequence_history;std::mutex sequence_mutex;
+using DatagramFn=int(__thiscall*)(void*,void*);std::atomic<DatagramFn> datagram_original{};
 struct SequenceRestore {int sequence{},reliable{};bool active{};};
 bool ApplySequence(void* channel,const SequenceHistory::Entry& entry,SequenceRestore& restore){
     __try{
@@ -206,7 +206,7 @@ bool SafeSelectSequence(void* channel,void* data,SequenceHistory::Entry& selecte
     __try{return SelectSequence(channel,data,selected);}__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 int __fastcall SendDatagram(void* channel,void*,void* data){
-    const auto original=datagram_original;if(!original)return 0;
+    const auto original=datagram_original.load(std::memory_order_acquire);if(!original)return 0;
     SequenceHistory::Entry selected;SequenceRestore restore;
     if(SafeSelectSequence(channel,data,selected)){
         if(!ApplySequence(channel,selected,restore)){RestoreSequence(channel,restore);restore.active=false;}
@@ -225,7 +225,7 @@ bool PingChannelSupported(void* channel){
     const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(engine+dos->e_lfanew);
     if(nt->Signature!=IMAGE_NT_SIGNATURE || nt->FileHeader.Machine!=IMAGE_FILE_MACHINE_I386)return false;
     const auto base=reinterpret_cast<std::uintptr_t>(engine),limit=base+nt->OptionalHeader.SizeOfImage;
-    const auto address=reinterpret_cast<std::uintptr_t>(channel==ping_channel && datagram_hook.is_hooked() ? datagram_original : MEM::GetVFunc<DatagramFn>(channel,46));
+    const auto address=reinterpret_cast<std::uintptr_t>(channel==ping_channel && datagram_hook.is_hooked() ? datagram_original.load(std::memory_order_acquire) : MEM::GetVFunc<DatagramFn>(channel,46));
     MEMORY_BASIC_INFORMATION memory{};
     if(address<base || address>=limit || !VirtualQuery(reinterpret_cast<void*>(address),&memory,sizeof memory) || !(memory.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY)))return false;
     const int sequence=*reinterpret_cast<const int*>(static_cast<const unsigned char*>(channel)+0x1c);
@@ -383,9 +383,6 @@ void RevealRanks(CUserCmd& cmd,const Settings& options){
     // The supplied client handler takes CCSUsrMsg_ServerRankRevealAll, not
     // the historical int[3]. Dispatch constructs the right protobuf object.
     if(!offsets::Get("server_rank_reveal_handler"))return;
-    static int last_reveal{};
-    if(cmd.command_number>=last_reveal && cmd.command_number-last_reveal<32)return;
-    last_reveal=cmd.command_number;
     const unsigned char message[]{0x08,0x00}; // seconds_till_shutdown = 0
     MEM::GetVFunc<bool(__thiscall*)(void*,int,int,int,const void*)>(Interfaces::Client,38)(Interfaces::Client,50,0,sizeof(message),message);
 }

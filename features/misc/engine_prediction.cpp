@@ -1,4 +1,5 @@
 #include "engine_prediction.hpp"
+#include "prediction_compression.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/entity/player.hpp"
 #include "../../sdk/structs.hpp"
@@ -63,9 +64,9 @@ inline void Correct(int acknowledged){
         if(!Offset(compressed_offsets[i]))continue;
         auto& value=Field<Vector>(player,compressed_offsets[i]);const auto& saved=entry.vectors[i];
         const float tolerance=i==3 ? .065f : .03125f;
-        if(value.IsValid() && saved.IsValid() && std::abs(value.x-saved.x)<=tolerance && std::abs(value.y-saved.y)<=tolerance && std::abs(value.z-saved.z)<=tolerance)value=saved;
+        PredictionCompression::Restore(value,saved,tolerance);
     }
-    if(Offset(fall_offset)){auto& value=Field<float>(player,fall_offset);if(std::isfinite(value) && std::isfinite(entry.fall) && std::abs(value-entry.fall)<=.5f)value=entry.fall;}
+    if(Offset(fall_offset)){auto& value=Field<float>(player,fall_offset);PredictionCompression::Restore(value,entry.fall,.5f);}
 }
 // Source SDK ClientState command counters are three consecutive int32 fields.
 // The base and delta displacement are already resolved by utils/patterns.
