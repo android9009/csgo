@@ -41,9 +41,9 @@ inline IMaterial* Create(int kind) {
     // This is KeyValues::FromString(shader, flat key/value pairs), NOT
     // LoadFromBuffer(resourceName, full VMT). Passing a full VMT here nests
     // all shader parameters under a child and makes the root the file name.
-    const char* shader=kind==2 ? "UnlitGeneric" : "VertexLitGeneric";
-    const char* body=std::strchr(definition,'{');if(!body)return nullptr;
-    auto* kv=Parse(shader,body+1);
+    const char* shader=FatalityMaterialDefinition::Shader(kind);
+    const char* body=FatalityMaterialDefinition::Parameters(definition);if(!shader || !body)return nullptr;
+    auto* kv=Parse(shader,body);
     if(!kv){LOG_WARN("Fatality material parser unavailable: kind=%d",kind);return nullptr;}
     auto* material=Interfaces::MaterialSystem->CreateMaterial(name,kv);
     if(material && !material->IsErrorMaterial())LOG_INFO("chams created kind=%d shader=%s",kind,material->GetShaderName());

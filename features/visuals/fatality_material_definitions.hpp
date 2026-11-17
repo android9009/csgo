@@ -3,6 +3,9 @@
 // src/effects/model_render.cpp::prepare_material (kinds 2/3).
 // No native-address bindings or private material-system layouts are copied.
 namespace FatalityMaterialDefinition {
+inline constexpr const char* Shader(int kind){return kind==2 ? "UnlitGeneric" : (kind==9 || kind==10) ? "VertexLitGeneric" : nullptr;}
+inline constexpr const char* Parameters(const char* vmt){if(!vmt)return nullptr;for(;*vmt;++vmt)if(*vmt=='{')return vmt+1;return nullptr;}
+
 inline constexpr const char* flat = R"VMT("UnlitGeneric"
 {
  "$basetexture" "vgui/white"

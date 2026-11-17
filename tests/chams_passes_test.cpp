@@ -41,6 +41,14 @@ int main(){
     assert(ChamsPasses::GhostFade(.8f)>.49f && ChamsPasses::GhostFade(.8f)<.51f);
     assert(ChamsPasses::GhostFade(1.f)==0.f && ChamsPasses::GhostFade(-1.f)==0.f);
     using sv=std::string_view;
+    assert(sv(FatalityMaterialDefinition::Shader(2))=="UnlitGeneric");
+    assert(sv(FatalityMaterialDefinition::Shader(ChamsPasses::Shaded))=="VertexLitGeneric");
+    assert(sv(FatalityMaterialDefinition::Shader(ChamsPasses::Metallic))=="VertexLitGeneric");
+    for(const char* vmt:{FatalityMaterialDefinition::flat,FatalityMaterialDefinition::shaded,FatalityMaterialDefinition::metallic}){
+        const char* body=FatalityMaterialDefinition::Parameters(vmt);assert(body);
+        assert(sv(body).find("Generic")==sv::npos && sv(body).find("$basetexture")!=sv::npos);
+    }
+    assert(!FatalityMaterialDefinition::Parameters("not a VMT"));
     assert(ChamsPasses::Selection(8)==0 && ChamsPasses::Selection(11)==0);
     assert(sv(FatalityMaterialDefinition::shaded).find("$phongtint")!=sv::npos);
     assert(sv(FatalityMaterialDefinition::metallic).find("editor/cube_vertigo_blurred_hdr")!=sv::npos);
