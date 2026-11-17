@@ -37,7 +37,7 @@ bool Init() {
     REGISTER_OFFSET(anim_overlays); REGISTER_OFFSET(m_flSpawnTime); REGISTER_OFFSET(find_hud_element);
     REGISTER_OFFSET(m_bIsLocalPlayer);
 // New prediction bindings intentionally have no timestamp-specific fallback.
-    for(const auto* name:{"input_thirdperson_flag","input_camera_offset","calc_viewmodel_view","prediction_current_command","prediction_last_command","prediction_random_seed","prediction_player","prediction_move_helper","prediction_forced_buttons","prediction_disabled_buttons","prediction_buttons","prediction_last_buttons","prediction_pressed_buttons","prediction_released_buttons","prediction_md5_fastcall","server_rank_reveal_handler"})
+    for(const auto* name:{"visual_smoke_count","input_thirdperson_flag","input_camera_offset","calc_viewmodel_view","prediction_current_command","prediction_last_command","prediction_random_seed","prediction_player","prediction_move_helper","prediction_forced_buttons","prediction_disabled_buttons","prediction_buttons","prediction_last_buttons","prediction_pressed_buttons","prediction_released_buttons","prediction_md5_fastcall","server_rank_reveal_handler"})
         s_values.emplace(name,Patterns::Get(name));
 #undef REGISTER_OFFSET
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");

@@ -26,7 +26,7 @@ VMT_Hook view_hook,fov_hook,aspect_hook,draw_vm_hook;
 Detour_Hook vm_hook;
 ViewFn view_original{};FovFn fov_original{};AspectFn aspect_original{};DrawVmFn draw_vm_original{};VmFn vm_original{};
 std::ptrdiff_t camera_flag{},camera_offset{},observer_offset{};
-bool camera_owned{},old_camera{};Vector old_offset{};float camera_distance{},aspect_value{};
+bool camera_owned{},old_camera{};Vector old_offset{};float camera_distance{},aspect_value{};int aspect_frame{-1};
 CCSPlayer* observer_player{};int observer_original{};
 std::atomic<float> model_alpha{1.f};std::atomic<unsigned> removal_bits{};
 void RestoreCamera(){
@@ -79,9 +79,13 @@ bool __fastcall DrawViewmodel(void* self,void*){const auto s=Get();return s.fov_
 float __fastcall Aspect(void* self,void*,int width,int height){
     const float original=aspect_original(self,width,height);const auto s=Get();
     const float target=s.fov_enabled && s.aspect>0.f && ctx.in_game ? std::clamp(s.aspect*.01f,.5f,2.f) : original;
+    if(!s.fov_enabled || s.aspect<=0.f || !ctx.in_game){aspect_value=original;return original;}
     if(aspect_value<=0.f)aspect_value=original;
-    aspect_value=Smooth(aspect_value,target,Interfaces::Globals ? Interfaces::Globals->absoluteframetime : .016f);
-    return s.fov_enabled && s.aspect>0.f ? aspect_value : original;
+    if(!Interfaces::Globals || aspect_frame!=Interfaces::Globals->framecount){
+        aspect_frame=Interfaces::Globals ? Interfaces::Globals->framecount : -1;
+        aspect_value=Smooth(aspect_value,target,Interfaces::Globals ? Interfaces::Globals->absoluteframetime : .016f);
+    }
+    return aspect_value;
 }
 void __fastcall Viewmodel(void* self,void*,CCSPlayer* owner,const Vector& eye,const QAngle& angles){
     const auto s=Get();Vector position=eye;QAngle rotation=angles;
@@ -184,6 +188,8 @@ void Materials(const Settings& s){
     }
     budget=128;while(apply_cursor<materials.size() && budget-- >0)Modulate(materials[apply_cursor++],material_settings);
 }
+int* smoke_count{};int smoke_backup{};bool smoke_saved{};
+void RestoreSmoke(){if(smoke_saved && smoke_count)*smoke_count=smoke_backup;smoke_saved=false;}
 CCSPlayer* punch_player{};Vector aim_backup{},view_backup{};bool punch_saved{};
 CCSPlayer* flash_player{};float flash_backup{};bool flash_saved{};
 bool LivePlayer(CCSPlayer* player){return player && Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer())==player;}
@@ -212,11 +218,12 @@ void FrameImpl(int stage){
 }
 void BeforeFrame(int stage){
     __try{
-        if(stage==0 || stage==1 || stage==5)RestorePunch();
+        if(stage==0 || stage==1 || stage==5){RestorePunch();RestoreSmoke();}
+        if(stage==5 && ctx.in_game && smoke_count && (Get().removals&2u) && *smoke_count>=0 && *smoke_count<=4096){smoke_backup=*smoke_count;smoke_saved=true;*smoke_count=0;}
         if(stage==5 && ctx.local && ctx.in_game && (Get().removals&(1u<<8))){punch_player=ctx.local;aim_backup=ctx.local->m_aimPunchAngle();view_backup=ctx.local->m_viewPunchAngle();punch_saved=true;ctx.local->m_aimPunchAngle()={};ctx.local->m_viewPunchAngle()={};}
     }__except(EXCEPTION_EXECUTE_HANDLER){}
 }
-void Frame(int stage){__try{if(stage==6)RestorePunch();FrameImpl(stage);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged{};if(!logged){logged=true;LOG_WARN("visual misc: invalid frame resource");}}}
+void Frame(int stage){__try{if(stage==6){RestorePunch();RestoreSmoke();}FrameImpl(stage);}__except(EXCEPTION_EXECUTE_HANDLER){static bool logged{};if(!logged){logged=true;LOG_WARN("visual misc: invalid frame resource");}}}
 bool HideScopePanel(const char* name){return name && !std::strcmp(name,"HudZoom") && GetLocal().scoped && (Get().scope&~1u)!=0;}
 float LocalAlpha(int index){const float alpha=model_alpha.load(std::memory_order_relaxed);return alpha<1.f && ctx.local && index==ctx.local->GetIndex() ? alpha : 1.f;}
 bool RemovingRagdolls(){return (removal_bits.load(std::memory_order_relaxed)&(1u<<7))!=0;}
@@ -233,6 +240,7 @@ bool CurrentMatrix(std::array<float,16>& matrix){
     return true;
 }
 void Initialize(){
+    smoke_count=reinterpret_cast<int*>(offsets::Get("visual_smoke_count"));
     camera_flag=static_cast<std::ptrdiff_t>(offsets::Get("input_thirdperson_flag"));camera_offset=static_cast<std::ptrdiff_t>(offsets::Get("input_camera_offset"));
     observer_offset=PropManager::Get().GetOffset("DT_BasePlayer","m_iObserverMode");
     if(Interfaces::ClientMode){
@@ -245,7 +253,7 @@ void Initialize(){
 }
 void Shutdown(){
     view_hook.detach();fov_hook.detach();draw_vm_hook.detach();aspect_hook.detach();vm_hook.detach();
-    __try{RestorePunch();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
+    __try{RestorePunch();RestoreSmoke();RestoreFlash();RestoreCamera();ReleaseMaterials();Settings disabled;Cvars(disabled,false);}__except(EXCEPTION_EXECUTE_HANDLER){}
     model_alpha.store(1.f);removal_bits.store(0);connected=false;
 }
 }
