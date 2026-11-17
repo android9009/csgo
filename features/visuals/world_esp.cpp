@@ -11,7 +11,7 @@ namespace WorldEsp {
 namespace {
 Frame cached;
 Options previous;
-std::uint64_t next_scan{};
+std::uint64_t next_scan{},last_scan{};
 std::ptrdiff_t owner{},ticking{},blow{},defuse_end{},defuser{},dormant{},origin{},armor{};
 std::uintptr_t matrix_address{};
 VisualRead::Module client;
@@ -59,7 +59,8 @@ bool CaptureFrame(Frame& out){
     if(!Interfaces::Engine || !Interfaces::Engine->IsInGame() || !Interfaces::Engine->IsConnected() || !Interfaces::Globals || !matrix_address || !client.Contains(reinterpret_cast<void*>(matrix_address),sizeof(out.matrix)))return false;
     std::memcpy(out.matrix.data(),reinterpret_cast<const void*>(matrix_address),sizeof out.matrix);
     out.time=Interfaces::Globals->curtime;out.framecount=static_cast<std::uint32_t>(Interfaces::Globals->framecount);
-    return std::isfinite(out.time) && ValidMatrix(out.matrix);
+    out.matrix_validated=ValidMatrix(out.matrix);
+    return std::isfinite(out.time) && out.matrix_validated;
 }
 bool FrameRaw(Frame& out){__try{return CaptureFrame(out);}__except(Fault(GetExceptionInformation(),"matrix")){return false;}}
 }
@@ -73,18 +74,19 @@ void Initialize(){
 }
 void Scan(){
     const auto options=GetOptions();
-    if(!initialized || !options.Any() || !ctx.in_game){cached={};previous=options;next_scan=0;class_count=0;Publish(cached);return;}
+    if(!initialized || !options.Any() || !ctx.in_game){cached={};previous=options;next_scan=0;last_scan=0;class_count=0;Publish(cached);return;}
     const auto now=GetTickCount64();if(now<next_scan && previous.enabled==options.enabled)return;
     next_scan=now+200;previous=options;Frame next;
     LOG_INFO("world esp: scan start categories=%d/%d/%d",options.enabled[0],options.enabled[1],options.enabled[2]);
     const bool ok=ScanRaw(options,next);
     LOG_INFO("world esp: scan end items=%u categories=%d/%d/%d ok=%d",static_cast<unsigned>(next.count),options.enabled[0],options.enabled[1],options.enabled[2],ok);
-    cached=ok ? next : Frame{};
+    cached=ok ? next : Frame{};last_scan=ok ? now : 0;
     if(!ok){class_count=0;Publish(cached);} // No locks in the exception handler.
 }
 void Capture(){
     const auto options=GetOptions();Frame next=cached;
-    next.valid=initialized && options.Any() && FrameRaw(next);next.captured_ms=GetTickCount64();
+    const auto now=GetTickCount64();
+    next.valid=initialized && options.Any() && last_scan && now>=last_scan && now-last_scan<=500 && FrameRaw(next);next.captured_ms=now;
     if(!next.valid){next.count=0;cached={};next_scan=0;}
     static bool reported{},was_valid{};
     if(!reported || was_valid!=next.valid){LOG_INFO("world esp: matrix valid=%d",next.valid);reported=true;was_valid=next.valid;}

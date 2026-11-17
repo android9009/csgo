@@ -125,6 +125,7 @@ static void* CreateDummyDevice(bool ex) {
     return device;
 }
 bool Setup() {
+    WorldEsp::Initialize();
     // Menu hooks first: the menu only needs the game window (WndProc) and the
     // D3D9 device (EndScene), so it must work even if other interfaces fail.
     // CS:GO's top-level window class is "Valve001"; no vfunc needed.
@@ -191,7 +192,6 @@ bool Setup() {
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
-    WorldEsp::Initialize();
     ShotChams::Initialize();
     MiscRuntime::Initialize();
     VisualMisc::Initialize();

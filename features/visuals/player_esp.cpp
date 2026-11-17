@@ -19,6 +19,8 @@ void CaptureImpl() {
     const auto offset=offsets::Get("dwViewMatrix");
     if(!base || !offset){ClearPlayers();return;}
     std::memcpy(projection.matrix.data(),reinterpret_cast<void*>(base+offset),sizeof(float)*16);
+    projection.matrix_validated=WorldEsp::ValidMatrix(projection.matrix);
+    if(!projection.matrix_validated){ClearPlayers();return;}
     auto project=[&](const Vector& p,VisualPreview::Point& result) {
         WorldEsp::Item point;point.x=p.x;point.y=p.y;point.z=p.z;
         return WorldEsp::ProjectUnclipped(projection,point,result.x,result.y);

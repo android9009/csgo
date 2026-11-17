@@ -30,7 +30,7 @@ struct Item {
 struct Frame {
     std::array<Item,256> items{};std::size_t count{};
     std::array<float,16> matrix{};
-    float time{};std::uint32_t framecount{};std::uint64_t captured_ms{};bool valid{};
+    float time{};std::uint32_t framecount{};std::uint64_t captured_ms{};bool valid{},matrix_validated{};
 };
 inline std::mutex mutex;
 inline Options settings_state;
@@ -58,7 +58,7 @@ inline bool ValidMatrix(const std::array<float,16>& m){
 }
 inline bool Fresh(const Frame& f,std::uint32_t frame,float time,std::uint64_t now){return f.valid && frame>=f.framecount && frame-f.framecount<=2 && std::isfinite(time) && time>=f.time && time-f.time<=.25f && now>=f.captured_ms && now-f.captured_ms<=250;}
 inline bool ProjectUnclipped(const Frame& f,const Item& item,float& x,float& y) {
-    if(!ValidMatrix(f.matrix) || !std::isfinite(item.x) || !std::isfinite(item.y) || !std::isfinite(item.z))return false;
+    if((!f.matrix_validated && !ValidMatrix(f.matrix)) || !std::isfinite(item.x) || !std::isfinite(item.y) || !std::isfinite(item.z))return false;
     const auto& m=f.matrix;
     const float w=m[12]*item.x+m[13]*item.y+m[14]*item.z+m[15];
     if(!std::isfinite(w) || w<=.01f)return false;

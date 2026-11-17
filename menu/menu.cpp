@@ -455,6 +455,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     VisualMiscBridge::Configure();
     VisualSettings::Configure();
     WorldEspOverlay::Configure();
+    WorldEspOverlay::Initialize();
     if(trace_first)LOG_INFO("render startup: begin frame / world overlay");
     draw.begin_frame();
     MiscBridge::Render();
