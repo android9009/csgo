@@ -4,7 +4,7 @@
 #include "../../features/visuals/misc_runtime.hpp"
 namespace VisualMiscBridge {
 inline void Configure(){
-    const auto& m=cfg.misc;const auto& v=cfg.visuals;const auto& w=v.world_effects;VisualMisc::Settings s;
+    auto& m=cfg.misc;auto& v=cfg.visuals;auto& w=v.world_effects;VisualMisc::Settings s;
     s.third=m.thirdperson.get();s.dead=m.thirdperson_dead.get();s.grenade_off=m.thirdperson_grenade.get();s.instant=m.thirdperson_no_interp.get();s.distance=m.thirdperson_dist.get();
     s.scope_alpha=m.transparency_in_scope.get();s.nade_alpha=m.transparency_nade.get();s.fov_enabled=m.fov_enabled.get();s.fov=m.fov.get();s.zoom=m.fov_scope.get();s.aspect=m.aspect.get();s.second_zoom=m.force_second_zoom.get();s.viewmodel_scope=m.force_viewmodel_scope.get();
     s.vm_enabled=m.vm_fov_enabled.get();s.vm_fov=m.vm_fov.get();s.vm_position={m.viewmodel_x.get(),m.viewmodel_y.get(),m.viewmodel_z.get()};s.vm_angles={m.viewmodel_pitch.get(),m.viewmodel_yaw.get(),m.viewmodel_roll.get()};s.landing_bob=m.disable_landing_bob.get();
