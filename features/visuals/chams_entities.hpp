@@ -2,6 +2,18 @@
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/entity/entity.hpp"
 #include <cstring>
+#include <string_view>
+namespace ChamsObjects {
+enum Category { Weapon, Grenade, C4, None };
+inline bool Projectile(std::string_view name){return name=="CBaseCSGrenadeProjectile" || name=="CSmokeGrenadeProjectile" || name=="CDecoyProjectile" || name=="CMolotovProjectile" || name=="CInferno";}
+inline Category Classify(std::string_view name) {
+    if(name=="CPlantedC4" || name=="CC4")return C4;
+    if(Projectile(name) || name=="CFlashbang")return Grenade;
+    if(name.substr(0,7)=="CWeapon" || name=="CAK47" || name=="CDEagle" || name=="CKnife" || name=="CSmokeGrenade" || name=="CHEGrenade" || name=="CMolotovGrenade" || name=="CIncendiaryGrenade" || name=="CDecoyGrenade")return Weapon;
+    return None;
+}
+}
+
 namespace ChamsEntities {
 inline const char* Class(CBaseEntity* e){auto* c=e ? e->GetClientClass() : nullptr;return c ? c->m_pNetworkName : nullptr;}
 inline bool Is(CBaseEntity* e,const char* name){const auto* c=Class(e);return c && std::strcmp(c,name)==0;}

@@ -1,7 +1,5 @@
 #include "hooks.hpp"
-#include "../../features/visuals/misc_runtime.hpp"
 #include "../../menu/preview/model_preview.hpp"
-#include "../world_esp_state.hpp"
 #include "../visual_runtime_state.hpp"
 #include "../../features/skins/skin_changer.hpp"
 #include "../../features/skins/local_inventory.hpp"
@@ -14,7 +12,6 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_POSTDATAUPDATE_START=2, FRAME_NET_UPDATE_POSTDATAUPDATE_END=3,
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
-    VisualMisc::BeforeFrame(stage);
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
@@ -23,7 +20,6 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         static bool first_capture=true;
         const bool trace_first=first_capture;first_capture=false;
         if(trace_first)LOG_INFO("frame startup: world snapshot");
-        WorldEsp::Capture();
         if(trace_first)LOG_INFO("frame startup: player snapshot");
         VisualRuntime::CapturePlayers();
         if(trace_first)LOG_INFO("frame startup: preview");
@@ -62,7 +58,5 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
-    if(stage==4 || (stage==0 && !ctx.in_game))WorldEsp::Scan();
-    VisualMisc::Frame(stage);
 }
 }

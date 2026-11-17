@@ -36,9 +36,7 @@ bool Init() {
     REGISTER_OFFSET(set_abs_origin); REGISTER_OFFSET(is_c4_owner); REGISTER_OFFSET(force_update_spectator_glow);
     REGISTER_OFFSET(anim_overlays); REGISTER_OFFSET(m_flSpawnTime); REGISTER_OFFSET(find_hud_element);
     REGISTER_OFFSET(m_bIsLocalPlayer);
-// New prediction bindings intentionally have no timestamp-specific fallback.
-    for(const auto* name:{"client_mode_global","visual_render_beams","visual_smoke_count","input_thirdperson_flag","calc_viewmodel_view","calc_viewmodel_landing_bob","prediction_current_command","prediction_last_command","prediction_random_seed","prediction_player","prediction_move_helper","prediction_forced_buttons","prediction_disabled_buttons","prediction_buttons","prediction_last_buttons","prediction_pressed_buttons","prediction_released_buttons","prediction_md5_fastcall","server_rank_reveal_handler"})
-        s_values.emplace(name,Patterns::Get(name));
+    s_values.emplace("client_mode_global",Patterns::Get("client_mode_global"));
 #undef REGISTER_OFFSET
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");
     if (!ok) LOG_ERROR("Offset initialization did not resolve critical values.");

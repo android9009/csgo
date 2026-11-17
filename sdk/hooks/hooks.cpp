@@ -1,8 +1,6 @@
 #include "hooks.hpp"
 #include "../visual_runtime_state.hpp"
-#include "../world_esp_state.hpp"
 #include "../../utils/detourhook.hpp"
-#include "../../utils/native_guard.hpp"
 #include "../../utils/log.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../../utils/memory.hpp"
@@ -10,22 +8,10 @@
 #include "../../utils/config.hpp"
 #include "../../features/skins/local_inventory.hpp"
 #include "../../features/visuals/shot_chams.hpp"
-#include "../../features/misc/runtime.hpp"
-#include "../../features/visuals/misc_runtime.hpp"
 #include <d3d9.h>
 #include "../structs.hpp"
 namespace Hooks {
-static VMT_Hook client_mode_hook;
-static VMT_Hook mouse_input_hook;
-static void __fastcall OverrideMouseInput(void* instance, void*, float* x, float* y) {
-    using Fn = void (__thiscall*)(void*, float*, float*);
-    if (auto original = mouse_input_hook.get_original<Fn>()) original(instance, x, y);
-    // Block only camera deltas, never the keyboard/input system as a whole.
-    if (Config::settings.show_menu) {
-        if (x) *x = 0.f;
-        if (y) *y = 0.f;
-    }
-}
+
 static VMT_Hook panel_hook;
 static VMT_Hook cursor_hook;
 static void __fastcall LockCursor(void* surface, void*) {
@@ -54,7 +40,6 @@ static void* dummy_ex = nullptr;
 static void* direct_vtable = nullptr;
 static void* d3d9_vtable = nullptr;
 static void* ex_vtable = nullptr;
-CreateMoveFn GetCreateMoveOriginal() { return client_mode_hook.get_original<CreateMoveFn>(); }
 PaintTraverseFn GetPaintTraverseOriginal() { return panel_hook.get_original<PaintTraverseFn>(); }
 WNDPROC GetOriginalWndProc() { return original_wndproc; }
 EndSceneFn GetEndSceneOriginal() { return device_hook.get_original<EndSceneFn>(); }
@@ -126,7 +111,6 @@ static void* CreateDummyDevice(bool ex) {
     return device;
 }
 bool Setup() {
-    WorldEsp::Initialize();
     // Menu hooks first: the menu only needs the game window (WndProc) and the
     // D3D9 device (EndScene), so it must work even if other interfaces fail.
     // CS:GO's top-level window class is "Valve001"; no vfunc needed.
@@ -175,15 +159,6 @@ bool Setup() {
         LOG_INFO("surface cursor hook=%d", cursor_hook.is_hooked());
     }
 
-    // Feature hooks are best-effort: missing interfaces only disable features.
-    if (Interfaces::ClientMode) {
-        if(!NativeCall::CallerChecked(MEM::GetVFunc<void*>(Interfaces::ClientMode,24)))client_mode_hook.attach(Interfaces::ClientMode,24,reinterpret_cast<void*>(&HooksInternal::CreateMove));
-        else LOG_ERROR("CreateMove: caller-checked entry; incompatible VMT hook NOT installed (command features unavailable)");
-        if(!NativeCall::CallerChecked(MEM::GetVFunc<void*>(Interfaces::ClientMode,23)))mouse_input_hook.attach(Interfaces::ClientMode,23,reinterpret_cast<void*>(&OverrideMouseInput));
-        else LOG_WARN("mouse input: caller-checked entry; incompatible VMT hook NOT installed");
-    }
-    else
-        LOG_WARN("ClientMode is null; CreateMove not hooked");
     if (Interfaces::Panel)
         panel_hook.attach(Interfaces::Panel, 41, reinterpret_cast<void*>(&HooksInternal::PaintTraverse));
     else
@@ -196,11 +171,9 @@ bool Setup() {
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
     ShotChams::Initialize();
-    MiscRuntime::Initialize();
-    VisualMisc::Initialize();
-    LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d CreateMove=%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
+    LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
-        device_ex_hook.is_hooked(), client_mode_hook.is_hooked(), panel_hook.is_hooked(),
+        device_ex_hook.is_hooked(), panel_hook.is_hooked(),
         client_hook.is_hooked(), view_render_hook.is_hooked(), model_render_hook.is_hooked());
     // The cheat stays loaded as long as the menu can be toggled; feature hooks
     // are optional until features land.
@@ -208,8 +181,6 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
-    VisualMisc::Shutdown();
-    MiscRuntime::Shutdown();
     ShotChams::Shutdown();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();
@@ -219,7 +190,7 @@ void Restore() {
     model_render_hook.detach(); view_render_hook.detach(); client_hook.detach();
     reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
-    cursor_hook.detach(); panel_hook.detach(); mouse_input_hook.detach(); client_mode_hook.detach();
+    cursor_hook.detach(); panel_hook.detach(); 
     LOG_INFO("hooks restored");
 }
 }

@@ -14,7 +14,7 @@ menu/
   bridges/                publish GUI settings to runtime snapshots
   overlays/               GUI-renderer drawing adapters for game overlays
 features/
-  misc/                   movement, prediction, events, buybot and other game logic
+  misc/                   reserved (Misc runtime removed)
   visuals/                ESP data gathering, chams, glow and shot rendering logic
   skins/                  skin/equipment application and local-inventory logic
 ```
@@ -53,7 +53,7 @@ source list and adds only the intended dependency sources. Include roots and
 Visual Studio filters follow these physical locations.
 
 `tests/` is intentionally retained: the fifteen portable regression programs
-check movement prediction, inventory identifiers, preview state and rendering
+check inventory identifiers, preview state and rendering
 plans. They are excluded from DLL compilation, take approximately 64 KiB, and
 are useful for catching regressions after file-layout changes. The removed
 `tools/` directory contained only the two standalone ABI inspection scripts;

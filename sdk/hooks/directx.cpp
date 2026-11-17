@@ -1,5 +1,4 @@
 #include "hooks.hpp"
-#include "../../features/visuals/postprocess.hpp"
 #include "../../menu/preview/model_preview.hpp"
 #include "../../utils/config.hpp"
 #include "../../utils/log.hpp"
@@ -23,7 +22,6 @@ long __stdcall EndScene(void* device) {
     IDirect3DStateBlock9* state = nullptr;
     if (SUCCEEDED(dev->CreateStateBlock(D3DSBT_ALL, &state)) && state) state->Capture();
     __try {
-        VisualPost::Render(dev);
         FatalityMenu::Render(dev, FindWindowA("Valve001", nullptr), Config::settings.show_menu);
     } __except (LogRenderException(GetExceptionInformation())) {
     }
@@ -34,7 +32,6 @@ long __stdcall EndScene(void* device) {
 long __stdcall Reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* params) {
     auto original = Hooks::GetResetOriginalFor(dev);
     if (!original) return D3DERR_INVALIDCALL;
-    VisualPost::Reset();
     ModelPreview::BeforeReset();
     FatalityMenu::BeforeReset(dev);
     const auto result = original(dev, params);

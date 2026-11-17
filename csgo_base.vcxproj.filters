@@ -130,9 +130,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="sdk\hooks\client.cpp">
-      <Filter>SDK\Hooks</Filter>
-    </ClCompile>
     <ClCompile Include="sdk\hooks\detours.cpp">
       <Filter>SDK\Hooks</Filter>
     </ClCompile>
@@ -154,13 +151,7 @@
     <ClCompile Include="menu\preview\model_preview.cpp">
       <Filter>Menu\preview</Filter>
     </ClCompile>
-    <ClCompile Include="features\misc\runtime.cpp"><Filter>Features</Filter></ClCompile>
-    <ClCompile Include="features\visuals\misc_runtime.cpp"><Filter>Features</Filter></ClCompile>
-    <ClCompile Include="features\misc\engine_prediction.cpp"><Filter>Features</Filter></ClCompile>
     <ClCompile Include="features\visuals\shot_chams.cpp">
-      <Filter>Features</Filter>
-    </ClCompile>
-    <ClCompile Include="features\visuals\world_esp.cpp">
       <Filter>Features</Filter>
     </ClCompile>
     <ClCompile Include="features\visuals\player_esp.cpp">
@@ -508,7 +499,6 @@
     <ClInclude Include="sdk\interfaces\interfaces.hpp">
       <Filter>SDK\interfaces</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\surface_props.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="sdk\material.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
@@ -566,9 +556,6 @@
     <ClInclude Include="menu\controls\skin_options_popup.hpp">
       <Filter>Menu\controls</Filter>
     </ClInclude>
-    <ClInclude Include="menu\overlays\world_esp_overlay.hpp">
-      <Filter>Menu\overlays</Filter>
-    </ClInclude>
     <ClInclude Include="menu\preview\esp_preview.hpp">
       <Filter>Menu\preview</Filter>
     </ClInclude>
@@ -605,18 +592,6 @@
     <ClInclude Include="features\visuals\chams_entities.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\misc\runtime.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\visuals\postprocess_shader.hpp"><Filter>Header Files</Filter></ClInclude>
-    <ClInclude Include="features\visuals\postprocess.hpp"><Filter>Header Files</Filter></ClInclude>
-    <ClInclude Include="features\visuals\misc_state.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\visuals\misc_runtime.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\misc\engine_prediction.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\misc\prediction_compression.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\misc\prediction.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="features\misc\state.hpp"><Filter>Features</Filter></ClInclude>
-    <ClInclude Include="menu\bridges\misc_runtime.hpp"><Filter>Menu\bridges</Filter></ClInclude>
-    <ClInclude Include="menu\bridges\visual_misc.hpp"><Filter>Menu\bridges</Filter></ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\misc_sounds.h"><Filter>Features</Filter></ClInclude>
     <ClInclude Include="features\visuals\shot_chams.hpp">
       <Filter>Features</Filter>
     </ClInclude>
@@ -628,10 +603,6 @@
     </ClInclude>
     <ClInclude Include="features\visuals\fatality_material_factory.hpp">
       <Filter>Features</Filter>
-    </ClInclude>
-    <ClInclude Include="sdk\visual_entity_read.hpp"><Filter>Header Files</Filter></ClInclude>
-    <ClInclude Include="sdk\world_esp_state.hpp">
-      <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_preview_state.hpp">
       <Filter>SDK</Filter>
@@ -1215,7 +1186,6 @@
     <ClInclude Include="utils\config.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="utils\native_guard.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="utils\detourhook.hpp">
       <Filter>Utils</Filter>
     </ClInclude>

@@ -1,5 +1,4 @@
 #include "../../sdk/visual_runtime_state.hpp"
-#include "../../sdk/world_esp_state.hpp"
 #include "../../sdk/esp_projection.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../context.hpp"
@@ -14,16 +13,16 @@ void CaptureImpl() {
     static Players output;output.count=0;
     const auto config=Get();bool any=false;for(const auto& style:config.esp)any=any || style.show[Enabled];
     if(!any || !ctx.in_game || !ctx.local || !Interfaces::Engine || !Interfaces::EntityList) {ClearPlayers();return;}
-    static WorldEsp::Frame projection;
+    std::array<float,16> matrix{};
     const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
     const auto offset=offsets::Get("dwViewMatrix");
     if(!base || !offset){ClearPlayers();return;}
-    std::memcpy(projection.matrix.data(),reinterpret_cast<void*>(base+offset),sizeof(float)*16);
-    projection.matrix_validated=WorldEsp::ValidMatrix(projection.matrix);
-    if(!projection.matrix_validated){ClearPlayers();return;}
+    std::memcpy(matrix.data(),reinterpret_cast<void*>(base+offset),sizeof(float)*16);
     auto project=[&](const Vector& p,VisualPreview::Point& result) {
-        WorldEsp::Item point;point.x=p.x;point.y=p.y;point.z=p.z;
-        return WorldEsp::ProjectUnclipped(projection,point,result.x,result.y);
+        const auto clip=EspProjection::Transform(matrix,{p.x,p.y,p.z});
+        if(clip.w<=.01f)return false;
+        result.x=.5f+clip.x/(2.f*clip.w);result.y=.5f-clip.y/(2.f*clip.w);
+        return std::isfinite(result.x) && std::isfinite(result.y);
     };
     const int max_clients=(std::min)(64,Interfaces::Engine->GetMaxClients());
     const int local_team=ctx.local->m_iTeamNum();
@@ -48,7 +47,7 @@ void CaptureImpl() {
             hull[corner]={point.x,point.y,point.z};
         }
         EspProjection::Box bounds;
-        if(!EspProjection::Bounds(projection.matrix,hull,bounds))continue;
+        if(!EspProjection::Bounds(matrix,hull,bounds))continue;
         p.box={bounds.left,bounds.top,bounds.right,bounds.bottom};
         auto& name=names[index];
         if(name.entity!=entity || GetTickCount()>=name.next) {

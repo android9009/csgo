@@ -1,9 +1,7 @@
 #include "hooks.hpp"
-#include "../../features/visuals/misc_runtime.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/entity.hpp"
-#include "../world_esp_state.hpp"
 #include "../visual_runtime_state.hpp"
 #include "../../features/visuals/material_renderer.hpp"
 #include "../../features/visuals/chams_entities.hpp"
@@ -20,16 +18,6 @@ int LogChamsFault(EXCEPTION_POINTERS* info){
         LOG_ERROR("chams pass exception code=0x%08lX instruction=%p",e->ExceptionCode,e->ExceptionAddress);
     }
     return EXCEPTION_EXECUTE_HANDLER;
-}
-void DrawWithAlpha(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones){
-    auto original=Hooks::GetDrawModelExecuteOriginal();if(!original)return;
-    const float alpha=VisualMisc::LocalAlpha(info.entity_index);
-    if(alpha>=1.f || !Interfaces::RenderView){original(ecx,context,state,info,bones);return;}
-    const auto get=MEM::GetVFunc<float(__thiscall*)(void*)>(Interfaces::RenderView,5);
-    const auto set=MEM::GetVFunc<void(__thiscall*)(void*,float)>(Interfaces::RenderView,4);
-    const float old=get(Interfaces::RenderView);
-    __try{set(Interfaces::RenderView,old*alpha);original(ecx,context,state,info,bones);}
-    __finally{set(Interfaces::RenderView,old);}
 }
 bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones) {
     if(!VisualRuntime::any_material.load(std::memory_order_relaxed) || !ctx.in_game || !ctx.local || !Interfaces::ModelInfo || !Interfaces::EntityList || !Interfaces::ModelRender ||
@@ -61,32 +49,30 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
             const int subject=VisualRuntime::SubjectFor(local_team,team,owner==ctx.local);
             choice=ragdoll ? settings.ragdolls[subject] : info.model!=entity->GetModel() ? settings.attachments[subject] : settings.players[subject];
         } else {
-            auto* owner=WorldEsp::Projectile(cls->m_pNetworkName) ? nullptr : ChamsEntities::AttachmentPlayer(entity);
+            auto* owner=ChamsObjects::Projectile(cls->m_pNetworkName) ? nullptr : ChamsEntities::AttachmentPlayer(entity);
             if(owner) {
                 auto* owner_class=owner->GetClientClass();
                 if(!settings.chams_enabled || !owner_class || !owner_class->m_pNetworkName || std::strcmp(owner_class->m_pNetworkName,"CCSPlayer")!=0)return false;
                 const int subject=VisualRuntime::SubjectFor(local_team,owner->m_iTeamNum(),owner==ctx.local);
                 choice=settings.attachments[subject];
             } else {
-                const auto category=WorldEsp::Classify(cls->m_pNetworkName);
-                if(category==WorldEsp::None)return false;
+                const auto category=ChamsObjects::Classify(cls->m_pNetworkName);
+                if(category==ChamsObjects::None)return false;
                 choice=settings.objects[category];
             }
         }
     } else return false;
     if(!choice.enabled || choice.kind<=0)return false;
-    return PreviewMaterial::Draw(choice,true,[&](){DrawWithAlpha(ecx,context,state,info,bones);});
+    return PreviewMaterial::Draw(choice,true,[&](){original(ecx,context,state,info,bones);});
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
-    __try{if(VisualMisc::RemovingRagdolls() && Interfaces::EntityList && info.entity_index>0 && VisualMisc::HideRagdoll(Interfaces::EntityList->GetClientEntity(info.entity_index)))return;}
-    __except(EXCEPTION_EXECUTE_HANDLER){}
     bool handled=false;
     __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);}
     __except(LogChamsFault(GetExceptionInformation())) {
         __try {PreviewMaterial::Restore();}__except(EXCEPTION_EXECUTE_HANDLER){}
         static bool logged=false;if(!logged){logged=true;LOG_WARN("chams: model pass raised exception; restored material override");}
     }
-    if(!handled)DrawWithAlpha(ecx,context,state,info,bone_to_world);
+    if(!handled)if(auto original=Hooks::GetDrawModelExecuteOriginal())original(ecx,context,state,info,bone_to_world);
 }
 }

@@ -126,7 +126,6 @@ public:
 class IVDebugOverlay : public InterfaceView {};
 class IEngineTrace : public InterfaceView {
 public:
-    int GetPointContents(const Vector& point,unsigned mask){using Fn=int(__thiscall*)(void*,const Vector&,unsigned,void**);auto fn=VFunc<Fn>(0);return fn ? fn(this,point,mask,nullptr) : 0;}
     void TraceRay(const Ray_t& ray, unsigned int mask, ITraceFilter* filter, CGameTrace* trace) {
         using Fn = void (__thiscall*)(void*, const Ray_t&, unsigned int, ITraceFilter*, CGameTrace*);
         if (auto fn = VFunc<Fn>(5)) fn(this, ray, mask, filter, trace);
