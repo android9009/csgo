@@ -99,7 +99,6 @@ protected:
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[index]);
     }
 };
-class IClientModeShared : public InterfaceView {};
 class IVPanel : public InterfaceView {
 public:
     const char* GetName(unsigned int panel) { using Fn = const char* (__thiscall*)(void*, unsigned int); auto fn = VFunc<Fn>(36); return fn ? fn(this, panel) : ""; }
@@ -196,7 +195,6 @@ namespace Interfaces {
     inline IGameMovement* GameMovement = nullptr;
     inline IMoveHelper* MoveHelper = nullptr;
     inline IInput* Input = nullptr;
-    inline IClientModeShared* ClientMode = nullptr;
     inline IVPanel* Panel = nullptr;
     inline IVModelRender* ModelRender = nullptr;
     inline IVModelInfo* ModelInfo = nullptr;

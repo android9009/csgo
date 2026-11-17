@@ -36,7 +36,6 @@ bool Init() {
     REGISTER_OFFSET(set_abs_origin); REGISTER_OFFSET(is_c4_owner); REGISTER_OFFSET(force_update_spectator_glow);
     REGISTER_OFFSET(anim_overlays); REGISTER_OFFSET(m_flSpawnTime); REGISTER_OFFSET(find_hud_element);
     REGISTER_OFFSET(m_bIsLocalPlayer);
-    s_values.emplace("client_mode_global",Patterns::Get("client_mode_global"));
 #undef REGISTER_OFFSET
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");
     if (!ok) LOG_ERROR("Offset initialization did not resolve critical values.");

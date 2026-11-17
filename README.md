@@ -7,7 +7,7 @@
 ```text
 
 ├── main.cpp                 DllMain, поток Entry и контролируемое завершение
-├── context.hpp                единый runtime-контекст: local/weapon/view/prediction
+├── context.hpp                единый runtime-контекст: local/weapon/view
 ├── CMakeLists.txt           x86 DLL для Visual Studio 2022
 ├── sdk/
 │   ├── hooks/               VMT manager и игровые хуки
@@ -28,7 +28,7 @@
 ├── menu/                    меню, табы, контролы, UI-превью и адаптеры
 └── features/
     ├── visuals/              простой player ESP; glow/world — точки расширения
-    ├── misc/                 bunnyhop; сюда добавляются movement/misc функции
+    ├── misc/                 резерв (runtime Misc удалён)
     ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
     └── skins/                применение скинов и инвентарь
 ```
@@ -69,7 +69,7 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 ## Что уже работает и куда расширять
 
 - Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging, JSON-настройки и VGUI-отрисовка.
-- Пример player ESP в `features/visuals/player_esp.cpp`; bunnyhop как пример `CreateMove`-фичи в `features/misc/movement.cpp`.
+- Player ESP: `features/visuals/player_esp.cpp`.
 - Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bunnyhop, **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
 - `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
 

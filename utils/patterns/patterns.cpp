@@ -8,7 +8,6 @@
 #include <windows.h>
 namespace Patterns {
 static const std::vector<Definition> kDefinitions = {
-    {"client_mode_global", "client.dll", "55 8B EC 8B 0D ? ? ? ? 8B 01 5D FF 60 30", {5,0,0,0}, 1, false, 0},
     {"dwClientState", "engine.dll", "A1 ? ? ? ? 33 D2 6A 00 6A 00 33 C9 89 B0", {1, 0, 0, 0}, 1, true, 0},
     {"dwClientState_GetLocalPlayer", "engine.dll", "8B 80 ? ? ? ? 40 C3", {2, 0, 0, 0}, 1, false, 0},
     {"dwClientState_IsHLTV", "engine.dll", "80 BF ? ? ? ? ? 0F 84 ? ? ? ? 32 DB", {2, 0, 0, 0}, 1, false, 0},

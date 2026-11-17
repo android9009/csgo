@@ -17,14 +17,8 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (stage == 5) VisualRuntime::UpdateGlow();
     if(stage==6)VisualRuntime::RestoreGlow();
     if (stage == 6) {
-        static bool first_capture=true;
-        const bool trace_first=first_capture;first_capture=false;
-        if(trace_first)LOG_INFO("frame startup: world snapshot");
-        if(trace_first)LOG_INFO("frame startup: player snapshot");
         VisualRuntime::CapturePlayers();
-        if(trace_first)LOG_INFO("frame startup: preview");
         ModelPreview::Paint();
-        if(trace_first)LOG_INFO("frame startup: capture complete");
     }
     static bool skins_failed = false;
     if (stage == 2 && !skins_failed) {

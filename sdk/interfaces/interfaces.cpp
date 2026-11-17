@@ -95,13 +95,6 @@ bool Setup() {
     GlowManager = glow_rva ? reinterpret_cast<IGlowObjectManager*>(reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll")) + glow_rva) : nullptr;
     DirectDevice = ReadModulePointer("shaderapidx9.dll", offsets::Get("dwppDirect3DDevice9"));
 
-    const auto client_mode_operand = offsets::Get("client_mode_global");
-    if (client_mode_operand) {
-        std::uint32_t value = 0;
-        std::memcpy(&value, reinterpret_cast<const void*>(client_mode_operand), sizeof(value));
-        ClientMode = reinterpret_cast<IClientModeShared*>(value);
-        LOG_INFO("ClientMode: global=%p object=%p",reinterpret_cast<void*>(client_mode_operand),ClientMode);
-    }
     const auto move_helper_operand = ReadAbsoluteOperand("client.dll", "8B 0D ? ? ? ? 8B 46 08 68", 2);
     if (move_helper_operand) {
         std::uint32_t value = 0;
@@ -118,9 +111,9 @@ bool Setup() {
 }
 bool Check() {
     const bool ok = Client && EntityList && Engine && ClientState && Globals && Input
-                 && ClientMode && Panel && ModelRender && ConVar && MaterialSystem && Surface;
-    if (!ok) LOG_ERROR("Interface capture failed; client=%p entitylist=%p engine=%p clientstate=%p globals=%p clientmode=%p",
-                       Client, EntityList, Engine, ClientState, Globals, ClientMode);
+                 && Panel && ModelRender && ConVar && MaterialSystem && Surface;
+    if (!ok) LOG_ERROR("Interface capture failed; client=%p entitylist=%p engine=%p clientstate=%p globals=%p",
+                       Client, EntityList, Engine, ClientState, Globals);
     return ok;
 }
 }
