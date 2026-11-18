@@ -14,9 +14,17 @@ menu/
   bridges/                publish GUI settings to runtime snapshots
   overlays/               GUI-renderer drawing adapters for game overlays
 features/
-  misc/                   reserved (Misc runtime removed)
-  visuals/                ESP data gathering, chams, glow and shot rendering logic
+  misc/                   entry point + one folder per menu group box (general/,
+                          movement/), one header per folder and one translation unit
+                          per feature (docs/misc-runtime.md)
+  visuals/                ESP data gathering, chams, glow, shot rendering and removals
+                          (the Removals combo box lives in the Visuals tab)
   skins/                  skin/equipment application and local-inventory logic
+sdk/
+  interfaces/             interface capture (client, engine, cvar, panorama, ...)
+  panorama/               IPanoramaUIEngine/UIEngine wrappers and the arity-safe
+                          RunScript call (docs/panorama.md)
+  entity/                 player, weapon and player-resource netvar accessors
 ```
 
 `features/visuals/preview_material.hpp` was a misleading name: it renders both
@@ -44,7 +52,9 @@ implementation does not duplicate those shared types or change their ABI.
 Portable preview tests now include helpers from `menu/preview/`.
 
 Shared C++ utilities are grouped under the existing `utils/` directory:
-`utils/math/`, `utils/offsets/`, and `utils/patterns/`. The old `tools/` analysis scripts were removed at the user's request. There are no forwarding copies at the former
+`utils/math/`, `utils/offsets/`, and `utils/patterns/`. Inside `utils/patterns/`,
+`catalog.hpp` is data only (no Windows headers) so the portable tests can validate
+every signature, while `patterns.cpp` performs the live scan and resolution. The old `tools/` analysis scripts were removed at the user's request. There are no forwarding copies at the former
 repository-root locations; includes and Visual Studio filters use the new paths.
 
 Hooks now live in `sdk/hooks/`, and vendored dependencies in
@@ -52,9 +62,9 @@ Hooks now live in `sdk/hooks/`, and vendored dependencies in
 source list and adds only the intended dependency sources. Include roots and
 Visual Studio filters follow these physical locations.
 
-`tests/` is intentionally retained: the fifteen portable regression programs
-check inventory identifiers, preview state and rendering
-plans. They are excluded from DLL compilation, take approximately 64 KiB, and
+`tests/` is intentionally retained: the fourteen portable regression programs
+check inventory identifiers, preview state, rendering plans and the signature
+catalogue arithmetic. They are excluded from DLL compilation, take approximately 64 KiB, and
 are useful for catching regressions after file-layout changes. The removed
 `tools/` directory contained only the two standalone ABI inspection scripts;
 none were required to build or run the DLL.

@@ -20,6 +20,7 @@
 #include "sdk/hooks/hooks.hpp"
 #include "menu/preview/model_preview.hpp"
 #include "features/skins/skin_changer.hpp"
+#include "features/misc/misc.hpp"
 
 namespace {
 HANDLE status_mapping{};
@@ -112,6 +113,8 @@ void Shutdown() {
     Hooks::Restore();
     __try { SkinChanger::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("skins: exception while restoring weapons at shutdown"); }
+    __try { Misc::Shutdown(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception while restoring the clan tag at shutdown"); }
     ModelPreview::Shutdown();
     EventListener::Destroy();
     PropManager::Get().Destroy();

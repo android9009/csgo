@@ -75,6 +75,8 @@
 #include "menu.hpp"
 #include "tabs/tabs.hpp"
 #include "bridges/visual_runtime.hpp"
+#include "bridges/misc_runtime.hpp"
+#include "bridges/removals.hpp"
 #include "overlays/player_esp_overlay.hpp"
 #include <chrono>
 #include <mutex>
@@ -317,8 +319,8 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                         e->add(make_tab_area(GUI_HASH("legit_container"), false, s_none, menu::group::legit_tab));
                         e->add(make_tab_area(GUI_HASH("visuals_container"), false, s_none, menu::group::visuals_tab));
                         e->add(make_tab_area(GUI_HASH("misc_container"), false, [&](const std::shared_ptr<layout>& e) {
-                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>main,other"), group_sz, {
-                                make_groupbox("misc>various", "MISC", half + vec2{0.f, 20.f}, menu::group::misc_various),
+                            e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>general,other"), group_sz, {
+                                make_groupbox("misc>general", "MISC", half + vec2{0.f, 20.f}, menu::group::misc_general),
                                 make_groupbox("misc>other", "OTHER", half - vec2{0.f, 20.f}, menu::group::misc_other)}));
                             e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>movement,extra"), group_sz, {
                                 make_groupbox("misc>movement", "MOVEMENT", half, menu::group::misc_movement),
@@ -446,6 +448,8 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
     VisualSettings::Configure();
+    MiscSettings::Configure();
+    RemovalsSettings::Configure();
     draw.begin_frame();
     PlayerEspOverlay::Render();
     ctx->render();

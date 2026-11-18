@@ -60,7 +60,7 @@ namespace menu
 		void visuals_misc_local(std::shared_ptr<layout> &e);
 		void visuals_misc_various(std::shared_ptr<layout> &e);
 
-		void misc_various(std::shared_ptr<layout> &e);
+		void misc_general(std::shared_ptr<layout> &e);
 		void misc_other(std::shared_ptr<layout> &e);
 		void misc_movement(std::shared_ptr<layout> &e);
 		void misc_movement_extra(std::shared_ptr<layout> &e);

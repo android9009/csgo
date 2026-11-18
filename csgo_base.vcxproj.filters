@@ -20,6 +20,12 @@
     <Filter Include="Features\skins">
       <UniqueIdentifier>{6D58DD9C-96BD-4A8A-94D9-1F32F528645F}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Features\misc">
+      <UniqueIdentifier>{B41C6D2E-7A35-5C8E-9E1D-3F0A6C2B71D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\misc\general">
+      <UniqueIdentifier>{C62E9F41-58B3-5D7A-A4C1-8E2D0B95F36A}</UniqueIdentifier>
+    </Filter>
     <Filter Include="SDK\Hooks">
       <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
     </Filter>
@@ -83,6 +89,9 @@
     <Filter Include="SDK\entity">
       <UniqueIdentifier>{5D4D3335-9EA9-5BCA-9C23-78274D67840A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="SDK\panorama">
+      <UniqueIdentifier>{9a1f3c2e-5b64-4d21-8e77-0c3fa1b2d4e5}</UniqueIdentifier>
+    </Filter>
     <Filter Include="SDK\interfaces">
       <UniqueIdentifier>{EEB35B55-6D73-52CA-B09C-0B11D0A59479}</UniqueIdentifier>
     </Filter>
@@ -145,6 +154,33 @@
     <ClCompile Include="features\skins\local_inventory.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\misc.cpp">
+      <Filter>Features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\general.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\radar.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\clantag.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\scoreboard.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\scoreboard_script.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\removals\removals.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\removals\flash.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\removals\punch.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="features\skins\skin_changer.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
@@ -198,6 +234,9 @@
     </ClCompile>
     <ClCompile Include="sdk\interfaces\interfaces.cpp">
       <Filter>SDK\interfaces</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\panorama\panorama.cpp">
+      <Filter>SDK\panorama</Filter>
     </ClCompile>
     <ClCompile Include="sdk\netvars.cpp">
       <Filter>SDK</Filter>
@@ -475,6 +514,9 @@
     <ClInclude Include="utils\patterns\patterns.hpp">
       <Filter>Utils\patterns</Filter>
     </ClInclude>
+    <ClInclude Include="utils\patterns\catalog.hpp">
+      <Filter>Utils\patterns</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\clientclass.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
@@ -490,6 +532,9 @@
     <ClInclude Include="sdk\entity\player.hpp">
       <Filter>SDK\entity</Filter>
     </ClInclude>
+    <ClInclude Include="sdk\entity\player_resource.hpp">
+      <Filter>SDK\entity</Filter>
+    </ClInclude>
     <ClInclude Include="sdk\entity\weapon.hpp">
       <Filter>SDK\entity</Filter>
     </ClInclude>
@@ -498,6 +543,9 @@
     </ClInclude>
     <ClInclude Include="sdk\interfaces\interfaces.hpp">
       <Filter>SDK\interfaces</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\panorama\panorama.hpp">
+      <Filter>SDK\panorama</Filter>
     </ClInclude>
     <ClInclude Include="sdk\material.hpp">
       <Filter>SDK</Filter>
@@ -565,6 +613,12 @@
     <ClInclude Include="menu\overlays\player_esp_overlay.hpp">
       <Filter>Menu\overlays</Filter>
     </ClInclude>
+    <ClInclude Include="menu\bridges\misc_runtime.hpp">
+      <Filter>Menu\bridges</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\bridges\removals.hpp">
+      <Filter>Menu\bridges</Filter>
+    </ClInclude>
     <ClInclude Include="menu\bridges\visual_runtime.hpp">
       <Filter>Menu\bridges</Filter>
     </ClInclude>
@@ -585,6 +639,21 @@
     </ClInclude>
     <ClInclude Include="menu\preview\subject.hpp">
       <Filter>Menu\preview</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\misc.hpp">
+      <Filter>Features\misc</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\general\general.hpp">
+      <Filter>Features\misc\general</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\removals\removals.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\removals\flash.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\removals\punch.hpp">
+      <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\material_renderer.hpp">
       <Filter>Features</Filter>

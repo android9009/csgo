@@ -3,6 +3,8 @@
 #include "../visual_runtime_state.hpp"
 #include "../../features/skins/skin_changer.hpp"
 #include "../../features/skins/local_inventory.hpp"
+#include "../../features/misc/misc.hpp"
+#include "../../features/visuals/removals/removals.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/player.hpp"
@@ -49,6 +51,10 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             if (ctx.local) ctx.eye_pos = ctx.local->GetEyePosition();
             }
             // TODO: features/visuals (glow/chams state), features/rage (lagcomp) entry points go here
+            // Radar, clan tag and flash removal act on the entity list, so they run
+            // after the context refresh above, still inside this SEH frame.
+            Misc::FrameStage(stage);
+            Removals::FrameStage(stage);
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }

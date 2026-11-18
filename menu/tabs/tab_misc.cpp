@@ -42,84 +42,84 @@ namespace menu::group
 		return c;
 	}
 
-	void misc_various(std::shared_ptr<layout> &e)
+	void misc_general(std::shared_ptr<layout> &e)
 	{
-		const auto scoreboard = make_multi("misc>main>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
-		const auto scoreboard_settings = MAKE("misc>main>scoreboard>settings", settings, [](auto e) {
-			ADD("Horizontal scale", "misc>main>scoreboard>scale x", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_x, "%.0f%%");
-			ADD("Vertical scale", "misc>main>scoreboard>scale y", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_y, "%.0f%%");
-			ADD("Weapon scale", "misc>main>scoreboard>weapon scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_weapon_scale, "%.0f%%");
-			ADD("Unmatched scale", "misc>main>scoreboard>unmatched scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_unmatched_scale, "%.0f%%");
+		const auto scoreboard = make_multi("misc>general>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
+		const auto scoreboard_settings = MAKE("misc>general>scoreboard>settings", settings, [](auto e) {
+			ADD("Horizontal scale", "misc>general>scoreboard>scale x", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_x, "%.0f%%");
+			ADD("Vertical scale", "misc>general>scoreboard>scale y", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_y, "%.0f%%");
+			ADD("Weapon scale", "misc>general>scoreboard>weapon scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_weapon_scale, "%.0f%%");
+			ADD("Unmatched scale", "misc>general>scoreboard>unmatched scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_unmatched_scale, "%.0f%%");
 		});
 		ADD_INLINE("Scoreboard", scoreboard, scoreboard_settings);
-		const auto logs = make_multi("misc>main>logs", cfg.misc.log_types, {"Hit logs", "Miss logs", "Buy logs", "Hurt logs", "Naded logs"});
-		const auto log_settings = MAKE("misc>main>logs>settings", settings, [](auto e) {
+		const auto logs = make_multi("misc>general>logs", cfg.misc.log_types, {"Hit logs", "Miss logs", "Buy logs", "Hurt logs", "Naded logs"});
+		const auto log_settings = MAKE("misc>general>logs>settings", settings, [](auto e) {
 			const std::vector<std::string> details{"Damage dealt", "Damage aimed", "Hitchance", "Shot", "Backtrack", "Safe point"};
-			auto hits = make_multi("misc>main>logs>hit details", cfg.misc.hit_log_details, details);
+			auto hits = make_multi("misc>general>logs>hit details", cfg.misc.hit_log_details, details);
 			auto miss_details = details; miss_details.emplace_back("Miss reason");
-			auto misses = make_multi("misc>main>logs>miss details", cfg.misc.miss_log_details, miss_details);
-			auto buys = make_multi("misc>main>logs>buy targets", cfg.misc.buy_log_targets, {"Teammates", "Enemy", "Local", "All"});
+			auto misses = make_multi("misc>general>logs>miss details", cfg.misc.miss_log_details, miss_details);
+			auto buys = make_multi("misc>general>logs>buy targets", cfg.misc.buy_log_targets, {"Teammates", "Enemy", "Local", "All"});
 			e->add(make_control("Hit logs", hits));
 			e->add(make_control("Miss logs", misses));
 			e->add(make_control("Buy logs", buys));
 			const std::vector<std::string> names{"Hit color", "Miss color", "Buy color", "Hurt color", "Naded color"};
 			for (size_t i = 0; i < names.size(); ++i) {
-				const auto key = std::string("misc>main>logs>color>") + std::to_string(i);
+				const auto key = std::string("misc>general>logs>color>") + std::to_string(i);
 				e->add(make_control(names[i], MAKE_RUNTIME(key, color_picker, cfg.misc.log_colors[i])));
 			}
-			ADD("Console logs", "misc>main>logs>console", checkbox, cfg.misc.console_logs);
+			ADD("Console logs", "misc>general>logs>console", checkbox, cfg.misc.console_logs);
 		});
 		ADD_INLINE("Logs", logs, log_settings);
-		const auto sound = make_sound("misc>various>hitsound", cfg.misc.hitsound_select);
-		const auto sound_settings = MAKE("misc>main>hitsound>settings", settings, [](auto e) {
-			ADD("Hit sound", "misc>main>hitsound>hit enabled", checkbox, cfg.misc.hit_sound_enabled);
-			ADD("Kill sound", "misc>main>hitsound>kill enabled", checkbox, cfg.misc.kill_sound_enabled);
-			e->add(make_control("Kill sound", make_sound("misc>main>hitsound>kill select", cfg.misc.kill_sound_select)));
+		const auto sound = make_sound("misc>general>hitsound", cfg.misc.hitsound_select);
+		const auto sound_settings = MAKE("misc>general>hitsound>settings", settings, [](auto e) {
+			ADD("Hit sound", "misc>general>hitsound>hit enabled", checkbox, cfg.misc.hit_sound_enabled);
+			ADD("Kill sound", "misc>general>hitsound>kill enabled", checkbox, cfg.misc.kill_sound_enabled);
+			e->add(make_control("Kill sound", make_sound("misc>general>hitsound>kill select", cfg.misc.kill_sound_select)));
 		});
 		ADD_INLINE("Hitsound", sound, sound_settings);
 		{
-			const auto c = MAKE("misc>various>indicators", combo_box, cfg.aa.indicators);
+			const auto c = MAKE("misc>general>indicators", combo_box, cfg.aa.indicators);
 			c->allow_multiple = true;
 			c->add(
-			{MAKE("misc>various>indicators>manual anti-aim", selectable, XOR("Manual anti-aim"), cfg_t::indicators_manual), MAKE(
-				 "misc>various>indicators>freestanding", selectable, XOR("Freestanding"), cfg_t::indicators_fs),
-			 MAKE("misc>various>indicators>lc", selectable, XOR("LC"), cfg_t::indicators_lc),
-			 MAKE("misc>various>indicators>double tap", selectable, XOR("Double tap"), cfg_t::indicators_dt),
-			 MAKE("misc>various>indicators>hide shot", selectable, XOR("Hide shot"), cfg_t::indicators_st),
-			 MAKE("misc>various>indicators>damage override", selectable, XOR("Damage override"), cfg_t::indicators_do),
-			 MAKE("misc>various>indicators>force safety", selectable, XOR("Force safety"), cfg_t::indicators_safe),
-			 MAKE("misc>various>indicators>headshot only", selectable, XOR("Headshot only"), cfg_t::indicators_head),
-			 MAKE("misc>various>indicators>bodyaim", selectable, XOR("Bodyaim"), cfg_t::indicators_baim), MAKE(
-				 "misc>various>indicators>ping", selectable, XOR("Ping"), cfg_t::indicators_ping),});
+			{MAKE("misc>general>indicators>manual anti-aim", selectable, XOR("Manual anti-aim"), cfg_t::indicators_manual), MAKE(
+				 "misc>general>indicators>freestanding", selectable, XOR("Freestanding"), cfg_t::indicators_fs),
+			 MAKE("misc>general>indicators>lc", selectable, XOR("LC"), cfg_t::indicators_lc),
+			 MAKE("misc>general>indicators>double tap", selectable, XOR("Double tap"), cfg_t::indicators_dt),
+			 MAKE("misc>general>indicators>hide shot", selectable, XOR("Hide shot"), cfg_t::indicators_st),
+			 MAKE("misc>general>indicators>damage override", selectable, XOR("Damage override"), cfg_t::indicators_do),
+			 MAKE("misc>general>indicators>force safety", selectable, XOR("Force safety"), cfg_t::indicators_safe),
+			 MAKE("misc>general>indicators>headshot only", selectable, XOR("Headshot only"), cfg_t::indicators_head),
+			 MAKE("misc>general>indicators>bodyaim", selectable, XOR("Bodyaim"), cfg_t::indicators_baim), MAKE(
+				 "misc>general>indicators>ping", selectable, XOR("Ping"), cfg_t::indicators_ping),});
 
 			ADD_INLINE("Indicators", c);
 		}
 
-		ADD("Clantag", "misc>various>clan tag", checkbox, cfg.misc.clantag);
-		ADD("Reveal enemy chat", "misc>main>enemy chat", checkbox, cfg.misc.reveal_enemy_chat);
-		ADD_INLINE("Ragdoll thrust", MAKE("misc>main>ragdoll thrust", checkbox, cfg.misc.ragdoll_thrust_enabled), MAKE("misc>main>ragdoll thrust>settings", settings, [](auto e) {
-			ADD("Amount", "misc>main>ragdoll thrust>amount", slider<float>, 1.f, 1000.f, cfg.visuals.ragdoll_thrust, "%.0f%%");
+		ADD("Clantag", "misc>general>clan tag", checkbox, cfg.misc.clantag);
+		ADD("Reveal enemy chat", "misc>general>enemy chat", checkbox, cfg.misc.reveal_enemy_chat);
+		ADD_INLINE("Ragdoll thrust", MAKE("misc>general>ragdoll thrust", checkbox, cfg.misc.ragdoll_thrust_enabled), MAKE("misc>general>ragdoll thrust>settings", settings, [](auto e) {
+			ADD("Amount", "misc>general>ragdoll thrust>amount", slider<float>, 1.f, 1000.f, cfg.visuals.ragdoll_thrust, "%.0f%%");
 		}));
-		ADD_INLINE("Ping spike", MAKE("misc>main>ping spike", checkbox, cfg.misc.ping_spike_enabled), MAKE("misc>main>ping spike>settings", settings, [](auto e) {
-			ADD("Amount", "misc>main>ping spike>amount", slider<float>, 0.f, 200.f, cfg.aim.ping_spike_amt, "%.0f ms");
+		ADD_INLINE("Ping spike", MAKE("misc>general>ping spike", checkbox, cfg.misc.ping_spike_enabled), MAKE("misc>general>ping spike>settings", settings, [](auto e) {
+			ADD("Amount", "misc>general>ping spike>amount", slider<float>, 0.f, 200.f, cfg.aim.ping_spike_amt, "%.0f ms");
 		}));
 	}
 
 	void misc_other(std::shared_ptr<layout> &e)
 	{
-		ADD("Bypass SV Pure", "misc>various>bypass sv_pure", checkbox, cfg.misc.sv_pure);
+		ADD("Bypass SV Pure", "misc>general>bypass sv_pure", checkbox, cfg.misc.sv_pure);
 		ADD("Bypass SV Cheats", "misc>other>bypass sv_cheats", checkbox, cfg.misc.sv_cheats);
 		ADD("Console filter", "misc>other>console filter", checkbox, cfg.misc.console_filter);
-		ADD("Auto-accept", "misc>various>auto-accept", checkbox, cfg.misc.autoaccept);
-		ADD("Radar", "misc>various>radar", checkbox, cfg.misc.radar);
+		ADD("Auto-accept", "misc>general>auto-accept", checkbox, cfg.misc.autoaccept);
+		ADD("Radar", "misc>general>radar", checkbox, cfg.misc.radar);
 		{
-			const auto c = MAKE("misc>various>dpi scale", combo_box, cfg.misc.dpi_scale);
+			const auto c = MAKE("misc>general>dpi scale", combo_box, cfg.misc.dpi_scale);
 			c->add(
-			{MAKE("misc>various>dpi scale>automatic", selectable, XOR("Automatic"), cfg_t::dpi_automatic), MAKE(
-				 "misc>various>dpi scale>50%", selectable, XOR("50%"), cfg_t::dpi_50), MAKE("misc>various>dpi scale>75%", selectable, XOR("75%"), cfg_t::dpi_75),
-			 MAKE("misc>various>dpi scale>100%", selectable, XOR("100%"), cfg_t::dpi_100), MAKE("misc>various>dpi scale>125%", selectable, XOR("125%"), cfg_t::dpi_125),
-			 MAKE("misc>various>dpi scale>150%", selectable, XOR("150%"), cfg_t::dpi_150),
-			 MAKE("misc>various>dpi scale>200%", selectable, XOR("200%"), cfg_t::dpi_200),});
+			{MAKE("misc>general>dpi scale>automatic", selectable, XOR("Automatic"), cfg_t::dpi_automatic), MAKE(
+				 "misc>general>dpi scale>50%", selectable, XOR("50%"), cfg_t::dpi_50), MAKE("misc>general>dpi scale>75%", selectable, XOR("75%"), cfg_t::dpi_75),
+			 MAKE("misc>general>dpi scale>100%", selectable, XOR("100%"), cfg_t::dpi_100), MAKE("misc>general>dpi scale>125%", selectable, XOR("125%"), cfg_t::dpi_125),
+			 MAKE("misc>general>dpi scale>150%", selectable, XOR("150%"), cfg_t::dpi_150),
+			 MAKE("misc>general>dpi scale>200%", selectable, XOR("200%"), cfg_t::dpi_200),});
 
 
 			ADD_INLINE("DPI scale", c);

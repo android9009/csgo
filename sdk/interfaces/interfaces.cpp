@@ -76,6 +76,10 @@ bool Setup() {
     FileSystem = Capture<void>("filesystem_stdio.dll", "VFileSystem");
     BaseFileSystem = Capture<void>("filesystem_stdio.dll", "VBaseFileSystem");
     NetworkContainer = Capture<void>("engine.dll", "VEngineClientStringTable");
+    // Panorama exposes a single exact interface name; CaptureRaw tries it first.
+    Panorama = Capture<panorama::IPanoramaUIEngine>("panorama.dll", "PanoramaUIEngine001");
+    if (Panorama) LOG_INFO("interfaces: panorama UI engine captured (%p)", Panorama);
+    else LOG_WARN("interfaces: PanoramaUIEngine001 not captured; HUD script features stay off");
 
     ClientState = static_cast<IClientState*>(ReadModulePointer("engine.dll", offsets::Get("dwClientState")));
     // The PUSH-immediate signature resolves the globals object itself.

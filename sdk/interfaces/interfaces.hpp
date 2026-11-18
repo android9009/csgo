@@ -9,6 +9,7 @@
 #include "../../utils/math/matrix.hpp"
 #include "../trace_ray.hpp"
 #include "../studiohdr.hpp"
+#include "../panorama/panorama.hpp"
 
 class IMaterial;
 class CCSWeaponData;
@@ -223,4 +224,5 @@ namespace Interfaces {
     inline void* FileSystem = nullptr;
     inline void* BaseFileSystem = nullptr;
     inline void* NetworkContainer = nullptr;
+    inline panorama::IPanoramaUIEngine* Panorama = nullptr;
 }

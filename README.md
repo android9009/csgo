@@ -24,11 +24,11 @@
 ├── utils/                   memory scanner, XOR/hash, logging, config, input, events, render
 │   ├── math/                Vector, QAngle, Color, VMatrix, математические функции
 │   ├── offsets/             CS:GO snapshot-таблицы и runtime-адреса
-│   └── patterns/            каталог сигнатур
+│   └── patterns/            каталог сигнатур (данные в catalog.hpp)
 ├── menu/                    меню, табы, контролы, UI-превью и адаптеры
 └── features/
-    ├── visuals/              простой player ESP; glow/world — точки расширения
-    ├── misc/                 резерв (runtime Misc удалён)
+    ├── visuals/              player ESP, chams, glow, removals (flash, visual punch)
+    ├── misc/                 папка на вкладку, файл на логику (см. docs/misc-runtime.md)
     ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
     └── skins/                применение скинов и инвентарь
 ```
@@ -46,6 +46,7 @@
 | Источник | Применённые идеи/данные |
 |---|---|
 | [hazedumper](https://github.com/frk1/hazedumper) | Модель «IDA signature → operand chain → RVA»; перенесён каталог из 58 CS:GO сигнатур и таблицы `csgo.hpp` (snapshot `2023-09-05`, 94 netvar-константы и 58 signature-констант). В базе это собственный scanner/registry в `utils/patterns/` и собственные типизированные fallback-таблицы в `utils/offsets/`. |
+| ветка `main` этого репозитория (`opaihook`) | 99 недостающих сигнатур из общего блока `offsets.cpp`; подробности переноса, исключённые и уже имевшиеся имена — в `docs/pattern-catalog.md`. Числовых fallback у них нет. |
 | [fatality_source](https://github.com/reversed2603/fatality_source) | Группировка SDK/interfaces/features, разбиение хуков и feature-модулей по файлам, компактные typed-accessors и структура CUserCmd. Реализация здесь новая, без копирования исходников. |
 | [VeryElusive/game-hack (Havoc)](https://github.com/VeryElusive/game-hack/tree/main/base) | Слои `context` → `sdk/utils/hooks/features`, единый контекст вместо множества singleton-глобалок, отдельный memory/pattern helper, `Capture<T>` интерфейсов и staged Entry-инициализация. |
 
@@ -62,7 +63,7 @@ cmake --build build --config Release
 
 ## Паттерны и актуальность
 
-В `utils/patterns/patterns.cpp` находится каталог из 58 Hazedumper patterns. `utils/offsets/offsets.hpp` хранит fallback значения из последнего известного Hazedumper snapshot — **5 сентября 2023 года**. Это известная зафиксированная база для CS:GO Legacy, не live-обновляемый источник и не обещание совместимости с любым исполняемым файлом. Перед использованием на конкретной сборке проверяйте успешность сканирования и адреса в отладчике; неподходящие fallback-данные надо обновить.
+В `utils/patterns/catalog.hpp` находятся два каталога: 58 Hazedumper patterns и 99 сигнатур, перенесённых из ветки `main` (общий блок `offsets.cpp`, без `#ifdef LEGACY` и без live-блока). Сканер и разрешение адресов — в `utils/patterns/patterns.cpp`, правила переноса — в `docs/pattern-catalog.md`. `utils/offsets/offsets.hpp` хранит fallback значения из последнего известного Hazedumper snapshot — **5 сентября 2023 года**. Это известная зафиксированная база для CS:GO Legacy, не live-обновляемый источник и не обещание совместимости с любым исполняемым файлом. Перед использованием на конкретной сборке проверяйте успешность сканирования и адреса в отладчике; неподходящие fallback-данные надо обновить.
 
 CS:GO Source 1 использует RecvTables и datamaps; отдельной Source 2 `SchemaSystem` в этой базе нет. `sdk/schema.hpp` даёт единый фасад к этим Source 1-метаданным, чтобы не путать их с CS2-схемой.
 
@@ -70,6 +71,7 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 
 - Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging, JSON-настройки и VGUI-отрисовка.
 - Player ESP: `features/visuals/player_esp.cpp`.
+- Misc: `features/misc/` — папка на группу меню (`general/`, далее `movement/`, `buy_bot.cpp`), в папке **один `.hpp` на всю папку** и по `.cpp` на каждую логику. Работают radar-reveal, clan tag, reveal ranks и reveal weapon в Scoreboard (equipment-строка рисуется инжектированным Panorama-JS, три слайдера масштаба её и масштабируют; reveal unmatched ranks не делаем); remove flash и visual punch живут в `features/visuals/removals/`, потому что их чекбоксы — в Removals вкладки Visuals. Точка входа — `FrameStageNotify`, границы охвата — `docs/misc-runtime.md`.
 - Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bunnyhop, **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
 - `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
 

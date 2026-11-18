@@ -48,10 +48,10 @@ namespace group {
 	void visuals_models_enemy( std::shared_ptr<layout>& e );
 	void visuals_models_team( std::shared_ptr<layout>& e );
 	void visuals_misc_local( std::shared_ptr<layout>& e );
-	void visuals_misc_various( std::shared_ptr<layout>& e );
+	void visuals_misc_general( std::shared_ptr<layout>& e );
 	void visuals_misc_beams( std::shared_ptr<layout>& e );
 
-	void misc_various( std::shared_ptr<layout>& e );
+	void misc_general( std::shared_ptr<layout>& e );
 	void misc_movement( std::shared_ptr<layout>& e );
 	void misc_buybot( std::shared_ptr<layout>& e );
 
@@ -547,7 +547,7 @@ struct cfg_t {
 
 	struct misc_t {
 		setting<bool> compensate_grenade, peek_assist, peek_assist_retreat_on_release, birthday_mode, instant_unduck, bhop, no_fall_damage, fov_enabled, vm_fov_enabled, radar,
-			remove_flash, remove_smoke, remove_blur, avoid_walls, thirdperson, thirdperson_dead, thirdperson_grenade, thirdperson_no_interp, force_crosshair,
+			remove_smoke, remove_blur, avoid_walls, thirdperson, thirdperson_dead, thirdperson_grenade, thirdperson_no_interp, force_crosshair,
 			autoaccept, reveal_ranks, hurtlog, hurtlog_info, buylog, clantag, preservedn, impacts, grenade_tracer, grenade_helper, sv_pure,
 			shared_esp_with_enemy, shared_esp, buybot_defuser, buybot_taser, buybot_grenades, debug_info, edge_jump, goblin_mode, scope_invert;
 		setting<color> peek_assist_col{ {46, 115, 201} }, peek_assist_col2{ {201, 48, 63} }, scope_line_color{ color::black( ) }, impacts_color{ {255, 0, 0} }, impacts_color2

@@ -21,6 +21,7 @@ public:
     NETVAR_FALLBACK(float, m_flSimulationTime, "DT_BaseEntity", "m_flSimulationTime", offsets::netvars::m_flSimulationTime)
     NETVAR(float, m_flDuckAmount, "DT_CSPlayer", "m_flDuckAmount")
     NETVAR_FALLBACK(int, m_nModelIndex, "DT_BaseEntity", "m_nModelIndex", offsets::netvars::m_nModelIndex)
+    NETVAR_FALLBACK(bool, m_bSpotted, "DT_BaseEntity", "m_bSpotted", offsets::netvars::m_bSpotted)
 
     bool IsDormant() const;
     bool IsAlive() const { return m_lifeState() == 0 && m_iHealth() > 0; }
