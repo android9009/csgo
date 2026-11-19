@@ -15,8 +15,8 @@ menu/
   overlays/               GUI-renderer drawing adapters for game overlays
 features/
   misc/                   entry point + one folder per menu group box (general/,
-                          movement/), one header per folder and one translation unit
-                          per feature (docs/misc-runtime.md)
+                          other/, movement/), one header per folder and one
+                          translation unit per feature (docs/misc-runtime.md)
   visuals/                ESP data gathering, chams, glow, shot rendering and removals
                           (the Removals combo box lives in the Visuals tab)
   skins/                  skin/equipment application and local-inventory logic

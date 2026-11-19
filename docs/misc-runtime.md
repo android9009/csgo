@@ -28,6 +28,13 @@ features/misc/
     clantag.cpp            clan tag
     scoreboard.cpp         rank reveal + the equipment feed
     scoreboard_script.cpp  the injected Panorama JavaScript builders
+    chat.cpp               reveal enemy chat (DispatchUserMessage hook)
+    ragdoll.cpp            ragdoll thrust
+  other/                   second Misc group box ("OTHER", id misc>other)
+    other.hpp              the folder's single header
+    other.cpp              façade: fan out to auto-accept and the console filter
+    accept.cpp             auto-accept (EmitSound1 hook + SetLocalPlayerReady)
+    console_filter.cpp     console filter (tier0 ConMsg / ConColorMsg hooks)
   movement/                next phase (bhop, autostrafe, edge-*, ...)
   buy_bot.hpp/.cpp         next phase — single file, no folder
 
@@ -64,6 +71,10 @@ because the flash switch is the first item of the Removals combo box.
 | Reveal money | `cfg.misc.scoreboard_options` bit 3 | 4 | adds each player's `m_iAccount` to the same row |
 | Remove flash | `cfg.misc.removals` bit 0 | 0/5 | zeroes `m_flFlashDuration` on the local player |
 | Visual punch | `cfg.misc.removals` bit 8 | 0/5 | zeroes `m_aimPunchAngle` and `m_viewPunchAngle` on the local player |
+| Reveal enemy chat | `cfg.misc.reveal_enemy_chat` | hook | re-addresses team chat as all-chat so the HUD prints it |
+| Ragdoll thrust | `cfg.misc.ragdoll_thrust_enabled` + `cfg.visuals.ragdoll_thrust` | 4 (every 4th frame) | scales `m_vecForce` and `m_vecRagdollVelocity` on every `CCSRagdoll` |
+| Auto-accept | `cfg.misc.autoaccept` | hook | accepts the match when the accept popup beeps |
+| Console filter | `cfg.misc.console_filter` | hook | drops five documented connection/queue lines from the console |
 
 Entry point: `Misc::FrameStage(stage)` and `Removals::FrameStage(stage)` from
 `sdk/hooks/framestage.cpp`, after the context refresh, inside the existing SEH frame.
@@ -71,6 +82,53 @@ Entry point: `Misc::FrameStage(stage)` and `Removals::FrameStage(stage)` from
 The Removals combo box stores a bitset, so `Removals::Bits` must stay in the same order
 as the item list in `menu/tabs/tab_visuals.cpp`. `tests/removals_test.cpp` pins that
 order: a silent reorder in the menu would otherwise toggle the wrong effect.
+
+## Hooks
+
+The three Misc features that cannot be driven from `FrameStageNotify` install their own
+vtable or export hooks, and every index below is copied from a public source rather than
+guessed; the engine numbering matches `FrameStageNotify` 37, which this base already
+hooks. `Publish` only sets the switch; the patch itself is installed from the game thread
+on the first frame after the switch was turned on, so no code is rewritten while the game
+thread may be executing inside the function being hooked.
+
+| Hook | Slot / export | Gated by | Source |
+|---|---|---|---|
+| `IBaseClientDLL::DispatchUserMessage` | vtable 38 | `cfg.misc.reveal_enemy_chat` | CSGOSimple `hooks.hpp`, UC 365807 |
+| `IEngineSoundClient::EmitSound1` | vtable 5 | `cfg.misc.autoaccept` | CSGOSimple `hooks.hpp` |
+| `SetLocalPlayerReady` | `client.dll` signature `set_local_player_ready` | `cfg.misc.autoaccept` | CSGOSimple `misc.cpp` |
+| `tier0!ConMsg`, `tier0!ConColorMsg` | DLL exports | `cfg.misc.console_filter` | tier0 export table |
+
+**Reveal enemy chat** (`general/chat.cpp`) only touches `CS_UM_SayText2` (6). The
+published descriptions of this payload disagree about its header, so the hook does not
+assume a field order: it finds the length-prefixed message name in the first 32 bytes,
+requires the `Cstrike_Chat_` prefix and printable ASCII, and rewrites that one field to
+`Cstrike_Chat_All`. Every byte before and after the name is copied verbatim, and the
+rebuilt buffer is re-parsed before it is handed to the game; if either check fails the
+message is passed through untouched. All-chat names are left alone, so nothing is
+printed twice. Only the client's own display filter is bypassed: if the server never
+sends an enemy's team line, no client-side hook can invent it.
+
+**Auto-accept** (`other/accept.cpp`) waits for the popup sample
+`UIPanorama.popup_accept_match_beep` on `EmitSound1`, then calls the client's
+`SetLocalPlayerReady("")`. The signature is resolved once through the catalogue and
+range-checked against `client.dll`'s `.text` before the call; a stale pattern means the
+feature logs one warning and never fires. That sound is the only "a match was found"
+signal a client DLL can see.
+
+**Console filter** (`other/console_filter.cpp`) hooks the two variadic tier0 print
+exports with MinHook (no signature and no vtable index can go stale), formats the line
+once, and forwards it as `"%s"` so the original keeps its own output path. It drops only
+the five literal prefixes listed in `other.hpp` — the connect/queue chatter — and never a
+line it does not recognise.
+
+**Ragdoll thrust** (`general/ragdoll.cpp`) walks the entity list above the player slots
+on stage 4 of every fourth frame, matches `m_pNetworkName == "CCSRagdoll"` (the class id
+differs between builds, the name does not), and multiplies `m_vecForce` and
+`m_vecRagdollVelocity` by the slider percentage. Both netvars are resolved through
+`DT_CSRagdoll`, falling back to `CBaseAnimating` for `m_vecForce`; a missing netvar logs
+once and leaves the feature idle. A ragdoll already moving faster than `kSpeedLimit` is
+skipped, because the write is not idempotent and a per-frame multiply would launch it.
 
 ## Scoreboard
 
@@ -114,6 +172,11 @@ but it is the SDK piece any future scoreboard work needs.
   resolved once.
 - Radar walks at most 64 player slots and writes only when the flag is currently false,
   so a settled frame performs no writes.
+- Ragdoll thrust sweeps the entity list only on every fourth stage-4 frame and stops at
+  the highest entity index, so a full round of ragdolls costs four sweeps per second.
+- The three hooks do nothing at all while their switch is off: the chat hook returns on
+  the message type, the sound hook on the sample name, the console hooks on a flag they
+  read before formatting anything.
 - Punch angles are recomputed by the game every frame, so the removal is a per-frame
   zero, and only when a component is non-zero.
 - The clan tag is re-applied at most every 5 seconds, or immediately when the tag, the
@@ -134,6 +197,11 @@ but it is the SDK piece any future scoreboard work needs.
 - The Panorama path fails in three separated places - interface, panel search, script
   call - each with its own bound. A wrong vtable index disables the weapon reveal for the
   session after three exceptions; the rank reveal keeps working.
+- The chat rewrite re-parses its own buffer before handing it to the game and falls back
+  to the original message whenever the name scan or the round-trip fails, so a payload
+  this build encodes differently is never reinterpreted.
+- `Misc::Shutdown` removes the OTHER hooks (sound, both console paths) before the clan tag
+  is restored, so an unload cannot leave a detour pointing into freed code.
 - Flash is cleared only for a positive duration, which also rejects NaN. Punch is
   zeroed when any component is non-zero, which includes NaN.
 - The tag the player already owned is captured from `m_szClan` before the first write
@@ -143,26 +211,32 @@ but it is the SDK piece any future scoreboard work needs.
 
 ## Not implemented, and why
 
-These controls stay inert. Each needs a subsystem this base does not have, so wiring
-them would only produce dead toggles:
+These controls stay inert. Each needs something this base does not have, and each
+reports that once in the log when it is switched on instead of silently doing nothing:
 
 - **Logs, hitsounds, indicators** - need a shot/hit pipeline (ragebot + event tracking);
   to be implemented together with the ragebot.
 - **Scoreboard "Reveal unmatched ranks"** - needs the engine's own rank lookup for players
   the server never sent a skill group for; not implemented by request.
-- **Reveal enemy chat, console filter** - need a `SayText2` / `ConMsg` hook, i.e. a new
-  vtable or engine detour the base deliberately does not install.
+- **Ping spike** (`cfg.misc.ping_spike_enabled`, amount in `cfg.aim.ping_spike_amt`) -
+  spiking the outgoing datagram rate needs either a netchannel hook this SDK cannot
+  address (there is no netchan interface captured) or a ConVar write path. The ConVar
+  path is the blocker: `sdk/interfaces/interfaces.hpp` only forward-declares `IConVar`,
+  and the client's `ConVar` layout (which differs between Source 2013 and this build) is
+  what a write needs. Shipping a guessed offset here would corrupt cvar memory.
+- **sv_cheats bypass** - same blocker as ping spike, plus it is only a client-side
+  illusion: the server's `sv_cheats` value is what decides whether cheat-flagged
+  commands run. Worth doing only together with a verified `ICvar::FindVar` path
+  (slot 16 in the published `ICvar` layout).
+- **sv_pure bypass** - needs a hook on `IBaseFileSystem`/`ISteamGameCoordinator`; the
+  filesystem vtable indices differ between `filesystem_stdio` builds and an off-by-one
+  here is a wild call into the file system of a live game.
 - **Removals 1-7 and 9** (smoke, particles, post processing, water, blood, decals,
   ragdolls, shadows) - material, effect-dispatch and entity-visibility manipulation;
   each needs its own validated hook, and a wrong one is a visible or crashing change.
-- **Ragdoll thrust, ping spike** - physics and netchannel manipulation; gameplay-visible
-  and deserving more validation than string signatures provide.
-- **sv_pure / sv_cheats bypass** - signature-dependent patches with a crash surface
-  larger than the feature is worth.
-- **Auto-accept** - lives in Panorama; there is no supported hook for it here.
 - **Movement and Buybot** - next phases. Movement needs a `CreateMove` detour, which
   `sdk/hooks/detours.cpp` intentionally leaves empty; Buybot needs the convar /
-  `ClientCmd` path.
+  `ClientCmd` path, i.e. the same `ICvar` work as above.
 
 ## Checks
 
@@ -170,6 +244,10 @@ Portable tests:
 
 - `tests/misc_radar_test.cpp` - `ShouldSpot` for dormant, dead, local, spectator and
   wrong-team targets.
+- `tests/misc_hooks_test.cpp` - `ShouldRevealChat` (team names rewritten, all-chat names
+  kept, malformed and null names refused), `ScalePercent` clamping,
+  `ShouldScale` (ceiling, negative and NaN velocity), `IsAcceptSound`, and
+  `ShouldFilter` (the five prefixes match, everything else is kept).
 - `tests/misc_clantag_test.cpp` - `ShouldApply` transitions (first enable, steady state,
   tag change, new local entity, interval, `GetTickCount` wraparound, disabled, no local
   player, null pointers), `ShouldRestore` exactly-once semantics, and the tag length.

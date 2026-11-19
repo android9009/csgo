@@ -23,6 +23,9 @@
     <Filter Include="Features\misc">
       <UniqueIdentifier>{B41C6D2E-7A35-5C8E-9E1D-3F0A6C2B71D4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Features\misc\other">
+      <UniqueIdentifier>{2c5f0a41-6b7d-4a1e-9c8e-5f0b3a7d1e62}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Features\misc\general">
       <UniqueIdentifier>{C62E9F41-58B3-5D7A-A4C1-8E2D0B95F36A}</UniqueIdentifier>
     </Filter>
@@ -171,6 +174,21 @@
     </ClCompile>
     <ClCompile Include="features\misc\general\scoreboard_script.cpp">
       <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\chat.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\ragdoll.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\other.cpp">
+      <Filter>Features\misc\other</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\accept.cpp">
+      <Filter>Features\misc\other</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\console_filter.cpp">
+      <Filter>Features\misc\other</Filter>
     </ClCompile>
     <ClCompile Include="features\visuals\removals\removals.cpp">
       <Filter>Features</Filter>
@@ -642,6 +660,9 @@
     </ClInclude>
     <ClInclude Include="features\misc\misc.hpp">
       <Filter>Features\misc</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\other\other.hpp">
+      <Filter>Features\misc\other</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\general\general.hpp">
       <Filter>Features\misc\general</Filter>

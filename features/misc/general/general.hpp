@@ -27,6 +27,16 @@ struct Settings {
     int scoreboard_scale_x{100};
     int scoreboard_scale_y{100};
     int scoreboard_scale_weapon{100};
+
+    bool auto_accept{};        // "Auto-accept"
+    bool reveal_enemy_chat{};  // "Reveal enemy chat"
+    bool ragdoll_thrust{};     // "Ragdoll thrust"
+    float ragdoll_percent{100.f}; // "Ragdoll thrust > Amount" (1..1000 %)
+
+    // "Ping spike" has no implementation yet (see docs/misc-runtime.md); Publish reports
+    // it once when it is enabled instead of pretending to work.
+    bool ping_spike{};
+    float ping_spike_ms{};
 };
 
 // Called from the menu bridge on the render thread; forwards each value to the feature
@@ -189,3 +199,64 @@ std::string BuildResetScript();
 void Publish(std::uint64_t mask, int scale_x, int scale_y, int scale_weapon);
 void FrameStage(int stage); // stage 4 only
 } // namespace Misc::Scoreboard
+
+// ---------------------------------------------------------------------------
+// Reveal enemy chat (chat.cpp): hooks IBaseClientDll::DispatchUserMessage (slot 38,
+// the vtable that also holds FrameStageNotify 37) and re-addresses a team chat message
+// as all-chat, so the HUD prints what the server sent but the client hid.
+//
+// Only the message name field is replaced; every other byte of the payload is copied
+// verbatim, because the published descriptions of this layout disagree about its header.
+// ---------------------------------------------------------------------------
+namespace Misc::Chat {
+// A chat name is a one-byte length plus the name itself ("Cstrike_Chat_CT_Loc").
+constexpr int kNameScanWindow = 32;
+
+// Rewrites team names and leaves all-chat names alone: "Cstrike_Chat_All" is already
+// printed for everybody, and rewriting it would only duplicate the line.
+inline bool ShouldRevealChat(bool enabled, const char* name, int name_length) {
+    if (!enabled || !name || name_length <= 0) return false;
+    if (name_length <= 13 || std::strncmp(name, "Cstrike_Chat_", 13) != 0) return false;
+    // "Cstrike_Chat_All", "Cstrike_Chat_All_Dead", "Cstrike_Chat_All_Spec".
+    if (name_length >= 16 && std::strncmp(name + 13, "All", 3) == 0) return false;
+    return true;
+}
+
+void SetEnabled(bool enabled);
+// Installs the vtable patch from the game thread once the switch was published.
+void FrameStage(int stage);
+void Shutdown();
+} // namespace Misc::Chat
+
+// ---------------------------------------------------------------------------
+// Ragdoll thrust (ragdoll.cpp): scales m_vecForce and m_vecRagdollVelocity on every
+// CCSRagdoll, so bodies fly "further" without touching anything else.
+// ---------------------------------------------------------------------------
+namespace Misc::Ragdoll {
+// The menu slider runs 1..1000 %.
+constexpr int kPercentMin = 1;
+constexpr int kPercentMax = 1000;
+// Above this speed the ragdoll is left alone: the write is not idempotent, so without a
+// ceiling a per-frame multiply would launch it into space.
+constexpr float kSpeedLimit = 2000.f;
+
+inline float ScalePercent(int percent) {
+    if (percent < kPercentMin) return static_cast<float>(kPercentMin);
+    if (percent > kPercentMax) return static_cast<float>(kPercentMax);
+    return static_cast<float>(percent);
+}
+
+// Scaling is idempotent only while the ragdoll is slow: past the limit the value is left
+// alone, so repeated frames cannot accelerate it into an explosion. A NaN velocity (an
+// uninitialised vector) fails the comparison and is therefore refused as well.
+inline bool ShouldScale(float speed, float limit) {
+    if (!(speed >= 0.f)) return false;
+    return speed < limit;
+}
+
+// Called from the menu bridge on the render thread.
+void Publish(bool enabled, float percent);
+
+// Called on the game thread from FrameStageNotify (stage 4, every fourth frame).
+void FrameStage(int stage);
+} // namespace Misc::Ragdoll

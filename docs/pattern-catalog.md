@@ -97,6 +97,12 @@ makes the provenance obvious and keeps the "ported from `main`" count honest.
 | Name | Module | Used by |
 |---|---|---|
 | `server_rank_reveal_all` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
+| `set_local_player_ready` | `client.dll` | Misc → Other → "Auto-accept" |
+
+`set_local_player_ready` is the signature published by CSGOSimple for the client's
+`SetLocalPlayerReady(const char*)`; the prologue reads its single argument from
+`[ebp+8]`, which is why it is called as a plain one-argument function
+(`features/misc/other/accept.cpp`).
 
 It is resolved through the same `Patterns::Init()` pass and published by
 `offsets::Init()` under its own name. A missing entry is not fatal: the feature logs a
@@ -106,7 +112,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 
 `tests/pattern_catalog_test.cpp` (portable, no Windows headers) verifies:
 
-- all three catalogues have the expected entry counts (58 / 99 / 1) and globally unique
+- all three catalogues have the expected entry counts (58 / 99 / 2) and globally unique
   names;
 - every module name is one the scanner can load, every signature token is either two
   uppercase hex digits or `?`/`??`, offsets stay within the 4-slot operand chain, and

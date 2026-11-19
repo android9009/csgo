@@ -103,17 +103,18 @@ int main() {
     // Catalogue integrity.
     assert(std::size(Patterns::kLegacySnapshotCatalog) == 58);
     assert(std::size(Patterns::kPortedCatalog) == 99);
-    assert(std::size(Patterns::kReferenceCatalog) == 1);
+    assert(std::size(Patterns::kReferenceCatalog) == 2);
     std::set<std::string_view> names;
     Validate(Patterns::kLegacySnapshotCatalog, names);
     Validate(Patterns::kPortedCatalog, names);
     Validate(Patterns::kReferenceCatalog, names);
-    assert(names.size() == 58 + 99 + 1);
+    assert(names.size() == 58 + 99 + 2);
     // Every ported name is reachable through offsets::Get() as well.
     assert(names.count("setup_bones") == 1);
     assert(names.count("update_animstate") == 1);
     assert(names.count("dwLocalPlayer") == 1);
     assert(names.count("server_rank_reveal_all") == 1);
+    assert(names.count("set_local_player_ready") == 1);
 
     // Address: the match itself, published as an RVA, plus `extra`.
     {

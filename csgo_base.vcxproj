@@ -166,6 +166,11 @@
     <ClCompile Include="features\misc\general\clantag.cpp" />
     <ClCompile Include="features\misc\general\scoreboard.cpp" />
     <ClCompile Include="features\misc\general\scoreboard_script.cpp" />
+    <ClCompile Include="features\misc\general\chat.cpp" />
+    <ClCompile Include="features\misc\general\ragdoll.cpp" />
+    <ClCompile Include="features\misc\other\other.cpp" />
+    <ClCompile Include="features\misc\other\accept.cpp" />
+    <ClCompile Include="features\misc\other\console_filter.cpp" />
     <ClCompile Include="features\visuals\removals\removals.cpp" />
     <ClCompile Include="features\visuals\removals\flash.cpp" />
     <ClCompile Include="features\visuals\removals\punch.cpp" />
@@ -358,6 +363,7 @@
     <ClInclude Include="menu\preview\subject.hpp" />
     <ClInclude Include="features\misc\misc.hpp" />
     <ClInclude Include="features\misc\general\general.hpp" />
+    <ClInclude Include="features\misc\other\other.hpp" />
     <ClInclude Include="features\visuals\removals\removals.hpp" />
     <ClInclude Include="features\visuals\removals\flash.hpp" />
     <ClInclude Include="features\visuals\removals\punch.hpp" />

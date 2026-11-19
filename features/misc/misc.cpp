@@ -1,5 +1,6 @@
 #include "misc.hpp"
 #include "general/general.hpp"
+#include "other/other.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
@@ -10,7 +11,10 @@ namespace {
 // every frame, so the log is not flooded and the game is not destabilised.
 bool g_failed{};
 
-void FrameStageImpl(int stage) { General::FrameStage(stage); }
+void FrameStageImpl(int stage) {
+    General::FrameStage(stage);
+    Other::FrameStage(stage);
+}
 } // namespace
 
 void FrameStage(int stage) {
@@ -26,6 +30,10 @@ void FrameStage(int stage) {
 }
 
 void Shutdown() {
+    __try { Other::Shutdown(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG_ERROR("misc: exception while removing the OTHER hooks during unload");
+    }
     __try { General::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG_ERROR("misc: exception while restoring the clan tag at shutdown");

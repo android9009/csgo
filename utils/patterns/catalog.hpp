@@ -265,6 +265,10 @@ inline constexpr Definition kPortedCatalog[] = {
 // repository's `main` branch. Each one is used by exactly one feature, which stays
 // switched off (and says so in the log) when its signature does not resolve.
 inline constexpr Definition kReferenceCatalog[] = {
+    // Misc "Auto-accept": the client's SetLocalPlayerReady (bool __stdcall(const char*)).
+    // Same signature every public client has used since 2017; calling it with an empty
+    // string is what the accept button does.
+    {"set_local_player_ready", "client.dll", "55 8B EC 83 E4 F8 8B 4D 08 BA ? ? ? ? E8 ? ? ? ? 85 C0 75 12", {0, 0, 0, 0}, 0, true, 0},
     // Scoreboard "Reveal ranks": the client's ServerRankRevealAll handler, called as
     // char __cdecl(int*). Community signature for the 2019-2023 client.
     {"server_rank_reveal_all", "client.dll", "55 8B EC 8B 0D ? ? ? ? 85 C9 75 28 A1 ? ? ? ? 68 ? ? ? ? 8B 08 8B 01 FF 50 04 85 C0 74 0B 8B C8 E8 ? ? ? ? 8B C8 EB 02 33 C9 89 0D ? ? ? ? 8B 45 08", {0, 0, 0, 0}, 0, true, 0},

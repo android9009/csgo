@@ -97,6 +97,7 @@ bool Init() {
     // utils/patterns/catalog.hpp). Zero means "not found"; the owning feature then
     // logs once and keeps itself off.
     s_values.emplace("server_rank_reveal_all", Patterns::Get("server_rank_reveal_all"));
+    s_values.emplace("set_local_player_ready", Patterns::Get("set_local_player_ready"));
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");
     if (!ok) LOG_ERROR("Offset initialization did not resolve critical values.");
     return ok;
