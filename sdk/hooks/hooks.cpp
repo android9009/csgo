@@ -149,7 +149,10 @@ bool Setup() {
         }
         LOG_INFO("dummy D3D9Ex vtable=%p hooked=%d", ex_vtable, device_ex_hook.is_hooked());
     } else {
-        LOG_WARN("dummy D3D9Ex device creation failed");
+        // Not a problem: the D3D9 dummy device above (or the captured device) already owns
+        // the EndScene hook, and D3D9Ex dummies fail on setups where the ex runtime is not
+        // initialised yet. Only a total absence of hooks is worth an error.
+        LOG_INFO("dummy D3D9Ex device not created; EndScene comes from the D3D9 device");
     }
     if (!device_hook.is_hooked() && !device_d3d9_hook.is_hooked() && !device_ex_hook.is_hooked())
         LOG_ERROR("no EndScene hook installed; menu will not render");

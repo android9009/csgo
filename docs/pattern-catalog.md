@@ -131,3 +131,16 @@ warning and stays off (see `docs/misc-runtime.md`).
 - `Resolve()` arithmetic for all four shapes, including a negative `E8` displacement
   and every failure path (no match, unreadable operand, uninitialised global, no
   module base).
+
+## Reading the runtime report
+
+`Patterns::Init` prints one line with the totals and, when a signature did not match, two
+more that say what that actually cost:
+
+- `matched through an alternative spelling: server_rank_reveal_all (via server_rank_reveal_all_alt2)`
+  — the catalogue carries the spellings of the same function for different builds; one of
+  them matching is the normal case, not a failure.
+- `no match, owner decides: direct_present, direct_reset` — nothing covered these; the
+  feature that needs one logs its own consequence (e.g. "rank reveal stays off").
+- `offsets: pinned build table in use for: send_datagram` — the signature moved but this
+  build's pinned offset still resolves the function, so the feature keeps working.

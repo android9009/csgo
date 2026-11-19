@@ -3,13 +3,26 @@
 #include "log.hpp"
 #include "../sdk/interfaces/interfaces.hpp"
 #include <string>
+#include <vector>
 namespace EventListener {
 class listener_t final : public IGameEventListener2 {
 public:
+    // "bullet_impact" fires on every bullet and "weapon_fire" on every shot, so logging each
+    // arrival made the file useless. The first arrival of each event is the useful fact -
+    // it proves the listener is registered and that the game delivers that event at all -
+    // and repeats tell nothing new, so they stay out of the log.
     void FireGameEvent(IGameEvent* event) override {
-        if (event && event->GetName()) LOG_INFO("game event: %s", event->GetName());
+        const char* name = event ? event->GetName() : nullptr;
+        if (!name) return;
+        for (const auto& seen : logged) {
+            if (seen == name) return;
+        }
+        logged.emplace_back(name);
+        LOG_INFO("game event: %s (first seen; later arrivals are not logged)", name);
     }
     int GetEventDebugID() override { return 42; }
+private:
+    std::vector<std::string> logged;
 } listener;
 static std::vector<std::string> names;
 static bool registered = false;

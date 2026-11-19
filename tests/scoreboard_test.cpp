@@ -61,4 +61,22 @@ int Main() {
 }
 } // namespace
 
-int main() { return Main(); }
+int main() {
+    // ---- the rank verdict waits for the server's answer ---------------------------
+    {
+        using Misc::Scoreboard::RankVerdictDue;
+        const auto wait = Misc::Scoreboard::kRankVerifyMs;
+        assert(!RankVerdictDue(1000, 0, wait));        // never asked
+        assert(!RankVerdictDue(1000, 999, wait));      // same tick as the request
+        assert(!RankVerdictDue(1000 + wait - 1, 1000, wait));
+        assert(RankVerdictDue(1000 + wait, 1000, wait));
+        assert(RankVerdictDue(1000 + wait + 5000, 1000, wait));
+        // GetTickCount() wraps: the comparison is unsigned subtraction.
+        assert(RankVerdictDue(0xFFFFFF00u + 0x1000u, 0xFFFFFF00u, wait)); // wrapped, 4 s later
+        assert(!RankVerdictDue(0xFFFFFF00u + 10u, 0xFFFFFF00u, wait));
+        // The deadline is the same rule with a longer window.
+        assert(!RankVerdictDue(1000 + wait, 1000, Misc::Scoreboard::kRankVerdictDeadlineMs));
+        assert(RankVerdictDue(1000 + Misc::Scoreboard::kRankVerdictDeadlineMs, 1000,
+                              Misc::Scoreboard::kRankVerdictDeadlineMs));
+    }
+ return Main(); }

@@ -37,7 +37,10 @@ constexpr const char* kRevealNames[] = {"server_rank_reveal_all",
 RevealFn g_reveal{};
 bool g_reveal_resolved{};
 bool g_failed{};
-bool g_rank_reported{};
+bool g_rank_sent{};
+bool g_rank_verified{};
+bool g_rank_unreadable{};
+std::uint32_t g_rank_request_ms{};
 std::uint32_t g_last_send{};
 
 // ---- equipment (Panorama) ------------------------------------------------------
@@ -314,6 +317,15 @@ void WeaponFrame(std::uint32_t now) {
 } // namespace
 
 void Publish(std::uint64_t mask, int scale_x, int scale_y, int scale_weapon) {
+    // Switching the bit off and on again re-arms the check: the verdict belongs to the
+    // session that asked for it, not to the process.
+    if (!Enabled(mask, Bits::RevealRanks)) {
+        g_rank_sent = false;
+        g_rank_verified = false;
+        g_rank_unreadable = false;
+        g_rank_request_ms = 0;
+        g_last_send = 0;
+    }
     g_mask.store(mask, std::memory_order_relaxed);
     g_scale_x.store(ClampScale(scale_x), std::memory_order_relaxed);
     g_scale_y.store(ClampScale(scale_y), std::memory_order_relaxed);
@@ -338,22 +350,39 @@ void FrameStage(int stage) {
             if (result < 0) {
                 g_failed = true;
                 LOG_ERROR("scoreboard: server_rank_reveal_all threw; rank reveal stopped");
-            } else {
-                const int ranked = ReadRankedSlots();
-                if (!g_rank_reported) {
-                    g_rank_reported = true;
-                    LOG_INFO("scoreboard: rank reveal sent (handler result %d, slots with a skill "
-                             "group: %d)", result, ranked);
-                    if (ranked == 0) {
-                        LOG_WARN("scoreboard: the server sent no skill groups - rank reveal only "
-                                 "shows what the server is willing to publish");
-                    } else if (ranked < 0) {
-                        LOG_WARN("scoreboard: could not read CCSPlayerResource (dwPlayerResource); "
-                                 "ranks may still appear on the scoreboard");
-                    }
-                }
+            } else if (!g_rank_sent) {
+                g_rank_sent = true;
+                g_rank_request_ms = now;
+                LOG_INFO("scoreboard: rank reveal requested (handler result %d); the answer "
+                         "arrives on a later frame", result);
             }
         }
+    }
+
+    // The verdict is taken out here, not next to the request: the skill groups come back
+    // from the server a few frames later, so reading them in the same tick reports zero on
+    // every server, including the ones that do publish ranks.
+    if (Enabled(mask, Bits::RevealRanks) && ctx.in_game && !g_rank_verified &&
+        RankVerdictDue(now, g_rank_request_ms, kRankVerifyMs)) {
+        const int ranked = ReadRankedSlots();
+        const bool deadline = RankVerdictDue(now, g_rank_request_ms, kRankVerdictDeadlineMs);
+        if (ranked > 0) {
+            g_rank_verified = true;
+            LOG_INFO("scoreboard: rank reveal confirmed - %d slot(s) carry a skill group", ranked);
+        } else if (ranked == 0 || deadline) {
+            g_rank_verified = true;
+            if (ranked < 0) {
+                // The resource was never readable: say that instead of blaming the server.
+                g_rank_unreadable = true;
+                LOG_WARN("scoreboard: CCSPlayerResource never became readable (dwPlayerResource); "
+                         "ranks cannot be checked, they may still appear on the scoreboard");
+            } else {
+                LOG_WARN("scoreboard: this server publishes no skill groups (checked %u ms after "
+                         "the reveal) - ranks stay blank here, on official matchmaking they appear",
+                         static_cast<unsigned>(now - g_rank_request_ms));
+            }
+        }
+        // ranked < 0 and still inside the deadline: try again on the next frame.
     }
 
     WeaponFrame(now);

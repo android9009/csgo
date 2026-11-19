@@ -139,6 +139,18 @@ constexpr bool Enabled(std::uint64_t mask, int bit) {
 }
 
 // The reveal only makes sense while a match is live, and only once per interval.
+// The server answers a rank reveal on a *later* frame, so asking the player resource for
+// skill groups in the same tick as the request can only ever find zeros. The verdict is
+// taken this long after the last request, and given up on after the deadline.
+constexpr std::uint32_t kRankVerifyMs = 3000;
+constexpr std::uint32_t kRankVerdictDeadlineMs = 15000;
+
+constexpr bool RankVerdictDue(std::uint32_t now_ms, std::uint32_t request_ms,
+                              std::uint32_t wait_ms) {
+    if (request_ms == 0) return false;
+    return static_cast<std::uint32_t>(now_ms - request_ms) >= wait_ms;
+}
+
 constexpr bool ShouldRevealRanks(bool enabled, bool in_game, std::uint32_t now_ms,
                                  std::uint32_t last_ms, std::uint32_t interval_ms) {
     if (!enabled || !in_game || interval_ms == 0) return false;

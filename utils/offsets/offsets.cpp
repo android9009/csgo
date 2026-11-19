@@ -102,6 +102,18 @@ bool Init() {
     s_values.emplace("set_local_player_ready", Patterns::Get("set_local_player_ready"));
     s_values.emplace("send_datagram", Patterns::Get("send_datagram"));
     s_values.emplace("send_datagram_alt", Patterns::Get("send_datagram_alt"));
+    // What an unmatched signature actually costs, in one place: a name that still holds a
+    // value is covered by this build's pinned table, and a name that does not leaves its
+    // feature off - the feature itself logs that, with the consequence spelled out.
+    std::string pinned;
+    for (const auto& name : Patterns::Missing()) {
+        if (Get(name) == 0) continue;
+        if (!pinned.empty()) pinned += ", ";
+        pinned += name;
+    }
+    if (!pinned.empty())
+        LOG_INFO("offsets: pinned build table in use for: %s", pinned.c_str());
+
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");
     if (!ok) LOG_ERROR("Offset initialization did not resolve critical values.");
     return ok;

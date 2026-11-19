@@ -182,7 +182,14 @@ The Scoreboard combo box has three items; two are wired:
   and when none of them matches this build the feature dispatches
   `CS_UM_ServerRankRevealAll` (50, from the CS:GO protobuf and CSGOSimple's `Enums.hpp`)
   through `IBaseClientDll::DispatchUserMessage` with a zeroed read object instead of
-  dropping the feature. Both paths log which one is in use. It is called from
+  dropping the feature. Both paths log which one is in use.
+
+  The verdict is never taken in the same tick as the request: the server answers on a later
+  frame, so reading `CCSPlayerResource` immediately reports zero everywhere. `RankVerdictDue`
+  waits `kRankVerifyMs` (3 s) after the request, retries while the resource is unreadable,
+  gives up at `kRankVerdictDeadlineMs` (15 s), and only then reports either "confirmed, N
+  slots carry a skill group" or the honest reason (this server publishes none, or the
+  resource never became readable). Switching the bit off re-arms the check. It is called from
   `Misc::FrameStage` stage 4, at most once per second (`kRevealIntervalMs`): each call is
   a user message, and flooding one would be both useless and measurable. Once per
   session the log prints how many slots actually carry a skill group afterwards — the
