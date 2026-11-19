@@ -4,9 +4,10 @@
 #include "features/misc/general/general.hpp"
 #include "features/misc/other/other.hpp"
 #include <cassert>
+#include <cstring>
 
 int main() {
-    // ---- reveal enemy chat: team names are re-addressed, all-chat names are not -----
+    // ---- reveal enemy chat: team names are printed, all-chat names are not ----------
     using Misc::Chat::ShouldRevealChat;
     const char* team_t = "Cstrike_Chat_T";
     const char* team_ct = "Cstrike_Chat_CT";
@@ -18,7 +19,7 @@ int main() {
     assert(ShouldRevealChat(true, team_ct, 15));
     assert(ShouldRevealChat(true, team_loc, 19));
     assert(ShouldRevealChat(true, team_dead, 19));
-    // Already visible to everybody: rewriting would duplicate the line.
+    // Already visible to everybody: printing it again would duplicate the line.
     assert(!ShouldRevealChat(true, all, 16));
     assert(!ShouldRevealChat(true, all_dead, 21));
     // Off, unparsed, or not a chat name at all.
@@ -32,33 +33,90 @@ int main() {
     // The team prefix is what matters, not a word anywhere in the name.
     assert(ShouldRevealChat(true, "Cstrike_Chat_T_All", 18));
 
-    // ---- SayText2 payload: the name is found without assuming a field order ---------
+    // ---- only the other team's lines are announced --------------------------------
+    using Misc::Chat::IsEnemyChat;
+    assert(IsEnemyChat(true, 2, 3));   // T speaking, local player on CT
+    assert(IsEnemyChat(true, 3, 2));
+    assert(!IsEnemyChat(true, 2, 2));  // own team: the HUD draws it
+    assert(!IsEnemyChat(true, 0, 3));  // spectator or server
+    assert(!IsEnemyChat(true, 1, 3));  // no team
+    assert(!IsEnemyChat(false, 2, 3));
+
+    // ---- the same line arriving twice is printed once -----------------------------
+    using Misc::Chat::ChatGate;
+    using Misc::Chat::ShouldAnnounce;
+    const auto hash = Misc::Chat::HashChatText("gg ez");
+    assert(hash != Misc::Chat::HashChatText("gg ez2"));
+    assert(hash == Misc::Chat::HashChatText("gg ez"));
+    assert(Misc::Chat::HashChatText(nullptr) == Misc::Chat::HashChatText(""));
+    ChatGate gate;
+    assert(ShouldAnnounce(gate, 5, hash, 1000));      // first line
+    gate.sender = 5; gate.text_hash = hash; gate.stamp_ms = 1000;
+    assert(!ShouldAnnounce(gate, 5, hash, 1200));     // same player, same line, inside 0.4 s
+    assert(ShouldAnnounce(gate, 5, hash, 1400));      // the window has passed
+    assert(ShouldAnnounce(gate, 5, Misc::Chat::HashChatText("other"), 1100)); // different line
+    assert(ShouldAnnounce(gate, 6, hash, 1100));      // different player
+
+    // ---- SayText2: the payload is decoded, never rewritten -------------------------
     {
-        // A minimal payload: one unknown byte, the sender, three unknown bytes, the name,
-        // the player, the text and the flag.
-        unsigned char payload[64]{};
+        // The protobuf CS:GO actually sends: ent_idx (field 1), chat flag (2), msg_name (3),
+        // params (4) with the speaker and the line.
+        unsigned char payload[128]{};
         int pos = 0;
-        payload[pos++] = 0x00;
-        payload[pos++] = 0x07; // sender slot
-        payload[pos++] = 0x00;
-        payload[pos++] = 0x00;
-        payload[pos++] = 0x00;
-        const char* name = "Cstrike_Chat_T";
-        const int name_len = 14;
-        payload[pos++] = static_cast<unsigned char>(name_len);
-        for (int i = 0; i < name_len; ++i) payload[pos++] = static_cast<unsigned char>(name[i]);
-        const char* player = "player";
-        payload[pos++] = 7;
-        for (int i = 0; i < 7; ++i) payload[pos++] = static_cast<unsigned char>(player[i]);
-        payload[pos++] = 0;
+        auto varint = [&payload, &pos](int value) {
+            while (value >= 0x80) {
+                payload[pos++] = static_cast<unsigned char>((value & 0x7F) | 0x80);
+                value >>= 7;
+            }
+            payload[pos++] = static_cast<unsigned char>(value & 0x7F);
+        };
+        auto field_string = [&payload, &pos, &varint](int field, const char* text) {
+            const int length = static_cast<int>(std::strlen(text));
+            payload[pos++] = static_cast<unsigned char>((field << 3) | 2);
+            varint(length);
+            for (int i = 0; i < length; ++i) payload[pos++] = static_cast<unsigned char>(text[i]);
+        };
+        payload[pos++] = (1 << 3) | 0; // ent_idx
+        varint(7);
+        payload[pos++] = (2 << 3) | 0; // chat
+        varint(1);
+        field_string(3, "Cstrike_Chat_T_Loc");
+        field_string(4, "enemy");
+        field_string(4, "gg ez");
+        payload[pos++] = (5 << 3) | 0; // text_all_chat
+        varint(0);
         const int payload_size = pos;
 
+        Misc::Chat::SayText2 message;
+        assert(Misc::Chat::ParseSayText2(payload, payload_size, message));
+        assert(message.ent_index == 7);
+        assert(std::strcmp(message.name, "Cstrike_Chat_T_Loc") == 0);
+        assert(message.name_length == 18);
+        assert(std::strcmp(message.speaker, "enemy") == 0);
+        assert(std::strcmp(message.text, "gg ez") == 0);
+        assert(ShouldRevealChat(true, message.name, message.name_length));
+        assert(IsEnemyChat(true, 2, 3));
+
+        // The name is also found by scanning, for the scan the read object needs.
         assert(Misc::Chat::FindChatNameOffset(payload, payload_size) == 5);
-        // A payload without a chat name is refused rather than searched further.
         unsigned char junk[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         assert(Misc::Chat::FindChatNameOffset(junk, sizeof(junk)) == -1);
         assert(Misc::Chat::FindChatNameOffset(nullptr, 16) == -1);
         assert(Misc::Chat::FindChatNameOffset(payload, 4) == -1);
+
+        // Truncated or malformed messages are refused, not read past their end.
+        Misc::Chat::SayText2 broken;
+        assert(!Misc::Chat::ParseSayText2(payload, 3, broken));
+        assert(!Misc::Chat::ParseSayText2(payload, 0, broken));
+        assert(!Misc::Chat::ParseSayText2(nullptr, payload_size, broken));
+        assert(!Misc::Chat::ParseSayText2(junk, 16, broken));
+        // A message without params has no line to print.
+        unsigned char name_only[32]{};
+        int at = 0;
+        name_only[at++] = (3 << 3) | 2;
+        name_only[at++] = 16;
+        for (const char* p = "Cstrike_Chat_All"; *p; ++p) name_only[at++] = static_cast<unsigned char>(*p);
+        assert(!Misc::Chat::ParseSayText2(name_only, at, broken));
 
         // A read object whose payload pointer sits in its third word resolves itself.
         std::uintptr_t fields[Misc::Chat::kReadFieldCount]{};
@@ -67,28 +125,14 @@ int main() {
         fields[2] = reinterpret_cast<std::uintptr_t>(payload);
         fields[3] = static_cast<std::uintptr_t>(payload_size);
         assert(Misc::Chat::FindPayloadField(fields, Misc::Chat::kReadFieldCount, payload_size) == 2);
-        // Nothing plausible: no field claims the payload.
+        // A read object that claims nothing is refused.
         std::uintptr_t empty[Misc::Chat::kReadFieldCount]{};
         assert(Misc::Chat::FindPayloadField(empty, Misc::Chat::kReadFieldCount, payload_size) == -1);
-
-        // Repointing updates the buffer start and its size, and leaves everything else.
-        unsigned char rebuilt[64]{};
-        const int rebuilt_size = payload_size - name_len + 16; // "Cstrike_Chat_All"
-        const auto repoint = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, payload,
-                                                    payload_size, rebuilt, rebuilt_size);
-        assert(repoint.ok());
-        assert(repoint.pointer_fields == 1);
-        assert(repoint.length_fields == 1);
-        assert(fields[2] == reinterpret_cast<std::uintptr_t>(rebuilt));
-        assert(fields[3] == static_cast<std::uintptr_t>(rebuilt_size));
-        assert(fields[0] == 0 && fields[1] == 0);
-        // A null or empty payload never repoints anything.
-        const auto none_a = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, nullptr,
-                                                    payload_size, rebuilt, rebuilt_size);
-        assert(!none_a.ok());
-        const auto none_b = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, payload, 0,
-                                                    rebuilt, rebuilt_size);
-        assert(!none_b.ok());
+        assert(Misc::Chat::FindPayloadField(nullptr, Misc::Chat::kReadFieldCount, payload_size) == -1);
+        // Resolving the payload is read-only: the words keep their values.
+        const std::uintptr_t before[4] = {fields[0], fields[1], fields[2], fields[3]};
+        (void) Misc::Chat::FindPayloadField(fields, Misc::Chat::kReadFieldCount, payload_size);
+        for (int i = 0; i < 4; ++i) assert(fields[i] == before[i]);
     }
 
     // ---- ragdoll thrust: the slider is clamped, and fast ragdolls are left alone --

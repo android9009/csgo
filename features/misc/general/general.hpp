@@ -199,26 +199,30 @@ void FrameStage(int stage); // stage 4 only
 } // namespace Misc::Scoreboard
 
 // ---------------------------------------------------------------------------
-// Reveal enemy chat (chat.cpp): hooks IBaseClientDll::DispatchUserMessage (slot 38,
-// the vtable that also holds FrameStageNotify 37) and re-addresses a team chat message
-// as all-chat, so the HUD prints what the server sent but the client hid.
+// Reveal enemy chat (chat.cpp): hooks IBaseClientDll::DispatchUserMessage (slot 38, the
+// vtable that also holds FrameStageNotify 37) and prints the enemy team chat the client
+// received but refuses to draw.
 //
-// Only the message name field is replaced; every other byte of the payload is copied
-// verbatim, because the published descriptions of this layout disagree about its header.
+// The message is read, never written. The gamesense "Enemy team chat revealer" Lua works
+// the same way: it takes the chat the cheat already has, keeps only lines from enemies,
+// remembers when each player last spoke so nothing is printed twice, and renders the
+// line itself. The engine does deliver team chat to every client - that is why the client
+// carries cl_mute_enemy_team to hide it - so nothing has to be forged server-side.
 // ---------------------------------------------------------------------------
 namespace Misc::Chat {
-// A chat name is a one-byte length plus the name itself ("Cstrike_Chat_CT_Loc"). The
-// name is looked for in the first bytes of the payload, because the published
-// descriptions of this message disagree about everything that precedes it.
+// A chat name is a length prefix plus the name itself ("Cstrike_Chat_CT_Loc"). The name is
+// looked for in the first bytes of the payload, because the published descriptions of this
+// message disagree about everything that precedes it.
 constexpr int kNameScanWindow = 32;
-// bf_read is an object, not a buffer: the payload pointer lives in one of its fields and
-// the field offset differs between client builds. Nine machine words (36 bytes) covers the
+// bf_read is an object, not a buffer: the payload pointer lives in one of its fields and the
+// field offset differs between client builds. Nine machine words (36 bytes) covers the
 // published layouts - the pointer sits at +0x18..+0x20 - and deliberately stops there:
-// every word past the real object is somebody else's stack slot.
+// every word past the real object is somebody else's stack slot, so nothing past it is
+// looked at and nothing at all is written back.
 constexpr int kReadFieldCount = 9;
 
-// Locates the length-prefixed message name in a SayText2 payload. Returns the offset of
-// the length byte, or -1 when the bytes do not look like a chat name.
+// Locates the length-prefixed message name in a SayText2 payload. Returns the offset of the
+// length byte, or -1 when the bytes do not look like a chat name.
 inline int FindChatNameOffset(const unsigned char* data, int size) {
     if (!data || size < 3) return -1;
     const int limit = size < kNameScanWindow ? size : kNameScanWindow;
@@ -231,10 +235,7 @@ inline int FindChatNameOffset(const unsigned char* data, int size) {
         bool printable = true;
         for (int i = 0; i < length; ++i) {
             const unsigned char c = data[offset + 1 + i];
-            if (c < 0x20 || c > 0x7E) {
-                printable = false;
-                break;
-            }
+            if (c < 0x20 || c > 0x7E) { printable = false; break; }
         }
         if (printable) return offset;
     }
@@ -242,9 +243,9 @@ inline int FindChatNameOffset(const unsigned char* data, int size) {
 }
 
 // Finds the field of a bf_read object that points at a buffer starting with a chat name.
-// Every field is tried and each candidate is validated against the message length the
-// caller already knows, so a build with a different layout resolves itself instead of
-// being hardcoded. Returns the field index, or -1.
+// Every field is tried and each candidate is validated against the message length the caller
+// already knows, so a build with a different layout resolves itself instead of being
+// hardcoded. Returns the field index, or -1. Read-only: the object is never modified.
 inline int FindPayloadField(const std::uintptr_t* fields, int field_count, int data_bytes) {
     if (!fields || data_bytes <= 0) return -1;
     for (int i = 0; i < field_count; ++i) {
@@ -255,62 +256,119 @@ inline int FindPayloadField(const std::uintptr_t* fields, int field_count, int d
     return -1;
 }
 
-// Result of repointing a read object at a rebuilt payload, kept for logging: a build
-// whose object keeps the buffer start, its end and its size in separate fields needs all
-// of them updated, while a build that keeps only the pointer needs one.
-struct Repoint {
-    int pointer_fields{};
-    int length_fields{};
-    bool ok() const { return pointer_fields > 0 && length_fields > 0; }
+// A SayText2 payload is CCSUsrMsg_SayText2: ent_idx (field 1, varint), chat (2), msg_name
+// (3, string), params (4, repeated string) - the speaker in params[0] and the line itself in
+// params[1]. Only those four fields are decoded, and every read is bounded by the message
+// length the dispatcher already handed us.
+struct SayText2 {
+    int ent_index{};
+    char name[40]{};
+    int name_length{};
+    char speaker[64]{};
+    int speaker_length{};
+    char text[256]{};
+    int text_length{};
 };
 
-// Repoints a bf_read object from `old_buffer` to `new_buffer`. Fields are matched by
-// value, not by offset: the buffer start, its 4-byte-aligned end, the byte count and the
-// bit count. A field that only coincidentally holds the byte count is left alone unless
-// it is the first such field, because payloads this feature rewrites are never tiny.
-inline Repoint RepointRead(std::uintptr_t* fields, int field_count,
-                           const unsigned char* old_buffer, int old_bytes,
-                           unsigned char* new_buffer, int new_bytes) {
-    Repoint out;
-    if (!fields || field_count <= 0 || !old_buffer || !new_buffer || old_bytes <= 0 ||
-        new_bytes <= 0)
-        return out;
-    const std::uintptr_t old_start = reinterpret_cast<std::uintptr_t>(old_buffer);
-    const std::uintptr_t new_start = reinterpret_cast<std::uintptr_t>(new_buffer);
-    const std::uintptr_t old_end = old_start + static_cast<std::uintptr_t>(old_bytes & ~3);
-    const std::uintptr_t new_end = new_start + static_cast<std::uintptr_t>(new_bytes & ~3);
-    const std::uintptr_t old_size = static_cast<std::uintptr_t>(old_bytes);
-    const std::uintptr_t new_size = static_cast<std::uintptr_t>(new_bytes);
-    bool size_done = false;
-    bool bits_done = false;
-    for (int i = 0; i < field_count; ++i) {
-        if (fields[i] == old_start) {
-            fields[i] = new_start;
-            ++out.pointer_fields;
-        } else if (old_end != old_start && fields[i] == old_end) {
-            fields[i] = new_end;
-            ++out.pointer_fields;
-        } else if (!size_done && fields[i] == old_size) {
-            fields[i] = new_size;
-            size_done = true;
-            ++out.length_fields;
-        } else if (!bits_done && fields[i] == old_size * 8) {
-            fields[i] = new_size * 8;
-            bits_done = true;
-            ++out.length_fields;
-        }
-    }
-    return out;
+inline void CopyChatField(char* destination, int capacity, const unsigned char* source, int length) {
+    if (!destination || capacity <= 1 || !source || length <= 0) return;
+    const int copy = length < capacity - 1 ? length : capacity - 1;
+    std::memcpy(destination, source, static_cast<std::size_t>(copy));
+    destination[copy] = '\0';
 }
 
-// Rewrites team names and leaves all-chat names alone: "Cstrike_Chat_All" is already
-// printed for everybody, and rewriting it would only duplicate the line.
+inline bool ParseSayText2(const unsigned char* data, int size, SayText2& out) {
+    if (!data || size <= 1) return false;
+    int cursor = 0;
+    int param = 0;
+    while (cursor < size) {
+        const int tag = data[cursor++];
+        const int field = tag >> 3;
+        const int wire = tag & 7;
+        if (field == 0) return false;
+        if (wire == 0) {
+            unsigned long long value = 0;
+            int shift = 0;
+            bool ended = false;
+            while (cursor < size && shift <= 63) {
+                const int byte = data[cursor++];
+                value |= static_cast<unsigned long long>(byte & 0x7F) << shift;
+                shift += 7;
+                if (!(byte & 0x80)) { ended = true; break; }
+            }
+            if (!ended) return false;
+            if (field == 1) out.ent_index = static_cast<int>(value);
+        } else if (wire == 2) {
+            if (cursor >= size) return false;
+            int length = data[cursor++];
+            if (length & 0x80) { // a chat message never needs more than two length bytes
+                if (cursor >= size) return false;
+                length = (length & 0x7F) | (data[cursor++] << 7);
+            }
+            if (length < 0 || cursor + length > size) return false;
+            if (field == 3) {
+                CopyChatField(out.name, static_cast<int>(sizeof(out.name)), data + cursor, length);
+                out.name_length = std::strlen(out.name);
+            } else if (field == 4) {
+                if (param == 0) {
+                    CopyChatField(out.speaker, static_cast<int>(sizeof(out.speaker)), data + cursor, length);
+                    out.speaker_length = std::strlen(out.speaker);
+                } else if (param == 1) {
+                    CopyChatField(out.text, static_cast<int>(sizeof(out.text)), data + cursor, length);
+                    out.text_length = std::strlen(out.text);
+                }
+                ++param;
+            }
+            cursor += length;
+        } else {
+            return false;
+        }
+    }
+    return out.name_length > 0 && out.text_length > 0;
+}
+
+// Team chat is worth printing; all-chat is already drawn by the HUD, so printing it again
+// would show every line twice - the same reason the Lua banner-mutes the all-chat names.
 inline bool ShouldRevealChat(bool enabled, const char* name, int name_length) {
     if (!enabled || !name || name_length <= 0) return false;
     if (name_length <= 13 || std::strncmp(name, "Cstrike_Chat_", 13) != 0) return false;
     // "Cstrike_Chat_All", "Cstrike_Chat_All_Dead", "Cstrike_Chat_All_Spec".
     if (name_length >= 16 && std::strncmp(name + 13, "All", 3) == 0) return false;
     return true;
+}
+
+// Only lines from the other team: the local team's chat is drawn by the HUD already, and
+// a message from a spectator or the server has no team to compare.
+inline bool IsEnemyChat(bool enabled, int sender_team, int local_team) {
+    if (!enabled) return false;
+    if (sender_team != 2 && sender_team != 3) return false; // T = 2, CT = 3
+    return local_team != sender_team;
+}
+
+// The Lua remembers when each player last spoke and drops a repeat inside 0.4 s, because
+// the same line reaches the client twice (once for the team, once as the spectator copy).
+constexpr unsigned long long kChatRepeatMs = 400;
+
+struct ChatGate {
+    int sender{-1};
+    unsigned long long text_hash{};
+    unsigned long long stamp_ms{};
+};
+
+inline unsigned long long HashChatText(const char* text) {
+    unsigned long long hash = 1469598103934665603ull; // FNV-1a
+    if (!text) return hash;
+    for (const char* it = text; *it; ++it) {
+        hash ^= static_cast<unsigned char>(*it);
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+inline bool ShouldAnnounce(const ChatGate& gate, int sender, unsigned long long text_hash,
+                           unsigned long long now_ms) {
+    if (gate.sender != sender || gate.text_hash != text_hash) return true;
+    return now_ms < gate.stamp_ms || now_ms - gate.stamp_ms >= kChatRepeatMs;
 }
 
 void SetEnabled(bool enabled);

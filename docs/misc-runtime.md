@@ -103,23 +103,29 @@ thread may be executing inside the function being hooked.
 | `CNetChan::SendDatagram` | `engine.dll` signature `send_datagram` / `send_datagram_alt` | `cfg.misc.ping_spike_enabled` | `main`: `offsets.cpp`, `detour_hooks.cpp` |
 | `CNetChan::ProcessPacket` | `engine.dll` signature `process_packet` (already in the ported block) | `cfg.misc.ping_spike_enabled` | `main`: `detour_hooks.cpp` |
 
-**Reveal enemy chat** (`general/chat.cpp`) only touches `CS_UM_SayText2` (6). The hook
-takes `(int msg_type, int data_bytes, bf_read& msg)`, so the third argument is a read
-object, not the payload: the payload pointer is found by validation - every machine word
-of the object is tried and kept only when the buffer it points at starts with a
-length-prefixed `Cstrike_Chat_` name, which also logs the field it settled on
-(`bf_read payload field +0x..`). The name itself is located the same way, without
-assuming a field order, because the published descriptions of this payload disagree about
-its header. The rewrite never writes into the game's object: the object is copied into a
-local buffer, the *copy* is repointed at the rebuilt payload (`RepointRead` updates every
-field holding the buffer start, its end or its size) and the copy is what the message
-dispatch receives. A field beyond the real object is therefore somebody else's stack slot,
-which is exactly what an earlier version corrupted. Only the first nine words of the
-object are considered - the published layouts keep the payload pointer at +0x18..+0x20 -
-and if either the pointer or a size field cannot be identified the message goes through
-untouched. All-chat names are left alone, so nothing prints twice. Only the
-client's own display filter is bypassed: if the server never sends an enemy's team line,
-no client-side hook can invent it.
+**Reveal enemy chat** (`general/chat.cpp`) never modifies the message. The engine already
+delivers team chat to every client - that is why the client carries `cl_mute_enemy_team` to
+hide it - so the feature reads the `CS_UM_SayText2` (6) payload, decodes the four fields it
+needs (`ent_idx`, `chat`, `msg_name`, `params[]`) and prints the lines the HUD refused to
+draw. The provenance is the gamesense **"Enemy team chat revealer" Lua**: keep only lines
+whose sender is an enemy, remember when a player last spoke and drop a repeat inside
+0.4 s (`ChatGate`, `ShouldAnnounce`), print the line itself. Nothing is written to game
+memory, so there is no read object to repoint and no payload to rebuild.
+
+Two things had to be solved to read the payload at all. The hook signature is
+`(int msg_type, int data_bytes, bf_read& msg)`, so the third argument is a read object, not
+a buffer: the payload pointer is found by validation - every machine word of the object is
+tried and kept only when the buffer it points at starts with a length-prefixed
+`Cstrike_Chat_` name - which also logs the field it settled on
+(`bf_read payload field +0x..`). Only the first nine words are examined; everything past
+the real object belongs to the caller. The protobuf decode is bounded by `data_bytes`, so a
+different layout yields "not a chat message" rather than a read past the end.
+
+The line is printed through tier0's own `ConColorMsg`/`Msg` exports, so it appears in the
+console (`[chat] Speaker : text`). It does not appear in the chat panel: that panel is
+Panorama, and injecting into it is a separate piece of work; every cheats' Lua does it
+through its own chat-print API, which this DLL does not have yet. Only the client's display
+filter is bypassed - if the server never sends a line, no client-side hook can invent it.
 
 **Auto-accept** (`other/accept.cpp`) waits for the popup sample
 `UIPanorama.popup_accept_match_beep` on `EmitSound1`, then calls the client's
@@ -239,10 +245,10 @@ but it is the SDK piece any future scoreboard work needs.
 - The Panorama path fails in three separated places - interface, panel search, script
   call - each with its own bound. A wrong vtable index disables the weapon reveal for the
   session after three exceptions; the rank reveal keeps working.
-- The chat hook identifies both the payload pointer and the size field by validation and
-  falls back to the untouched message when either is missing, so a build whose `bf_read`
-  differs cannot be written into.
-- The chat rewrite re-parses its own buffer before handing it to the game and falls back
+- The chat hook only reads. It validates the payload pointer before using it, bounds every
+  protobuf read by `data_bytes`, and never writes to the read object or the payload, so a
+  build whose `bf_read` differs cannot be corrupted.
+- The decoded message is re-checked (name, sender, team) before a line is printed and falls back
   to the original message whenever the name scan or the round-trip fails, so a payload
   this build encodes differently is never reinterpreted.
 - `Misc::Shutdown` removes the OTHER hooks (sound, both console paths) before the clan tag
@@ -291,10 +297,10 @@ Portable tests:
   kept, malformed and null names refused), `ScalePercent` clamping,
   `ShouldScale` (ceiling, negative and NaN velocity), `IsAcceptSound`, and
   `ShouldFilter` (the five prefixes match, everything else is kept), `IsSequenceNumber`
-  (the net-channel write is refused outside the counter range), the SayText2 payload
-  helpers (`FindChatNameOffset` on a realistic payload, `FindPayloadField` on a read
-  object whose pointer sits in an arbitrary word, `RepointRead` updating the start and the
-  size and nothing else), and the ping
+  (the net-channel write is refused outside the counter range), the SayText2 decoder
+  (`ParseSayText2` on a real protobuf, truncated and nameless messages refused,
+  `FindPayloadField` on a read object whose pointer sits in an arbitrary word and is left
+  unchanged by the lookup, `IsEnemyChat`, `ShouldAnnounce`'s 0.4 s window), and the ping
   arithmetic: `TicksForSeconds` at 64/128 tick with its zero/negative guards,
   `SpikeSeconds` (latency and lerp subtracted, unlag ceiling, negative readings ignored)
   and `ShouldSpike`.
