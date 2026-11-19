@@ -33,10 +33,8 @@ struct Settings {
     bool ragdoll_thrust{};     // "Ragdoll thrust"
     float ragdoll_percent{100.f}; // "Ragdoll thrust > Amount" (1..1000 %)
 
-    // "Ping spike" has no implementation yet (see docs/misc-runtime.md); Publish reports
-    // it once when it is enabled instead of pretending to work.
     bool ping_spike{};
-    float ping_spike_ms{};
+    float ping_spike_ms{}; // "Ping spike > Amount", milliseconds
 };
 
 // Called from the menu bridge on the render thread; forwards each value to the feature
@@ -260,3 +258,56 @@ void Publish(bool enabled, float percent);
 // Called on the game thread from FrameStageNotify (stage 4, every fourth frame).
 void FrameStage(int stage);
 } // namespace Misc::Ragdoll
+
+// ---------------------------------------------------------------------------
+// Ping spike (ping.cpp): hooks CNetChan::SendDatagram and CNetChan::ProcessPacket and
+// lowers the incoming sequence number, so the server measures the local client as
+// laggier than it is. Ported from this repository's `main` branch: detour_hooks.cpp
+// (send_datagram / process_packet), fake_lag.cpp (c_ping_spike) and structs.hpp
+// (c_net_channel offsets).
+// ---------------------------------------------------------------------------
+namespace Misc::Ping {
+// The menu slider runs 0..200 ms; anything above the ceiling is clamped, because the
+// server rejects a shift larger than its own unlag budget anyway.
+constexpr int kMaxSpikeMs = 200;
+
+// sv_maxunlag defaults to 1.0 s in CS:GO. It is read from the ConVar when the read is
+// plausible; these bounds are what decides "plausible".
+constexpr float kDefaultMaxUnlag = 1.0f;
+constexpr float kMinMaxUnlag = 0.05f;
+constexpr float kMaxMaxUnlag = 2.0f;
+
+// TIME_TO_TICKS, with the interval guarded: before the first map load it is zero, and
+// dividing by it would be undefined.
+inline int TicksForSeconds(float seconds, float interval) {
+    if (!(interval > 0.f) || !(seconds > 0.f)) return 0;
+    return static_cast<int>(0.5f + seconds / interval);
+}
+
+// `main` turns the requested delay into a delay *on top of* what the connection already
+// has (outgoing latency and interpolation), then clamps it to the server's unlag budget.
+// Parts that could not be read arrive as 0 and are simply skipped.
+inline float SpikeSeconds(float desired_ms, float outgoing_latency, float lerp_time,
+                          float max_unlag) {
+    if (!(desired_ms > 0.f)) return 0.f;
+    float correct = desired_ms / 1000.f;
+    if (outgoing_latency > 0.f) correct -= outgoing_latency;
+    if (lerp_time > 0.f) correct -= lerp_time;
+    if (!(correct > 0.f)) return 0.f;
+    if (max_unlag > 0.f && correct > max_unlag) return max_unlag;
+    return correct;
+}
+
+// The incoming sequence number is only ever lowered, and only while there is room: a
+// value below the shift would wrap into negative territory and reconnect the client.
+inline bool ShouldSpike(int in_sequence_nr, int ticks) {
+    return ticks > 0 && in_sequence_nr > ticks;
+}
+
+// Called from the menu bridge on the render thread.
+void Publish(bool enabled, float milliseconds);
+
+// Installs the two detours from the game thread once the switch was published.
+void FrameStage(int stage);
+void Shutdown();
+} // namespace Misc::Ping

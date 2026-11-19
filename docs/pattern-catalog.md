@@ -98,6 +98,12 @@ makes the provenance obvious and keeps the "ported from `main`" count honest.
 |---|---|---|
 | `server_rank_reveal_all` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
 | `set_local_player_ready` | `client.dll` | Misc → Other → "Auto-accept" |
+| `send_datagram`, `send_datagram_alt` | `engine.dll` | Misc → General → "Ping spike" |
+
+`send_datagram` and `send_datagram_alt` are the two `CNetChan::SendDatagram`
+signatures this repository's `main` branch carries, one per supported game build; the
+feature tries them in order. `CNetChan::ProcessPacket` was already part of the ported
+block, so ping spike reuses that entry instead of duplicating it.
 
 `set_local_player_ready` is the signature published by CSGOSimple for the client's
 `SetLocalPlayerReady(const char*)`; the prologue reads its single argument from
@@ -112,7 +118,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 
 `tests/pattern_catalog_test.cpp` (portable, no Windows headers) verifies:
 
-- all three catalogues have the expected entry counts (58 / 99 / 2) and globally unique
+- all three catalogues have the expected entry counts (58 / 99 / 4) and globally unique
   names;
 - every module name is one the scanner can load, every signature token is either two
   uppercase hex digits or `?`/`??`, offsets stay within the 4-slot operand chain, and

@@ -70,5 +70,35 @@ int main() {
     assert(!ShouldFilter("Unknown command: net_graph"));
     assert(!ShouldFilter(""));
     assert(!ShouldFilter(nullptr));
+    // ---- ping spike: the shift is clamped to the unlag budget ---------------------
+    using namespace Misc::Ping;
+    // TIME_TO_TICKS at the two common tick rates, and the guards.
+    assert(TicksForSeconds(0.1f, 1.f / 64.f) == 6);
+    assert(TicksForSeconds(0.1f, 1.f / 128.f) == 13);
+    assert(TicksForSeconds(0.f, 1.f / 64.f) == 0);
+    assert(TicksForSeconds(-0.1f, 1.f / 64.f) == 0);
+    assert(TicksForSeconds(0.1f, 0.f) == 0); // interval not known yet
+    assert(TicksForSeconds(0.1f, -1.f) == 0);
+
+    // Requested 100 ms with nothing known about the connection: the whole amount is used.
+    assert(SpikeSeconds(100.f, 0.f, 0.f, kDefaultMaxUnlag) > 0.0999f);
+    // Existing latency and interpolation are subtracted, not ignored.
+    assert(SpikeSeconds(100.f, 0.02f, 0.03f, kDefaultMaxUnlag) > 0.0499f);
+    assert(SpikeSeconds(100.f, 0.02f, 0.03f, kDefaultMaxUnlag) < 0.0501f);
+    // Already slower than the requested amount: nothing to add.
+    assert(SpikeSeconds(30.f, 0.02f, 0.03f, kDefaultMaxUnlag) == 0.f);
+    assert(SpikeSeconds(0.f, 0.f, 0.f, kDefaultMaxUnlag) == 0.f);
+    // The server's unlag budget is the hard ceiling.
+    assert(SpikeSeconds(200.f, 0.f, 0.f, 0.2f) == 0.2f);
+    // A negative latency reading is ignored rather than subtracted.
+    assert(SpikeSeconds(100.f, -0.5f, 0.f, kDefaultMaxUnlag) > 0.0999f);
+
+    // The sequence number is lowered only while there is room left.
+    assert(ShouldSpike(100, 6));
+    assert(!ShouldSpike(6, 6));
+    assert(!ShouldSpike(5, 6));
+    assert(!ShouldSpike(100, 0));
+    assert(!ShouldSpike(100, -3));
+    assert(!ShouldSpike(0, 6));
     return 0;
 }

@@ -181,6 +181,9 @@
     <ClCompile Include="features\misc\general\ragdoll.cpp">
       <Filter>Features\misc\general</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\general\ping.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\other\other.cpp">
       <Filter>Features\misc\other</Filter>
     </ClCompile>
@@ -663,6 +666,9 @@
     </ClInclude>
     <ClInclude Include="features\misc\other\other.hpp">
       <Filter>Features\misc\other</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\convars.hpp">
+      <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\general\general.hpp">
       <Filter>Features\misc\general</Filter>

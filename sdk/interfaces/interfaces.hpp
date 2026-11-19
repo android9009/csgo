@@ -71,6 +71,13 @@ public:
         using Fn = bool (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[27])(this);
     }
+    // IVEngineClient::GetNetChannelInfo - slot 78 in the layout used by this client
+    // (ported from `main`: interfaces.hpp). Returns an INetChannelInfo; the caller is
+    // expected to validate it before use, because a wrong slot yields garbage.
+    void* GetNetChannelInfo() {
+        using Fn = void* (__thiscall*)(void*);
+        return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[78])(this);
+    }
 };
 struct IGlobalVarsBase {
     float realtime = 0.f;
@@ -157,6 +164,17 @@ class IConVar;
 class IGameEventManager2;
 class IPhysicsSurfaceProps;
 class IViewRenderBeams;
+// Subset of INetChannelInfo (engine's per-connection statistics). The flow argument is
+// 0 for incoming and 1 for outgoing; get_latency is the tenth virtual in the published
+// layout, which is what `main` relies on as well.
+class INetChannelInfo {
+public:
+    float GetLatency(int flow) {
+        using Fn = float (__thiscall*)(void*, int);
+        return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[9])(this, flow);
+    }
+};
+
 class IGlowObjectManager;
 class IViewRender : public InterfaceView {
 public:

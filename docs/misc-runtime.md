@@ -30,6 +30,7 @@ features/misc/
     scoreboard_script.cpp  the injected Panorama JavaScript builders
     chat.cpp               reveal enemy chat (DispatchUserMessage hook)
     ragdoll.cpp            ragdoll thrust
+    ping.cpp               ping spike (SendDatagram / ProcessPacket hooks)
   other/                   second Misc group box ("OTHER", id misc>other)
     other.hpp              the folder's single header
     other.cpp              façade: fan out to auto-accept and the console filter
@@ -73,6 +74,7 @@ because the flash switch is the first item of the Removals combo box.
 | Visual punch | `cfg.misc.removals` bit 8 | 0/5 | zeroes `m_aimPunchAngle` and `m_viewPunchAngle` on the local player |
 | Reveal enemy chat | `cfg.misc.reveal_enemy_chat` | hook | re-addresses team chat as all-chat so the HUD prints it |
 | Ragdoll thrust | `cfg.misc.ragdoll_thrust_enabled` + `cfg.visuals.ragdoll_thrust` | 4 (every 4th frame) | scales `m_vecForce` and `m_vecRagdollVelocity` on every `CCSRagdoll` |
+| Ping spike | `cfg.misc.ping_spike_enabled` + `cfg.aim.ping_spike_amt` | hook | lowers the incoming sequence number so the server measures a higher ping |
 | Auto-accept | `cfg.misc.autoaccept` | hook | accepts the match when the accept popup beeps |
 | Console filter | `cfg.misc.console_filter` | hook | drops five documented connection/queue lines from the console |
 
@@ -98,6 +100,8 @@ thread may be executing inside the function being hooked.
 | `IEngineSoundClient::EmitSound1` | vtable 5 | `cfg.misc.autoaccept` | CSGOSimple `hooks.hpp` |
 | `SetLocalPlayerReady` | `client.dll` signature `set_local_player_ready` | `cfg.misc.autoaccept` | CSGOSimple `misc.cpp` |
 | `tier0!ConMsg`, `tier0!ConColorMsg` | DLL exports | `cfg.misc.console_filter` | tier0 export table |
+| `CNetChan::SendDatagram` | `engine.dll` signature `send_datagram` / `send_datagram_alt` | `cfg.misc.ping_spike_enabled` | `main`: `offsets.cpp`, `detour_hooks.cpp` |
+| `CNetChan::ProcessPacket` | `engine.dll` signature `process_packet` (already in the ported block) | `cfg.misc.ping_spike_enabled` | `main`: `detour_hooks.cpp` |
 
 **Reveal enemy chat** (`general/chat.cpp`) only touches `CS_UM_SayText2` (6). The
 published descriptions of this payload disagree about its header, so the hook does not
@@ -121,6 +125,20 @@ exports with MinHook (no signature and no vtable index can go stale), formats th
 once, and forwards it as `"%s"` so the original keeps its own output path. It drops only
 the five literal prefixes listed in `other.hpp` — the connect/queue chatter — and never a
 line it does not recognise.
+
+**Ping spike** (`general/ping.cpp`) is ported from `main`'s `c_ping_spike`. On
+`SendDatagram` it computes `desired_ms/1000 - outgoing_latency - lerp_time`, clamps the
+result to `sv_maxunlag`, converts it to ticks with the current `interval_per_tick` and
+subtracts them from `CNetChan::in_sequence_nr` (+0x1C), so the server acknowledges the
+client later than it really sent. `ProcessPacket` (+0x28 `in_reliable_state`) marks every
+freshly processed packet, and the next datagram is then left untouched - that alternating
+pattern is what keeps the shift from looking like a constant offset. Outgoing latency
+comes from `IVEngineClient::GetNetChannelInfo` (slot 78) and `INetChannelInfo::GetLatency`
+(9); both the interface's own vtable and the returned value are validated, so a wrong slot
+degrades to "latency unknown" instead of a bad call. `lerp_time` and `sv_maxunlag` are
+read through `sdk/convars.hpp` (`ICvar::FindVar` slot 16, `c_convar` layout and the value
+obfuscation from `main`'s `structs.hpp`), each with a range check and a sane fallback.
+The whole detour body is SEH-guarded and switches itself off after one exception.
 
 **Ragdoll thrust** (`general/ragdoll.cpp`) walks the entity list above the player slots
 on stage 4 of every fourth frame, matches `m_pNetworkName == "CCSRagdoll"` (the class id
@@ -172,6 +190,8 @@ but it is the SDK piece any future scoreboard work needs.
   resolved once.
 - Radar walks at most 64 player slots and writes only when the flag is currently false,
   so a settled frame performs no writes.
+- Ping spike does one arithmetic pass per datagram plus two ConVar reads behind range
+  checks; nothing is allocated and nothing is formatted unless the one-shot log fires.
 - Ragdoll thrust sweeps the entity list only on every fourth stage-4 frame and stops at
   the highest entity index, so a full round of ragdolls costs four sweeps per second.
 - The three hooks do nothing at all while their switch is off: the chat hook returns on
@@ -218,19 +238,17 @@ reports that once in the log when it is switched on instead of silently doing no
   to be implemented together with the ragebot.
 - **Scoreboard "Reveal unmatched ranks"** - needs the engine's own rank lookup for players
   the server never sent a skill group for; not implemented by request.
-- **Ping spike** (`cfg.misc.ping_spike_enabled`, amount in `cfg.aim.ping_spike_amt`) -
-  spiking the outgoing datagram rate needs either a netchannel hook this SDK cannot
-  address (there is no netchan interface captured) or a ConVar write path. The ConVar
-  path is the blocker: `sdk/interfaces/interfaces.hpp` only forward-declares `IConVar`,
-  and the client's `ConVar` layout (which differs between Source 2013 and this build) is
-  what a write needs. Shipping a guessed offset here would corrupt cvar memory.
-- **sv_cheats bypass** - same blocker as ping spike, plus it is only a client-side
-  illusion: the server's `sv_cheats` value is what decides whether cheat-flagged
-  commands run. Worth doing only together with a verified `ICvar::FindVar` path
-  (slot 16 in the published `ICvar` layout).
-- **sv_pure bypass** - needs a hook on `IBaseFileSystem`/`ISteamGameCoordinator`; the
-  filesystem vtable indices differ between `filesystem_stdio` builds and an off-by-one
-  here is a wild call into the file system of a live game.
+- **sv_cheats bypass** - `main` implements exactly one narrow case: a hook on the
+  `sv_cheats` ConVar's `GetInt` that returns 1 only when the caller is `cam_think`'s
+  return address. A general "always 1" hook would lie to every client caller, and the
+  return-address anchor (`return_addr_cam_think`) has not been verified for this build.
+  The ConVar path itself now exists (`sdk/convars.hpp`), so this is a matter of porting
+  that anchor, not of missing plumbing.
+- **sv_pure bypass** - `main` hooks `IBaseFileSystem::CanLoadThirdpartyFiles` and returns
+  1. Porting it needs that filesystem vtable index for this build; the filesystem
+  interface is captured (`Interfaces::BaseFileSystem`) but the slot has not been
+  verified against a public source that matches, and an off-by-one is a wild call into
+  the file system of a live game.
 - **Removals 1-7 and 9** (smoke, particles, post processing, water, blood, decals,
   ragdolls, shadows) - material, effect-dispatch and entity-visibility manipulation;
   each needs its own validated hook, and a wrong one is a visible or crashing change.
@@ -247,7 +265,10 @@ Portable tests:
 - `tests/misc_hooks_test.cpp` - `ShouldRevealChat` (team names rewritten, all-chat names
   kept, malformed and null names refused), `ScalePercent` clamping,
   `ShouldScale` (ceiling, negative and NaN velocity), `IsAcceptSound`, and
-  `ShouldFilter` (the five prefixes match, everything else is kept).
+  `ShouldFilter` (the five prefixes match, everything else is kept), and the ping
+  arithmetic: `TicksForSeconds` at 64/128 tick with its zero/negative guards,
+  `SpikeSeconds` (latency and lerp subtracted, unlag ceiling, negative readings ignored)
+  and `ShouldSpike`.
 - `tests/misc_clantag_test.cpp` - `ShouldApply` transitions (first enable, steady state,
   tag change, new local entity, interval, `GetTickCount` wraparound, disabled, no local
   player, null pointers), `ShouldRestore` exactly-once semantics, and the tag length.

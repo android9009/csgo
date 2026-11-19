@@ -98,6 +98,8 @@ bool Init() {
     // logs once and keeps itself off.
     s_values.emplace("server_rank_reveal_all", Patterns::Get("server_rank_reveal_all"));
     s_values.emplace("set_local_player_ready", Patterns::Get("set_local_player_ready"));
+    s_values.emplace("send_datagram", Patterns::Get("send_datagram"));
+    s_values.emplace("send_datagram_alt", Patterns::Get("send_datagram_alt"));
     const bool ok = Get("dwClientState") && Get("dwEntityList") && Get("dwLocalPlayer");
     if (!ok) LOG_ERROR("Offset initialization did not resolve critical values.");
     return ok;

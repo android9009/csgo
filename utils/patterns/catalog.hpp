@@ -271,6 +271,13 @@ inline constexpr Definition kReferenceCatalog[] = {
     {"set_local_player_ready", "client.dll", "55 8B EC 83 E4 F8 8B 4D 08 BA ? ? ? ? E8 ? ? ? ? 85 C0 75 12", {0, 0, 0, 0}, 0, true, 0},
     // Scoreboard "Reveal ranks": the client's ServerRankRevealAll handler, called as
     // char __cdecl(int*). Community signature for the 2019-2023 client.
+    // Misc "Ping spike": CNetChan::SendDatagram in engine.dll, ported from this
+    // repository's `main` branch (`offsets.cpp`). `main` carries one signature per
+    // supported game build, so both are kept: the feature tries them in order and stays
+    // off if neither matches. CNetChan::ProcessPacket is already in the ported block
+    // above under the same name.
+    {"send_datagram", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 18", {0, 0, 0, 0}, 0, true, 0},
+    {"send_datagram_alt", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 14", {0, 0, 0, 0}, 0, true, 0},
     {"server_rank_reveal_all", "client.dll", "55 8B EC 8B 0D ? ? ? ? 85 C9 75 28 A1 ? ? ? ? 68 ? ? ? ? 8B 08 8B 01 FF 50 04 85 C0 74 0B 8B C8 E8 ? ? ? ? 8B C8 EB 02 33 C9 89 0D ? ? ? ? 8B 45 08", {0, 0, 0, 0}, 0, true, 0},
 };
 } // namespace Patterns
