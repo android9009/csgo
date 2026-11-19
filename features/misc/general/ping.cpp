@@ -35,6 +35,7 @@ std::atomic<bool> g_enabled{false};
 std::atomic<float> g_ms{0.f};
 bool g_attach_tried{};
 bool g_reported{};
+bool g_bad_netchan{};
 
 // `main` alternates the spike: one datagram after every freshly processed packet is sent
 // untouched, which is what keeps the sequence offset from looking like a constant shift.
@@ -123,9 +124,38 @@ float MaxUnlag() {
     return ConVars::Float("sv_maxunlag", kMinMaxUnlag, kMaxMaxUnlag, kDefaultMaxUnlag);
 }
 
+// A real CNetChan is a C++ object from engine.dll, so its vtable has to live in that
+// module. Checking it is what keeps a wrong client-state offset from writing into some
+// unrelated structure: without this, a stale offset is a silent memory corruption.
+bool LooksLikeNetChannel(void* netchan) {
+    if (!netchan) return false;
+    const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("engine.dll"));
+    std::uintptr_t text = 0;
+    std::uintptr_t size = 0;
+    if (!base || !MEM::GetSection(base, ".text", &text, &size)) return false;
+    void** vtable = nullptr;
+    __try {
+        vtable = *reinterpret_cast<void***>(netchan);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+    if (!vtable) return false;
+    const auto first = reinterpret_cast<std::uintptr_t>(vtable[0]);
+    return first >= text && first < text + size;
+}
+
 void ApplySpike(void* netchan) {
     if (!ctx.in_game || !ctx.local || !ctx.local->IsAlive()) return;
     if (!netchan || netchan != NetChannel()) return;
+    if (!LooksLikeNetChannel(netchan)) {
+        if (!g_bad_netchan) {
+            g_bad_netchan = true;
+            LOG_ERROR("misc: ping spike - the client-state net-channel offset points at "
+                      "something that is not a CNetChan; feature disabled");
+        }
+        g_enabled.store(false, std::memory_order_relaxed);
+        return;
+    }
 
     const float interval = Interfaces::Globals ? Interfaces::Globals->interval_per_tick : 0.f;
     const int ticks = TicksForSeconds(
@@ -140,12 +170,25 @@ void ApplySpike(void* netchan) {
     }
 
     auto* sequence = reinterpret_cast<int*>(reinterpret_cast<std::uintptr_t>(netchan) + kInSequence);
-    if (!ShouldSpike(*sequence, ticks)) return;
-    *sequence -= ticks;
+    const int before = *sequence;
+    // A real sequence number is a small positive counter; anything else means the offset
+    // is wrong for this build, and subtracting from it would corrupt the connection.
+    if (!IsSequenceNumber(before)) {
+        if (!g_bad_netchan) {
+            g_bad_netchan = true;
+            LOG_ERROR("misc: ping spike - in_sequence_nr at +0x%X reads %d, which is not a "
+                      "sequence number; feature disabled", static_cast<unsigned>(kInSequence), before);
+        }
+        g_enabled.store(false, std::memory_order_relaxed);
+        return;
+    }
+    if (!ShouldSpike(before, ticks)) return;
+    *sequence = before - ticks;
 
     if (!g_reported) {
         g_reported = true;
-        LOG_INFO("misc: ping spike active (%d ticks on the incoming sequence)", ticks);
+        LOG_INFO("misc: ping spike active (%d ticks on the incoming sequence: %d -> %d)",
+                 ticks, before, *sequence);
     }
 }
 

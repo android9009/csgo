@@ -16,6 +16,9 @@ constexpr std::size_t kDispatchSlot = 38;
 constexpr int kSayText2 = 6; // ECstrike15UserMessages_CS_UM_SayText2
 // One usermessage cannot carry more than this; anything larger is not chat.
 constexpr int kMaxPayload = 512;
+// Fields of the read object this feature is willing to look at. The published layouts
+// keep the payload pointer at +0x18..+0x20, i.e. inside the first nine words.
+constexpr int kObjectWords = kReadFieldCount;
 constexpr const char* kAllChatName = "Cstrike_Chat_All";
 
 using DispatchFn = bool(__fastcall*)(void*, void*, int, int, const void*);
@@ -26,25 +29,27 @@ std::atomic<bool> g_want{false};
 bool g_attach_tried{};
 bool g_reported{};
 bool g_layout_reported{};
+int g_payload_field{-1};
 
-// Reads the payload pointer out of the bf_read object. The field is found by validation
-// (see Misc::Chat::FindPayloadField), so a client build whose bf_read keeps the buffer
-// somewhere else resolves itself instead of writing into the wrong bytes.
-const unsigned char* Payload(std::uintptr_t* fields, int data_bytes) {
-    if (!fields || data_bytes <= 0) return nullptr;
-    int index = -1;
-    __try {
-        index = FindPayloadField(fields, kReadFieldCount, data_bytes);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        index = -1;
+// Copies the read object into our own buffer and repoints the copy at the rebuilt
+// payload. The game's object is never written to: a field outside the real object would
+// otherwise be somebody else's stack slot, and corrupting that is a crash far away from
+// here. Returns the number of bytes to pass on, or -1 to leave the message alone.
+int PrepareRewrite(const void* read_object, int data_bytes, unsigned char* rebuilt, int total,
+                   std::uintptr_t* copy) {
+    std::memcpy(copy, read_object, sizeof(std::uintptr_t) * kObjectWords);
+    const auto* payload = reinterpret_cast<const unsigned char*>(copy[g_payload_field]);
+    if (!payload) return -1;
+    const Repoint repoint = RepointRead(copy, kObjectWords, payload, data_bytes, rebuilt, total);
+    if (!repoint.ok()) return -1;
+    if (!g_reported) {
+        g_reported = true;
+        LOG_INFO("misc: reveal enemy chat - message rewritten (%d bytes -> %d, %d pointer "
+                 "field(s), %d size field(s), payload at word %d)",
+                 data_bytes, total, repoint.pointer_fields, repoint.length_fields,
+                 g_payload_field);
     }
-    if (index < 0) return nullptr;
-    if (!g_layout_reported) {
-        g_layout_reported = true;
-        LOG_INFO("misc: reveal enemy chat - bf_read payload field +0x%X",
-                 index * static_cast<int>(sizeof(std::uintptr_t)));
-    }
-    return reinterpret_cast<const unsigned char*>(fields[index]);
+    return total;
 }
 
 bool __fastcall Dispatch(void* self, void* edx, int type, int data_bytes, const void* read_object) {
@@ -54,58 +59,61 @@ bool __fastcall Dispatch(void* self, void* edx, int type, int data_bytes, const 
         data_bytes <= 2 || data_bytes > kMaxPayload)
         return original(self, edx, type, data_bytes, read_object);
 
-    auto* fields = const_cast<std::uintptr_t*>(static_cast<const std::uintptr_t*>(read_object));
-    const auto* bytes = Payload(fields, data_bytes);
-    if (!bytes) return original(self, edx, type, data_bytes, read_object);
-
-    const int name_offset = FindChatNameOffset(bytes, data_bytes);
-    if (name_offset < 0) return original(self, edx, type, data_bytes, read_object);
-
-    const int name_length = bytes[name_offset];
-    const char* name = reinterpret_cast<const char*>(bytes + name_offset + 1);
-    if (!ShouldRevealChat(true, name, name_length))
-        return original(self, edx, type, data_bytes, read_object);
-
-    // Only the name field changes; the prefix and everything after the name are copied
-    // byte for byte, so the rest of the payload keeps its exact original encoding.
-    const int new_length = static_cast<int>(std::strlen(kAllChatName));
-    unsigned char buffer[kMaxPayload + 8]{};
-    const int prefix = name_offset;
-    const int suffix_offset = name_offset + 1 + name_length;
-    const int suffix = data_bytes - suffix_offset;
-    const int total = prefix + 1 + new_length + suffix;
-    if (total > static_cast<int>(sizeof(buffer)))
-        return original(self, edx, type, data_bytes, read_object);
-
-    std::memcpy(buffer, bytes, prefix);
-    buffer[prefix] = static_cast<unsigned char>(new_length);
-    std::memcpy(buffer + prefix + 1, kAllChatName, new_length);
-    std::memcpy(buffer + prefix + 1 + new_length, bytes + suffix_offset, suffix);
-
-    // Round-trip: the rebuilt buffer must still parse to the same field, now all-chat.
-    if (FindChatNameOffset(buffer, total) != prefix)
-        return original(self, edx, type, data_bytes, read_object);
-
-    // The game's own read object is repointed at the rebuilt payload; every field that
-    // holds the buffer start, its end or its size is updated. If the layout does not
-    // match what the object actually contains, the message goes through unchanged.
-    Repoint repoint;
+    // Everything below touches memory the game owns, so one guard covers the whole
+    // analysis: a surprise means the message is passed through untouched.
+    std::uintptr_t copy[kObjectWords]{};
+    unsigned char rebuilt[kMaxPayload + 8]{};
+    int total = -1;
     __try {
-        repoint = RepointRead(fields, kReadFieldCount, bytes, data_bytes, buffer, total);
+        const auto* fields = static_cast<const std::uintptr_t*>(read_object);
+        if (g_payload_field < 0) {
+            const int found = FindPayloadField(fields, kObjectWords, data_bytes);
+            if (found < 0) total = -1;
+            else {
+                g_payload_field = found;
+                if (!g_layout_reported) {
+                    g_layout_reported = true;
+                    LOG_INFO("misc: reveal enemy chat - bf_read payload field +0x%X",
+                             found * static_cast<int>(sizeof(std::uintptr_t)));
+                }
+            }
+        }
+        if (g_payload_field >= 0) {
+            const auto* bytes = reinterpret_cast<const unsigned char*>(fields[g_payload_field]);
+            const int name_offset = bytes ? FindChatNameOffset(bytes, data_bytes) : -1;
+            if (name_offset >= 0) {
+                const int name_length = bytes[name_offset];
+                const char* name = reinterpret_cast<const char*>(bytes + name_offset + 1);
+                if (ShouldRevealChat(true, name, name_length)) {
+                    // Only the name field changes; every other byte is copied verbatim.
+                    const int new_length = static_cast<int>(std::strlen(kAllChatName));
+                    const int suffix_offset = name_offset + 1 + name_length;
+                    const int suffix = data_bytes - suffix_offset;
+                    const int new_total = name_offset + 1 + new_length + suffix;
+                    if (suffix >= 0 && new_total > 0 &&
+                        new_total <= static_cast<int>(sizeof(rebuilt))) {
+                        std::memcpy(rebuilt, bytes, name_offset);
+                        rebuilt[name_offset] = static_cast<unsigned char>(new_length);
+                        std::memcpy(rebuilt + name_offset + 1, kAllChatName, new_length);
+                        std::memcpy(rebuilt + name_offset + 1 + new_length,
+                                    bytes + suffix_offset, suffix);
+                        // Round-trip: the rebuilt buffer must still parse, now as all-chat.
+                        if (FindChatNameOffset(rebuilt, new_total) == name_offset) {
+                            total = PrepareRewrite(read_object, data_bytes, rebuilt, new_total, copy);
+                        }
+                    }
+                }
+            }
+        }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        repoint = Repoint{};
+        total = -1;
     }
-    if (!repoint.ok())
+
+    if (total <= 0 || copy[g_payload_field] == 0)
         return original(self, edx, type, data_bytes, read_object);
 
-    if (!g_reported) {
-        g_reported = true;
-        LOG_INFO("misc: reveal enemy chat - \"%.*s\" re-addressed as all-chat "
-                 "(%d bytes -> %d, %d pointer field(s), %d size field(s))",
-                 name_length, name, data_bytes, total, repoint.pointer_fields,
-                 repoint.length_fields);
-    }
-    return original(self, edx, type, total, read_object);
+    // The copy is the object the game reads from here on; it lives until the call returns.
+    return original(self, edx, type, total, copy);
 }
 } // namespace
 

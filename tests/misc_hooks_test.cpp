@@ -152,6 +152,13 @@ int main() {
     // A negative latency reading is ignored rather than subtracted.
     assert(SpikeSeconds(100.f, -0.5f, 0.f, kDefaultMaxUnlag) > 0.0999f);
 
+    // A value outside the counter range is refused, not subtracted from.
+    assert(IsSequenceNumber(0));
+    assert(IsSequenceNumber(12345));
+    assert(IsSequenceNumber(kMaxSequence));
+    assert(!IsSequenceNumber(-1));
+    assert(!IsSequenceNumber(kMaxSequence + 1));
+
     // The sequence number is lowered only while there is room left.
     assert(ShouldSpike(100, 6));
     assert(!ShouldSpike(6, 6));

@@ -212,9 +212,10 @@ namespace Misc::Chat {
 // descriptions of this message disagree about everything that precedes it.
 constexpr int kNameScanWindow = 32;
 // bf_read is an object, not a buffer: the payload pointer lives in one of its fields and
-// the field offset differs between client builds. Twelve machine words covers the
-// published layouts (the pointer sits at +0x18..+0x20 in the variants seen so far).
-constexpr int kReadFieldCount = 12;
+// the field offset differs between client builds. Nine machine words (36 bytes) covers the
+// published layouts - the pointer sits at +0x18..+0x20 - and deliberately stops there:
+// every word past the real object is somebody else's stack slot.
+constexpr int kReadFieldCount = 9;
 
 // Locates the length-prefixed message name in a SayText2 payload. Returns the offset of
 // the length byte, or -1 when the bytes do not look like a chat name.
@@ -390,10 +391,19 @@ inline float SpikeSeconds(float desired_ms, float outgoing_latency, float lerp_t
     return correct;
 }
 
+// A sequence counter this feature is willing to touch. A real CNetChan counter is a small
+// positive number; anything outside this range means +0x1C resolved into the wrong field,
+// and writing there would corrupt the connection instead of delaying it.
+constexpr int kMaxSequence = 1'000'000;
+
+inline bool IsSequenceNumber(int value) {
+    return value >= 0 && value <= kMaxSequence;
+}
+
 // The incoming sequence number is only ever lowered, and only while there is room: a
 // value below the shift would wrap into negative territory and reconnect the client.
 inline bool ShouldSpike(int in_sequence_nr, int ticks) {
-    return ticks > 0 && in_sequence_nr > ticks;
+    return IsSequenceNumber(in_sequence_nr) && ticks > 0 && in_sequence_nr > ticks;
 }
 
 // Called from the menu bridge on the render thread.

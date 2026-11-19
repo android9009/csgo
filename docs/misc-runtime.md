@@ -110,10 +110,14 @@ of the object is tried and kept only when the buffer it points at starts with a
 length-prefixed `Cstrike_Chat_` name, which also logs the field it settled on
 (`bf_read payload field +0x..`). The name itself is located the same way, without
 assuming a field order, because the published descriptions of this payload disagree about
-its header. The rebuilt message repoints the object at a copy of the payload with one
-field changed, and every field holding the buffer start, its end or its size is updated
-(`RepointRead`); if either the pointer or the size field cannot be identified the message
-goes through untouched. All-chat names are left alone, so nothing prints twice. Only the
+its header. The rewrite never writes into the game's object: the object is copied into a
+local buffer, the *copy* is repointed at the rebuilt payload (`RepointRead` updates every
+field holding the buffer start, its end or its size) and the copy is what the message
+dispatch receives. A field beyond the real object is therefore somebody else's stack slot,
+which is exactly what an earlier version corrupted. Only the first nine words of the
+object are considered - the published layouts keep the payload pointer at +0x18..+0x20 -
+and if either the pointer or a size field cannot be identified the message goes through
+untouched. All-chat names are left alone, so nothing prints twice. Only the
 client's own display filter is bypassed: if the server never sends an enemy's team line,
 no client-side hook can invent it.
 
@@ -145,7 +149,12 @@ comes from `IVEngineClient::GetNetChannelInfo` (slot 78) and `INetChannelInfo::G
 degrades to "latency unknown" instead of a bad call. `lerp_time` and `sv_maxunlag` are
 read through `sdk/convars.hpp` (`ICvar::FindVar` slot 16, `c_convar` layout and the value
 obfuscation from `main`'s `structs.hpp`), each with a range check and a sane fallback.
-The whole detour body is SEH-guarded and switches itself off after one exception.
+Before it writes anything it validates the connection: the object the client-state offset
+points at must have a vtable inside `engine.dll`, and `+0x1C` must hold a plausible
+sequence counter. Either check failing disables the feature with one log line instead of
+corrupting an unrelated structure, and the first successful spike logs the counter before
+and after. The whole detour body is SEH-guarded and switches itself off after one
+exception.
 
 **Ragdoll thrust** (`general/ragdoll.cpp`) walks the entity list above the player slots
 on stage 4 of every fourth frame, matches `m_pNetworkName == "CCSRagdoll"` (the class id
@@ -281,7 +290,8 @@ Portable tests:
 - `tests/misc_hooks_test.cpp` - `ShouldRevealChat` (team names rewritten, all-chat names
   kept, malformed and null names refused), `ScalePercent` clamping,
   `ShouldScale` (ceiling, negative and NaN velocity), `IsAcceptSound`, and
-  `ShouldFilter` (the five prefixes match, everything else is kept), the SayText2 payload
+  `ShouldFilter` (the five prefixes match, everything else is kept), `IsSequenceNumber`
+  (the net-channel write is refused outside the counter range), the SayText2 payload
   helpers (`FindChatNameOffset` on a realistic payload, `FindPayloadField` on a read
   object whose pointer sits in an arbitrary word, `RepointRead` updating the start and the
   size and nothing else), and the ping
