@@ -214,6 +214,13 @@ std::ptrdiff_t MoneyOffset() {
 
 // Reads the equipment of every live player once per feed. Everything here is game
 // memory, so the whole pass is guarded and a failure just skips the frame.
+// Only the nickname field is read, and it is copied out so the pointer stays valid for the
+// life of the equipment entry.
+struct PlayerInfoName {
+    char pad[16];
+    char name[128];
+};
+
 bool CollectEquipment(std::vector<Equipment>& out) {
     __try {
         if (!Interfaces::Engine || !Interfaces::EntityList) return false;
@@ -228,6 +235,11 @@ bool CollectEquipment(std::vector<Equipment>& out) {
 
             Equipment equipment;
             equipment.slot = index;
+            // player_info_t keeps the nickname at +0x10 in every CS:GO build; it is only a
+            // fallback row key, so a layout surprise costs nothing.
+            PlayerInfoName info{};
+            if (Interfaces::Engine->GetPlayerInfo(index, &info) && info.name[0])
+                equipment.name = info.name;
             equipment.armor = player->m_ArmorValue() > 0 ? (player->m_bHasHelmet() ? 2 : 1) : 0;
             equipment.defuser = player->m_bHasDefuser();
             if (money_offset) {
@@ -240,7 +252,7 @@ bool CollectEquipment(std::vector<Equipment>& out) {
             auto* active = player->GetActiveWeapon();
             const auto* handles = reinterpret_cast<const std::uint32_t*>(
                 reinterpret_cast<std::uintptr_t>(player) + weapons_offset);
-            for (int i = 0; i < 64 && equipment.weapon_count < 8; ++i) {
+            for (int i = 0; i < 64 && equipment.weapon_count < kEquipmentSlots; ++i) {
                 if (!handles[i]) continue;
                 auto* weapon = static_cast<CBaseWeapon*>(
                     Interfaces::EntityList->GetClientEntityFromHandle(handles[i]));

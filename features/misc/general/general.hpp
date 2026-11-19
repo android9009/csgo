@@ -175,6 +175,10 @@ struct Scales {
 // One player's equipment in the form the script draws it. `weapons` holds icon names,
 // never console names: every entry comes from WeaponIcon(), so no string reaching the
 // script can be attacker controlled.
+// The reference layout keeps 25 slot parents per row: four pistols, a rifle, a knife, the
+// grenades, the kit and the bomb all fit without ever re-flowing the row.
+constexpr int kEquipmentSlots = 25;
+
 struct Equipment {
     int slot{};       // entity index
     int armor{};      // 0 none, 1 kevlar, 2 kevlar + helmet
@@ -182,7 +186,10 @@ struct Equipment {
     int money{-1};    // -1 when "Reveal money" is off or the value is not readable
     int weapon_count{};
     int selected{-1}; // index into weapons, -1 when nothing is selected
-    const char* weapons[8]{};
+    const char* weapons[kEquipmentSlots]{};
+    // Nickname, used only as a row key when GameStateAPI is out of reach from the script's
+    // context; nullptr when the engine did not report one.
+    const char* name{};
 };
 
 // Icon name for an item definition index (7 -> "ak47"), or nullptr when the item has no
@@ -193,6 +200,9 @@ const char* WeaponIcon(int definition);
 // Minimum width, in unscaled pixels, that a given icon needs to look right.
 // 0 means "let the icon size itself".
 int WeaponBaseWidth(const char* icon);
+
+// Size class the icon is drawn with ("smaller" for knives), or nullptr for the default.
+const char* WeaponSlotClass(const char* icon);
 
 // Installer for the HUD context. Idempotent per layout: calling it again with the same
 // scales does nothing, calling it with new scales destroys the previous rows first, so

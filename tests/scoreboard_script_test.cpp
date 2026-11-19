@@ -46,13 +46,19 @@ void TestScales() {
     // the per-weapon widths all move with the sliders, and never below one pixel.
     const std::string base = BuildEngineScript({100, 100, 100});
     assert(Contains(base, "PANEL_WIDTH = 30"));
-    assert(Contains(base, "textureheight=\"18\""));
+    // The four size classes of the reference layout, unscaled.
+    assert(Contains(base, "textureheight=\\\"15\\\""));
+    assert(Contains(base, "textureheight=\\\"17\\\""));
+    assert(Contains(base, "textureheight=\\\"18\\\""));
+    assert(Contains(base, "textureheight=\\\"21\\\""));
     // "p250" is a 31px pistol; at the minimum scale it must stay positive.
     assert(Contains(base, "\"p250\":31"));
+    // Knives are the ones that need a wider class.
+    assert(Contains(base, "\"knife\":\"smaller\""));
 
     const std::string big = BuildEngineScript({200, 200, 200});
     assert(Contains(big, "PANEL_WIDTH = 60"));
-    assert(Contains(big, "textureheight=\"36\""));
+    assert(Contains(big, "textureheight=\\\"42\\\"")); // 21 * 200%
     assert(Contains(big, "\"p250\":62"));
 
     const std::string small = BuildEngineScript({0, 0, 0});
@@ -80,6 +86,12 @@ void TestIcons() {
     assert(WeaponBaseWidth("ak47") == 0);
     assert(WeaponBaseWidth(nullptr) == 0);
     assert(WeaponBaseWidth("not_a_weapon") == 0);
+
+    // Knives are drawn with the wider icon class, everything else with the default.
+    assert(std::strcmp(WeaponSlotClass("knife_karambit"), "smaller") == 0);
+    assert(std::strcmp(WeaponSlotClass("knife"), "smaller") == 0);
+    assert(WeaponSlotClass("ak47") == nullptr);
+    assert(WeaponSlotClass(nullptr) == nullptr);
 }
 
 void TestFeedPayload() {
@@ -146,8 +158,17 @@ void TestEngineIsSelfContained() {
     // value arrived.
     assert(Contains(script, "$\" + value"));
     assert(Contains(script, "\"money\""));
-    assert(Contains(script, "assaultsuit"));
+    // Armour is drawn the way the reference does it: kevlar plus a separate helmet image.
+    assert(Contains(script, "kevlar.svg"));
+    assert(Contains(script, "helmet.svg"));
     assert(Contains(script, "defuser"));
+    // The panel is moved to the first column (appended it would be clipped by the row) and
+    // the row is re-created from the scoreboard's own events.
+    assert(Contains(script, "MoveChildBefore"));
+    assert(Contains(script, "Scoreboard_UpdateEverything"));
+    // 25 slot parents, as in the reference.
+    assert(Contains(script, "SLOT_COUNT = 25"));
+    assert(Contains(script, "weapon-\" + slot"));
 }
 } // namespace
 
