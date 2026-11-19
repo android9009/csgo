@@ -28,7 +28,7 @@ struct Settings {
     int scoreboard_scale_y{100};
     int scoreboard_scale_weapon{100};
 
-    bool auto_accept{};        // "Auto-accept"
+    // "Auto-accept" lives in Misc::Other::Settings: its checkbox is in the OTHER group.
     bool reveal_enemy_chat{};  // "Reveal enemy chat"
     bool ragdoll_thrust{};     // "Ragdoll thrust"
     float ragdoll_percent{100.f}; // "Ragdoll thrust > Amount" (1..1000 %)

@@ -9,18 +9,28 @@
 
 namespace MiscSettings {
 inline void Configure() {
-    Misc::General::Publish({cfg.misc.radar.get(), cfg.misc.clantag.get(),
-                            static_cast<std::uint64_t>(cfg.misc.scoreboard_options.get()),
-                            static_cast<int>(cfg.misc.scoreboard_scale_x.get()),
-                            static_cast<int>(cfg.misc.scoreboard_scale_y.get()),
-                            static_cast<int>(cfg.misc.scoreboard_weapon_scale.get()),
-                            cfg.misc.reveal_enemy_chat.get(),
-                            cfg.misc.ragdoll_thrust_enabled.get(),
-                            cfg.visuals.ragdoll_thrust.get(),
-                            cfg.misc.ping_spike_enabled.get(),
-                            cfg.aim.ping_spike_amt.get()});
+    // Built field by field on purpose: a braced list silently shifts every following
+    // value when a field is added or removed (MSVC reports it as a narrowing error far
+    // from the cause), while named assignments keep the mapping explicit.
+    Misc::General::Settings general;
+    general.radar = cfg.misc.radar.get();
+    general.clantag = cfg.misc.clantag.get();
+    general.scoreboard = static_cast<std::uint64_t>(cfg.misc.scoreboard_options.get());
+    general.scoreboard_scale_x = static_cast<int>(cfg.misc.scoreboard_scale_x.get());
+    general.scoreboard_scale_y = static_cast<int>(cfg.misc.scoreboard_scale_y.get());
+    general.scoreboard_scale_weapon = static_cast<int>(cfg.misc.scoreboard_weapon_scale.get());
+    general.reveal_enemy_chat = cfg.misc.reveal_enemy_chat.get();
+    general.ragdoll_thrust = cfg.misc.ragdoll_thrust_enabled.get();
+    general.ragdoll_percent = cfg.visuals.ragdoll_thrust.get();
+    general.ping_spike = cfg.misc.ping_spike_enabled.get();
+    general.ping_spike_ms = cfg.aim.ping_spike_amt.get();
+    Misc::General::Publish(general);
 
-    Misc::Other::Publish({cfg.misc.autoaccept.get(), cfg.misc.console_filter.get(),
-                          cfg.misc.sv_pure.get(), cfg.misc.sv_cheats.get()});
+    Misc::Other::Settings other;
+    other.auto_accept = cfg.misc.autoaccept.get();
+    other.console_filter = cfg.misc.console_filter.get();
+    other.sv_pure = cfg.misc.sv_pure.get();
+    other.sv_cheats = cfg.misc.sv_cheats.get();
+    Misc::Other::Publish(other);
 }
 } // namespace MiscSettings
