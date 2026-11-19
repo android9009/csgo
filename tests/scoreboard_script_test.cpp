@@ -21,11 +21,13 @@ bool Contains(const std::string& haystack, const std::string& needle) {
     return haystack.find(needle) != std::string::npos;
 }
 
-Equipment MakePlayer(int slot, const char* a, const char* b, int selected, int armor, bool defuser) {
+Equipment MakePlayer(int slot, const char* a, const char* b, int selected, int armor, bool defuser,
+                     int money = -1) {
     Equipment equipment;
     equipment.slot = slot;
     equipment.armor = armor;
     equipment.defuser = defuser;
+    equipment.money = money;
     equipment.selected = selected;
     if (a) equipment.weapons[equipment.weapon_count++] = a;
     if (b) equipment.weapons[equipment.weapon_count++] = b;
@@ -95,6 +97,18 @@ void TestFeedPayload() {
     // Balanced braces: the payload must not break the script's syntax.
     assert(Count(script, "{") == Count(script, "}"));
 
+    // Money is optional: only a value the game reported ends up in the payload.
+    {
+        std::vector<Equipment> paid;
+        paid.push_back(MakePlayer(4, "ak47", nullptr, 0, 2, true, 6500));
+        paid.push_back(MakePlayer(5, "glock", nullptr, 0, 0, false, -1));
+        const std::string with_money = BuildFeedScript(paid, {100, 100, 100});
+        assert(Contains(with_money, "\"4\":{\"w\":[\"ak47\"],\"s\":0,\"a\":2,\"d\":1,\"m\":6500}"));
+        // -1 means "unknown", so the field is left out and the label stays hidden.
+        assert(Contains(with_money, "\"5\":{\"w\":[\"glock\"],\"s\":0,\"a\":0,\"d\":0}"));
+        assert(!Contains(with_money, "\"m\":-1"));
+    }
+
     // The engine is part of every feed so a HUD reload re-creates the rows.
     assert(Contains(script, "RegisterForUnhandledEvent"));
     assert(Contains(script, "OnOpenScoreboard"));
@@ -128,6 +142,10 @@ void TestEngineIsSelfContained() {
     // Equipment icons come from the client's own icon set.
     assert(Contains(script, "file://{images}/icons/equipment/"));
     assert(Contains(script, "kevlar"));
+    // Reveal money renders through the same panel, and the label only appears when a
+    // value arrived.
+    assert(Contains(script, "$\" + value"));
+    assert(Contains(script, "\"money\""));
     assert(Contains(script, "assaultsuit"));
     assert(Contains(script, "defuser"));
 }

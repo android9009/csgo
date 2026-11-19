@@ -61,6 +61,7 @@ because the flash switch is the first item of the Removals combo box.
 | Clan tag | `cfg.misc.clantag` | 0/4/5 | calls `SetClanTag` from `engine.dll` (signature `dwSetClanTag`) |
 | Reveal ranks | `cfg.misc.scoreboard_options` bit 0 | 4 | calls the client's `ServerRankRevealAll` handler at most once per second |
 | Reveal weapon | `cfg.misc.scoreboard_options` bit 1 | 4 | injects a Panorama script that draws the equipment row (see `docs/panorama.md`) |
+| Reveal money | `cfg.misc.scoreboard_options` bit 3 | 4 | adds each player's `m_iAccount` to the same row |
 | Remove flash | `cfg.misc.removals` bit 0 | 0/5 | zeroes `m_flFlashDuration` on the local player |
 | Visual punch | `cfg.misc.removals` bit 8 | 0/5 | zeroes `m_aimPunchAngle` and `m_viewPunchAngle` on the local player |
 
@@ -82,6 +83,9 @@ The Scoreboard combo box has three items; two are wired:
   a user message, and flooding one would be both useless and measurable. Once per
   session the log prints how many slots actually carry a skill group afterwards — the
   server decides what it fills in, so that line is the only honest confirmation.
+- **Reveal money** (bit 3) — feeds the player's money into the same injected row (a
+  `Label` that only appears when a plausible `m_iAccount` was read). Same injection, same
+  failure policy.
 - **Reveal weapon** (bit 1) — the vanilla scoreboard only shows equipment the server
   decided to send, and its equipment cells are sized for that. The feature injects
   JavaScript into the `CSGOHud` Panorama context, creates one panel per scoreboard row
@@ -171,9 +175,9 @@ Portable tests:
   player, null pointers), `ShouldRestore` exactly-once semantics, and the tag length.
 - `tests/removals_test.cpp` - the combo box bit order, `FromMask`, and the flash/punch
   write rules including NaN and infinity.
-- `tests/scoreboard_test.cpp` - the Scoreboard combo box bit order, the rank reveal gate
-  (disabled, not in game, zero interval, first send, inside the interval, and the
-  `GetTickCount` wrap) and the bounded panel-search gate.
+- `tests/scoreboard_test.cpp` - the Scoreboard combo box bit order (ranks, weapon,
+  unmatched, money), the rank reveal gate (disabled, not in game, zero interval, first
+  send, inside the interval, and the `GetTickCount` wrap).
 - `tests/scoreboard_script_test.cpp` - scale clamping and the scaled layout/precision
   values, the icon table, and the feed payload: no player without equipment, no slot 0,
   balanced braces, self-contained engine, and icon names restricted to plain identifiers

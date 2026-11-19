@@ -15,16 +15,19 @@ constexpr std::pair<std::string_view, int> kItems[] = {
     {"Reveal ranks", Bits::RevealRanks},
     {"Reveal weapon", Bits::RevealWeapon},
     {"Reveal unmatched ranks", Bits::RevealUnmatched},
+    {"Reveal money", Bits::RevealMoney},
 };
 
 static_assert(Bits::RevealRanks == 0);
 static_assert(Bits::RevealWeapon == 1);
 static_assert(Bits::RevealUnmatched == 2);
+static_assert(Bits::RevealMoney == 3);
 
 // Bit helpers.
 static_assert(Enabled(1ull << Bits::RevealRanks, Bits::RevealRanks));
 static_assert(Enabled(1ull << Bits::RevealWeapon, Bits::RevealWeapon));
 static_assert(Enabled(1ull << Bits::RevealUnmatched, Bits::RevealUnmatched));
+static_assert(Enabled(1ull << Bits::RevealMoney, Bits::RevealMoney));
 static_assert(!Enabled(1ull << Bits::RevealWeapon, Bits::RevealRanks));
 static_assert(!Enabled(0, Bits::RevealRanks));
 static_assert(!Enabled(~0ull, 64));
@@ -41,19 +44,12 @@ static_assert(!ShouldRevealRanks(true, true, 8500, 8000, kRevealIntervalMs));
 static_assert(!ShouldRevealRanks(true, true, 10, 0xFFFFFFF0u, kRevealIntervalMs));
 static_assert(ShouldRevealRanks(true, true, 0x1000, 0xFFFFF000u, kRevealIntervalMs));
 
-// Panel search gate: retried, but never forever and never outside a match.
-static_assert(!ShouldSearchPanel(false, true, false, 0));
-static_assert(!ShouldSearchPanel(true, false, false, 0));
-static_assert(!ShouldSearchPanel(true, true, true, 0));
-static_assert(ShouldSearchPanel(true, true, false, 0));
-static_assert(ShouldSearchPanel(true, true, false, kPanelSearchAttempts - 1));
-static_assert(!ShouldSearchPanel(true, true, false, kPanelSearchAttempts));
-static_assert(kPanelSearchIntervalMs > 0 && kFeedIntervalMs > 0);
+static_assert(kFeedIntervalMs > 0 && kRevealIntervalMs > 0);
 
 int Main() {
     for (const auto& [name, bit] : kItems) {
         assert(!name.empty());
-        assert(bit >= 0 && bit < 3);
+        assert(bit >= 0 && bit < 4);
         // Each item owns exactly one distinct bit, and the mask the menu produces for
         // it must switch that bit on and the other two off.
         const std::uint64_t mask = 1ull << bit;

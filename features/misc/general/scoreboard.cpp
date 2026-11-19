@@ -32,13 +32,13 @@ std::uint32_t g_last_send{};
 
 // ---- equipment (Panorama) ------------------------------------------------------
 panorama::UIEngine* g_ui{};
-panorama::IUIPanel* g_hud{};
 bool g_blocked{};
-bool g_reported_panel{};
+bool g_probe_sent{};
 bool g_active_script{};
-int g_panel_attempts{};
+bool g_reported_no_panel{};
+bool g_reported_enable{};
+int g_no_panel_feeds{};
 int g_script_failures{};
-std::uint32_t g_last_search{};
 std::uint32_t g_last_feed{};
 
 bool InsideModule(const char* module, std::uintptr_t rva) {
@@ -67,6 +67,7 @@ RevealFn ResolveReveal() {
     }
 
     g_reveal = reinterpret_cast<RevealFn>(base + rva);
+    LOG_INFO("scoreboard: rank reveal handler at client.dll+0x%X", static_cast<unsigned>(rva));
     return g_reveal;
 }
 
@@ -89,12 +90,18 @@ int ReadRankedSlots() {
 }
 
 // ---- Panorama helpers ----------------------------------------------------------
+//
+// Only three native calls are made - AccessUIEngine, GetLastTargetPanel and RunScript -
+// and each one logs the step *before* performing it, so if the client build disagrees
+// with an index the last line of the log names the call that killed the process.
+// Panel lookups by id happen in JavaScript instead (docs/panorama.md).
 bool EnsureEngine() {
     if (!Interfaces::Panorama) {
         LOG_WARN("scoreboard: panorama.dll interface PanoramaUIEngine001 missing; weapon reveal stays off");
         return false;
     }
     panorama::UIEngine* engine = nullptr;
+    LOG_INFO("scoreboard: panorama step 1/3 - AccessUIEngine");
     __try { engine = Interfaces::Panorama->AccessUIEngine(); }
     __except (EXCEPTION_EXECUTE_HANDLER) { engine = nullptr; }
     if (!engine) {
@@ -103,55 +110,67 @@ bool EnsureEngine() {
     }
     if (!panorama::ResolveRunScript(engine)) return false;
     g_ui = engine;
+    LOG_INFO("scoreboard: panorama step 1/3 ok (engine %p)", static_cast<void*>(engine));
     return true;
 }
 
-// The HUD panel is reached by walking up from the last panel the game dispatched an
-// event to. Both the lookup and the walk call unverifiable vtable slots, so the whole
-// thing sits behind SEH and is bounded.
-panorama::IUIPanel* FindHudPanel(panorama::UIEngine* engine) {
-    panorama::IUIPanel* found = nullptr;
-    __try {
-        auto* panel = engine->GetLastTargetPanel();
-        for (int depth = 0; panel && depth < 64; ++depth) {
-            if (!engine->IsValidPanelPointer(panel)) break;
-            const char* id = panel->GetID();
-            if (!id) break;
-            if (std::strcmp(id, "CSGOHud") == 0) {
-                found = panel;
-                break;
-            }
-            if (std::strcmp(id, "CSGOMainMenu") == 0) break;
-            panel = panel->GetParent();
-        }
+// Re-fetched on every feed: the pointer the game hands out is a panel from the last
+// dispatched UI event, and caching it across a map change would mean using a dangling
+// pointer. A panel is only ever passed back to the engine, never dereferenced here.
+void* LastTargetPanel() {
+    void* panel = nullptr;
+    __try { panel = g_ui->GetLastTargetPanel(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { panel = nullptr; }
+    return panel;
+}
+
+bool RunScriptSafe(const std::string& script, bool verbose) {
+    if (!g_ui || script.empty()) return false;
+
+    if (verbose) LOG_INFO("scoreboard: panorama step 2/3 - GetLastTargetPanel");
+    void* panel = LastTargetPanel();
+    if (!panel) {
+        // Normal before the game has dispatched any UI event; retried, not an error.
+        if (verbose) LOG_INFO("scoreboard: panorama step 2/3 - no panel yet (the HUD has not "
+                              "dispatched a UI event); retrying");
+        return false;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { return nullptr; }
-    return found;
-}
 
-bool PanelStillValid(panorama::UIEngine* engine, panorama::IUIPanel* panel) {
-    bool valid = false;
-    __try { valid = engine->IsValidPanelPointer(panel); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { valid = false; }
-    return valid;
-}
-
-bool RunScriptSafe(const std::string& script) {
-    if (!g_ui || !g_hud || script.empty()) return false;
+    if (verbose) LOG_INFO("scoreboard: panorama step 3/3 - RunScript (%zu bytes)", script.size());
     bool ok = true;
-    __try { panorama::RunScript(g_ui, g_hud, script.c_str(), "panorama/layout/base.xml"); }
+    __try { panorama::RunScript(g_ui, panel, script.c_str(), "panorama/layout/base.xml"); }
     __except (EXCEPTION_EXECUTE_HANDLER) { ok = false; }
     if (ok) return true;
 
     ++g_script_failures;
-    LOG_ERROR("scoreboard: panorama script call threw (failure %d/%d)", g_script_failures, 3);
+    LOG_ERROR("scoreboard: panorama script call threw (failure %d/3)", g_script_failures);
     if (g_script_failures >= 3) {
         g_blocked = true;
-        g_hud = nullptr;
+        g_ui = nullptr;
         g_active_script = false;
         LOG_ERROR("scoreboard: weapon reveal disabled for this session");
     }
     return false;
+}
+
+// Money is not in the pinned netvar set, so the table it lives on is probed once and
+// cached. A client build without the prop simply shows no money instead of guessing an
+// offset.
+std::ptrdiff_t MoneyOffset() {
+    static const std::ptrdiff_t offset = [] {
+        const std::pair<const char*, const char*> candidates[] = {
+            {"DT_CSPlayer", "m_iAccount"},
+            {"DT_CSPlayerMoney", "m_iAccount"},
+            {"DT_BasePlayer", "m_iAccount"},
+        };
+        for (const auto& candidate : candidates) {
+            const auto found = PropManager::Get().GetOffset(candidate.first, candidate.second);
+            if (found) return found;
+        }
+        LOG_WARN("scoreboard: m_iAccount netvar not found; reveal money stays hidden");
+        return std::ptrdiff_t{0};
+    }();
+    return offset;
 }
 
 // Reads the equipment of every live player once per feed. Everything here is game
@@ -161,6 +180,8 @@ bool CollectEquipment(std::vector<Equipment>& out) {
         if (!Interfaces::Engine || !Interfaces::EntityList) return false;
         const auto weapons_offset = PropManager::Get().GetOffset("DT_BaseCombatCharacter", "m_hMyWeapons");
         if (weapons_offset <= 0) return false;
+        const bool want_money = Enabled(g_mask.load(std::memory_order_relaxed), Bits::RevealMoney);
+        const auto money_offset = want_money ? MoneyOffset() : std::ptrdiff_t{0};
         const int max_clients = Interfaces::Engine->GetMaxClients();
         for (int index = 1; index <= max_clients && index <= 64; ++index) {
             auto* player = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(index));
@@ -170,6 +191,12 @@ bool CollectEquipment(std::vector<Equipment>& out) {
             equipment.slot = index;
             equipment.armor = player->m_ArmorValue() > 0 ? (player->m_bHasHelmet() ? 2 : 1) : 0;
             equipment.defuser = player->m_bHasDefuser();
+            if (money_offset) {
+                const int money = *reinterpret_cast<const int*>(
+                    reinterpret_cast<std::uintptr_t>(player) + money_offset);
+                // Anything outside a plausible match range means the prop moved.
+                if (money >= 0 && money <= 100000) equipment.money = money;
+            }
 
             auto* active = player->GetActiveWeapon();
             const auto* handles = reinterpret_cast<const std::uint32_t*>(
@@ -193,48 +220,29 @@ bool CollectEquipment(std::vector<Equipment>& out) {
 
 void WeaponFrame(std::uint32_t now) {
     const auto mask = g_mask.load(std::memory_order_relaxed);
-    const bool enabled = Enabled(mask, Bits::RevealWeapon);
+    const bool enabled = Enabled(mask, Bits::RevealWeapon) || Enabled(mask, Bits::RevealMoney);
 
     if (!enabled) {
-        if (g_active_script) RunScriptSafe(BuildResetScript());
+        if (g_active_script) RunScriptSafe(BuildResetScript(), false);
         g_active_script = false;
-        g_hud = nullptr;
         g_ui = nullptr;
-        g_panel_attempts = 0;
+        g_no_panel_feeds = 0;
+        g_reported_no_panel = false;
+        g_reported_enable = false;
         g_script_failures = 0;
         g_blocked = false;
-        g_reported_panel = false;
         return;
     }
-    if (g_blocked) return;
-
-    if (!ShouldSearchPanel(true, ctx.in_game, g_hud != nullptr, g_panel_attempts)) {
-        if (ctx.in_game && !g_hud && g_panel_attempts >= kPanelSearchAttempts && !g_reported_panel) {
-            g_reported_panel = true;
-            LOG_WARN("scoreboard: CSGOHud panel not found after %d attempts; weapon reveal idle "
-                     "until re-enabled (open the scoreboard once)", kPanelSearchAttempts);
-        }
-        return;
+    if (g_blocked || !ctx.in_game) return;
+    if (!g_active_script && !g_reported_enable) {
+        g_reported_enable = true;
+        LOG_INFO("scoreboard: reveal on - panorama=%p in_game=%d local=%p", static_cast<void*>(Interfaces::Panorama),
+                 ctx.in_game ? 1 : 0, static_cast<void*>(ctx.local));
     }
 
     if (!g_ui && !EnsureEngine()) {
         g_blocked = true;
         return;
-    }
-
-    // A map change or a HUD reload invalidates the panel pointer.
-    if (g_hud && !PanelStillValid(g_ui, g_hud)) {
-        g_hud = nullptr;
-        g_active_script = false;
-    }
-
-    if (!g_hud) {
-        if (static_cast<std::uint32_t>(now - g_last_search) < kPanelSearchIntervalMs) return;
-        g_last_search = now;
-        ++g_panel_attempts;
-        g_hud = FindHudPanel(g_ui);
-        if (!g_hud) return;
-        LOG_INFO("scoreboard: CSGOHud panel found after %d attempt(s)", g_panel_attempts);
     }
 
     if (static_cast<std::uint32_t>(now - g_last_feed) < kFeedIntervalMs) return;
@@ -249,8 +257,24 @@ void WeaponFrame(std::uint32_t now) {
     scales.y = g_scale_y.load(std::memory_order_relaxed);
     scales.weapon = g_scale_weapon.load(std::memory_order_relaxed);
 
-    if (RunScriptSafe(BuildFeedScript(players, scales))) g_active_script = true;
+    if (RunScriptSafe(BuildFeedScript(players, scales), !g_active_script)) {
+        if (!g_active_script)
+            LOG_INFO("scoreboard: equipment script accepted by the HUD (%zu players)",
+                     players.size());
+        g_active_script = true;
+        g_no_panel_feeds = 0;
+        return;
+    }
+
+    // No panel yet: the game has not dispatched a UI event since the HUD loaded, so the
+    // script has no context to run in. Harmless, but say it once.
+    if (!g_active_script && !g_reported_no_panel && ++g_no_panel_feeds > 20) {
+        g_reported_no_panel = true;
+        LOG_WARN("scoreboard: no Panorama panel to run the equipment script in; "
+                 "open the scoreboard once or re-enable the feature");
+    }
 }
+
 } // namespace
 
 void Publish(std::uint64_t mask, int scale_x, int scale_y, int scale_weapon) {
@@ -267,20 +291,27 @@ void FrameStage(int stage) {
     const auto now = GetTickCount();
 
     if (Enabled(mask, Bits::RevealRanks)) {
+        // ResolveReveal logs why when it fails, so a null handler needs no second line.
         const auto reveal = ResolveReveal();
-        if (reveal) {
-            if (ShouldRevealRanks(true, ctx.in_game, now, g_last_send, kRevealIntervalMs)) {
-                g_last_send = now;
-                if (CallReveal(reveal) < 0) {
-                    g_failed = true;
-                    LOG_ERROR("scoreboard: server_rank_reveal_all threw; rank reveal stopped");
-                } else if (!g_rank_reported) {
-                    // One line per session: how many slots actually carry a skill group
-                    // afterwards. The server decides what it fills in, so this is the only
-                    // honest confirmation.
+        if (reveal && ShouldRevealRanks(true, ctx.in_game, now, g_last_send, kRevealIntervalMs)) {
+            g_last_send = now;
+            const int result = CallReveal(reveal);
+            if (result < 0) {
+                g_failed = true;
+                LOG_ERROR("scoreboard: server_rank_reveal_all threw; rank reveal stopped");
+            } else {
+                const int ranked = ReadRankedSlots();
+                if (!g_rank_reported) {
                     g_rank_reported = true;
-                    LOG_INFO("scoreboard: rank reveal requested (slots with a skill group: %d)",
-                             ReadRankedSlots());
+                    LOG_INFO("scoreboard: rank reveal sent (handler result %d, slots with a skill "
+                             "group: %d)", result, ranked);
+                    if (ranked == 0) {
+                        LOG_WARN("scoreboard: the server sent no skill groups - rank reveal only "
+                                 "shows what the server is willing to publish");
+                    } else if (ranked < 0) {
+                        LOG_WARN("scoreboard: could not read CCSPlayerResource (dwPlayerResource); "
+                                 "ranks may still appear on the scoreboard");
+                    }
                 }
             }
         }

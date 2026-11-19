@@ -96,21 +96,31 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 	var HELMET_HEIGHT = @HELMETH@;
 	var SLOT_COUNT = 8;
 
-	var state = { layout: "@TAG@", data: {}, panels: {}, handlers: [], warned: false };
+	var state = { layout: "@TAG@", data: {}, panels: {}, handlers: [], warned: false,
+		reportedEmpty: false, reportedRows: false };
 	__sb = state;
 
 	var px = function (value) { return Math.round(value) + "px"; };
 
+	// The script runs in the context of whatever panel the game last dispatched an event
+	// to, so the scoreboard is looked up from there: first in that subtree, then by
+	// climbing towards the HUD root. Nothing here touches engine vtables.
+	var scoreboardIn = function (panel) {
+		if (!panel) { return null; }
+		var container = panel.FindChildTraverse("ScoreboardContainer");
+		if (!container) { container = panel.FindChildTraverse("id-eom-scoreboard-container"); }
+		if (!container) { return null; }
+		return container.FindChildTraverse("Scoreboard");
+	};
+
 	var findScoreboard = function () {
-		var root = $.GetContextPanel();
-		if (!root) { return null; }
-		var container = root.FindChildTraverse("ScoreboardContainer");
-		if (container) {
-			var direct = container.FindChildTraverse("Scoreboard");
-			if (direct) { return direct; }
+		var panel = $.GetContextPanel();
+		for (var depth = 0; panel && depth < 32; depth++) {
+			var found = scoreboardIn(panel);
+			if (found) { return found; }
+			if (panel.id === "CSGOHud" || panel.id === "CSGOMainMenu") { return null; }
+			panel = panel.GetParent();
 		}
-		var endOfMatch = root.FindChildTraverse("id-eom-scoreboard-container");
-		if (endOfMatch) { return endOfMatch.FindChildTraverse("Scoreboard"); }
 		return null;
 	};
 
@@ -168,6 +178,10 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 			helmet.visible = false;
 			helmet.SetImage("file://{images}/icons/equipment/helmet.svg");
 		}
+		var money = $.CreatePanel("Label", panel, "money", {
+			style: "padding-left: 6px; padding-right: 2px; vertical-align: center; font-size: 13px; opacity: 0.65;"
+		});
+		if (money) { money.visible = false; }
 		var defuser = $.CreatePanel("Image", panel, "defuser", {
 			textureheight: "" + ARMOR_HEIGHT, style: "padding-left: 4px; padding-top: 3px; opacity: 0.25;"
 		});
@@ -225,10 +239,24 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 		if (helmet) { helmet.visible = entry.a >= 2; }
 		var defuser = panel.FindChild("defuser");
 		if (defuser) { defuser.visible = entry.d === 1; }
+
+		var money = panel.FindChild("money");
+		if (money) {
+			var value = typeof entry.m === "number" ? entry.m : -1;
+			money.visible = value >= 0;
+			if (value >= 0) { money.text = "$" + value; }
+		}
 	};
 
 	var apply = function () {
 		var rows = scoreboardRows();
+		if (rows.length === 0 && !state.reportedEmpty) {
+			state.reportedEmpty = true;
+			$.Msg("csgo-base: no scoreboard rows in this Panorama context (layout " + state.layout + ")");
+		} else if (rows.length > 0 && !state.reportedRows) {
+			state.reportedRows = true;
+			$.Msg("csgo-base: equipment engine attached to " + rows.length + " scoreboard row(s)");
+		}
 		for (var i = 0; i < rows.length; i++) {
 			var xuid = rows[i].m_xuid;
 			if (!xuid) { continue; }
@@ -280,6 +308,7 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 	bind("OnOpenScoreboard");
 	bind("Scoreboard_UpdateEverything");
 	bind("Scoreboard_UpdateJob");
+	$.Msg("csgo-base: equipment engine installed (layout " + state.layout + ")");
 	apply();
 })();)JS";
 
@@ -326,6 +355,7 @@ std::string FeedPayload(const std::vector<Equipment>& players) {
         payload += "],\"s\":" + std::to_string(player.selected);
         payload += ",\"a\":" + std::to_string(player.armor);
         payload += ",\"d\":" + std::to_string(player.defuser ? 1 : 0);
+        if (player.money >= 0) payload += ",\"m\":" + std::to_string(player.money);
         payload += "}";
     }
     payload += "}";

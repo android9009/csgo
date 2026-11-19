@@ -44,7 +44,7 @@ namespace menu::group
 
 	void misc_general(std::shared_ptr<layout> &e)
 	{
-		const auto scoreboard = make_multi("misc>general>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks"});
+		const auto scoreboard = make_multi("misc>general>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks", "Reveal money"});
 		const auto scoreboard_settings = MAKE("misc>general>scoreboard>settings", settings, [](auto e) {
 			ADD("Horizontal scale", "misc>general>scoreboard>scale x", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_x, "%.0f%%");
 			ADD("Vertical scale", "misc>general>scoreboard>scale y", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_y, "%.0f%%");
@@ -107,19 +107,19 @@ namespace menu::group
 
 	void misc_other(std::shared_ptr<layout> &e)
 	{
-		ADD("Bypass SV Pure", "misc>general>bypass sv_pure", checkbox, cfg.misc.sv_pure);
+		ADD("Bypass SV Pure", "misc>other>bypass sv_pure", checkbox, cfg.misc.sv_pure);
 		ADD("Bypass SV Cheats", "misc>other>bypass sv_cheats", checkbox, cfg.misc.sv_cheats);
 		ADD("Console filter", "misc>other>console filter", checkbox, cfg.misc.console_filter);
-		ADD("Auto-accept", "misc>general>auto-accept", checkbox, cfg.misc.autoaccept);
-		ADD("Radar", "misc>general>radar", checkbox, cfg.misc.radar);
+		ADD("Auto-accept", "misc>other>auto-accept", checkbox, cfg.misc.autoaccept);
+		ADD("Radar", "misc>other>radar", checkbox, cfg.misc.radar);
 		{
-			const auto c = MAKE("misc>general>dpi scale", combo_box, cfg.misc.dpi_scale);
+			const auto c = MAKE("misc>other>dpi scale", combo_box, cfg.misc.dpi_scale);
 			c->add(
-			{MAKE("misc>general>dpi scale>automatic", selectable, XOR("Automatic"), cfg_t::dpi_automatic), MAKE(
-				 "misc>general>dpi scale>50%", selectable, XOR("50%"), cfg_t::dpi_50), MAKE("misc>general>dpi scale>75%", selectable, XOR("75%"), cfg_t::dpi_75),
-			 MAKE("misc>general>dpi scale>100%", selectable, XOR("100%"), cfg_t::dpi_100), MAKE("misc>general>dpi scale>125%", selectable, XOR("125%"), cfg_t::dpi_125),
-			 MAKE("misc>general>dpi scale>150%", selectable, XOR("150%"), cfg_t::dpi_150),
-			 MAKE("misc>general>dpi scale>200%", selectable, XOR("200%"), cfg_t::dpi_200),});
+			{MAKE("misc>other>dpi scale>automatic", selectable, XOR("Automatic"), cfg_t::dpi_automatic), MAKE(
+				 "misc>other>dpi scale>50%", selectable, XOR("50%"), cfg_t::dpi_50), MAKE("misc>other>dpi scale>75%", selectable, XOR("75%"), cfg_t::dpi_75),
+			 MAKE("misc>other>dpi scale>100%", selectable, XOR("100%"), cfg_t::dpi_100), MAKE("misc>other>dpi scale>125%", selectable, XOR("125%"), cfg_t::dpi_125),
+			 MAKE("misc>other>dpi scale>150%", selectable, XOR("150%"), cfg_t::dpi_150),
+			 MAKE("misc>other>dpi scale>200%", selectable, XOR("200%"), cfg_t::dpi_200),});
 
 
 			ADD_INLINE("DPI scale", c);

@@ -53,7 +53,7 @@ void* ResolveRunScript(UIEngine* engine) {
     return g_run_script;
 }
 
-void RunScript(UIEngine* engine, IUIPanel* panel, const char* js, const char* path) {
+void RunScript(UIEngine* engine, void* panel, const char* js, const char* path) {
     if (!engine || !panel || !js) return;
     if (!g_run_script && !ResolveRunScript(engine)) return;
     Invoke(engine, panel, js, path);

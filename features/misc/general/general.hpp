@@ -109,11 +109,13 @@ void Shutdown();            // restores the tag this module owns
 // ---------------------------------------------------------------------------
 namespace Misc::Scoreboard {
 // Item order of the "Scoreboard" combo box in menu/tabs/tab_misc.cpp
-// ("Reveal ranks", "Reveal weapon", "Reveal unmatched ranks") is the bit order.
+// ("Reveal ranks", "Reveal weapon", "Reveal unmatched ranks", "Reveal money") is the
+// bit order.
 namespace Bits {
 inline constexpr int RevealRanks = 0;
 inline constexpr int RevealWeapon = 1;
 inline constexpr int RevealUnmatched = 2;
+inline constexpr int RevealMoney = 3;
 } // namespace Bits
 
 // Every rank-reveal send makes the server answer with the rank table, so it is
@@ -123,12 +125,6 @@ inline constexpr std::uint32_t kRevealIntervalMs = 1000;
 // The equipment script is re-fed while the scoreboard is open; each feed is a small
 // script execution, so twice a second is both plenty and cheap.
 inline constexpr std::uint32_t kFeedIntervalMs = 500;
-
-// Finding the HUD panel depends on the game having dispatched a UI event, so the search
-// is retried - but a bounded number of times, because every attempt calls into vtable
-// slots that cannot be verified offline.
-inline constexpr int kPanelSearchAttempts = 30;
-inline constexpr std::uint32_t kPanelSearchIntervalMs = 500;
 
 constexpr bool Enabled(std::uint64_t mask, int bit) {
     return bit >= 0 && bit < 64 && ((mask >> bit) & 1ull) != 0ull;
@@ -140,12 +136,6 @@ constexpr bool ShouldRevealRanks(bool enabled, bool in_game, std::uint32_t now_m
     if (!enabled || !in_game || interval_ms == 0) return false;
     // Unsigned subtraction, so the comparison survives the GetTickCount() wrap.
     return static_cast<std::uint32_t>(now_ms - last_ms) >= interval_ms;
-}
-
-// Panel search gate: only in a live match, only while the feature is on, and never more
-// than kPanelSearchAttempts times.
-constexpr bool ShouldSearchPanel(bool enabled, bool in_game, bool have_panel, int attempts) {
-    return enabled && in_game && !have_panel && attempts < kPanelSearchAttempts;
 }
 
 // ---- the injected script -------------------------------------------------
@@ -169,6 +159,7 @@ struct Equipment {
     int slot{};       // entity index
     int armor{};      // 0 none, 1 kevlar, 2 kevlar + helmet
     bool defuser{};
+    int money{-1};    // -1 when "Reveal money" is off or the value is not readable
     int weapon_count{};
     int selected{-1}; // index into weapons, -1 when nothing is selected
     const char* weapons[8]{};

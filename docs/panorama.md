@@ -10,11 +10,16 @@ row (`features/misc/general/scoreboard_script.cpp`).
 | Call | Vtable index |
 |---|---|
 | `IPanoramaUIEngine::AccessUIEngine` | 11 |
-| `UIEngine::IsValidPanelPointer` | 36 |
 | `UIEngine::GetLastTargetPanel` | 56 |
 | `UIEngine::RunScript` | 113 |
-| `IUIPanel::GetID` | 9 |
-| `IUIPanel::GetParent` | 25 |
+
+Nothing else is bound. `IUIPanel::GetID`/`GetParent`/`SetID` and
+`UIEngine::IsValidPanelPointer` are deliberately absent: the public sources that agree on
+11/56/113 disagree by one or two slots exactly in that region, and the neighbouring slots
+are *mutating* calls (`SetID(uint64, const char*)`, `PanelDestroyed`) - a "GetID" that is
+really `SetID` writes a garbage string pointer into the panel. The HUD panel is therefore
+identified from JavaScript (`panel.id`, `panel.GetParent()`), which the engine handles and
+which cannot desync from the build.
 
 The indices come from public CS:GO sources that call them against the 32-bit client: the
 Aviarita `lua-scripts` FFI binding (which loads `panorama.dll` and calls
@@ -27,11 +32,27 @@ signature scanner cannot check either**: a wrong index means calling the wrong g
 function. Everything around it is therefore defensive:
 
 - the `RunScript` slot is checked to live inside `panorama.dll`'s `.text` before use;
-- every call (panel lookup, parent walk, script run) sits in its own `__try/__except`;
-- the panel search is bounded (`kPanelSearchAttempts`, 30 × 500 ms) and stops with one
-  log line instead of hammering a possibly wrong slot;
+- each of the three calls sits in its own `__try/__except`;
 - three exceptions disable the feature for the session
-  (`scoreboard: weapon reveal disabled for this session`) instead of retrying.
+  (`scoreboard: weapon reveal disabled for this session`) instead of retrying;
+- every step logs *before* it is performed (`panorama step 1/3 - AccessUIEngine`,
+  `2/3 - GetLastTargetPanel`, `3/3 - RunScript (N bytes)`), so if a client build disagrees
+  with an index, the last line of `csgo_base.log` names the call that did it.
+
+### When nothing happens
+
+The feature can stop at four points, and each one has its own line in `csgo_base.log`:
+
+| Log | Meaning |
+|---|---|
+| `interfaces: PanoramaUIEngine001 not captured` | `panorama.dll` not loaded or renamed |
+| `panorama: RunScript slot 113 (...) is outside panorama.dll` | vtable layout differs from the sources |
+| `scoreboard: panorama step 2/3 - no panel yet` | the HUD has not dispatched a UI event yet - open the scoreboard once |
+| `csgo-base: no scoreboard rows in this Panorama context` (game console) | the script ran, but in a context without a scoreboard |
+
+The injected script also talks to the game console: `csgo-base: equipment engine installed
+(layout 100x100x100)` on install and `csgo-base: equipment engine attached to N scoreboard
+row(s)` when it starts drawing.
 
 If the log shows `panorama: RunScript slot 113 (...) is outside panorama.dll`, the client
 build has a different vtable layout and the index has to be re-derived.
@@ -74,7 +95,9 @@ Two builders, declared in `features/misc/general/general.hpp` and defined in
 - `BuildEngineScript(scales)` — idempotent installer for the HUD context. It creates one
   `csgo-sb-equipment-<xuid>` panel per scoreboard row, hides the commendation/music-kit
   flair so the row fits, registers `OnOpenScoreboard`, `Scoreboard_UpdateEverything` and
-  `Scoreboard_UpdateJob`, and exposes `__sb.feed` / `__sb.destroy`. A layout tag
+  `Scoreboard_UpdateJob`, and exposes `__sb.feed` / `__sb.destroy`. The scoreboard is
+  located from the script's own context panel: `FindChildTraverse` in that subtree first,
+  then up to 32 levels towards `CSGOHud` - so any HUD panel works as a script context. A layout tag
   (`120x90x110`) makes a slider change reinstall instead of returning early.
 - `BuildFeedScript(players, scales)` — the engine plus one `__sb.feed({...})` push. Every
   feed carries the installer, so a HUD reload re-creates the rows without any hook.
@@ -93,6 +116,10 @@ the reference Lua uses: console name without its `item_`/`weapon_` prefix.
 | Horizontal scale | equipment panel `min-width` (30 px base) and the per-weapon minimum widths (pistols 31 px, knives 45 px, grenades 9-12 px) |
 | Vertical scale | armor / helmet / defuser icon height (17 / 22 / 17 px base) |
 | Weapon scale | weapon icon `textureheight` (18 px base) |
+
+"Reveal money" uses the same row: a `Label` named `money` in the injected panel, filled
+from `m_iAccount` when a plausible value was read (`entry.m` in the payload). When the
+prop cannot be found the label simply never appears - the feature does not guess offsets.
 
 All three clamp to 50..200 % and round up to at least one pixel, so no setting can
 collapse a row.
