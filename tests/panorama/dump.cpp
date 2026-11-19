@@ -18,13 +18,13 @@ int main(int argc, char** argv) {
     enemy.weapons[enemy.weapon_count++] = "ak47";
     enemy.weapons[enemy.weapon_count++] = "knife_karambit";
     enemy.weapons[enemy.weapon_count++] = "flashbang";
-    enemy.name = "enemy";
+    std::snprintf(enemy.name, sizeof(enemy.name), "enemy");
     players.push_back(enemy);
 
     Misc::Scoreboard::Equipment mate;
     mate.slot = 7; mate.armor = 1; mate.selected = 0;
     mate.weapons[mate.weapon_count++] = "m4a1";
-    mate.name = "mate";
+    std::snprintf(mate.name, sizeof(mate.name), "mate");
     players.push_back(mate);
 
     const auto feed = Misc::Scoreboard::BuildFeedScript(players, scales);

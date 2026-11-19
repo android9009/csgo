@@ -137,10 +137,12 @@ warning and stays off (see `docs/misc-runtime.md`).
 `Patterns::Init` prints one line with the totals and, when a signature did not match, two
 more that say what that actually cost:
 
-- `matched through an alternative spelling: server_rank_reveal_all (via server_rank_reveal_all_alt2)`
-  — the catalogue carries the spellings of the same function for different builds; one of
-  them matching is the normal case, not a failure.
+- `matched through an alternative spelling: server_rank_reveal_all (via
+  server_rank_reveal_all_alt2), send_datagram (via send_datagram_alt)` — the catalogue
+  carries the spellings of the same function for different builds, and the report is per
+  *group* (`Patterns::AlternativeBase`), so a group is named once whether the base name or
+  one of its `_alt`/`_altN` spellings matched.
 - `no match, owner decides: direct_present, direct_reset` — nothing covered these; the
   feature that needs one logs its own consequence (e.g. "rank reveal stays off").
-- `offsets: pinned build table in use for: send_datagram` — the signature moved but this
-  build's pinned offset still resolves the function, so the feature keeps working.
+- `offsets: pinned build table in use for: ...` — the signature moved but this build's
+  pinned offset still resolves the function, so the feature keeps working.

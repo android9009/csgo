@@ -102,6 +102,13 @@ Two builders, declared in `features/misc/general/general.hpp` and defined in
 - `BuildFeedScript(players, scales)` — the engine plus one `__sb.feed({...})` push. Every
   feed carries the installer, so a HUD reload re-creates the rows without any hook.
 
+The nickname in the payload is read from `player_info_t` (+0x10) into a fixed 64-byte field
+of the `Equipment` entry - **by value**, because `player_info_t` itself lives on the stack of
+the collecting loop. An earlier version stored a pointer into it, and the payload builder
+then walked a dangling pointer: the string grew until the allocator threw, which surfaced as
+a `0xE06D7363` crash a few frames after the scoreboard script was enabled. `Quote()` is
+bounded for the same reason.
+
 Data comes from the client's own entities (`m_hMyWeapons`, `m_iItemDefinitionIndex`,
 `m_ArmorValue`, `m_bHasHelmet`, `m_bHasDefuser`) and is translated to icon names through
 a compile-time table, so nothing user-controlled ever reaches the JavaScript.

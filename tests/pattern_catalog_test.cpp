@@ -100,6 +100,19 @@ Patterns::Definition MakeDefinition(int offset, unsigned char count, bool relati
 } // namespace
 
 int main() {
+    // ---- alternative spellings share a base name -----------------------------------
+    {
+        using Patterns::AlternativeBase;
+        assert(AlternativeBase("server_rank_reveal_all_alt1") == "server_rank_reveal_all");
+        assert(AlternativeBase("server_rank_reveal_all_alt2") == "server_rank_reveal_all");
+        assert(AlternativeBase("send_datagram_alt") == "send_datagram");
+        // A name of its own, and a suffix that is not a numbered spelling.
+        assert(AlternativeBase("server_rank_reveal_all") == "server_rank_reveal_all");
+        assert(AlternativeBase("alternate_thing") == "alternate_thing");
+        assert(AlternativeBase("thing_altx") == "thing_altx");
+        assert(AlternativeBase("thing_alt12") == "thing_alt12");
+    }
+
     // Catalogue integrity.
     assert(std::size(Patterns::kLegacySnapshotCatalog) == 58);
     assert(std::size(Patterns::kPortedCatalog) == 99);

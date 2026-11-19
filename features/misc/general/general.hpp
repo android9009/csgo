@@ -188,8 +188,9 @@ struct Equipment {
     int selected{-1}; // index into weapons, -1 when nothing is selected
     const char* weapons[kEquipmentSlots]{};
     // Nickname, used only as a row key when GameStateAPI is out of reach from the script's
-    // context; nullptr when the engine did not report one.
-    const char* name{};
+    // context. Stored by value: the engine's player_info_t lives on this function's stack,
+    // so a pointer into it would dangle the moment the loop moved on.
+    char name[64]{};
 };
 
 // Icon name for an item definition index (7 -> "ak47"), or nullptr when the item has no

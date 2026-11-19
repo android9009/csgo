@@ -465,17 +465,14 @@ std::string EngineSource(const Scales& scales) {
     return script;
 }
 
+// Bounded on purpose: the input is game memory, and a runaway loop here would build a
+// string until the allocator threw (which is exactly how this feature once crashed).
 std::string Quote(const char* text) {
     std::string out = "\"";
-    if (text) {
-        for (const char* c = text; *c; ++c) {
-            if (*c == '\\' || *c == '"') {
-                out += '\\';
-                out += *c;
-            } else {
-                out += *c;
-            }
-        }
+    for (int i = 0; text && i < 256 && text[i]; ++i) {
+        const char c = text[i];
+        if (c == '\\' || c == '"') out += '\\';
+        out += c;
     }
     out += "\"";
     return out;
@@ -503,7 +500,7 @@ std::string FeedPayload(const std::vector<Equipment>& players) {
         if (player.money >= 0) payload += ",\"m\":" + std::to_string(player.money);
         // The nickname is only a fallback key for builds where GameStateAPI is out of reach
         // from the script's context; the row label is what it is compared against.
-        if (player.name && *player.name) payload += ",\"n\":" + Quote(player.name);
+        if (player.name[0]) payload += ",\"n\":" + Quote(player.name);
         payload += "}";
     }
     payload += "}";

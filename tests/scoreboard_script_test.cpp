@@ -2,6 +2,7 @@
 // and the shape of the payload the feed script carries. No Windows headers, no engine.
 #include "features/misc/general/general.hpp"
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -119,6 +120,22 @@ void TestFeedPayload() {
         // -1 means "unknown", so the field is left out and the label stays hidden.
         assert(Contains(with_money, "\"5\":{\"w\":[\"glock\"],\"s\":0,\"a\":0,\"d\":0}"));
         assert(!Contains(with_money, "\"m\":-1"));
+    }
+
+    // The nickname travels only when the engine reported one, and it is stored by value:
+    // a pointer into player_info_t would dangle as soon as the loop moved on.
+    {
+        std::vector<Equipment> named;
+        Equipment entry = MakePlayer(6, "ak47", nullptr, 0, 0, false);
+        std::snprintf(entry.name, sizeof(entry.name), "enemy");
+        named.push_back(entry);
+        const std::string with_name = BuildFeedScript(named, {100, 100, 100});
+        assert(Contains(with_name, "\"n\":\"enemy\""));
+        Equipment anonymous = MakePlayer(8, "glock", nullptr, 0, 0, false);
+        assert(anonymous.name[0] == '\0');
+        std::vector<Equipment> quiet;
+        quiet.push_back(anonymous);
+        assert(!Contains(BuildFeedScript(quiet, {100, 100, 100}), "\"n\":"));
     }
 
     // The engine is part of every feed so a HUD reload re-creates the rows.

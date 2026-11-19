@@ -13,15 +13,8 @@ static std::unordered_map<std::string, std::uintptr_t> s_values;
 static std::vector<std::string_view> s_missing;
 static std::vector<std::string_view> s_resolved;
 
-// "server_rank_reveal_all_alt1" -> "server_rank_reveal_all": alternative spellings of one
-// function share a base name, which is what makes "one of them matched" checkable.
-static std::string_view BaseOf(std::string_view name) {
-    const auto suffix = name.rfind("_alt");
-    if (suffix == std::string_view::npos || name.size() - suffix != 5) return name;
-    const char digit = name[suffix + 4];
-    if (digit < '0' || digit > '9') return name;
-    return name.substr(0, suffix);
-}
+// Base-name grouping lives in catalog.hpp (Patterns::AlternativeBase), where the portable
+// tests pin it.
 static std::vector<Definition> s_definitions;
 
 const std::vector<Definition>& Definitions() {
@@ -77,20 +70,23 @@ bool Init() {
     // failure would train the reader to ignore the log.
     std::string alternatives;
     std::string unresolved;
+    std::vector<std::string_view> reported; // one line per group, not one per spelling
     for (const auto& name : s_missing) {
-        const auto base = BaseOf(name);
-        bool covered = false;
-        if (base != name) {
-            for (std::string_view sibling : s_resolved) {
-                if (sibling != name && BaseOf(sibling) == base) {
-                    covered = true;
-                    if (!alternatives.empty()) alternatives += ", ";
-                    alternatives += std::string(base) + " (via " + std::string(sibling) + ")";
-                    break;
-                }
-            }
+        const auto base = Patterns::AlternativeBase(name);
+        std::string_view matched;
+        for (std::string_view sibling : s_resolved) {
+            if (Patterns::AlternativeBase(sibling) == base) { matched = sibling; break; }
         }
-        if (covered) continue;
+        if (!matched.empty()) {
+            bool already = false;
+            for (const auto& seen : reported) if (seen == base) already = true;
+            if (!already) {
+                reported.push_back(base);
+                if (!alternatives.empty()) alternatives += ", ";
+                alternatives += std::string(base) + " (via " + std::string(matched) + ")";
+            }
+            continue;
+        }
         if (!unresolved.empty()) unresolved += ", ";
         unresolved += name;
     }

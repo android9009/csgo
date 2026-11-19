@@ -25,6 +25,22 @@
 #include <string_view>
 
 namespace Patterns {
+// Alternative spellings of one function share a base name ("server_rank_reveal_all" for
+// "..._alt1"/"..._alt2"), which is what makes "one of them matched this build" checkable.
+// A name without a numeric "_altN" suffix is its own base.
+// Both spellings the catalogue uses count: "..._alt" (a second implementation with no
+// number) and "..._alt1"/"..._alt2" (numbered candidates).
+inline std::string_view AlternativeBase(std::string_view name) {
+    const auto suffix = name.rfind("_alt");
+    if (suffix == std::string_view::npos) return name;
+    const auto tail = name.size() - suffix; // 4 for "_alt", 5 for "_altN"
+    if (tail == 4) return name.substr(0, suffix);
+    if (tail != 5) return name;
+    const char digit = name[suffix + 4];
+    if (digit < '0' || digit > '9') return name;
+    return name.substr(0, suffix);
+}
+
 struct Definition {
     std::string_view name;
     std::string_view module;

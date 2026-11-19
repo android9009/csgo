@@ -214,12 +214,29 @@ std::ptrdiff_t MoneyOffset() {
 
 // Reads the equipment of every live player once per feed. Everything here is game
 // memory, so the whole pass is guarded and a failure just skips the frame.
-// Only the nickname field is read, and it is copied out so the pointer stays valid for the
-// life of the equipment entry.
-struct PlayerInfoName {
-    char pad[16];
-    char name[128];
+// player_info_t is ~344 bytes in CS:GO (two 8-byte fields, name[128], userid, guid[33],
+// friendsid, friendsname[128], two flags, four custom files, one counter). The engine writes
+// the whole struct, so the buffer is deliberately larger than the published layout: a short
+// buffer here is a stack overflow inside a detour, which is the worst place to have one.
+struct PlayerInfoBuffer {
+    unsigned char raw[512];
 };
+constexpr std::size_t kPlayerInfoNameOffset = 16; // name[128] right after the two 8-byte fields
+
+// Copies at most sizeof(destination) - 1 printable characters; the source is the engine's
+// struct and is never trusted to be terminated inside the region this feature reads.
+void CopyNickname(char (&destination)[64], const unsigned char* info) {
+    if (!info) return;
+    const char* source = reinterpret_cast<const char*>(info + kPlayerInfoNameOffset);
+    int written = 0;
+    for (int i = 0; i < 127 && written < 63; ++i) {
+        const unsigned char c = static_cast<unsigned char>(source[i]);
+        if (c == 0) break;
+        if (c < 0x20 || c == 0x7F) continue;
+        destination[written++] = static_cast<char>(c);
+    }
+    destination[written] = '\0';
+}
 
 bool CollectEquipment(std::vector<Equipment>& out) {
     __try {
@@ -235,11 +252,10 @@ bool CollectEquipment(std::vector<Equipment>& out) {
 
             Equipment equipment;
             equipment.slot = index;
-            // player_info_t keeps the nickname at +0x10 in every CS:GO build; it is only a
-            // fallback row key, so a layout surprise costs nothing.
-            PlayerInfoName info{};
-            if (Interfaces::Engine->GetPlayerInfo(index, &info) && info.name[0])
-                equipment.name = info.name;
+            // The nickname is only a fallback row key, so a layout surprise costs nothing:
+            // the copy is bounded and stops at the first NUL.
+            PlayerInfoBuffer info{};
+            if (Interfaces::Engine->GetPlayerInfo(index, &info)) CopyNickname(equipment.name, info.raw);
             equipment.armor = player->m_ArmorValue() > 0 ? (player->m_bHasHelmet() ? 2 : 1) : 0;
             equipment.defuser = player->m_bHasDefuser();
             if (money_offset) {
