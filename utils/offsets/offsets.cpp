@@ -97,6 +97,8 @@ bool Init() {
     // utils/patterns/catalog.hpp). Zero means "not found"; the owning feature then
     // logs once and keeps itself off.
     s_values.emplace("server_rank_reveal_all", Patterns::Get("server_rank_reveal_all"));
+    s_values.emplace("server_rank_reveal_all_alt1", Patterns::Get("server_rank_reveal_all_alt1"));
+    s_values.emplace("server_rank_reveal_all_alt2", Patterns::Get("server_rank_reveal_all_alt2"));
     s_values.emplace("set_local_player_ready", Patterns::Get("set_local_player_ready"));
     s_values.emplace("send_datagram", Patterns::Get("send_datagram"));
     s_values.emplace("send_datagram_alt", Patterns::Get("send_datagram_alt"));

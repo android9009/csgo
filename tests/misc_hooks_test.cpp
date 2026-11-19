@@ -32,6 +32,65 @@ int main() {
     // The team prefix is what matters, not a word anywhere in the name.
     assert(ShouldRevealChat(true, "Cstrike_Chat_T_All", 18));
 
+    // ---- SayText2 payload: the name is found without assuming a field order ---------
+    {
+        // A minimal payload: one unknown byte, the sender, three unknown bytes, the name,
+        // the player, the text and the flag.
+        unsigned char payload[64]{};
+        int pos = 0;
+        payload[pos++] = 0x00;
+        payload[pos++] = 0x07; // sender slot
+        payload[pos++] = 0x00;
+        payload[pos++] = 0x00;
+        payload[pos++] = 0x00;
+        const char* name = "Cstrike_Chat_T";
+        const int name_len = 14;
+        payload[pos++] = static_cast<unsigned char>(name_len);
+        for (int i = 0; i < name_len; ++i) payload[pos++] = static_cast<unsigned char>(name[i]);
+        const char* player = "player";
+        payload[pos++] = 7;
+        for (int i = 0; i < 7; ++i) payload[pos++] = static_cast<unsigned char>(player[i]);
+        payload[pos++] = 0;
+        const int payload_size = pos;
+
+        assert(Misc::Chat::FindChatNameOffset(payload, payload_size) == 5);
+        // A payload without a chat name is refused rather than searched further.
+        unsigned char junk[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+        assert(Misc::Chat::FindChatNameOffset(junk, sizeof(junk)) == -1);
+        assert(Misc::Chat::FindChatNameOffset(nullptr, 16) == -1);
+        assert(Misc::Chat::FindChatNameOffset(payload, 4) == -1);
+
+        // A read object whose payload pointer sits in its third word resolves itself.
+        std::uintptr_t fields[Misc::Chat::kReadFieldCount]{};
+        fields[0] = 0; // empty fields are skipped instead of dereferenced
+        fields[1] = 0;
+        fields[2] = reinterpret_cast<std::uintptr_t>(payload);
+        fields[3] = static_cast<std::uintptr_t>(payload_size);
+        assert(Misc::Chat::FindPayloadField(fields, Misc::Chat::kReadFieldCount, payload_size) == 2);
+        // Nothing plausible: no field claims the payload.
+        std::uintptr_t empty[Misc::Chat::kReadFieldCount]{};
+        assert(Misc::Chat::FindPayloadField(empty, Misc::Chat::kReadFieldCount, payload_size) == -1);
+
+        // Repointing updates the buffer start and its size, and leaves everything else.
+        unsigned char rebuilt[64]{};
+        const int rebuilt_size = payload_size - name_len + 16; // "Cstrike_Chat_All"
+        const auto repoint = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, payload,
+                                                    payload_size, rebuilt, rebuilt_size);
+        assert(repoint.ok());
+        assert(repoint.pointer_fields == 1);
+        assert(repoint.length_fields == 1);
+        assert(fields[2] == reinterpret_cast<std::uintptr_t>(rebuilt));
+        assert(fields[3] == static_cast<std::uintptr_t>(rebuilt_size));
+        assert(fields[0] == 0 && fields[1] == 0);
+        // A null or empty payload never repoints anything.
+        const auto none_a = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, nullptr,
+                                                    payload_size, rebuilt, rebuilt_size);
+        assert(!none_a.ok());
+        const auto none_b = Misc::Chat::RepointRead(fields, Misc::Chat::kReadFieldCount, payload, 0,
+                                                    rebuilt, rebuilt_size);
+        assert(!none_b.ok());
+    }
+
     // ---- ragdoll thrust: the slider is clamped, and fast ragdolls are left alone --
     assert(Misc::Ragdoll::ScalePercent(0) == 1.f);
     assert(Misc::Ragdoll::ScalePercent(1) == 1.f);

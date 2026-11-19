@@ -71,6 +71,9 @@ inline ConVar* Find(const char* name) {
     return var;
 }
 
+// True when the cvar exists and its name round-trips, i.e. the ICvar slot is right.
+inline bool Exists(const char* name) { return Find(name) != nullptr; }
+
 // Reads a float cvar and keeps the caller's fallback unless the value is finite and
 // inside [low, high]. Both bounds are what makes a misresolved ConVar harmless.
 inline float Float(const char* name, float low, float high, float fallback) {

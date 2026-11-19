@@ -23,6 +23,16 @@ std::atomic<int> g_scale_x{kScaleDefault}, g_scale_y{kScaleDefault}, g_scale_wea
 // char __cdecl(int*): the client's ServerRankRevealAll handler - it builds and
 // dispatches the rank reveal user message and writes its result into the out array.
 using RevealFn = char(__cdecl*)(int*);
+// ECstrike15UserMessages_CS_UM_ServerRankRevealAll, from the CS:GO protobuf definition
+// (cstrike15_usermessages.proto) and CSGOSimple's Enums.hpp: the client's own handler for
+// this message is what asks the server for the rank table.
+constexpr int kServerRankRevealAll = 50;
+// Candidate signatures for that handler. The first is the one CSGOSimple publishes; the
+// other two are the variants UC threads report for earlier and later client builds. A
+// build only ever matches one of them, and a miss is not fatal.
+constexpr const char* kRevealNames[] = {"server_rank_reveal_all",
+                                        "server_rank_reveal_all_alt1",
+                                        "server_rank_reveal_all_alt2"};
 
 RevealFn g_reveal{};
 bool g_reveal_resolved{};
@@ -38,6 +48,7 @@ bool g_active_script{};
 bool g_reported_no_panel{};
 bool g_reported_enable{};
 int g_no_panel_feeds{};
+bool g_um_reported{};
 int g_script_failures{};
 std::uint32_t g_last_feed{};
 
@@ -56,19 +67,25 @@ RevealFn ResolveReveal() {
     g_reveal_resolved = true;
 
     const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
-    const auto rva = offsets::Get("server_rank_reveal_all");
-    if (!base || !rva) {
-        LOG_WARN("scoreboard: server_rank_reveal_all not resolved; rank reveal stays off");
+    if (!base) {
+        LOG_WARN("scoreboard: client.dll missing; rank reveal stays off");
         return nullptr;
     }
-    if (!InsideModule("client.dll", rva)) {
-        LOG_WARN("scoreboard: server_rank_reveal_all outside client.dll .text; rank reveal stays off");
-        return nullptr;
+    for (const char* name : kRevealNames) {
+        const auto rva = offsets::Get(name);
+        if (!rva) continue;
+        if (!InsideModule("client.dll", rva)) {
+            LOG_WARN("scoreboard: %s outside client.dll .text; refusing to call it", name);
+            continue;
+        }
+        g_reveal = reinterpret_cast<RevealFn>(base + rva);
+        LOG_INFO("scoreboard: rank reveal handler from %s at client.dll+0x%X", name,
+                 static_cast<unsigned>(rva));
+        return g_reveal;
     }
-
-    g_reveal = reinterpret_cast<RevealFn>(base + rva);
-    LOG_INFO("scoreboard: rank reveal handler at client.dll+0x%X", static_cast<unsigned>(rva));
-    return g_reveal;
+    LOG_WARN("scoreboard: no rank reveal signature matched this client; falling back to the "
+             "CS_UM_ServerRankRevealAll user message (%d)", kServerRankRevealAll);
+    return nullptr;
 }
 
 // The handler is a game function: guard the call so a mismatched build stops this
@@ -77,6 +94,25 @@ int CallReveal(RevealFn fn) {
     int out[4]{};
     __try { return static_cast<int>(fn(out)); }
     __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
+}
+
+// Fallback when no signature matched: dispatch the client's own ServerRankRevealAll user
+// message. The read object is zeroed, so a handler that tries to read a field sees an
+// empty message instead of a dangling pointer.
+int CallRevealViaUserMessage() {
+    if (!Interfaces::Client) {
+        LOG_WARN("scoreboard: IBaseClientDll missing; rank reveal stays off");
+        return -1;
+    }
+    using Fn = bool(__fastcall*)(void*, void*, int, int, void*);
+    auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(Interfaces::Client))[38]);
+    if (!fn) return -1;
+    alignas(std::uintptr_t) unsigned char read_object[sizeof(std::uintptr_t) * 12]{};
+    __try {
+        return fn(Interfaces::Client, nullptr, kServerRankRevealAll, 0, read_object) ? 1 : 0;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -1;
+    }
 }
 
 // Same guard for the diagnostic read: the resource pointer belongs to the game.
@@ -291,11 +327,14 @@ void FrameStage(int stage) {
     const auto now = GetTickCount();
 
     if (Enabled(mask, Bits::RevealRanks)) {
-        // ResolveReveal logs why when it fails, so a null handler needs no second line.
         const auto reveal = ResolveReveal();
-        if (reveal && ShouldRevealRanks(true, ctx.in_game, now, g_last_send, kRevealIntervalMs)) {
+        if (ShouldRevealRanks(true, ctx.in_game, now, g_last_send, kRevealIntervalMs)) {
             g_last_send = now;
-            const int result = CallReveal(reveal);
+            const int result = reveal ? CallReveal(reveal) : CallRevealViaUserMessage();
+            if (!reveal && !g_um_reported) {
+                g_um_reported = true;
+                LOG_INFO("scoreboard: rank reveal sent through the user message path");
+            }
             if (result < 0) {
                 g_failed = true;
                 LOG_ERROR("scoreboard: server_rank_reveal_all threw; rank reveal stopped");

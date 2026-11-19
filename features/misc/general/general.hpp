@@ -207,8 +207,100 @@ void FrameStage(int stage); // stage 4 only
 // verbatim, because the published descriptions of this layout disagree about its header.
 // ---------------------------------------------------------------------------
 namespace Misc::Chat {
-// A chat name is a one-byte length plus the name itself ("Cstrike_Chat_CT_Loc").
+// A chat name is a one-byte length plus the name itself ("Cstrike_Chat_CT_Loc"). The
+// name is looked for in the first bytes of the payload, because the published
+// descriptions of this message disagree about everything that precedes it.
 constexpr int kNameScanWindow = 32;
+// bf_read is an object, not a buffer: the payload pointer lives in one of its fields and
+// the field offset differs between client builds. Twelve machine words covers the
+// published layouts (the pointer sits at +0x18..+0x20 in the variants seen so far).
+constexpr int kReadFieldCount = 12;
+
+// Locates the length-prefixed message name in a SayText2 payload. Returns the offset of
+// the length byte, or -1 when the bytes do not look like a chat name.
+inline int FindChatNameOffset(const unsigned char* data, int size) {
+    if (!data || size < 3) return -1;
+    const int limit = size < kNameScanWindow ? size : kNameScanWindow;
+    for (int offset = 0; offset + 2 < limit; ++offset) {
+        const int length = data[offset];
+        if (length < 14 || length > 40) continue; // shorter than "Cstrike_Chat_T"
+        if (offset + 1 + length > size) continue;
+        if (std::strncmp(reinterpret_cast<const char*>(data + offset + 1), "Cstrike_Chat_", 13) != 0)
+            continue;
+        bool printable = true;
+        for (int i = 0; i < length; ++i) {
+            const unsigned char c = data[offset + 1 + i];
+            if (c < 0x20 || c > 0x7E) {
+                printable = false;
+                break;
+            }
+        }
+        if (printable) return offset;
+    }
+    return -1;
+}
+
+// Finds the field of a bf_read object that points at a buffer starting with a chat name.
+// Every field is tried and each candidate is validated against the message length the
+// caller already knows, so a build with a different layout resolves itself instead of
+// being hardcoded. Returns the field index, or -1.
+inline int FindPayloadField(const std::uintptr_t* fields, int field_count, int data_bytes) {
+    if (!fields || data_bytes <= 0) return -1;
+    for (int i = 0; i < field_count; ++i) {
+        const auto candidate = reinterpret_cast<const unsigned char*>(fields[i]);
+        if (!candidate) continue;
+        if (FindChatNameOffset(candidate, data_bytes) >= 0) return i;
+    }
+    return -1;
+}
+
+// Result of repointing a read object at a rebuilt payload, kept for logging: a build
+// whose object keeps the buffer start, its end and its size in separate fields needs all
+// of them updated, while a build that keeps only the pointer needs one.
+struct Repoint {
+    int pointer_fields{};
+    int length_fields{};
+    bool ok() const { return pointer_fields > 0 && length_fields > 0; }
+};
+
+// Repoints a bf_read object from `old_buffer` to `new_buffer`. Fields are matched by
+// value, not by offset: the buffer start, its 4-byte-aligned end, the byte count and the
+// bit count. A field that only coincidentally holds the byte count is left alone unless
+// it is the first such field, because payloads this feature rewrites are never tiny.
+inline Repoint RepointRead(std::uintptr_t* fields, int field_count,
+                           const unsigned char* old_buffer, int old_bytes,
+                           unsigned char* new_buffer, int new_bytes) {
+    Repoint out;
+    if (!fields || field_count <= 0 || !old_buffer || !new_buffer || old_bytes <= 0 ||
+        new_bytes <= 0)
+        return out;
+    const std::uintptr_t old_start = reinterpret_cast<std::uintptr_t>(old_buffer);
+    const std::uintptr_t new_start = reinterpret_cast<std::uintptr_t>(new_buffer);
+    const std::uintptr_t old_end = old_start + static_cast<std::uintptr_t>(old_bytes & ~3);
+    const std::uintptr_t new_end = new_start + static_cast<std::uintptr_t>(new_bytes & ~3);
+    const std::uintptr_t old_size = static_cast<std::uintptr_t>(old_bytes);
+    const std::uintptr_t new_size = static_cast<std::uintptr_t>(new_bytes);
+    bool size_done = false;
+    bool bits_done = false;
+    for (int i = 0; i < field_count; ++i) {
+        if (fields[i] == old_start) {
+            fields[i] = new_start;
+            ++out.pointer_fields;
+        } else if (old_end != old_start && fields[i] == old_end) {
+            fields[i] = new_end;
+            ++out.pointer_fields;
+        } else if (!size_done && fields[i] == old_size) {
+            fields[i] = new_size;
+            size_done = true;
+            ++out.length_fields;
+        } else if (!bits_done && fields[i] == old_size * 8) {
+            fields[i] = new_size * 8;
+            bits_done = true;
+            ++out.length_fields;
+        }
+    }
+    return out;
+}
 
 // Rewrites team names and leaves all-chat names alone: "Cstrike_Chat_All" is already
 // printed for everybody, and rewriting it would only duplicate the line.

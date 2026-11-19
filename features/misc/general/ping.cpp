@@ -222,6 +222,16 @@ void FrameStage(int /*stage*/) {
 
     LOG_INFO("misc: ping spike hooked send_datagram (engine.dll+0x%X)",
              static_cast<unsigned>(send - engine_base));
+
+    // One line that says whether the ConVar path works at all: a misresolved ICvar slot
+    // shows up here as "not found" instead of silently falling back to the defaults.
+    LOG_INFO("misc: ping spike convars sv_maxunlag=%s cl_interp=%s cl_interp_ratio=%s "
+             "cl_updaterate=%s (max_unlag=%.3fs lerp=%.3fs)",
+             ConVars::Exists("sv_maxunlag") ? "found" : "missing",
+             ConVars::Exists("cl_interp") ? "found" : "missing",
+             ConVars::Exists("cl_interp_ratio") ? "found" : "missing",
+             ConVars::Exists("cl_updaterate") ? "found" : "missing",
+             static_cast<double>(MaxUnlag()), static_cast<double>(LerpTime()));
 }
 
 void Shutdown() {

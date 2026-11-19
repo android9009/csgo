@@ -99,19 +99,23 @@ thread may be executing inside the function being hooked.
 | `IBaseClientDLL::DispatchUserMessage` | vtable 38 | `cfg.misc.reveal_enemy_chat` | CSGOSimple `hooks.hpp`, UC 365807 |
 | `IEngineSoundClient::EmitSound1` | vtable 5 | `cfg.misc.autoaccept` | CSGOSimple `hooks.hpp` |
 | `SetLocalPlayerReady` | `client.dll` signature `set_local_player_ready` | `cfg.misc.autoaccept` | CSGOSimple `misc.cpp` |
-| `tier0!ConMsg`, `tier0!ConColorMsg` | DLL exports | `cfg.misc.console_filter` | tier0 export table |
+| `tier0!ConMsg`, `tier0!ConColorMsg`, `tier0!Msg` | DLL exports, decorated names first (`?ConMsg@@YAXPBDZZ`, `?ConColorMsg@@YAXABVColor@@PBDZZ`) | `cfg.misc.console_filter` | tier0 export table |
 | `CNetChan::SendDatagram` | `engine.dll` signature `send_datagram` / `send_datagram_alt` | `cfg.misc.ping_spike_enabled` | `main`: `offsets.cpp`, `detour_hooks.cpp` |
 | `CNetChan::ProcessPacket` | `engine.dll` signature `process_packet` (already in the ported block) | `cfg.misc.ping_spike_enabled` | `main`: `detour_hooks.cpp` |
 
-**Reveal enemy chat** (`general/chat.cpp`) only touches `CS_UM_SayText2` (6). The
-published descriptions of this payload disagree about its header, so the hook does not
-assume a field order: it finds the length-prefixed message name in the first 32 bytes,
-requires the `Cstrike_Chat_` prefix and printable ASCII, and rewrites that one field to
-`Cstrike_Chat_All`. Every byte before and after the name is copied verbatim, and the
-rebuilt buffer is re-parsed before it is handed to the game; if either check fails the
-message is passed through untouched. All-chat names are left alone, so nothing is
-printed twice. Only the client's own display filter is bypassed: if the server never
-sends an enemy's team line, no client-side hook can invent it.
+**Reveal enemy chat** (`general/chat.cpp`) only touches `CS_UM_SayText2` (6). The hook
+takes `(int msg_type, int data_bytes, bf_read& msg)`, so the third argument is a read
+object, not the payload: the payload pointer is found by validation - every machine word
+of the object is tried and kept only when the buffer it points at starts with a
+length-prefixed `Cstrike_Chat_` name, which also logs the field it settled on
+(`bf_read payload field +0x..`). The name itself is located the same way, without
+assuming a field order, because the published descriptions of this payload disagree about
+its header. The rebuilt message repoints the object at a copy of the payload with one
+field changed, and every field holding the buffer start, its end or its size is updated
+(`RepointRead`); if either the pointer or the size field cannot be identified the message
+goes through untouched. All-chat names are left alone, so nothing prints twice. Only the
+client's own display filter is bypassed: if the server never sends an enemy's team line,
+no client-side hook can invent it.
 
 **Auto-accept** (`other/accept.cpp`) waits for the popup sample
 `UIPanorama.popup_accept_match_beep` on `EmitSound1`, then calls the client's
@@ -120,11 +124,14 @@ range-checked against `client.dll`'s `.text` before the call; a stale pattern me
 feature logs one warning and never fires. That sound is the only "a match was found"
 signal a client DLL can see.
 
-**Console filter** (`other/console_filter.cpp`) hooks the two variadic tier0 print
-exports with MinHook (no signature and no vtable index can go stale), formats the line
-once, and forwards it as `"%s"` so the original keeps its own output path. It drops only
-the five literal prefixes listed in `other.hpp` — the connect/queue chatter — and never a
-line it does not recognise.
+**Console filter** (`other/console_filter.cpp`) hooks the three variadic tier0 print
+functions with MinHook (no signature and no vtable index can go stale), formats the line
+once, and forwards it as `"%s"` so the original keeps its own output path; the colour of
+`ConColorMsg` is passed through unchanged. tier0 exports its C++ symbols decorated, so
+each hook tries `?ConMsg@@YAXPBDZZ`, `?ConColorMsg@@YAXABVColor@@PBDZZ`, `?Msg@@YAXPBDZZ`
+first and the plain spellings second, and the log names the one that resolved. It drops
+only the five literal prefixes listed in `other.hpp` — the connect/queue chatter — and
+never a line it does not recognise.
 
 **Ping spike** (`general/ping.cpp`) is ported from `main`'s `c_ping_spike`. On
 `SendDatagram` it computes `desired_ms/1000 - outgoing_latency - lerp_time`, clamps the
@@ -154,7 +161,13 @@ The Scoreboard combo box has three items; two are wired:
 
 - **Reveal ranks** (bit 0) — the client ships a handler for the `ServerRankRevealAll`
   user message. Calling it makes the server send the skill-group table, and the native
-  scoreboard then draws ranks for everybody it will ever show. It is called from
+  scoreboard then draws ranks for everybody it will ever show. The handler is looked up
+  through three candidate signatures (`server_rank_reveal_all`, `_alt1`, `_alt2`: the
+  CSGOSimple one plus the two variants UC threads report for older and newer clients),
+  and when none of them matches this build the feature dispatches
+  `CS_UM_ServerRankRevealAll` (50, from the CS:GO protobuf and CSGOSimple's `Enums.hpp`)
+  through `IBaseClientDll::DispatchUserMessage` with a zeroed read object instead of
+  dropping the feature. Both paths log which one is in use. It is called from
   `Misc::FrameStage` stage 4, at most once per second (`kRevealIntervalMs`): each call is
   a user message, and flooding one would be both useless and measurable. Once per
   session the log prints how many slots actually carry a skill group afterwards — the
@@ -217,6 +230,9 @@ but it is the SDK piece any future scoreboard work needs.
 - The Panorama path fails in three separated places - interface, panel search, script
   call - each with its own bound. A wrong vtable index disables the weapon reveal for the
   session after three exceptions; the rank reveal keeps working.
+- The chat hook identifies both the payload pointer and the size field by validation and
+  falls back to the untouched message when either is missing, so a build whose `bf_read`
+  differs cannot be written into.
 - The chat rewrite re-parses its own buffer before handing it to the game and falls back
   to the original message whenever the name scan or the round-trip fails, so a payload
   this build encodes differently is never reinterpreted.
@@ -265,7 +281,10 @@ Portable tests:
 - `tests/misc_hooks_test.cpp` - `ShouldRevealChat` (team names rewritten, all-chat names
   kept, malformed and null names refused), `ScalePercent` clamping,
   `ShouldScale` (ceiling, negative and NaN velocity), `IsAcceptSound`, and
-  `ShouldFilter` (the five prefixes match, everything else is kept), and the ping
+  `ShouldFilter` (the five prefixes match, everything else is kept), the SayText2 payload
+  helpers (`FindChatNameOffset` on a realistic payload, `FindPayloadField` on a read
+  object whose pointer sits in an arbitrary word, `RepointRead` updating the start and the
+  size and nothing else), and the ping
   arithmetic: `TicksForSeconds` at 64/128 tick with its zero/negative guards,
   `SpikeSeconds` (latency and lerp subtracted, unlag ceiling, negative readings ignored)
   and `ShouldSpike`.

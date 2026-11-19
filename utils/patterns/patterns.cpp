@@ -60,7 +60,17 @@ bool Init() {
     LOG_INFO("patterns: %zu definitions, %zu resolved, %zu missing (%zu dereferenced)",
              total, s_values.size(), s_missing.size(), payloads);
     // Core pointers required for a usable base. Optional signatures can remain unavailable.
-    if (!s_missing.empty()) LOG_WARN("%zu pattern(s) not found; pinned fallback offsets will be used where available.", s_missing.size());
+    if (!s_missing.empty()) {
+        // The names, not just the count: a feature that stays off because its signature
+        // moved is otherwise indistinguishable from one that is simply unused.
+        std::string names;
+        for (const auto& name : s_missing) {
+            if (!names.empty()) names += ", ";
+            names += name;
+        }
+        LOG_WARN("%zu pattern(s) not found; pinned fallback offsets will be used where available: %s",
+                 s_missing.size(), names.c_str());
+    }
     return MEM::GetModuleBase("client.dll") && MEM::GetModuleBase("engine.dll");
 }
 } // namespace Patterns

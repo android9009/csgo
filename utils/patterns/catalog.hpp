@@ -278,6 +278,12 @@ inline constexpr Definition kReferenceCatalog[] = {
     // above under the same name.
     {"send_datagram", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 18", {0, 0, 0, 0}, 0, true, 0},
     {"send_datagram_alt", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 14", {0, 0, 0, 0}, 0, true, 0},
+    // Two more spellings of the same handler, for client builds where the prologue above
+    // no longer matches: the long UC variant and the 2020 one. The feature tries them in
+    // this order after the CSGOSimple signature and falls back to the user message when
+    // none matches (docs/misc-runtime.md).
+    {"server_rank_reveal_all_alt1", "client.dll", "55 8B EC 8B 0D ? ? ? ? 85 C9 75 ? A1 ? ? ? ? 68 ? ? ? ? 8B 08 8B 01 FF 50 ? 85 C0 74 ? 8B C8 E8 ? ? ? ? 8B C8 EB ? 33 C9 89 0D ? ? ? ? 8B 45 ? FF 70 ? E8 ? ? ? ? B0 ? 5D", {0, 0, 0, 0}, 0, true, 0},
+    {"server_rank_reveal_all_alt2", "client.dll", "55 8B EC 51 A1 ? ? ? ? 85 C0 75 37", {0, 0, 0, 0}, 0, true, 0},
     {"server_rank_reveal_all", "client.dll", "55 8B EC 8B 0D ? ? ? ? 85 C9 75 28 A1 ? ? ? ? 68 ? ? ? ? 8B 08 8B 01 FF 50 04 85 C0 74 0B 8B C8 E8 ? ? ? ? 8B C8 EB 02 33 C9 89 0D ? ? ? ? 8B 45 08", {0, 0, 0, 0}, 0, true, 0},
 };
 } // namespace Patterns

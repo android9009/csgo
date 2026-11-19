@@ -99,6 +99,11 @@ makes the provenance obvious and keeps the "ported from `main`" count honest.
 | `server_rank_reveal_all` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
 | `set_local_player_ready` | `client.dll` | Misc → Other → "Auto-accept" |
 | `send_datagram`, `send_datagram_alt` | `engine.dll` | Misc → General → "Ping spike" |
+| `server_rank_reveal_all_alt1`, `server_rank_reveal_all_alt2` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
+
+`server_rank_reveal_all_alt1` and `_alt2` are the older and newer spellings of the same
+rank-reveal handler; the feature tries all three and falls back to the
+`CS_UM_ServerRankRevealAll` user message when none matches (see `docs/misc-runtime.md`).
 
 `send_datagram` and `send_datagram_alt` are the two `CNetChan::SendDatagram`
 signatures this repository's `main` branch carries, one per supported game build; the
@@ -118,7 +123,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 
 `tests/pattern_catalog_test.cpp` (portable, no Windows headers) verifies:
 
-- all three catalogues have the expected entry counts (58 / 99 / 4) and globally unique
+- all three catalogues have the expected entry counts (58 / 99 / 6) and globally unique
   names;
 - every module name is one the scanner can load, every signature token is either two
   uppercase hex digits or `?`/`??`, offsets stay within the 4-slot operand chain, and
