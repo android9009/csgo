@@ -1,4 +1,5 @@
 #include "misc.hpp"
+#include "buybot/buybot.hpp"
 #include "general/general.hpp"
 #include "other/other.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
@@ -33,6 +34,10 @@ void Shutdown() {
     __try { Other::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         LOG_ERROR("misc: exception while removing the OTHER hooks during unload");
+    }
+    __try { Buybot::Shutdown(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        LOG_ERROR("misc: exception while resetting the buy bot at shutdown");
     }
     __try { General::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) {

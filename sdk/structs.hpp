@@ -23,6 +23,16 @@ struct CUserCmd {
     QAngle headangles{};
     Vector headoffset{};
 };
+// CViewSetup, pinned to the layout `main` uses (c_view_setup): 176 bytes of screen,
+// ortho and HUD state, then the fields ClientMode::OverrideView hands to the renderer.
+// Only the tail is read or written here.
+struct ViewSetup {
+    unsigned char reserved[176]{};
+    float fov = 0.f;            // +0xB0
+    float viewmodel_fov = 0.f;  // +0xB4
+    Vector origin{};            // +0xB8
+    QAngle angles{};            // +0xC4
+};
 struct CVerifiedUserCmd { CUserCmd cmd{}; unsigned long crc = 0; };
 // Pinned 2023 (non-LEGACY) Source 1 layout: free-list link precedes entity.
 struct CGlowObjectDefinition {

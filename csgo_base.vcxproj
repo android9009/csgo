@@ -165,6 +165,7 @@
     <ClCompile Include="features\misc\general\radar.cpp" />
     <ClCompile Include="features\misc\general\clantag.cpp" />
     <ClCompile Include="features\misc\general\chat.cpp" />
+    <ClCompile Include="features\misc\buybot\buybot.cpp" />
     <ClCompile Include="features\misc\movement\autostrafe.cpp" />
     <ClCompile Include="features\misc\movement\bhop.cpp" />
     <ClCompile Include="features\misc\movement\edge.cpp" />
@@ -174,6 +175,9 @@
     <ClCompile Include="features\misc\other\other.cpp" />
     <ClCompile Include="features\misc\other\accept.cpp" />
     <ClCompile Include="features\misc\other\console_filter.cpp" />
+    <ClCompile Include="features\visuals\misc\fov.cpp" />
+    <ClCompile Include="features\visuals\misc\misc.cpp" />
+    <ClCompile Include="features\visuals\misc\thirdperson.cpp" />
     <ClCompile Include="features\visuals\removals\removals.cpp" />
     <ClCompile Include="features\visuals\removals\flash.cpp" />
     <ClCompile Include="features\visuals\removals\punch.cpp" />
@@ -181,6 +185,7 @@
     <ClCompile Include="sdk\hooks\hooks.cpp" />
     <ClCompile Include="sdk\hooks\paint.cpp" />
     <ClCompile Include="sdk\hooks\sceneend.cpp" />
+    <ClCompile Include="sdk\hooks\viewhooks.cpp" />
     <ClCompile Include="sdk\hooks\wndproc.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="utils\math\math.cpp" />
@@ -367,10 +372,12 @@
     <ClInclude Include="menu\preview\subject.hpp" />
     <ClInclude Include="features\misc\misc.hpp" />
     <ClInclude Include="features\misc\general\general.hpp" />
+    <ClInclude Include="features\misc\buybot\buybot.hpp" />
     <ClInclude Include="features\misc\movement\movement.hpp" />
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp" />
     <ClInclude Include="features\misc\other\other.hpp" />
     <ClInclude Include="sdk\convars.hpp" />
+    <ClInclude Include="features\visuals\misc\misc.hpp" />
     <ClInclude Include="features\visuals\removals\removals.hpp" />
     <ClInclude Include="features\visuals\removals\flash.hpp" />
     <ClInclude Include="features\visuals\removals\punch.hpp" />

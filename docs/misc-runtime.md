@@ -40,7 +40,16 @@ features/misc/
     bhop.cpp               "Bhop" (port of main's c_movement::auto_jump)
     quickstop.cpp          "Quick stop" (port of main's fast_stop/instant_stop)
     edge.cpp               "Edge jump" / "Edge stop" (this build's own trace forecast)
-  buy_bot.hpp/.cpp         next phase — single file, no folder
+  buybot/                  BUY BOT group box (id misc>buybot)
+    buybot.hpp             the folder's single header: Settings, weapon table, scheduler
+    buybot.cpp             game-rules lookup, client command, once-per-round latch
+
+features/visuals/misc/     MISC group of the Visuals tab (visuals>misc>local)
+  misc.hpp                 the folder's single header: Settings, camera and fov rules
+  misc.cpp                 published settings (atomics)
+  thirdperson.cpp          "Thirdperson" - camera placement in OverrideView
+  fov.cpp                  "Fov changer" (+ "Viewmodel changer" fov) - player fov fields
+                           and the GetViewModelFOV detour
 
 features/visuals/removals/
   removals.hpp/.cpp        façade + bit order of the Removals combo box
@@ -76,6 +85,10 @@ because the flash switch is the first item of the Removals combo box.
 | Ping spike | `cfg.misc.ping_spike_enabled` + `cfg.aim.ping_spike_amt` | hook | lowers the incoming sequence number so the server measures a higher ping |
 | Auto-accept | `cfg.misc.autoaccept` | hook | accepts the match when the accept popup beeps |
 | Console filter | `cfg.misc.console_filter` | hook | drops five documented connection/queue lines from the console |
+| Buy bot | `cfg.misc.buybot_*` | CreateMove (tick) | during freeze time, sends one `buy X; buy Y; ...` line through `IEngineClient::ClientCmd_Unrestricted`; up to three attempts per round |
+| Third person | `cfg.misc.thirdperson` (+ `_dist`, `_dead`, `_grenade`) | OverrideView (slot 18) | moves the camera backwards along the view direction, clipped by an engine trace; the local model is skipped while the camera is outside it; "Force when dead" flips observer mode 4 -> 5 |
+| Fov changer | `cfg.misc.fov_enabled`, `cfg.misc.fov` | FRAME_RENDER_START | writes the player's `m_iDefaultFOV` / `m_iFOV` / `m_iFOVStart`, restores the captured original when switched off or while scoped |
+| Viewmodel fov | `cfg.misc.vm_fov_enabled`, `cfg.misc.vm_fov` | GetViewModelFOV (slot 35) | replaces the viewmodel field of view with the slider value |
 
 Entry point: `Misc::FrameStage(stage)` and `Removals::FrameStage(stage)` from
 `sdk/hooks/framestage.cpp`, after the context refresh, inside the existing SEH frame.
@@ -209,6 +222,95 @@ damage on the server from the velocity the client reports on the landing tick, s
 removes it, and nothing in `main` implements either feature. Both menu items were removed
 rather than left as switches that do nothing.
 
+## Buy bot
+
+The BUY BOT group box has no master switch: an empty selection is "off", exactly like the
+Auto strafe combo box. `features/misc/buybot/buybot.hpp` owns the weapon table and the
+scheduler, `buybot.cpp` owns the two engine calls.
+
+**What is sent.** One command line, in `main`'s order - primary, secondary, armor, then the
+one-item groups - because the server rejects a purchase the player can no longer afford, so
+whatever money is left must reach the rifle and not a grenade:
+
+| Menu item | Command |
+|---|---|
+| Primary: AK47 / M4A1 | `buy ak47; buy m4a1; buy m4a1_silencer;` |
+| Primary: SG-556 | `buy aug; buy sg556;` |
+| Primary: AWP / SSG-08 / SCAR-20 & G3SG1 / Negev | `buy awp;` / `buy ssg08;` / `buy scar20; buy g3sg1;` / `buy negev;` |
+| Secondary: Deagle / Dual Berettas / Tec-9 & Five-SeveN / P250 / CZ75-Auto / R8 | `buy deagle;` / `buy elite;` / `buy tec9; buy fn57;` / `buy p250;` / `buy cz75a;` / `buy revolver;` |
+| Armor: Kevlar / Kevlar + Helmet | `buy vest;` / `buy vesthelm;` |
+| Defuser / Taser | `buy defuser;` / `buy taser;` |
+| Grenades | `buy hegrenade; buy molotov; buy incgrenade; buy smokegrenade; buy flashbang;` |
+
+The CT/T pairs are `main`'s: an item the current team cannot buy is rejected by the server
+and the *next* command in the same line still runs. The two entries `main` folds together
+(CZ75-Auto with the Desert Eagle, R8 with it too) are separate menu items here, so each maps
+to its own command, and the single "Grenades" checkbox covers `main`'s three grenade bits
+plus the flashbang.
+
+**When it buys.** `main` listens for the `round_start` game event; this base has no game
+event listener, so the window is the state that event stands for: `c_game_rules`'
+`m_bFreezePeriod` (byte `+0x20` - the field `main` reads as `is_freeze_time()`), located
+through the `game_rules` signature `main` also carries. Freeze time is exactly when the
+client is allowed to buy. The object is resolved once, and the byte is checked to be a bool
+before the first read is trusted; a mismatch logs one warning and leaves the feature off
+instead of writing into an unrelated global.
+
+The purchase is issued from the `ClientMode::CreateMove` detour the movement module already
+owns - the bot needs a per-tick entry point, not the command, so it costs one branch per
+tick when the window is closed. `main` fires exactly one attempt the tick the round starts;
+this build retries up to three times, one second apart, inside the same window, because a
+`buy` that arrives before the server has finished the round transition is rejected. A
+duplicate purchase is refused by the server, so a retry after a successful buy cannot spend
+twice. Attempts are counted per window and reset when freeze time ends; nothing is logged
+per tick, only the attempt itself.
+
+**Not implemented:** buying outside freeze time (`mp_buytime`), loadout-aware selections
+(the menu picks a weapon, not a saved loadout slot), and an "own the weapon already" check -
+re-buying something already held is refused by the server, so the retry path stays safe
+without walking the weapon handle array.
+
+## Visuals tab: the Misc group
+
+`visuals>misc>local` is implemented from `features/visuals/misc/`, in the same shape as the
+Misc tab's folders. The settings are published by `VisualSettings::Configure()` and read by
+the hooks, never the other way round.
+
+| Item | Hook | Provenance |
+|---|---|---|
+| Thirdperson (+ Distance, Force when dead, Disable on grenade) | `ClientMode::OverrideView`, slot 18 | `main`: `thirdperson.cpp` (`c_thirdperson::run_alive`, `fix_camera_on_fakeduck`) - same +-16 unit trace box, same `MASK_NPCWORLDSTATIC`, same observer-mode 4 -> 5 flip for the dead camera |
+| Fov changer (Fov) | `FrameStageNotify` FRAME_RENDER_START | `main`: `c_fov_and_view::change_fov` writes the same player fields (`default_fov`, `fov`, `fov_start`) |
+| Viewmodel changer (FOV) | `ClientMode::GetViewModelFOV`, slot 35 | `main`: `get_viewmodel_fov` detour |
+
+Third person does **not** write `CInput::camera_in_third_person` the way `main` does: those
+are plain struct offsets inside `CInput` with no signature of their own, and a wrong guess
+writes into unrelated input state. The camera is placed in `OverrideView` instead, using the
+`CViewSetup` tail (`fov` at `+0xB0`, `origin` at `+0xB8`) that `main`'s own fake-duck fixup
+also writes, and the local player's model is skipped in `DrawModelExecute` while the camera
+is outside it - otherwise the body fills the frame. The viewmodel and arms are separate
+model calls, so they keep rendering.
+
+The world fov slider is absolute and is skipped while scoped: the weapon owns both fov
+fields during the zoom animation, and "Remove zoom" is a separate item that stays
+unimplemented (see below). The viewmodel slider is absolute too, because that is what the
+menu shows; `main`'s version adds a delta.
+
+**Not implemented, and why:** the rest of the group needs engine surfaces this base does not
+have yet:
+
+- "Remove zoom", "Aspect ratio", "Force second zoom", "Force viewmodel in scope" - the
+  weapon-info zoom table (`get_zoom_fov` / `get_zoom_time` in `main`) and the
+  `hide_viewmodel_in_zoom` field at `+0x1BD` of the weapon info, neither of which is in
+  this build's `CCSWeaponData`.
+- The viewmodel X/Y/Z/roll/yaw/pitch sliders and "Disable landing bob" - `main` writes them
+  from its own viewmodel calculation; here they would need a `CBaseViewModel` / view-render
+  hook that has not been verified for this client.
+- Grenade prediction, grenade proximity warning, penetration crosshair, force crosshair,
+  spread circle, hitmarker, bullet tracers, impacts, out-of-FOV, texture/prop transparency:
+  all of them are 2D or material output. The pattern here is the same as the ESP world
+  group: the render path for them (`esp_object_render` in `main`) was never ported, so
+  implementing the settings alone would produce checkboxes that draw nothing.
+
 ## Threading and cost
 
 - Everything runs on the game thread. No engine call is made from the D3D thread.
@@ -255,6 +357,22 @@ rather than left as switches that do nothing.
   is restored, so an unload cannot leave a detour pointing into freed code.
 - Flash is cleared only for a positive duration, which also rejects NaN. Punch is
   zeroed when any component is non-zero, which includes NaN.
+- Buy bot: an unresolved `game_rules` signature, a null game-rules object or a freeze byte
+  that is not a bool disables the feature with one warning - it never guesses. The
+  `IEngineClient` command slot is checked to point inside `engine.dll`'s `.text` once
+  before the first call, because a wrong vtable index there is a wild call. A throw inside
+  the tick stops purchases for the session and logs once.
+- Buy bot: the attempt counter is per freeze window and resets when freeze time ends, so a
+  round without a buy window (deathmatch, warmup) sends nothing at all instead of a command
+  every tick.
+- Third person: the camera distance is `slider * trace fraction`, clamped to `[0, 1]`; a
+  fraction of zero (something right behind the head, or a trace that threw) keeps the
+  first-person camera instead of placing the camera inside geometry. An exception in the
+  `OverrideView` detour is latched and the untouched setup is passed on.
+- Fov: the player's own `m_iDefaultFOV` is captured before the first override and written
+  back when the checkbox is cleared or the player scopes, so switching the feature off
+  never leaves the game on a hard-coded 90. Non-finite slider values are ignored, and the
+  write only happens when the value actually changes.
 - The tag the player already owned is captured from `m_szClan` before the first write
   and restored when the feature is switched off or the DLL unloads, so toggling does not
   silently wipe a custom tag. If `m_szClan` cannot be read, the restore writes an empty
@@ -286,14 +404,17 @@ reports that once in the log when it is switched on instead of silently doing no
 - **Removals 1-7 and 9** (smoke, particles, post processing, water, blood, decals,
   ragdolls, shadows) - material, effect-dispatch and entity-visibility manipulation;
   each needs its own validated hook, and a wrong one is a visible or crashing change.
-- **Movement and Buybot** - next phases. Movement needs a `CreateMove` detour, which
-  `sdk/hooks/detours.cpp` intentionally leaves empty; Buybot needs the convar /
-  `ClientCmd` path, i.e. the same `ICvar` work as above.
 
 ## Checks
 
 Portable tests:
 
+- `tests/buybot_test.cpp` - `Configured`, the exact command line for every weapon/armor
+  entry, the ordering of a full loadout, the window edges and `ShouldAttempt` (dead, not
+  in game, closed window, retry delay, the three-attempt budget, a restarted clock).
+- `tests/visuals_misc_test.cpp` - the third-person plan (off, not in game, dead with and
+  without "Force when dead", grenade held, distance clamping), the trace clamp, and both
+  fov policies (scoped, dead, slider limits, non-finite values).
 - `tests/misc_radar_test.cpp` - `ShouldSpot` for dormant, dead, local, spectator and
   wrong-team targets.
 - `tests/misc_hooks_test.cpp` - `ShouldRevealChat` (team names rewritten, all-chat names

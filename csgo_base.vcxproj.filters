@@ -29,6 +29,12 @@
     <Filter Include="Features\misc\movement">
       <UniqueIdentifier>{6E1B2F44-9C4A-4F2B-8D51-3A7C0E12B9D4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Features\misc\buybot">
+      <UniqueIdentifier>{5A7D2E13-8C41-4B9F-A6E2-71D4C0B8F935}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\visuals\misc">
+      <UniqueIdentifier>{9F3C61B7-2E58-4D0A-B71C-48A5E9D2C361}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Features\misc\general">
       <UniqueIdentifier>{C62E9F41-58B3-5D7A-A4C1-8E2D0B95F36A}</UniqueIdentifier>
     </Filter>
@@ -172,6 +178,18 @@
     <ClCompile Include="features\misc\general\clantag.cpp">
       <Filter>Features\misc\general</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\buybot\buybot.cpp">
+      <Filter>Features\misc\buybot</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\fov.cpp">
+      <Filter>Features\visuals\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\misc.cpp">
+      <Filter>Features\visuals\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\thirdperson.cpp">
+      <Filter>Features\visuals\misc</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\movement\autostrafe.cpp">
       <Filter>Features\misc\movement</Filter>
     </ClCompile>
@@ -239,6 +257,9 @@
       <Filter>SDK\Hooks</Filter>
     </ClCompile>
     <ClCompile Include="sdk\hooks\sceneend.cpp">
+      <Filter>SDK\Hooks</Filter>
+    </ClCompile>
+    <ClCompile Include="sdk\hooks\viewhooks.cpp">
       <Filter>SDK\Hooks</Filter>
     </ClCompile>
     <ClCompile Include="sdk\hooks\wndproc.cpp">
@@ -681,6 +702,12 @@
     </ClInclude>
     <ClInclude Include="sdk\convars.hpp">
       <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\buybot\buybot.hpp">
+      <Filter>Features\misc\buybot</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\misc.hpp">
+      <Filter>Features\visuals\misc</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\movement\movement.hpp">
       <Filter>Features\misc\movement</Filter>

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "../config.hpp"
+#include "../../features/misc/buybot/buybot.hpp"
 #include "../../features/misc/general/general.hpp"
 #include "../../features/misc/movement/movement.hpp"
 #include "../../features/misc/other/other.hpp"
@@ -38,6 +39,37 @@ inline void Configure() {
     movement.edge_jump = cfg.misc.edge_jump.get();
     movement.edge_stop = cfg.misc.edge_stop.get();
     Misc::Movement::Publish(movement);
+
+    // The BUY BOT group box. No master switch: a completely empty selection is "off".
+    // The static_asserts keep the feature's own enums aligned with cfg_t, so reordering a
+    // config enum cannot silently change which weapon is bought.
+    static_assert(static_cast<int>(cfg_t::buybot_primary_none) == static_cast<int>(Misc::Buybot::PrimaryNone));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_ak47) == static_cast<int>(Misc::Buybot::PrimaryAk47));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_sg556) == static_cast<int>(Misc::Buybot::PrimarySg556));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_awp) == static_cast<int>(Misc::Buybot::PrimaryAwp));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_ssg08) == static_cast<int>(Misc::Buybot::PrimarySsg08));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_scar20) == static_cast<int>(Misc::Buybot::PrimaryScar20));
+    static_assert(static_cast<int>(cfg_t::buybot_primary_negev) == static_cast<int>(Misc::Buybot::PrimaryNegev));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_none) == static_cast<int>(Misc::Buybot::PistolNone));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_deagle) == static_cast<int>(Misc::Buybot::PistolDeagle));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_elites) == static_cast<int>(Misc::Buybot::PistolElites));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_tec9) == static_cast<int>(Misc::Buybot::PistolTec9));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_p250) == static_cast<int>(Misc::Buybot::PistolP250));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_cz75a) == static_cast<int>(Misc::Buybot::PistolCz75a));
+    static_assert(static_cast<int>(cfg_t::buybot_pistol_revolver) == static_cast<int>(Misc::Buybot::PistolRevolver));
+    static_assert(static_cast<int>(cfg_t::buybot_kevlar_none) == static_cast<int>(Misc::Buybot::ArmorNone));
+    static_assert(static_cast<int>(cfg_t::buybot_kevlar_k) == static_cast<int>(Misc::Buybot::ArmorKevlar));
+    static_assert(static_cast<int>(cfg_t::buybot_kevlar_kh) == static_cast<int>(Misc::Buybot::ArmorKevlarHelmet));
+    Misc::Buybot::Settings buybot;
+    // The three combo boxes are single-selection bit sets, so the stored value is the
+    // index of the one set bit (0 = "None").
+    buybot.primary = static_cast<int>(cfg.misc.buybot_primary.get().first_set_bit().value_or(0));
+    buybot.pistol = static_cast<int>(cfg.misc.buybot_pistol.get().first_set_bit().value_or(0));
+    buybot.armor = static_cast<int>(cfg.misc.buybot_kevlar_helmet.get().first_set_bit().value_or(0));
+    buybot.defuser = cfg.misc.buybot_defuser.get();
+    buybot.taser = cfg.misc.buybot_taser.get();
+    buybot.grenades = cfg.misc.buybot_grenades.get();
+    Misc::Buybot::Publish(buybot);
 
     Misc::Other::Settings other;
     other.auto_accept = cfg.misc.autoaccept.get();

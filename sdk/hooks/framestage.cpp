@@ -4,6 +4,7 @@
 #include "../../features/skins/skin_changer.hpp"
 #include "../../features/skins/local_inventory.hpp"
 #include "../../features/misc/misc.hpp"
+#include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/removals/removals.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
@@ -55,6 +56,9 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // after the context refresh above, still inside this SEH frame.
             Misc::FrameStage(stage);
             Removals::FrameStage(stage);
+            // Visuals -> Misc: the fov changer writes the player's own fov fields at
+            // FRAME_RENDER_START, before the renderer samples them.
+            VisualsMisc::FrameStage(stage);
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }

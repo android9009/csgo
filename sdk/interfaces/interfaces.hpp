@@ -56,8 +56,20 @@ public:
         using Fn = bool (__thiscall*)(void*, float, void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[24])(this, input_sample_time, cmd);
     }
+    // ClientModeShared::OverrideView - slot 18 (main: OVERRIDE_VIEW_IDX = 18).
+    // void OverrideView(CViewSetup* setup)
+    void OverrideView(void* setup) {
+        using Fn = void (__thiscall*)(void*, void*);
+        reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[18])(this, setup);
+    }
 };
 constexpr std::size_t kClientModeCreateMoveSlot = 24;
+constexpr std::size_t kClientModeOverrideViewSlot = 18;
+constexpr std::size_t kClientModeViewModelFovSlot = 35;
+
+// IEngineClient::ClientCmd_Unrestricted (main: execute_client_cmd). Buy bot validates the
+// slot before using it, because a wrong index would be a call into unrelated engine code.
+constexpr std::size_t kClientCmdUnrestrictedSlot = 114;
 
 class IEngineClient {
 public:
@@ -66,6 +78,15 @@ public:
         reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[5])(this, width, height);
     }
     bool GetPlayerInfo(int index, void* info) {using Fn = bool (__thiscall*)(void*,int,void*);return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[8])(this,index,info);}
+    // IEngineClient::ClientCmd_Unrestricted - slot 114 (main: execute_client_cmd). The
+    // second argument is the "flag" string the game passes for restricted commands; the
+    // engine accepts a null flag for the plain client-command path.
+    void ExecuteClientCmd(const char* command, const char* flag = nullptr) {
+        using Fn = void (__thiscall*)(void*, const char*, const char*);
+        if (!command) return;
+        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[kClientCmdUnrestrictedSlot]);
+        if (fn) fn(this, command, flag);
+    }
     int GetLocalPlayer() {
         using Fn = int (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[12])(this);

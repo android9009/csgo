@@ -9,11 +9,11 @@ Two groups share one `Definition` type:
 | Group | Entries | Numeric fallback | Origin |
 |---|---|---|---|
 | `kLegacySnapshotCatalog` | 58 | yes, `utils/offsets/offsets.hpp` | Hazedumper snapshot `2023-09-05` |
-| `kPortedCatalog` | 99 | none | this repository's `main` branch |
+| `kPortedCatalog` | 101 | none | this repository's `main` branch |
 
 `Patterns::Init()` reports `patterns: N definitions, M resolved, K missing` and lists
 unresolved names through `Patterns::Missing()`. `offsets::Get()` publishes the
-signature value when it resolved and the pinned constant otherwise; the 99 ported
+signature value when it resolved and the pinned constant otherwise; the 101 ported
 names have no constant, so they simply publish `0` until a signature matches.
 
 ## Where the ported entries come from
@@ -35,7 +35,7 @@ than tidiness:
 - the `#else` block is the live configuration and does not describe the build this
   base targets.
 
-So 109 shared names were reviewed, 99 of them are new here. The remaining ten were
+So 111 shared names were reviewed, 101 of them are new here. The remaining ten were
 already present:
 
 | Name in `main` | Already present as |
@@ -102,6 +102,15 @@ makes the provenance obvious and keeps the "ported from `main`" count honest.
 The three `server_rank_reveal_all` entries went with the scoreboard feature when it was
 removed; the catalogue no longer carries a signature nothing calls.
 
+`game_rules` and `game_rules_alt` are the two spellings of the client's game-rules load
+in `main` (`A1 ? ? ? ?` - the operand is the address of the global pointer, so one more
+dereference yields the object `main` reads as `**offsets::game_rules`). Both are published
+as absolute addresses (`relative = false`) because the buy bot needs the object, not an
+RVA; the legacy spelling with `0F 84 ? ? ? ? 0F 10 05` is the alternative candidate and is
+tried only when the primary one does not match. The field the feature reads from that
+object - `m_bFreezePeriod` at `+0x20` - is validated to be a bool before anything is
+written, so a mismatched match disables the buy bot instead of reading garbage.
+
 `send_datagram` and `send_datagram_alt` are the two `CNetChan::SendDatagram`
 signatures this repository's `main` branch carries, one per supported game build; the
 feature tries them in order. `CNetChan::ProcessPacket` was already part of the ported
@@ -120,7 +129,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 
 `tests/pattern_catalog_test.cpp` (portable, no Windows headers) verifies:
 
-- all three catalogues have the expected entry counts (58 / 99 / 3) and globally unique
+- all three catalogues have the expected entry counts (58 / 101 / 3) and globally unique
   names;
 - every module name is one the scanner can load, every signature token is either two
   uppercase hex digits or `?`/`??`, offsets stay within the 4-slot operand chain, and

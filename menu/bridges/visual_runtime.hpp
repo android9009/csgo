@@ -3,6 +3,7 @@
 #include "../config.hpp"
 #include "../../sdk/visual_runtime_state.hpp"
 #include "../../features/visuals/chams_passes.hpp"
+#include "../../features/visuals/misc/misc.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -53,5 +54,18 @@ inline void Configure() {
     object(0,w.weapon_visuals,w.weapon_glow.get());object(1,w.grenade_visuals,w.grenade_glow.get());object(2,w.c4_visuals,w.c4_glow.get());
     for(int i=0;i<3;++i)s.esp[i]=ReadEsp(i==esp.active_profile ? static_cast<cfg_t::visuals_t::esp_player_t&>(esp) : esp.profiles[i],i);
     VisualRuntime::Publish(s);
+
+    // Visuals -> Misc (third person and the two fov controls). Same rule as everywhere
+    // else: the hooks never read GUI state, they read what this function published.
+    VisualsMisc::Settings misc;
+    misc.thirdperson=cfg.misc.thirdperson.get();
+    misc.thirdperson_dist=cfg.misc.thirdperson_dist.get();
+    misc.thirdperson_dead=cfg.misc.thirdperson_dead.get();
+    misc.thirdperson_grenade=cfg.misc.thirdperson_grenade.get();
+    misc.fov_enabled=cfg.misc.fov_enabled.get();
+    misc.fov=cfg.misc.fov.get();
+    misc.vm_fov_enabled=cfg.misc.vm_fov_enabled.get();
+    misc.vm_fov=cfg.misc.vm_fov.get();
+    VisualsMisc::Publish(misc);
 }
 }

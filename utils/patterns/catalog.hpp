@@ -189,6 +189,12 @@ inline constexpr Definition kPortedCatalog[] = {
     {"get_exposure_range", "client.dll", "55 8B EC 51 80 3D ? ? ? ? ? 0F 57", {0, 0, 0, 0}, 0, true, 0},
     {"get_name", "client.dll", "56 8B 35 ? ? ? ? 85 F6 74 21 8B 41", {0, 0, 0, 0}, 0, true, 0},
     {"get_pose_parameter", "client.dll", "55 8B EC 8B 45 08 57 8B F9 8B 4F 04 85 C9 75 15 8B", {0, 0, 0, 0}, 0, true, 0},
+    // c_game_rules: `A1 ? ? ? ?` loads the client's game-rules pointer. The operand is the
+    // address of the global pointer, so one more dereference (done by the caller, see
+    // features/misc/buybot/buybot.cpp) yields the object main reads as `**offsets::game_rules`.
+    // Both spellings from `main`'s two build blocks are kept; the non-LEGACY one is primary.
+    {"game_rules", "client.dll", "A1 ? ? ? ? 85 C0 0F 84 ? ? ? ? 80 B8 ? ? ? ? ? 74 7A", {1, 0, 0, 0}, 1, false, 0},
+    {"game_rules_alt", "client.dll", "A1 ? ? ? ? 85 C0 0F 84 ? ? ? ? 80 B8 ? ? ? ? ? 0F 84 ? ? ? ? 0F 10 05", {1, 0, 0, 0}, 1, false, 0},
     {"global_vars", "client.dll", "A1 ? ? ? ? F3 0F 10 40 ? 0F 5A C0 F2 0F 11 04", {1, 0, 0, 0}, 1, true, 0},
     {"glow_object", "client.dll", "0F 11 05 ? ? ? ? 83 C8 01 C7 05 ? ? ? ? ? ? ? ?", {3, 0, 0, 0}, 1, true, 0},
     {"index_from_anim_tag_name", "client.dll", "56 57 8B F9 BE ? ? ? ? 0F 1F 80", {0, 0, 0, 0}, 0, true, 0},

@@ -15,6 +15,13 @@ public:
     NETVAR_FALLBACK(bool, m_bHasHelmet, "DT_CSPlayer", "m_bHasHelmet", offsets::netvars::m_bHasHelmet)
     NETVAR_FALLBACK(bool, m_bHasDefuser, "DT_CSPlayer", "m_bHasDefuser", offsets::netvars::m_bHasDefuser)
     NETVAR_FALLBACK(int, m_ArmorValue, "DT_CSPlayer", "m_ArmorValue", offsets::netvars::m_ArmorValue)
+    // Field of view and observer state for the Visuals tab's Misc group (fov changer,
+    // third person while dead). All four have hadumper fallbacks, so a failed RecvProp
+    // walk cannot turn into a write at offset 0.
+    NETVAR_FALLBACK(int, m_iDefaultFOV, "DT_BasePlayer", "m_iDefaultFOV", offsets::netvars::m_iDefaultFOV)
+    NETVAR_FALLBACK(int, m_iFOV, "DT_BasePlayer", "m_iFOV", offsets::netvars::m_iFOV)
+    NETVAR_FALLBACK(int, m_iFOVStart, "DT_BasePlayer", "m_iFOVStart", offsets::netvars::m_iFOVStart)
+    NETVAR_FALLBACK(int, m_iObserverMode, "DT_BasePlayer", "m_iObserverMode", offsets::netvars::m_iObserverMode)
     CBaseWeapon* GetActiveWeapon() const;
     // m_szLastPlaceName (DT_CSPlayer): the map area the player is standing in, the string
     // the game's own chat lines put after "@". Empty when the client has not filled it.

@@ -115,13 +115,13 @@ int main() {
 
     // Catalogue integrity.
     assert(std::size(Patterns::kLegacySnapshotCatalog) == 58);
-    assert(std::size(Patterns::kPortedCatalog) == 99);
+    assert(std::size(Patterns::kPortedCatalog) == 101);
     assert(std::size(Patterns::kReferenceCatalog) == 3);
     std::set<std::string_view> names;
     Validate(Patterns::kLegacySnapshotCatalog, names);
     Validate(Patterns::kPortedCatalog, names);
     Validate(Patterns::kReferenceCatalog, names);
-    assert(names.size() == 58 + 99 + 3);
+    assert(names.size() == 58 + 101 + 3);
     // Every ported name is reachable through offsets::Get() as well.
     assert(names.count("setup_bones") == 1);
     assert(names.count("update_animstate") == 1);
@@ -130,6 +130,9 @@ int main() {
     assert(names.count("send_datagram") == 1);
     assert(names.count("send_datagram_alt") == 1);
     assert(names.count("process_packet") == 1);
+    // The buy bot's freeze-time source: both spellings of `main`'s game-rules load.
+    assert(names.count("game_rules") == 1);
+    assert(names.count("game_rules_alt") == 1);
 
     // Address: the match itself, published as an RVA, plus `extra`.
     {
