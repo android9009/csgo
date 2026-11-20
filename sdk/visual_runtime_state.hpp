@@ -31,6 +31,19 @@ struct Effects {
     // half-updated colour.
     bool world_fog{};
     std::uint32_t world_fog_colour{0xFFFFFFFFu};
+    // Visuals -> Misc -> local: "Remove scope" (mode, see VisualsMisc::Detail::ScopeMode),
+    // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
+    // menu/overlays/screen_overlay.hpp reads these; the game thread reads the same struct to
+    // decide whether to drop the engine's own scope mask.
+    struct Screen {
+        int scope_mode{};
+        std::uint32_t scope_line_color{0xFF000000u}; // 0xRRGGBBAA, black by default
+        float scope_line_size{100.f};
+        bool scope_invert{};
+        bool spread{};
+        std::uint32_t spread_color1{0xFFFFFFFFu};
+        std::uint32_t spread_color2{0xFFFFFFFFu};
+    } screen;
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;
@@ -51,6 +64,29 @@ inline void Publish(const Settings& s){
     shot_requested.store(s.chams_enabled && s.shot.enabled && s.shot.kind>0,std::memory_order_relaxed);
     any_transparency.store(s.texture_transparency>0.f || s.prop_transparency>0.f,std::memory_order_relaxed);
 }
+// Live game thread -> render thread state for the same overlay: whether the local player is
+// scoped, the field of view the picture is drawn with and the weapon's current inaccuracy
+// (radians). Everything the gap/radius maths needs, so the render thread never touches an
+// entity.
+struct ScreenState {
+    bool scoped{};
+    float inaccuracy{};
+    float fov{90.f};
+    int width{};
+    int height{};
+};
+inline std::mutex screen_mutex;
+inline ScreenState screen_state;
+
+inline void PublishScreen(const ScreenState& state) {
+    std::lock_guard<std::mutex> lock(screen_mutex);
+    screen_state = state;
+}
+inline ScreenState GetScreen() {
+    std::lock_guard<std::mutex> lock(screen_mutex);
+    return screen_state;
+}
+
 struct Segment {VisualPreview::Point a,b;};
 struct Player {
     int subject{},health{},armor{},ammo{},max_ammo{30};

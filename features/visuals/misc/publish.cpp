@@ -26,6 +26,11 @@ std::atomic<float> g_vm_fov{90.f};
 std::atomic<float> g_vm_x{0.f};
 std::atomic<float> g_vm_y{0.f};
 std::atomic<float> g_vm_z{0.f};
+std::atomic<float> g_vm_roll{0.f};
+std::atomic<float> g_vm_yaw{0.f};
+std::atomic<float> g_vm_pitch{0.f};
+std::atomic<int> g_remove_scope{0};
+std::atomic<bool> g_spread_circle{false};
 } // namespace
 
 void Publish(const Settings& settings) {
@@ -47,6 +52,15 @@ void Publish(const Settings& settings) {
     g_vm_x.store(settings.vm_x, std::memory_order_relaxed);
     g_vm_y.store(settings.vm_y, std::memory_order_relaxed);
     g_vm_z.store(settings.vm_z, std::memory_order_relaxed);
+    g_vm_roll.store(settings.vm_roll, std::memory_order_relaxed);
+    g_vm_yaw.store(settings.vm_yaw, std::memory_order_relaxed);
+    g_vm_pitch.store(settings.vm_pitch, std::memory_order_relaxed);
+    g_remove_scope.store(settings.remove_scope, std::memory_order_relaxed);
+    g_spread_circle.store(settings.spread_circle, std::memory_order_relaxed);
+}
+
+bool RemoveScopeActive() {
+    return Detail::ScopeLines(g_remove_scope.load(std::memory_order_relaxed));
 }
 
 void Shutdown() {
@@ -75,6 +89,11 @@ Settings Snapshot() {
     settings.vm_x = g_vm_x.load(std::memory_order_relaxed);
     settings.vm_y = g_vm_y.load(std::memory_order_relaxed);
     settings.vm_z = g_vm_z.load(std::memory_order_relaxed);
+    settings.vm_roll = g_vm_roll.load(std::memory_order_relaxed);
+    settings.vm_yaw = g_vm_yaw.load(std::memory_order_relaxed);
+    settings.vm_pitch = g_vm_pitch.load(std::memory_order_relaxed);
+    settings.remove_scope = g_remove_scope.load(std::memory_order_relaxed);
+    settings.spread_circle = g_spread_circle.load(std::memory_order_relaxed);
     return settings;
 }
 } // namespace Detail

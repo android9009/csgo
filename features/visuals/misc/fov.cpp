@@ -4,6 +4,7 @@
 #include "../../../sdk/entity/player.hpp"
 #include "../../../sdk/entity/weapon.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../sdk/visual_runtime_state.hpp"
 #include "../../../utils/log.hpp"
 #include <windows.h>
 #include <cmath>
@@ -243,7 +244,35 @@ void FrameStage(int stage) {
 
     CCSPlayer* local = ctx.local;
     LocalState state;
-    if (!ReadLocal(local, state)) return;
+    if (!ReadLocal(local, state)) {
+        // No local player this frame (main menu, disconnect): the overlay has nothing to
+        // draw, and saying so here keeps a stale "scoped" from the last life off the screen.
+        VisualRuntime::PublishScreen(VisualRuntime::ScreenState{});
+        return;
+    }
+
+    // The scope overlay (menu/overlays/screen_overlay.hpp) draws on the render thread and may
+    // not touch an entity, so the three values its maths needs are published here: whether
+    // the player is scoped, the fov the picture is drawn with, and the weapon's current
+    // inaccuracy in the unit the gap formula wants (radians). A missing weapon leaves the
+    // inaccuracy at 0, which makes the Dynamic gap collapse to the centre instead of holding
+    // a stale value from the previous weapon.
+    {
+        VisualRuntime::ScreenState screen;
+        screen.scoped = state.scoped;
+        screen.fov = state.fov > 1 ? static_cast<float>(state.fov)
+                                   : static_cast<float>(Detail::WorldFov(settings));
+        __try { screen.inaccuracy = ctx.weapon ? ctx.weapon->m_fAccuracyPenalty() : 0.f; }
+        __except (EXCEPTION_EXECUTE_HANDLER) { screen.inaccuracy = 0.f; }
+        if (!std::isfinite(screen.inaccuracy) || screen.inaccuracy < 0.f) screen.inaccuracy = 0.f;
+        if (Interfaces::Engine) {
+            int width = 0, height = 0;
+            Interfaces::Engine->GetScreenSize(width, height);
+            screen.width = width;
+            screen.height = height;
+        }
+        VisualRuntime::PublishScreen(screen);
+    }
 
     if (state.scoped) {
         const std::uintptr_t weapon = reinterpret_cast<std::uintptr_t>(ctx.weapon);
@@ -287,6 +316,7 @@ void ResetFov() {
     g_zoom.Reset();
     g_vm_applied = 0.f;
     g_aspect = AspectState{};
+    VisualRuntime::PublishScreen(VisualRuntime::ScreenState{});
     RestoreViewmodelOffsets();
     g_vm = OwnedViewmodel{};
 }

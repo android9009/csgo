@@ -78,6 +78,7 @@
 #include "bridges/misc_runtime.hpp"
 #include "bridges/removals.hpp"
 #include "overlays/player_esp_overlay.hpp"
+#include "overlays/screen_overlay.hpp"
 #include <chrono>
 #include <mutex>
 #include <exception>
@@ -452,6 +453,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     RemovalsSettings::Configure();
     draw.begin_frame();
     PlayerEspOverlay::Render();
+    ScreenOverlay::Render();
     ctx->render();
     draw.end_frame();
     draw.render();

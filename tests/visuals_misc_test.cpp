@@ -295,6 +295,66 @@ int main() {
         assert(Near(Detail::TargetAspectRatio(s, 1.333f), Detail::kAspectMin * 0.01f));
     }
 
+    // Viewmodel rotation: the menu spans +-180 degrees and a nonsense value has to be 0.
+    {
+        assert(Near(Detail::ViewmodelAngle(35.f), 35.f));
+        assert(Near(Detail::ViewmodelAngle(500.f), Detail::kViewmodelAngleLimit));
+        assert(Near(Detail::ViewmodelAngle(-500.f), -Detail::kViewmodelAngleLimit));
+        assert(Near(Detail::ViewmodelAngle(kNan), 0.f));
+        assert(Near(Detail::ViewmodelAngle(kInf), 0.f));
+    }
+
+    // "Remove scope" / "Spread" geometry.
+    {
+        // Mode helpers: only "None" turns the lines off, only the two gradient entries are
+        // gradient, only the two "dynamic" entries follow the inaccuracy.
+        assert(!Detail::ScopeLines(Detail::ScopeNone));
+        for (int mode : {Detail::ScopeStatic, Detail::ScopeDynamic, Detail::ScopeGradientStatic,
+                         Detail::ScopeGradientDynamic})
+            assert(Detail::ScopeLines(mode));
+        assert(!Detail::ScopeLines(9)); // out of range behaves like "off"
+        assert(Detail::ScopeGradientLines(Detail::ScopeGradientStatic));
+        assert(Detail::ScopeGradientLines(Detail::ScopeGradientDynamic));
+        assert(!Detail::ScopeGradientLines(Detail::ScopeStatic));
+        assert(Detail::ScopeDynamicLines(Detail::ScopeDynamic));
+        assert(Detail::ScopeDynamicLines(Detail::ScopeGradientDynamic));
+        assert(!Detail::ScopeDynamicLines(Detail::ScopeGradientStatic));
+
+        // 1080 pixels at the default 90 degree fov: tan(45) = 1, so the focal length is half
+        // the height.
+        assert(Near(Detail::FocalPixels(1080.f, 90.f), 540.f));
+        assert(Near(Detail::FocalPixels(1080.f, 0.f), 540.f));      // unwritten fov -> default
+        assert(Near(Detail::FocalPixels(0.f, 90.f), 0.f));          // no picture, no maths
+        assert(Near(Detail::FocalPixels(1080.f, kNan), 540.f));
+
+        // Static: a fixed 6 degree gap, independent of the inaccuracy.
+        const float fixed = Detail::ScopeGapPixels(false, 540.f, 0.05f);
+        assert(Near(fixed, 540.f * std::tan(6.f * 3.14159265358979f / 180.f), 0.1f));
+        assert(Near(Detail::ScopeGapPixels(false, 540.f, 0.f), fixed));
+
+        // Dynamic: gap = focal * tan(inaccuracy), zero when the weapon is perfectly accurate.
+        assert(Near(Detail::ScopeGapPixels(true, 540.f, 0.f), 0.f));
+        assert(Near(Detail::ScopeGapPixels(true, 540.f, 0.05f), 540.f * std::tan(0.05f), 0.1f));
+        assert(Near(Detail::ScopeGapPixels(true, 540.f, -1.f), 0.f));   // negative -> 0
+        assert(Near(Detail::ScopeGapPixels(true, 540.f, kNan), 0.f));
+        // An inaccuracy beyond ~28.6 degrees is clamped instead of throwing the line off screen.
+        assert(Near(Detail::ScopeGapPixels(true, 540.f, 5.f),
+                    540.f * std::tan(Detail::kScopeMaxGapRadians), 0.1f));
+        // No focal length means no lines.
+        assert(Near(Detail::ScopeGapPixels(true, 0.f, 0.1f), 0.f));
+
+        // Line thickness: 5% .. 100% maps to 1.2 .. 5 pixels and never leaves that range.
+        assert(Near(Detail::ScopeThickness(5.f), 1.2f));
+        assert(Near(Detail::ScopeThickness(100.f), 5.f));
+        assert(Near(Detail::ScopeThickness(0.f), 1.2f));
+        assert(Near(Detail::ScopeThickness(500.f), 5.f));
+        assert(Near(Detail::ScopeThickness(kNan), 1.2f));
+
+        // "Spread" is the same formula as the dynamic gap, so the circle and the lines agree.
+        assert(Near(Detail::SpreadRadiusPixels(540.f, 0.05f), Detail::ScopeGapPixels(true, 540.f, 0.05f)));
+        assert(Near(Detail::SpreadRadiusPixels(540.f, 0.f), 0.f));
+    }
+
     std::puts("visuals_misc_test: ok");
     return 0;
 }

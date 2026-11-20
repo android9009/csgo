@@ -250,6 +250,15 @@ inline constexpr Definition kPortedCatalog[] = {
     {"weapon_shootpos", "client.dll", "55 8B EC 56 8B 75 ? 57 8B F9 56 8B 07 FF 90", {0, 0, 0, 0}, 0, true, 0},
     {"weapon_system", "client.dll", "8B 35 ? ? ? ? FF 10 0F B7 C0", {2, 0, 0, 0}, 1, true, 0},
     {"write_user_cmd", "client.dll", "55 8B EC 83 E4 F8 51 53 56 8B D9", {0, 0, 0, 0}, 0, true, 0},
+    // Visuals -> Misc. Both are `main`'s signatures and both matched exactly once in the
+    // supplied client.dll:
+    //   calc_viewmodel_view        - C_BaseViewModel::CalcViewModelView, used by the
+    //                                viewmodel changer (position and rotation);
+    //   update_postscreen_effects  - the player's post-screen pass, which is what draws the
+    //                                scope overlay/shaders; "Remove scope" clears the scoped
+    //                                flag around this call so the game skips them.
+    {"calc_viewmodel_view", "client.dll", "55 8B EC 83 EC 58 56 57", {0, 0, 0, 0}, 0, false, 0},
+    {"update_postscreen_effects", "client.dll", "55 8B EC 51 53 56 57 8B F9 8B 4D 04 E8 ? ? ? ? 8B", {0, 0, 0, 0}, 0, false, 0},
 
     // engine.dll (12)
     {"client_state", "engine.dll", "A1 ? ? ? ? 8B 80 ? ? ? ? C3", {1, 0, 0, 0}, 1, true, 0},

@@ -207,6 +207,10 @@ bool Setup() {
         view_render_hook.attach(Interfaces::RenderView, 9, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
+    // Visuals -> Misc: the two client.dll functions with no interface slot - the viewmodel
+    // pose (rotation sliders) and the player's post-screen pass ("Remove scope" dropping the
+    // engine's mask). Both are resolved from the signature catalogue at runtime.
+    HooksInternal::InstallVisualMiscDetours();
 
     // Chase camera cvars, at inject and not on the first third person frame: c_mindistance /
     // c_maxdistance are widened here and cam_idealdist receives the saved slider value.
@@ -225,6 +229,7 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    HooksInternal::RemoveVisualMiscDetours();
     ShotChams::Shutdown();
     VisualsMisc::Shutdown();
     WorldFog::Restore();

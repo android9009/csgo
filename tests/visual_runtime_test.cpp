@@ -36,4 +36,18 @@ int main(){
     config.players[Local].kind=0;config.shot.kind=7;config.shot.enabled=true;Publish(config);
     assert(any_material.load() && shot_requested.load());
     config.chams_enabled=false;Publish(config);assert(!shot_requested.load());
+    // Visuals -> Misc: the scope/spread style travels with the same publish, and the game
+    // thread state the overlay draws from is a separate, copyable value (never a live entity).
+    Settings style;assert(style.screen.scope_mode==0 && !style.screen.spread);
+    style.screen.scope_mode=2;style.screen.scope_invert=true;style.screen.spread=true;
+    style.screen.spread_color1=0x11223344u;Publish(style);
+    auto echoed=GetEffects();
+    assert(echoed.screen.scope_mode==2 && echoed.screen.scope_invert && echoed.screen.spread);
+    assert(echoed.screen.spread_color1==0x11223344u);
+    ScreenState state;state.scoped=true;state.inaccuracy=.25f;state.fov=40.f;state.height=1080;
+    PublishScreen(state);
+    auto copy_state=GetScreen();
+    assert(copy_state.scoped && copy_state.inaccuracy>.24f && copy_state.fov==40.f && copy_state.height==1080);
+    PublishScreen(ScreenState{});
+    assert(!GetScreen().scoped && GetScreen().inaccuracy==0.f);
 }

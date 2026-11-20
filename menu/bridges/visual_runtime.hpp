@@ -46,6 +46,15 @@ inline void Configure() {
     s.attachments={Material(c.enemy_att),Material(c.team_att),Material(c.local_att)};s.arms=Material(c.local_arms);s.shot=Material(c.enemy_shot);
     s.texture_transparency=cfg.misc.texture_transparency.get();
     s.prop_transparency=cfg.visuals.prop_transparency.get();
+    // Remove scope / Spread. The bitset reports the selected option; the overlay wants the
+    // index, so the first set bit is used (the combo is single-select).
+    s.screen.scope_mode=static_cast<int>(cfg.misc.noscope.get().first_set_bit().value_or(0));
+    s.screen.scope_line_color=cfg.misc.scope_line_color.get().rgba();
+    s.screen.scope_line_size=cfg.misc.scope_line_size.get();
+    s.screen.scope_invert=cfg.misc.scope_invert.get();
+    s.screen.spread=cfg.visuals.spread_circle_type.get().first_set_bit().value_or(0)!=0;
+    s.screen.spread_color1=cfg.visuals.spread_circle_color1.get().rgba();
+    s.screen.spread_color2=cfg.visuals.spread_circle_color2.get().rgba();
     s.world_fog=cfg.visuals.world_effects.fog.get();
     s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
@@ -79,6 +88,11 @@ inline void Configure() {
     misc.vm_x=cfg.misc.viewmodel_x.get();
     misc.vm_y=cfg.misc.viewmodel_y.get();
     misc.vm_z=cfg.misc.viewmodel_z.get();
+    misc.vm_roll=cfg.misc.viewmodel_roll.get();
+    misc.vm_yaw=cfg.misc.viewmodel_yaw.get();
+    misc.vm_pitch=cfg.misc.viewmodel_pitch.get();
+    misc.remove_scope=s.screen.scope_mode;
+    misc.spread_circle=s.screen.spread;
     VisualsMisc::Publish(misc);
 }
 }

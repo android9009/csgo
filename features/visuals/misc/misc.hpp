@@ -31,9 +31,17 @@
 //     delta, because that is what the menu shows. "Force viewmodel in scope" is published but
 //     not applied: main writes `CCSWeaponData::hide_viewmodel_in_zoom` at +0x1BD and that
 //     offset/object pair is not verified for this build (see docs/misc-runtime.md).
-//   - The viewmodel position/rotation sliders ("Disable landing bob" included) stay
-//     unimplemented: they need a viewmodel calc-view hook this build does not have. See
-//     docs/misc-runtime.md.
+//   - The viewmodel position sliders ride the game's own viewmodel_offset_x/y/z cvars (the
+//     client reads them when it composes the viewmodel pose), and the three rotation sliders
+//     ride a MinHook detour on C_BaseViewModel::CalcViewModelView (sdk/hooks/viewhooks.cpp),
+//     which adds them to the angles the original wrote for this frame - so the pose never
+//     accumulates and the world camera is untouched. "Disable landing bob" stays unimplemented:
+//     the bob is added inside that same function from the player's landing state, and
+//     replicating the engine's bob curve to subtract it would be a guess, not a fix.
+//   - "Remove scope" is main's postscreen hook: the detour clears the player's scoped flag for
+//     the duration of UpdatePostScreenEffects (which is what makes the client skip its scope
+//     overlay) and restores it immediately. The four lines and the "Spread" circle are drawn
+//     by menu/overlays/screen_overlay.hpp from Detail's geometry.
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -59,16 +67,30 @@ struct Settings {
     float vm_x{};
     float vm_y{};
     float vm_z{};
+    // The three rotation sliders. They are added to the eye angles the viewmodel is placed
+    // with, inside the CalcViewModelView detour, so the world camera never turns.
+    float vm_roll{};
+    float vm_yaw{};
+    float vm_pitch{};
+    // "Remove scope" selection (Detail::ScopeMode) and the "Spread" circle selection
+    // (0 = off, anything else = a circle; the menu only offers "gradient").
+    int remove_scope{};
+    bool spread_circle{};
 };
 
 void Publish(const Settings& settings);
+
+// True when "Remove scope" asks for the game's own scope mask to be dropped. Read by the
+// UpdatePostScreenEffects detour (sdk/hooks/viewhooks.cpp), so it is answered from the
+// published snapshot instead of the GUI state.
+bool RemoveScopeActive();
 
 // ClientMode::GetViewModelFOV detour (slot 35).
 float ViewModelFov(float original);
 // IEngineClient::GetScreenAspectRatio detour (slot 101).
 float ScreenAspectRatio(float original);
-// FrameStageNotify(FRAME_RENDER_START): the player's fov fields, "Remove zoom" and the
-// viewmodel-in-scope field.
+// FrameStageNotify(FRAME_RENDER_START): the player's fov fields, "Remove zoom", the
+// viewmodel-in-scope field, and the scoped/inaccuracy/fov state the scope overlay draws from.
 void FrameStage(int stage);
 // FrameStageNotify(FRAME_RENDER_START): hand the engine its third person camera through
 // CInput, which is what makes the view aspect-correct (the engine builds it).
@@ -96,8 +118,9 @@ inline constexpr float kDistanceMax = 250.f;
 // camera code has to be able to sit further out than the game's own 30..250 default.
 inline constexpr float kChaseMinDistance = 0.f;
 inline constexpr float kChaseMaxDistance = 99999.f;
-// The viewmodel offset sliders span -30..30.
+// The viewmodel offset sliders span -30..30, the rotation sliders -180..180.
 inline constexpr float kViewmodelOffsetLimit = 30.f;
+inline constexpr float kViewmodelAngleLimit = 180.f;
 inline constexpr float kAspectMin = 20.f;   // percent; below that the picture is unusable
 inline constexpr float kAspectMax = 300.f;
 // Time constant of the displayed-ratio smoothing, seconds. 40 ms is fast enough to feel
@@ -314,6 +337,82 @@ inline float TargetAspectRatio(const Settings& settings, float original) {
     // floor, so dragging off 0 is continuous: the old version snapped to 20% (a visible jump
     // and the first "nothing happens, then it kicks in" step on the slider).
     return original + (ratio - original) * (percent / kAspectMin);
+}
+
+// One viewmodel rotation slider, in degrees. The menu spans -180..180; a value that is not a
+// number has to be 0 or the model leaves the screen.
+inline float ViewmodelAngle(float value) {
+    if (!std::isfinite(value)) return 0.f;
+    if (value < -kViewmodelAngleLimit) return -kViewmodelAngleLimit;
+    if (value > kViewmodelAngleLimit) return kViewmodelAngleLimit;
+    return value;
+}
+
+// ---------------------------------------------------------------------------------------
+// Scope / spread. Both are drawn by this module (`menu/overlays/screen_overlay.hpp`); the
+// only thing the game still does is the black scope mask, which the UpdatePostScreenEffects
+// detour disables. The rules below are the ones the overlay uses, kept here so they can be
+// checked on the host.
+// ---------------------------------------------------------------------------------------
+// The four "Remove scope" selections, in the order `cfg_t::noscope` declares them.
+enum ScopeMode {
+    ScopeNone = 0,
+    ScopeStatic = 1,
+    ScopeDynamic = 2,
+    ScopeGradientStatic = 3,
+    ScopeGradientDynamic = 4,
+};
+
+inline bool ScopeLines(int mode) { return mode >= ScopeStatic && mode <= ScopeGradientDynamic; }
+inline bool ScopeGradientLines(int mode) {
+    return mode == ScopeGradientStatic || mode == ScopeGradientDynamic;
+}
+inline bool ScopeDynamicLines(int mode) { return mode == ScopeDynamic || mode == ScopeGradientDynamic; }
+
+// Pixels per unit of `tan(angle)` at the middle of the screen: half the screen height over
+// the tangent of half the vertical field of view. A fov the game has not written yet (0)
+// falls back to the world default, which is what the renderer uses when nothing overrides it.
+inline float FocalPixels(float screen_height, float fov_degrees) {
+    if (!std::isfinite(screen_height) || screen_height <= 0.f) return 0.f;
+    float fov = fov_degrees;
+    if (!std::isfinite(fov) || fov <= 1.f) fov = kDefaultWorldFov;
+    if (fov > 179.f) fov = 179.f;
+    const float tangent = std::tan(fov * 0.5f * 3.14159265358979323846f / 180.f);
+    if (!(tangent > 0.f)) return 0.f;
+    return (screen_height * 0.5f) / tangent;
+}
+
+// `gapPx = focalPx * tan(angle)`: the same formula the game's own crosshair uses, applied to
+// the four scope lines. Static is a fixed angle (the gap does not move), Dynamic follows the
+// weapon's current inaccuracy, which is why the overlay is fed the live value below.
+inline constexpr float kScopeStaticGapDegrees = 6.f;
+inline constexpr float kScopeMaxGapRadians = 0.5f; // ~28.6 degrees; beyond that the lines are gone
+
+inline float ScopeGapPixels(bool dynamic, float focal_px, float inaccuracy_radians) {
+    if (!std::isfinite(focal_px) || focal_px <= 0.f) return 0.f;
+    float angle = kScopeStaticGapDegrees * 3.14159265358979323846f / 180.f;
+    if (dynamic) {
+        angle = inaccuracy_radians;
+        if (!std::isfinite(angle) || angle < 0.f) angle = 0.f;
+        if (angle > kScopeMaxGapRadians) angle = kScopeMaxGapRadians;
+    }
+    const float gap = focal_px * std::tan(angle);
+    return std::isfinite(gap) && gap > 0.f ? gap : 0.f;
+}
+
+// "Line size" is the thickness of the four lines, 5..100% of a 1..5 px range. The gap is the
+// mode's business, not the slider's, so dragging the size does not move the crosshair.
+inline float ScopeThickness(float line_size_percent) {
+    if (!std::isfinite(line_size_percent) || line_size_percent < 5.f) line_size_percent = 5.f;
+    if (line_size_percent > 100.f) line_size_percent = 100.f;
+    return 1.f + (line_size_percent / 100.f) * 4.f;
+}
+
+// The radius of the "Spread" circle: the same focal-length conversion, from the weapon's
+// inaccuracy to pixels. A circle below a pixel is not drawn at all (it would look like a dot
+// that never moves), hence the floor the caller checks against.
+inline float SpreadRadiusPixels(float focal_px, float inaccuracy_radians) {
+    return ScopeGapPixels(true, focal_px, inaccuracy_radians);
 }
 
 // The settings the render thread last published.

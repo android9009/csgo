@@ -55,8 +55,8 @@ dragging.
 | `Force viewmodel in scope` | **still not applied.** main clears `weapon_info->hide_viewmodel_in_zoom` at `+0x1BD`; in the supplied `client.dll` the only reader/writer of a byte at that displacement belongs to a different object, and this repo's `CCSweaponData` puts its own tail byte at `+0x1DD`. A wrong byte in live weapon state is worse than a dead checkbox, so it stays published-but-ignored until the field is pinned down (needs a `C_BaseViewModel`/weapon-info RE pass, or the `UpdatePostScreenEffects` hook that main also uses for scope removal). |
 | `Viewmodel changer → FOV` | unchanged (`ClientMode::GetViewModelFOV`, slot 35) |
 | `Viewmodel changer → X / Y / Z` | **new consumer**: written into the game's own `viewmodel_offset_x/y/z` cvars, which is where the client reads the viewmodel pose offset from. Originals captured once and restored when the block is switched off or the module unloads. The world camera and the world fov are not involved. |
-| `Viewmodel changer → Roll / Yaw / Pitch` | **not applied.** These need the viewmodel's own transform (`C_BaseViewModel::CalcViewModelView` in main's `detour_hooks.cpp`, which shifts the eye position it hands to the model). This build has no such hook; a raw bone-matrix edit inside `DrawModelExecute` was rejected because the bone buffer is the entity's cached one and would accumulate across passes. |
-| `Disable landing bob` | **not applied** – same missing hook as the three rotations. |
+| `Viewmodel changer → Roll / Yaw / Pitch` | **new consumer**: MinHook detour on `C_BaseViewModel::CalcViewModelView` (`sdk/hooks/viewhooks.cpp`, signature `calc_viewmodel_view` in the catalogue, resolved at runtime). The original writes the frame's base pose into `eye_pos`/`eye_angles`; the three sliders are added to the *angles* afterwards, so every frame starts from the game's own pose and nothing accumulates, and the world camera is not involved at all (it is the viewmodel that is placed with those angles). The detour's signature was verified in the supplied `client.dll`: `55 8B EC 83 EC 58 56 57` matches exactly once (RVA `0x1B7F80`), it takes `this` in `ecx`, three stack arguments and ends in `ret 0xC`. |
+| `Disable landing bob` | **not applied, and it says so.** The bob is added *inside* `CalcViewModelView` from the player's own landing state, and the only way to separate it from the base pose would be to replicate the engine's bob curve. Branching on a guess would move the model for the wrong reasons, so the checkbox stays a no-op. |
 
 Manual check: slowly drag `Aspect ratio` around `177…179` — the picture has to move
 continuously; set `Remove zoom` to `50`, scope in and count a few seconds — the zoom must stay
@@ -67,13 +67,16 @@ screen.
 
 | Control | Status |
 | --- | --- |
-| `Remove scope` (None / Static / Dynamic / Gradient …) | **not implemented in this build.** Removing the mask means making the game skip its scope shader pass; main does it by hooking `C_CSPlayer::UpdatePostScreenEffects` (`detour_hooks.cpp: update_postscreen_effects`) and clearing `is_scoped()` for the duration of the call, and that offset is not part of this branch. Drawing the four lines on top of the game's own mask would be a different picture, not the requested one, so nothing is drawn. |
+| `Remove scope` (None / Static / Dynamic / Gradient …) | **implemented; needs a manual check.** The mask is dropped natively: a MinHook detour on the player's post-screen pass (`UpdatePostScreenEffects`, signature `update_postscreen_effects`, RVA `0x3FAEA0` in the supplied `client.dll`, unique match, plain `ret` epilogue so the thunk pops nothing) clears `m_bIsScoped` for the duration of the call and restores it immediately after — this is main's `remove_post_screen_effects` trick, and it is also why the pass is hooked rather than the mask being overdrawn. The hand-over is skipped (and the call forwarded untouched) when the object being processed is not the local player, so a mismatched `this` fails closed instead of corrupting state. The four lines are drawn by this module (`menu/overlays/screen_overlay.hpp`) with `gapPx = focalPx * tan(angle)`: Static is a fixed 6° gap, Dynamic is the weapon's live `m_fAccuracyPenalty`, both with the menu's colour, thickness (`Detail::ScopeThickness`, 5–100 % → 1.2–5 px), `Invert` and gradient fade. They vanish when the player is not scoped, and the whole overlay is fed by `VisualRuntime::PublishScreen` from `FRAMERENDER_START`, never by an entity read on the render thread. |
 | `Penetration crosshair` | **not implemented.** It needs a penetration test (main's `penetration.cpp`, ~640 lines of surface/material/trace logic and its own offsets) to decide green vs red; a single trace hit is not the answer and was not faked. |
 | `Force crosshair` | **not implemented.** The native crosshair is a HUD element whose paint routine has to be reached (or its visibility condition patched); drawing a copy was explicitly out of scope. |
-| `Spread` | **not implemented** – needs the same inaccuracy → angle math as `Dynamic` scope plus a screen-space circle in the overlay; the weapon's `m_fAccuracyPenalty` netvar is available, the screen-space draw path exists, the two have not been wired together yet. |
+| `Spread` | **implemented; needs a manual check.** A circle whose radius is `Detail::SpreadRadiusPixels` — the same `focalPx * tan(inaccuracy)` conversion as the dynamic scope gap, so the circle and the gap always agree — drawn by `screen_overlay.hpp` from colour 1 to colour 2 around the ring, with no circle at all below one pixel. Independent of `Remove scope`: it draws whether or not the mask is off. |
 
-None of the four was replaced by a placeholder: switching them on changes nothing today,
-which is written down here rather than hidden behind a drawing that looks like a fix.
+`Force crosshair` and `Penetration crosshair` stay **not implemented**: neither was replaced by a
+placeholder. `Force crosshair` has to change the HUD's own crosshair visibility (drawing a copy
+was explicitly rejected), and `Penetration crosshair` needs a real penetration test (surface
+thickness and material, per weapon and per view) — a single trace hit is not that answer, and a
+green dot that would be green anyway is worse than no dot.
 
 ## 4. Misc → Movement → Air strafe
 
@@ -127,7 +130,10 @@ honest state of it.
   offset clamp, and the four strafe modes with the jump gate.
 * Syntax check (`/tmp/chk.sh`) for every changed translation unit: `thirdperson.cpp`,
   `fov.cpp`, `publish.cpp`, `autostrafe.cpp`, `movement.cpp`, `viewhooks.cpp`, `framestage.cpp`,
-  `misc.hpp`, `movement.hpp`, `convars.hpp`, `entity.hpp`.
+  `misc.hpp`, `movement.hpp`, `convars.hpp`, `entity.hpp`. The two new portable checks
+  (`ScopeGapPixels`/`FocalPixels`/`ScopeThickness`/`ViewmodelAngle`) run inside
+  `tests/visuals_misc_test.cpp`; `tests/pattern_catalog_test.cpp` now expects the two new
+  catalogue entries (103 ported signatures).
 * The MSVC project itself was not built here (no MSVC in this sandbox). New files: none – every
   change is inside existing translation units, so `csgo_base.vcxproj` needs no edit.
 * `g_aspect_failed` / the aspect thunk from `e581d2e` are untouched: the calling-convention fix

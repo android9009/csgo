@@ -46,4 +46,20 @@ namespace HooksInternal {
     void __fastcall SceneEnd(void* ecx, void* edx);
     void __fastcall DrawModelExecute(void* ecx, void* edx, void* context, const DrawModelState_t& state, const ModelRenderInfo_t& info, matrix3x4_t* bone_to_world);
     LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
+    // `void __thiscall(C_CSPlayer* this)` - the epilogue in the supplied client.dll is a plain
+    // `ret` (no stack arguments), so the __fastcall thunk pops nothing and the stack stays
+    // balanced.
+    void __fastcall UpdatePostScreenEffects(void* ecx, void* edx);
+    // `void __thiscall(C_BaseViewModel* this, C_BasePlayer* owner, Vector& eye_pos,
+    // QAngle& eye_angles)` - three stack arguments, i.e. the callee pops 12 bytes and the
+    // thunk therefore declares all three.
+    void __fastcall CalcViewModelView(void* ecx, void* edx, void* owner, float* eye_pos,
+                                     float* eye_angles);
+    // MinHook detours on the two client.dll functions the visuals-misc block needs:
+    // CalcViewModelView (the viewmodel changer's rotation) and UpdatePostScreenEffects
+    // ("Remove scope" dropping the engine's own scope mask). Both signatures come from the
+    // runtime catalogue (Patterns::Get); a signature that does not resolve leaves the feature
+    // off with a log line instead of a guessed address. Installed from Hooks::Initialize.
+    void InstallVisualMiscDetours();
+    void RemoveVisualMiscDetours();
 }
