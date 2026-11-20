@@ -6,6 +6,7 @@
 #include "../../features/misc/misc.hpp"
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/removals/removals.hpp"
+#include "../../features/visuals/model_transparency.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/player.hpp"
@@ -40,7 +41,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         // (and at render start, when the local weapon may have changed).
         if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); }
             else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));

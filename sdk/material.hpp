@@ -3,6 +3,9 @@
 // Vtable indices follow the legacy sdk/game/structs.hpp i_material layout,
 // cross-checked against the chams implementation (alpha=27, color=28,
 // set_flag=29, get_flag=30, find_var=11, increment_ref=12).
+// Verified against CMaterial's 108-slot vtable in the supplied Legacy materialsystem.dll
+// (slot 61 is anchored by the GetNumAnimationFrames string; 42 compares this against the
+// error material). See docs/interface-verification.md.
 #include <cstddef>
 #include <cstdint>
 

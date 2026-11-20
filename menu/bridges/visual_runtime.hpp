@@ -44,6 +44,8 @@ inline void Configure() {
     s.players={Material(c.enemy_pl),Material(c.team_pl),Material(c.local_pl)};
     s.ragdolls={Material(c.enemy_rag),Material(c.team_rag),Material(c.local_pl)};
     s.attachments={Material(c.enemy_att),Material(c.team_att),Material(c.local_att)};s.arms=Material(c.local_arms);s.shot=Material(c.enemy_shot);
+    s.texture_transparency=cfg.misc.texture_transparency.get();
+    s.prop_transparency=cfg.visuals.prop_transparency.get();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.team.get(),esp.glow.team_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.local.get(),esp.glow.local_color.get().rgba()}};

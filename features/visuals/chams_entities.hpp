@@ -1,11 +1,12 @@
 #pragma once
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/entity/entity.hpp"
+#include "chams_object_names.hpp"
 #include <cstring>
 #include <string_view>
 namespace ChamsObjects {
 enum Category { Weapon, Grenade, C4, None };
-inline bool Projectile(std::string_view name){return name=="CBaseCSGrenadeProjectile" || name=="CSmokeGrenadeProjectile" || name=="CDecoyProjectile" || name=="CMolotovProjectile" || name=="CInferno";}
+using ChamsObjectNames::Projectile;
 inline Category Classify(std::string_view name) {
     if(name=="CPlantedC4" || name=="CC4")return C4;
     if(Projectile(name) || name=="CFlashbang")return Grenade;

@@ -113,6 +113,16 @@ struct mstudioseqdesc_t {
     int unused[3]{};
 };
 
+// mstudio texture entry: the name is inline (materials/models/....vmt without the
+// extension), which is what FindMaterial expects for model materials.
+struct mstudiotexture_t {
+    char name[64]{};
+    int flags = 0;
+    int used = 0;
+    int unused1 = 0;
+    int unused2 = 0;
+};
+
 struct studiohdr_t {
     int id = 0;
     int version = 0;
@@ -184,6 +194,12 @@ struct studiohdr_t {
     mstudioseqdesc_t* seq_desc(int i) {
         if (i < 0 || i >= local_seq) return nullptr;
         return reinterpret_cast<mstudioseqdesc_t*>(reinterpret_cast<std::uint8_t*>(this) + local_seq_index) + i;
+    }
+    // Materials bound to a model, in the order the engine binds them: the texture
+    // name doubles as the material name inside the "Model textures" group.
+    const mstudiotexture_t* texture(int i) const {
+        if (i < 0 || i >= textures) return nullptr;
+        return reinterpret_cast<const mstudiotexture_t*>(reinterpret_cast<const std::uint8_t*>(this) + texture_index) + i;
     }
 };
 

@@ -48,6 +48,8 @@ public:
 // the object. `Interfaces::Setup` validates that the result's vtable lives inside
 // client.dll, so a build where that instruction changed leaves ClientMode null instead of
 // hooking something unrelated.
+// Verified on the supplied Legacy build (docs/interface-verification.md): ClientModeShared
+// has 44 primary slots and slots 18/24/35 are OverrideView/CreateMove/GetViewModelFOV.
 class IClientMode {
 public:
     // ClientModeShared::CreateMove - slot 24 (main: CREATE_MOVE_IDX = 24).
@@ -178,6 +180,10 @@ public:
         if (auto fn = VFunc<Fn>(5)) fn(this, ray, mask, filter, trace);
     }
 };
+// IMaterialSystem (VMaterialSystem080). Verified on the supplied build: the creators
+// sit at 83 (CreateMaterial, SEH + self-call through the singleton) and 84 (FindMaterial,
+// name in the first argument); 115 is GetRenderContext, which returns the lazily created
+// render context at +0x2308. See docs/interface-verification.md.
 class IMaterialSystem : public InterfaceView {
 public:
     IMaterial* CreateMaterial(const char* name, void* key_values) {

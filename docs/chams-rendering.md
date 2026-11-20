@@ -143,3 +143,27 @@ all material lists show None / Flat / Glow / Shaded / Metallic. Bubble and the
 reference's alternate Glow are not blindly imported over the existing Glow.
 Rendering depends on Source shader support, cubemap assets and illumination;
 portable tests/native builds are not a substitute for a visual in-game check.
+
+## Prop / texture transparency
+
+`features/visuals/model_transparency.hpp` implements the two Visuals → Misc sliders
+that were previously dead. It does not use a material override: it walks the model's
+own materials through the studio header texture list (the texture name is the
+material name inside the `Model textures` group), writes `$alpha`, sets
+`MATERIAL_VAR_TRANSLUCENT`, calls the original `DrawModelExecute`, and restores the
+captured values. Because the draw happens between the write and the restore, no
+material state survives the frame, and chams (which do override the draw material)
+still win — the transparency pass is only tried for draws the chams pass declined.
+
+- `prop_transparency` applies to world props (phys/dynamic props, breakables, doors,
+  foliage); `texture_transparency` applies to character models (`CCSPlayer`,
+  `CCSRagdoll`, `CHostage`) so their own skins go see-through.
+- View models, hands, weapon world models, throwables and the bomb are excluded:
+  their materials are shared with the HUD/preview passes, and grenades/C4 are the
+  glow and chams paths' business.
+- The slider is a percentage: 0 leaves the model untouched, 100 is fully invisible.
+  `model_transparency_rules.hpp` holds that mapping and the classification, and is
+  interface-free so `tests/model_transparency_test.cpp` can check it off-target.
+- Captured "original" alpha/flag values are kept per material so a missed restore
+  (an exception between the draw and the restore) cannot drift; the map is dropped
+  when the in-game context resets.

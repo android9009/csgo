@@ -19,6 +19,9 @@ inline float old_r{},old_g{},old_b{},old_a{};
 inline bool old_z{},old_wire{},old_additive{};
 inline float old_view_color[3]{1.f,1.f,1.f},old_blend{1.f};
 inline bool view_saved{},studio_override{};
+// IStudioRender slot 33 = ForcedMaterialOverride(material, type, overrides). Verified on the
+// supplied build: type 0 replaces the override, overrides == -1 covers every submodel, and
+// type 3 pushes onto the engine's 4-deep override stack (docs/interface-verification.md).
 inline void OverrideStudio(){if(Interfaces::StudioRender){MEM::GetVFunc<void(__thiscall*)(void*,IMaterial*,int,int)>(Interfaces::StudioRender,33)(Interfaces::StudioRender,active,0,-1);studio_override=true;}}
 template<typename Fn> inline Fn ViewSlot(int slot){return MEM::GetVFunc<Fn>(Interfaces::RenderView,slot);}
 inline IMaterial* Resolve(int kind) {

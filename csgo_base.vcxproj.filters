@@ -733,6 +733,15 @@
     <ClInclude Include="features\visuals\chams_entities.hpp">
       <Filter>Features</Filter>
     </ClInclude>
+    <ClInclude Include="features\visuals\chams_object_names.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\model_transparency.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\model_transparency_rules.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
     <ClInclude Include="features\visuals\shot_chams.hpp">
       <Filter>Features</Filter>
     </ClInclude>

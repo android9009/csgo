@@ -23,11 +23,15 @@ struct Effects {
     Material arms,shot;
     std::array<Highlight,3> player_glow{},object_glow{};
     std::array<bool,3> object_enabled{};
+    // Visuals -> Misc: the two transparency sliders (0 = off, 100 = invisible).
+    // Published as percentages; the draw hook converts them to alpha.
+    float texture_transparency{},prop_transparency{};
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;
 inline Settings settings;
 inline std::atomic<bool> any_material{false};
+inline std::atomic<bool> any_transparency{false};
 inline std::atomic<bool> shot_requested{false};
 inline std::atomic<bool> glow_closing{false};
 inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
@@ -40,6 +44,7 @@ inline void Publish(const Settings& s){
     {std::lock_guard<std::mutex> lock(mutex);settings=s;}
     any_material.store(any,std::memory_order_relaxed);
     shot_requested.store(s.chams_enabled && s.shot.enabled && s.shot.kind>0,std::memory_order_relaxed);
+    any_transparency.store(s.texture_transparency>0.f || s.prop_transparency>0.f,std::memory_order_relaxed);
 }
 struct Segment {VisualPreview::Point a,b;};
 struct Player {
