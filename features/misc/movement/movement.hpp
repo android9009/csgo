@@ -34,9 +34,11 @@ namespace Misc::Movement {
 struct Settings {
     bool autostrafe{};
     // Bits of menu/tabs/tab_misc.cpp's "Auto strafe" combo box.
-    bool strafe_movement_keys{};
-    bool strafe_easy{};
-    bool strafe_jump_release{};
+    bool strafe_viewangles{};        // "Viewangles": the look direction drives the strafe
+    bool strafe_movement_keys{};     // "Movement keys": the pressed keys drive it
+    bool strafe_easy{};              // "Easy strafe": ease the wish towards the view
+    bool strafe_jump_release{};      // "Jump release (hold)": only while jump is held
+    bool strafe_jump_release_after{}; // "Jump release (release)": only after a real release
     int smoothing{};      // 0..100, the "Smoothing" slider
     bool avoid_walls{};
 
@@ -60,6 +62,13 @@ namespace Detail {
 struct Tick {
     CUserCmd* cmd{};
     bool on_ground{};
+    // The player's own input, captured before anything in this module touches the command.
+    bool jump_held{};
+    bool jump_pressed{};   // the button went down on this very tick
+    bool key_forward{};
+    bool key_back{};
+    bool key_left{};
+    bool key_right{};
     bool on_ladder{};
     bool noclip{};
     int ground_ticks{};
@@ -74,9 +83,11 @@ struct Tick {
 
 struct Runtime {
     std::atomic<bool> autostrafe{false};
+    std::atomic<bool> strafe_viewangles{false};
     std::atomic<bool> strafe_movement_keys{false};
     std::atomic<bool> strafe_easy{false};
     std::atomic<bool> strafe_jump_release{false};
+    std::atomic<bool> strafe_jump_release_after{false};
     std::atomic<bool> avoid_walls{false};
     std::atomic<int> smoothing{0};
     std::atomic<bool> bhop{false};
@@ -90,6 +101,9 @@ Runtime& GetRuntime();
 void RunEdge(const Tick& tick);       // edge.cpp
 void RunBhop(const Tick& tick);       // bhop.cpp
 void RunAutoStrafe(const Tick& tick); // autostrafe.cpp
+// Drops the strafer's own state (the jump gate's edges and the "Easy strafe" easing); used
+// when the module is switched off or unloaded so the next jump starts clean.
+void ResetAutoStrafe();
 void RunQuickStop(const Tick& tick);  // quickstop.cpp
 } // namespace Detail
 
@@ -176,6 +190,127 @@ inline MoveVector RotateIntoViewFrame(float forward, float side, float wish_yaw,
     const float s = std::sin(delta);
     // forward' = f*cos(d) + s*sin(d), side' = -f*sin(d) + s*cos(d).
     return MoveVector{forward * c + side * s, -forward * s + side * c};
+}
+
+// ---------------------------------------------------------------------------
+// Air strafe modes (autostrafe.cpp)
+//
+// Direction and permission are two different things and are kept apart here:
+//   - `StrafeSource` picks where the *direction* comes from: the look direction
+//     ("Viewangles") or the movement keys in the camera frame ("Movement keys");
+//   - `JumpGate` decides whether the strafer may touch the command at all on this tick;
+//   - "Easy strafe" only ever eases the direction, it never turns the camera.
+// ---------------------------------------------------------------------------
+enum class StrafeSource { Viewangles, MovementKeys };
+enum class JumpGate { Off, WhileHeld, AfterRelease };
+
+inline StrafeSource SourceFrom(const Settings& settings) {
+    // "Movement keys" wins when both are selected: it is the more specific request, and the
+    // menu shows the two as alternatives.
+    return settings.strafe_movement_keys ? StrafeSource::MovementKeys : StrafeSource::Viewangles;
+}
+
+inline JumpGate GateFrom(bool while_held, bool after_release) {
+    if (after_release) return JumpGate::AfterRelease;
+    if (while_held) return JumpGate::WhileHeld;
+    return JumpGate::Off;
+}
+
+// Yaw of the physical movement keys in the camera frame. `W+D` gives the forward-right
+// diagonal, `S` points backwards, opposite keys cancel each other out, and no keys at all
+// gives `valid == false` - the strafer must then leave the input alone instead of picking a
+// direction of its own. Source's yaw grows to the left, hence the minus.
+struct KeyDirection {
+    float yaw{};
+    bool valid{};
+};
+
+inline KeyDirection MovementKeyDirection(float view_yaw, bool forward, bool back, bool left,
+                                         bool right) {
+    const float f = (forward ? 1.f : 0.f) - (back ? 1.f : 0.f);
+    const float s = (right ? 1.f : 0.f) - (left ? 1.f : 0.f);
+    if (f == 0.f && s == 0.f) return KeyDirection{};
+    return KeyDirection{NormalizeYaw(view_yaw - std::atan2(s, f) * kRadToDeg), true};
+}
+
+// Shortest-arc rotation from `current` towards `target`, limited to `max_step` degrees, so a
+// 179 -> -179 crossing is a two degree turn and not almost a full circle.
+inline float RotateTowardsYaw(float current, float target, float max_step) {
+    const float delta = NormalizeYaw(target - current);
+    if (!std::isfinite(delta)) return NormalizeYaw(current);
+    const float step = max_step < 0.f ? 0.f : max_step;
+    if (std::fabs(delta) <= step) return NormalizeYaw(target);
+    return NormalizeYaw(current + (delta > 0.f ? step : -step));
+}
+
+// "Smoothing" slider (0..100) as a per-tick turn limit for "Easy strafe": 20 degrees at 0,
+// 2 degrees at 100. It is a turn rate for the wish, not for the camera.
+inline float EasyStrafeStep(int smoothing_percent) {
+    const int clamped =
+        smoothing_percent < 0 ? 0 : (smoothing_percent > 100 ? 100 : smoothing_percent);
+    return 20.f - 18.f * (static_cast<float>(clamped) * 0.01f);
+}
+
+// The jump gate. `pressed` and `released` are edges of this airtime: they are cleared when
+// the player is back on the ground, so "released" can only be true for a real press-and-
+// release in the air and never for "the space bar was never touched at all".
+struct JumpGateState {
+    bool pressed_in_air{};
+    bool was_held{};
+    bool released_in_air{};
+
+    void Reset() { *this = JumpGateState{}; }
+
+    void Update(bool held, bool on_ground) {
+        if (on_ground) {
+            Reset();
+            was_held = held;
+            return;
+        }
+        if (held && !was_held) pressed_in_air = true;
+        if (!held && was_held && pressed_in_air) released_in_air = true;
+        was_held = held;
+    }
+
+    bool Allows(JumpGate gate, bool held) const {
+        switch (gate) {
+        case JumpGate::WhileHeld:
+            return held;
+        case JumpGate::AfterRelease:
+            return pressed_in_air && released_in_air && !held;
+        case JumpGate::Off:
+        default:
+            return true;
+        }
+    }
+};
+
+// The direction the wish is computed against, after the source and "Easy strafe" have had
+// their say. `steer` is the persistent state of the easing and is reset on landing.
+struct StrafeDirection {
+    float yaw{};
+    bool valid{};
+};
+
+inline StrafeDirection ResolveStrafeDirection(const StrafeSource source, const Detail::Tick& tick,
+                                              const KeyDirection& keys, bool easy, float max_step,
+                                              float& steer, bool& steer_valid) {
+    StrafeDirection direction;
+    if (source == StrafeSource::MovementKeys) {
+        if (!keys.valid) return direction; // no keys: no direction, not a guessed one
+        direction = StrafeDirection{keys.yaw, true};
+    } else {
+        direction = StrafeDirection{NormalizeYaw(tick.view_yaw), true};
+    }
+    if (!easy) return direction;
+    if (!steer_valid) {
+        steer = direction.yaw;
+        steer_valid = true;
+    }
+    // "Easy strafe" eases the direction towards the look direction: the wish follows the
+    // view over a few ticks instead of snapping, and the camera is never written.
+    steer = RotateTowardsYaw(steer, tick.view_yaw, max_step);
+    return StrafeDirection{steer, true};
 }
 
 // ---------------------------------------------------------------------------

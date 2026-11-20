@@ -244,10 +244,14 @@ struct cfg_t {
 	};
 
 	enum autostrafe {
+		// The order is the saved bit order: append, never insert. Bit 3 keeps the meaning it
+		// already had in saved configs ("jump release, while held"); bit 4 is the second
+		// polarity and is simply missing from older files, which read as 0 = not selected.
 		autostrafe_viewangles,
 		autostrafe_movement_keys,
 		autostrafe_easy_strafe,
 		autostrafe_jump_release,
+		autostrafe_jump_release_after,
 		autostrafe_max,
 	};
 

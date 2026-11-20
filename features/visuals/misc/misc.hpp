@@ -36,6 +36,7 @@
 //     docs/misc-runtime.md.
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 
 namespace VisualsMisc {
 struct Settings {
@@ -43,6 +44,8 @@ struct Settings {
     float thirdperson_dist{100.f};
     bool thirdperson_dead{};    // "Force when dead"
     bool thirdperson_grenade{}; // "Disable on grenade"
+    float thirdperson_transparency{};      // "Transparency": local model alpha, percent
+    float thirdperson_transparency_nade{}; // "+ with nades": the same while a grenade is out
     bool fov_enabled{};
     float fov{90.f};
     float aspect{};             // "Aspect ratio", percent; 0 = leave the engine value alone
@@ -51,6 +54,11 @@ struct Settings {
     bool force_viewmodel_scope{}; // "Force viewmodel in scope"
     bool vm_fov_enabled{};
     float vm_fov{90.f};
+    // Viewmodel changer: the three offsets the game itself reads from
+    // viewmodel_offset_x / viewmodel_offset_y / viewmodel_offset_z.
+    float vm_x{};
+    float vm_y{};
+    float vm_z{};
 };
 
 void Publish(const Settings& settings);
@@ -79,11 +87,53 @@ inline constexpr float kFovMin = 60.f;
 inline constexpr float kFovMax = 140.f;
 inline constexpr float kDistanceMin = 10.f;
 inline constexpr float kDistanceMax = 250.f;
+// c_mindistance / c_maxdistance are what the chase camera clamps cam_idealdist with; the
+// camera code has to be able to sit further out than the game's own 30..250 default.
+inline constexpr float kChaseMinDistance = 0.f;
+inline constexpr float kChaseMaxDistance = 99999.f;
+// The viewmodel offset sliders span -30..30.
+inline constexpr float kViewmodelOffsetLimit = 30.f;
 inline constexpr float kAspectMin = 20.f;   // percent; below that the picture is unusable
 inline constexpr float kAspectMax = 300.f;
+// Time constant of the displayed-ratio smoothing, seconds. 40 ms is fast enough to feel
+// immediate and slow enough to hide the slider's pixel steps.
+inline constexpr float kAspectTau = 0.04f;
 // The fov the game uses with no changer at all; `main` calls it 90 + fovs[world] with a
 // zero offset slider.
 inline constexpr float kDefaultWorldFov = 90.f;
+
+// The "Distance" slider, clamped to the menu's own range. This is the *desired* distance:
+// the camera code hands it to cam_idealdist and clips it against the world every frame
+// without ever writing the clipped value back.
+inline float DesiredDistance(const Settings& settings) {
+    float distance = settings.thirdperson_dist;
+    if (!std::isfinite(distance)) return 0.f;
+    if (distance < kDistanceMin) distance = kDistanceMin;
+    if (distance > kDistanceMax) distance = kDistanceMax;
+    return distance;
+}
+
+// Alpha for the local player's own model, 0..255, or a negative value when the module does
+// not own the model this frame. `"Transparency"` is a percentage of transparency: 0 keeps
+// the model solid, 100 makes it invisible. `"+ with nades"` uses its own value while a
+// grenade is out, which is the only thing that slider is for.
+inline int LocalModelAlpha(const Settings& settings, bool active, bool holding_grenade) {
+    if (!active) return -1;
+    // "+ with nades" is an override that only applies while a grenade is out; at 0 the base
+    // slider stays in charge, which is what a fresh config with only "Transparency" set
+    // expects.
+    float percent = settings.thirdperson_transparency;
+    if (holding_grenade && std::isfinite(settings.thirdperson_transparency_nade) &&
+        settings.thirdperson_transparency_nade > 0.f)
+        percent = settings.thirdperson_transparency_nade;
+    if (!std::isfinite(percent) || percent <= 0.f) return -1;
+    if (percent > 100.f) percent = 100.f;
+    const float alpha = 255.f * (1.f - percent * 0.01f);
+    int result = static_cast<int>(std::lround(alpha));
+    if (result < 0) result = 0;
+    if (result > 255) result = 255;
+    return result;
+}
 
 struct ThirdPerson {
     bool active{};
@@ -102,10 +152,8 @@ inline ThirdPerson Plan(const Settings& settings, bool in_game, bool alive, bool
         return plan;
     }
     if (holding_grenade) return plan; // "Disable on grenade"
-    float distance = settings.thirdperson_dist;
-    if (!std::isfinite(distance)) return plan;
-    if (distance < kDistanceMin) distance = kDistanceMin;
-    if (distance > kDistanceMax) distance = kDistanceMax;
+    const float distance = DesiredDistance(settings);
+    if (!(distance > 0.f)) return plan;
     plan.active = true;
     plan.distance = distance;
     return plan;
@@ -145,7 +193,9 @@ inline int WorldFov(const Settings& settings) {
 // field of view the game itself wrote for the current zoom level, `world_fov` the unscoped
 // value. 0% keeps the zoom exactly as the game has it, 100% drops the zoom entirely.
 inline int RemoveZoomFov(const Settings& settings, int zoom_fov, int world_fov) {
-    if (zoom_fov <= 0) return world_fov; // nothing to interpolate from
+    // 0 means "the game has not written a zoom fov for this level yet": leave it alone
+    // instead of snapping the picture to the unscoped value for a frame.
+    if (zoom_fov <= 0) return 0;
     float percent = settings.fov_scope;
     if (!std::isfinite(percent) || percent <= 0.f) return zoom_fov;
     if (percent > 100.f) percent = 100.f;
@@ -168,6 +218,44 @@ inline int ForcedFirstZoomFov(const Settings& settings, int first_zoom_fov, int 
     return observed_fov;
 }
 
+// Zoom bookkeeping for one scope session. Everything it keeps comes from the game: the fov
+// the game wrote for the level in effect and the widest level seen since the scope opened.
+// A value this module wrote itself is recognised (`our_write`) and never becomes the
+// reference, otherwise "Remove zoom" would walk towards a full zoom removal frame by frame.
+struct ZoomSession {
+    bool open{};
+    std::uintptr_t weapon{};
+    int first_level{};
+    int level{};
+
+    void Reset() { *this = ZoomSession{}; }
+
+    void Observe(std::uintptr_t weapon_id, int observed_fov, int our_write) {
+        if (weapon_id != weapon) {
+            Reset();
+            weapon = weapon_id;
+        }
+        open = true;
+        if (observed_fov <= 0) return;
+        if (observed_fov == our_write) return; // ours, not the game's
+        level = observed_fov;
+        // The first zoom level is the widest one: a sniper's second zoom is narrower.
+        if (first_level <= 0 || observed_fov > first_level) first_level = observed_fov;
+    }
+};
+
+// The whole scope pipeline in the order the values have to be applied:
+//   1. `level_fov` is what the game itself wrote for the zoom level in effect,
+//   2. "Force second zoom" replaces a narrower second level with the first one,
+//   3. "Remove zoom" mixes that level towards the world fov by the slider's percentage.
+// It returns 0 when nothing should be written, and it never reads its own previous output:
+// every input comes from the game.
+inline int ZoomFov(const Settings& settings, int first_level_fov, int level_fov, int world_fov) {
+    if (level_fov <= 0) return 0;
+    const int base = ForcedFirstZoomFov(settings, first_level_fov, level_fov);
+    return RemoveZoomFov(settings, base, world_fov);
+}
+
 // Viewmodel fov after the configured override; `original` is the engine's own value.
 inline float TargetViewModelFov(const Settings& settings, float original) {
     if (!settings.vm_fov_enabled) return original;
@@ -176,6 +264,33 @@ inline float TargetViewModelFov(const Settings& settings, float original) {
     if (fov < kFovMin) fov = kFovMin;
     if (fov > kFovMax) fov = kFovMax;
     return fov;
+}
+
+// One viewmodel offset slider, clamped to the menu's range. The three values are written into
+// the game's own viewmodel_offset_* cvars, which is where `C_BaseViewModel` reads the pose
+// offset from; the world camera and the world fov are untouched by them.
+inline float ViewmodelOffset(float value) {
+    if (!std::isfinite(value)) return 0.f;
+    if (value < -kViewmodelOffsetLimit) return -kViewmodelOffsetLimit;
+    if (value > kViewmodelOffsetLimit) return kViewmodelOffsetLimit;
+    return value;
+}
+
+// One frame of the aspect-ratio smoothing: `shown` walks towards `target` with a time
+// constant, so the picture follows the slider instead of the slider's integer steps. `dt` is
+// the frame time in seconds; a missing or nonsense dt leaves the value where it is. This is
+// the only place time is involved - the returned ratio is what the renderer is given for the
+// whole frame, so it does not depend on how often the engine asks.
+inline float SmoothAspectRatio(float shown, float target, float dt) {
+    if (!std::isfinite(target)) return shown;
+    if (!std::isfinite(shown) || shown <= 0.f) return target;
+    if (!std::isfinite(dt) || dt <= 0.f || dt > 0.5f) return shown;
+    const float k = 1.f - std::exp(-dt / kAspectTau);
+    const float next = shown + (target - shown) * k;
+    // A tenth of a percent of the target is visually identical and keeps a settled slider
+    // from reporting a new value every frame.
+    if (std::fabs(target - next) < target * 0.001f) return target;
+    return next;
 }
 
 // Screen aspect ratio after the configured override; `original` is the engine's own value.

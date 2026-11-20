@@ -686,7 +686,7 @@ namespace menu::group
 			"Thirdperson", MAKE("visuals>misc>local>thirdperson", checkbox, cfg.misc.thirdperson),
 			MAKE("visuals>misc>local>thirdperson>settings", settings, [](auto e) { ADD("Force when dead", "visuals>misc>local>thirdperson>settings>force when dead",
 					checkbox, cfg. misc.thirdperson_dead); ADD("Disable on grenade", "visuals>misc>local>thirdperson>settings>disable on grenade", checkbox, cfg.misc.
-					thirdperson_grenade); ADD("Disable animation", "visuals>misc>local>thirdperson>settings>disable animation", checkbox, cfg.misc.thirdperson_no_interp);
+					thirdperson_grenade); 
 				ADD
 				("Distance", "visuals>misc>local>thirdperson>settings>distance", slider<float>, 40.f, 180.f, cfg.misc.thirdperson_dist, XOR("%.0fu")); ADD("Transparency",
 					"visuals>misc>local>thirdperson>settings>transparency", slider<float>, 0.f, 100.f, cfg.misc.transparency_in_scope, XOR("%.0f%%")); ADD("+ with nades",

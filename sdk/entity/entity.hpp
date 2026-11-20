@@ -22,6 +22,11 @@ public:
     NETVAR(float, m_flDuckAmount, "DT_CSPlayer", "m_flDuckAmount")
     NETVAR_FALLBACK(int, m_nModelIndex, "DT_BaseEntity", "m_nModelIndex", offsets::netvars::m_nModelIndex)
     NETVAR_FALLBACK(bool, m_bSpotted, "DT_BaseEntity", "m_bSpotted", offsets::netvars::m_bSpotted)
+    // Colour modulation (r/g/b/a packed) and the render mode the client blends with. The
+    // visuals misc block writes the alpha of the local model when third person is on, and
+    // setting the render mode to kRenderTransTexture is what makes that alpha do anything.
+    NETVAR(std::uint32_t, m_clrRender, "DT_BaseEntity", "m_clrRender")
+    NETVAR(int, m_nRenderMode, "DT_BaseEntity", "m_nRenderMode")
 
     bool IsDormant() const;
     bool IsAlive() const { return m_lifeState() == 0 && m_iHealth() > 0; }

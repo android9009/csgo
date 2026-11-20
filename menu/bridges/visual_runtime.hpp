@@ -64,6 +64,8 @@ inline void Configure() {
     misc.thirdperson_dist=cfg.misc.thirdperson_dist.get();
     misc.thirdperson_dead=cfg.misc.thirdperson_dead.get();
     misc.thirdperson_grenade=cfg.misc.thirdperson_grenade.get();
+    misc.thirdperson_transparency=cfg.misc.transparency_in_scope.get();
+    misc.thirdperson_transparency_nade=cfg.misc.transparency_nade.get();
     misc.fov_enabled=cfg.misc.fov_enabled.get();
     misc.fov=cfg.misc.fov.get();
     misc.aspect=cfg.misc.aspect.get();
@@ -72,6 +74,9 @@ inline void Configure() {
     misc.force_viewmodel_scope=cfg.misc.force_viewmodel_scope.get();
     misc.vm_fov_enabled=cfg.misc.vm_fov_enabled.get();
     misc.vm_fov=cfg.misc.vm_fov.get();
+    misc.vm_x=cfg.misc.viewmodel_x.get();
+    misc.vm_y=cfg.misc.viewmodel_y.get();
+    misc.vm_z=cfg.misc.viewmodel_z.get();
     VisualsMisc::Publish(misc);
 }
 }

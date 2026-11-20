@@ -150,8 +150,9 @@ int main() {
         assert(Detail::RemoveZoomFov(s, 40, 90) == 90);                   // clamped to 100%
         s.fov_scope = kNan;
         assert(Detail::RemoveZoomFov(s, 40, 90) == 40);
-        // No reference from the game yet: hand the world fov back rather than divide by zero.
-        assert(Detail::RemoveZoomFov(s, 0, 90) == 90);
+        // No zoom level from the game yet: leave the picture alone (0 = write nothing)
+        // instead of snapping it to the world fov for a frame.
+        assert(Detail::RemoveZoomFov(s, 0, 90) == 0);
     }
 
     // "Force second zoom": anything narrower than the session's first level is replaced by
@@ -172,6 +173,112 @@ int main() {
         assert(Detail::WorldFov(s) == 90);
         s.fov_enabled = true; s.fov = 110.f;
         assert(Detail::WorldFov(s) == 110);
+    }
+
+
+    // ---- the zoom pipeline, in order ------------------------------------------------
+    // 40 / 90 is a sniper's first level against a 90 world fov: 0% keeps the zoom, 50% takes
+    // half of it away, 100% removes it entirely.
+    {
+        Settings s;
+        assert(Detail::ZoomFov(s, 40, 40, 90) == 40);
+        s.fov_scope = 50.f;
+        assert(Detail::ZoomFov(s, 40, 40, 90) == 65);
+        s.fov_scope = 100.f;
+        assert(Detail::ZoomFov(s, 40, 40, 90) == 90);
+        s.fov_scope = 50.f;
+        // The second level (15) is replaced by the first one when "Force second zoom" is on.
+        s.force_second_zoom = true;
+        assert(Detail::ZoomFov(s, 40, 15, 90) == 65);
+        s.force_second_zoom = false;
+        assert(Detail::ZoomFov(s, 40, 15, 90) == 53);   // 15 + (90-15)*0.5 = 52.5 -> 53
+    }
+
+    // 120 frames at 50%: the value must not creep. The session never takes this module's own
+    // write for the game's zoom level.
+    {
+        Settings s; s.fov_scope = 50.f;
+        Detail::ZoomSession session;
+        int our_write = 0;
+        int last = 0;
+        for (int frame = 0; frame < 120; ++frame) {
+            // The game writes its own 40 every frame (the weapon owns the field); we write 65.
+            session.Observe(0x1000, 40, our_write);
+            const int target = Detail::ZoomFov(s, session.first_level, session.level, 90);
+            assert(target == 65);
+            our_write = target;
+            last = target;
+        }
+        assert(last == 65);
+        // A weapon change starts a new session, and the first sample becomes the reference.
+        session.Observe(0x2000, 30, our_write);
+        assert(session.first_level == 30 && session.level == 30);
+        assert(Detail::ZoomFov(s, session.first_level, session.level, 90) == 60);
+    }
+
+    // ---- "Transparency" / "+ with nades" -------------------------------------------
+    {
+        Settings s;
+        assert(Detail::LocalModelAlpha(s, false, false) < 0);   // third person off: not ours
+        assert(Detail::LocalModelAlpha(s, true, false) < 0);    // 0% = keep the model solid
+        s.thirdperson_transparency = 50.f;
+        assert(Detail::LocalModelAlpha(s, true, false) == 128);
+        s.thirdperson_transparency_nade = 100.f;
+        assert(Detail::LocalModelAlpha(s, true, true) == 0);    // "+ with nades" wins
+        assert(Detail::LocalModelAlpha(s, true, false) == 128);
+        s.thirdperson_transparency_nade = 0.f;
+        assert(Detail::LocalModelAlpha(s, true, true) == 128);
+        s.thirdperson_transparency = 500.f;                     // clamped to 100%
+        assert(Detail::LocalModelAlpha(s, true, false) == 0);
+    }
+
+    // ---- the desired distance is the slider, and the trace never writes back --------
+    {
+        Settings s; s.thirdperson = true;
+        s.thirdperson_dist = 150.f;
+        assert(Near(Detail::DesiredDistance(s), 150.f));
+        // Against a wall the camera comes closer ...
+        assert(Near(Detail::ClampedDistance(150.f, 0.2f), 30.f));
+        // ... and walking away restores the slider value, because nothing stored the clipped
+        // one: the next frame asks for the desired distance again.
+        assert(Near(Detail::ClampedDistance(150.f, 1.f), 150.f));
+        s.thirdperson_dist = 5000.f;
+        assert(Near(Detail::DesiredDistance(s), Detail::kDistanceMax));
+        s.thirdperson_dist = -10.f;
+        assert(Near(Detail::DesiredDistance(s), Detail::kDistanceMin));
+    }
+
+    // ---- viewmodel offsets ---------------------------------------------------------
+    {
+        assert(Near(Detail::ViewmodelOffset(5.f), 5.f));
+        assert(Near(Detail::ViewmodelOffset(100.f), Detail::kViewmodelOffsetLimit));
+        assert(Near(Detail::ViewmodelOffset(-100.f), -Detail::kViewmodelOffsetLimit));
+        assert(Near(Detail::ViewmodelOffset(std::nanf("")), 0.f));
+    }
+
+    // ---- aspect ratio smoothing ----------------------------------------------------
+    // A step from 1.77 to 1.78 has to arrive within a few frames and never overshoot; the
+    // value handed to the renderer for the whole frame is a single number, so the engine
+    // cannot see the slider's integer steps at all.
+    {
+        float shown = 1.77f;
+        int frames = 0;
+        while (shown < 1.78f - 0.0001f && frames < 60) {
+            shown = Detail::SmoothAspectRatio(shown, 1.78f, 1.f / 64.f);
+            ++frames;
+            assert(shown <= 1.78f + 0.0001f);   // no overshoot
+        }
+        assert(frames < 30);                    // 40 ms time constant at 64 fps
+        // A nonsense frame time leaves the value where it is instead of jumping.
+        assert(Near(Detail::SmoothAspectRatio(1.7f, 1.9f, 0.f), 1.7f));
+        assert(Near(Detail::SmoothAspectRatio(1.7f, 1.9f, -1.f), 1.7f));
+        // Once it is close enough the target is used verbatim, so a settled slider is exact.
+        assert(Near(Detail::SmoothAspectRatio(1.7799f, 1.78f, 1.f / 64.f), 1.78f, 0.0002f));
+        // 178% still means 1.78: the smoothing never changes what the slider means.
+        Settings s; s.aspect = 178.f;
+        assert(Near(Detail::TargetAspectRatio(s, 1.333f), 1.78f));
+        s.aspect = 0.f;
+        assert(Near(Detail::TargetAspectRatio(s, 1.333f), 1.333f));
     }
 
     std::puts("visuals_misc_test: ok");

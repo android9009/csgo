@@ -11,6 +11,8 @@ namespace Misc::Movement {
 namespace {
 bool g_failed{};
 bool g_reported{};
+// The jump button as it was on the previous tick, for the press edge the jump gate needs.
+bool g_prev_jump{};
 
 // main's cl_forwardspeed / cl_sidespeed: the wish speed the movement input resolves to.
 // Read through the same cvar layer ping spike uses, with the CS:GO defaults as the
@@ -41,6 +43,16 @@ void CreateMoveImpl(CUserCmd* cmd) {
     tick.velocity_y = std::isfinite(velocity.y) ? velocity.y : 0.f;
     tick.speed = std::sqrt(tick.velocity_x * tick.velocity_x + tick.velocity_y * tick.velocity_y);
     tick.view_yaw = cmd->view_angles.IsValid() ? NormalizeYaw(cmd->view_angles.y) : 0.f;
+    // The player's own buttons, read before any feature in this module rewrites them: the
+    // jump gate and "Movement keys" must see what the player actually pressed this tick.
+    const bool jump_held = cmd->HasButton(IN_JUMP);
+    tick.jump_held = jump_held;
+    tick.jump_pressed = jump_held && !g_prev_jump;
+    g_prev_jump = jump_held;
+    tick.key_forward = cmd->HasButton(IN_FORWARD);
+    tick.key_back = cmd->HasButton(IN_BACK);
+    tick.key_left = cmd->HasButton(IN_MOVELEFT);
+    tick.key_right = cmd->HasButton(IN_MOVERIGHT);
     tick.origin = local->m_vecOrigin();
     tick.forward_speed = ForwardSpeed();
     tick.side_speed = SideSpeed();
@@ -75,9 +87,11 @@ Runtime& GetRuntime() {
 void Publish(const Settings& settings) {
     auto& runtime = Detail::GetRuntime();
     runtime.autostrafe.store(settings.autostrafe);
+    runtime.strafe_viewangles.store(settings.strafe_viewangles);
     runtime.strafe_movement_keys.store(settings.strafe_movement_keys);
     runtime.strafe_easy.store(settings.strafe_easy);
     runtime.strafe_jump_release.store(settings.strafe_jump_release);
+    runtime.strafe_jump_release_after.store(settings.strafe_jump_release_after);
     runtime.avoid_walls.store(settings.avoid_walls);
     runtime.smoothing.store(settings.smoothing);
     runtime.bhop.store(settings.bhop);
@@ -101,5 +115,9 @@ void CreateMove(CUserCmd* cmd) {
     ctx.in_createmove = false;
 }
 
-void Shutdown() { Publish(Settings{}); }
+void Shutdown() {
+    Publish(Settings{});
+    Detail::ResetAutoStrafe();
+    g_prev_jump = false;
+}
 } // namespace Misc::Movement

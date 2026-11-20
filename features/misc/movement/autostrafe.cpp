@@ -19,18 +19,66 @@ bool WallAhead(const Tick& tick) {
     Interfaces::EngineTrace->TraceRay(ray, 0x200400B /* MASK_PLAYERSOLID */, &filter, &trace);
     return trace.fraction < 1.f;
 }
+
+// State that outlives a single tick. It is deliberately kept here and not in the tick: the
+// easing and the jump gate are about what happened on the previous ticks.
+struct GateAndSteer {
+    JumpGateState jump{};
+    float steer{};
+    bool steer_valid{};
+
+    void ResetSteer() {
+        steer = 0.f;
+        steer_valid = false;
+    }
+} g_state;
 } // namespace
 
 void RunAutoStrafe(const Tick& tick) {
     const auto& runtime = GetRuntime();
-    if (!runtime.autostrafe.load()) return;
-    if (tick.on_ladder || tick.noclip) return;
-    if (tick.on_ground) return;
+
+    // The jump gate is an *input* decision: it is evaluated before anything in this function
+    // writes into the command, including the early exit for a player who is barely moving.
+    // It therefore sees the button state the player had when the tick started.
+    const JumpGate gate = GateFrom(runtime.strafe_jump_release.load(),
+                                   runtime.strafe_jump_release_after.load());
+    g_state.jump.Update(tick.jump_held, tick.on_ground);
+
+    if (!runtime.autostrafe.load()) {
+        g_state.ResetSteer();
+        return;
+    }
+    if (tick.on_ground || tick.on_ladder || tick.noclip) {
+        // The easing is an air-only state: landing starts it from scratch.
+        g_state.ResetSteer();
+        return;
+    }
+    if (!g_state.jump.Allows(gate, tick.jump_held)) return;
     if (tick.cmd->HasButton(IN_SPEED) || tick.cmd->HasButton(IN_WALK)) return;
     if (WallAhead(tick) && runtime.avoid_walls.load()) return;
 
+    // 1. Which direction does the player want to move?
+    const StrafeSource source = runtime.strafe_movement_keys.load() ? StrafeSource::MovementKeys
+                                                                   : StrafeSource::Viewangles;
+    const KeyDirection keys = MovementKeyDirection(tick.view_yaw, tick.key_forward, tick.key_back,
+                                                   tick.key_left, tick.key_right);
+    const bool easy = runtime.strafe_easy.load();
+    const StrafeDirection direction =
+        ResolveStrafeDirection(source, tick, keys, easy,
+                               EasyStrafeStep(runtime.smoothing.load()), g_state.steer,
+                               g_state.steer_valid);
+    if (!direction.valid) {
+        // "Movement keys" with no key held: there is no direction to strafe along. The input
+        // is left exactly as the player gave it - no guessed direction, no leftover from the
+        // previous tick.
+        return;
+    }
+
+    // 2. Turn that direction into the air-acceleration wish. `main`'s maths, measured against
+    //    the chosen direction instead of always against the look direction; when the source
+    //    is "Viewangles" and "Easy strafe" is off this is exactly main's behaviour.
     const float smooth = runtime.strafe_easy.load() ? 0.f : StrafeSmoothFactor(runtime.smoothing.load());
-    const StrafeWish wish = AirStrafeWish(tick.velocity_x, tick.velocity_y, tick.view_yaw,
+    const StrafeWish wish = AirStrafeWish(tick.velocity_x, tick.velocity_y, direction.yaw,
                                           tick.forward_speed, tick.side_speed, smooth);
 
     if (!wish.valid) {
@@ -41,20 +89,15 @@ void RunAutoStrafe(const Tick& tick) {
         return;
     }
 
-    // The wish was computed against the yaw the strafer wants this tick (the player's yaw
-    // turned by `-diff * smooth`); Source will read the values against the command's own
-    // yaw, so the move vector is rotated into that frame. That keeps the physical direction
-    // identical and leaves view_angles untouched: writing them is what turned the camera
-    // with the strafe.
-    const MoveVector move = RotateIntoViewFrame(wish.forward, wish.side, wish.view_yaw,
-                                                tick.cmd->view_angles.y);
+    // 3. Source reads forwardmove/sidemove in the command's OWN view frame, so the wish -
+    //    expressed in the frame of the direction chosen above - is rotated into it. Only the
+    //    movement components are written: the look direction is read, never produced, which
+    //    is what keeps the camera still while the player accelerates.
+    const MoveVector move =
+        RotateIntoViewFrame(wish.forward, wish.side, wish.view_yaw, tick.cmd->view_angles.y);
     tick.cmd->forwardmove = move.forward;
     tick.cmd->sidemove = move.side;
-
-    // "Jump release": holding jump in the air costs speed on the next landing; the button is
-    // taken away for the tick so the jump has to be re-issued.
-    if (runtime.strafe_jump_release.load() && tick.cmd->HasButton(IN_JUMP)) {
-        tick.cmd->RemoveButton(IN_JUMP);
-    }
 }
+
+void ResetAutoStrafe() { g_state = GateAndSteer{}; }
 } // namespace Misc::Movement::Detail
