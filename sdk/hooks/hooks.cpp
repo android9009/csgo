@@ -31,8 +31,8 @@ static VMT_Hook device_ex_hook;
 static VMT_Hook reset_hook, reset_d3d9_hook, reset_ex_hook;
 static VMT_Hook client_hook;
 static VMT_Hook client_mode_hook;
-static VMT_Hook client_mode_view_hook;
 static VMT_Hook client_mode_vmfov_hook;
+static VMT_Hook engine_aspect_hook;
 static VMT_Hook view_render_hook;
 static VMT_Hook model_render_hook;
 static WNDPROC original_wndproc = nullptr;
@@ -67,8 +67,8 @@ ResetFn GetResetOriginalFor(void* device) {
 }
 FrameStageNotifyFn GetFrameStageNotifyOriginal() { return client_hook.get_original<FrameStageNotifyFn>(); }
 CreateMoveFn GetCreateMoveOriginal() { return client_mode_hook.get_original<CreateMoveFn>(); }
-OverrideViewFn GetOverrideViewOriginal() { return client_mode_view_hook.get_original<OverrideViewFn>(); }
 ViewModelFovFn GetViewModelFovOriginal() { return client_mode_vmfov_hook.get_original<ViewModelFovFn>(); }
+ScreenAspectRatioFn GetScreenAspectRatioOriginal() { return engine_aspect_hook.get_original<ScreenAspectRatioFn>(); }
 SceneEndFn GetSceneEndOriginal() { return view_render_hook.get_original<SceneEndFn>(); }
 DrawModelExecuteFn GetDrawModelExecuteOriginal() { return model_render_hook.get_original<DrawModelExecuteFn>(); }
 static void* CreateDummyDevice(bool ex) {
@@ -184,17 +184,23 @@ bool Setup() {
                                 reinterpret_cast<void*>(&HooksInternal::CreateMove));
     else
         LOG_WARN("ClientMode is null; movement stays off (the pattern for this client changed)");
-    // Visuals -> Misc: the camera (third person) rides the same object at the slot `main`
-    // calls OVERRIDE_VIEW_IDX, and the viewmodel fov at GET_VIEWMODEL_FOV_IDX.
+    // Visuals -> Misc: the viewmodel fov rides ClientMode at GET_VIEWMODEL_FOV_IDX, the
+    // aspect ratio rides IEngineClient at main's GET_SCREEN_ASPECT_RATIO_IDX (101). Third
+    // person needs no hook at all - it writes CInput from the frame stage.
     if (Interfaces::ClientMode) {
-        client_mode_view_hook.attach(Interfaces::ClientMode, kClientModeOverrideViewSlot,
-                                     reinterpret_cast<void*>(&HooksInternal::OverrideView));
         client_mode_vmfov_hook.attach(Interfaces::ClientMode, kClientModeViewModelFovSlot,
                                       reinterpret_cast<void*>(&HooksInternal::GetViewModelFov));
-        LOG_INFO("visuals misc hooks: OverrideView=%d GetViewModelFOV=%d",
-                 client_mode_view_hook.is_hooked(), client_mode_vmfov_hook.is_hooked());
+        LOG_INFO("visuals misc hooks: GetViewModelFOV=%d",
+                 client_mode_vmfov_hook.is_hooked());
     } else {
-        LOG_WARN("ClientMode is null; third person and viewmodel fov stay off");
+        LOG_WARN("ClientMode is null; the viewmodel fov stays off");
+    }
+    if (Interfaces::Engine) {
+        engine_aspect_hook.attach(Interfaces::Engine, kEngineScreenAspectRatioSlot,
+                                  reinterpret_cast<void*>(&HooksInternal::GetScreenAspectRatio));
+        LOG_INFO("visuals misc hooks: GetScreenAspectRatio=%d", engine_aspect_hook.is_hooked());
+    } else {
+        LOG_WARN("Engine is null; the aspect ratio override stays off");
     }
     if (Interfaces::RenderView)
         view_render_hook.attach(Interfaces::RenderView, 9, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
@@ -203,11 +209,11 @@ bool Setup() {
 
     ShotChams::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d PaintTraverse=%d FrameStageNotify=%d CreateMove=%d SceneEnd=%d DrawModelExecute=%d "
-             "OverrideView=%d GetViewModelFOV=%d)",
+             "GetViewModelFOV=%d GetScreenAspectRatio=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
         device_ex_hook.is_hooked(), panel_hook.is_hooked(),
         client_hook.is_hooked(), client_mode_hook.is_hooked(), view_render_hook.is_hooked(), model_render_hook.is_hooked(),
-        client_mode_view_hook.is_hooked(), client_mode_vmfov_hook.is_hooked());
+        client_mode_vmfov_hook.is_hooked(), engine_aspect_hook.is_hooked());
     // The cheat stays loaded as long as the menu can be toggled; feature hooks
     // are optional until features land.
     return original_wndproc != nullptr &&
@@ -221,8 +227,8 @@ void Restore() {
     if (game_window && original_wndproc)
         SetWindowLongPtrA(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_wndproc));
     original_wndproc = nullptr; game_window = nullptr;
-    model_render_hook.detach(); view_render_hook.detach(); client_mode_vmfov_hook.detach();
-    client_mode_view_hook.detach(); client_mode_hook.detach(); client_hook.detach();
+    model_render_hook.detach(); view_render_hook.detach(); engine_aspect_hook.detach();
+    client_mode_vmfov_hook.detach(); client_mode_hook.detach(); client_hook.detach();
     reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
     cursor_hook.detach(); panel_hook.detach();

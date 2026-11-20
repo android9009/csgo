@@ -5,13 +5,6 @@
 
 namespace Misc::Movement::Detail {
 namespace {
-// The player's own view angles are read back after a silent strafe, so the camera never
-// snaps: the command's angle goes to the server, the engine's angle stays what the player
-// is looking at.
-void RestoreCamera(const QAngle& angles) {
-    if (Interfaces::Engine) { Interfaces::Engine->SetViewAngles(angles); }
-}
-
 // "Avoid walls" (the slider box of the auto strafe settings): a short probe forward. When
 // something is in the way the wish is left alone for this tick, because accelerating into a
 // wall gains nothing and the rotation would push the player along it.
@@ -48,17 +41,15 @@ void RunAutoStrafe(const Tick& tick) {
         return;
     }
 
-    tick.cmd->forwardmove = wish.forward;
-    tick.cmd->sidemove = wish.side;
-
-    // "Viewangles": the command carries the rotated yaw (the server moves along it) while
-    // the camera keeps the player's own angle - the silent form main uses through its
-    // automatic view-angle writer.
-    if (runtime.strafe_viewangles.load()) {
-        const QAngle camera = tick.cmd->view_angles;
-        tick.cmd->view_angles.y = wish.view_yaw;
-        RestoreCamera(camera);
-    }
+    // The wish was computed against the yaw the strafer wants this tick (the player's yaw
+    // turned by `-diff * smooth`); Source will read the values against the command's own
+    // yaw, so the move vector is rotated into that frame. That keeps the physical direction
+    // identical and leaves view_angles untouched: writing them is what turned the camera
+    // with the strafe.
+    const MoveVector move = RotateIntoViewFrame(wish.forward, wish.side, wish.view_yaw,
+                                                tick.cmd->view_angles.y);
+    tick.cmd->forwardmove = move.forward;
+    tick.cmd->sidemove = move.side;
 
     // "Jump release": holding jump in the air costs speed on the next landing; the button is
     // taken away for the tick so the jump has to be re-issued.

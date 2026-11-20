@@ -1,21 +1,26 @@
-// Menu thread -> game thread publication for the visuals misc block (third person, FOV,
-// viewmodel FOV, hide local model). Named publish.cpp rather than misc.cpp because
-// features/misc/misc.cpp already owns that file name and MSBuild refuses two
+// Menu thread -> game thread publication for the visuals misc block (third person, fov,
+// aspect ratio, viewmodel fov, remove/force zoom). Named publish.cpp rather than misc.cpp
+// because features/misc/misc.cpp already owns that file name and MSBuild refuses two
 // translation units with the same name in one project (MSB8027: both .objs would be
 // called misc.obj, so a stale object could be linked into the other module).
 #include "misc.hpp"
 
 namespace VisualsMisc {
 namespace {
+// Each field is its own atomic so a hook can never observe a half-updated selection: the
+// menu thread publishes while the game thread is inside CreateMove or FrameStageNotify.
 std::atomic<bool> g_thirdperson{false};
 std::atomic<float> g_thirdperson_dist{100.f};
 std::atomic<bool> g_thirdperson_dead{false};
 std::atomic<bool> g_thirdperson_grenade{false};
 std::atomic<bool> g_fov_enabled{false};
 std::atomic<float> g_fov{90.f};
+std::atomic<float> g_aspect{0.f};
+std::atomic<float> g_fov_scope{0.f};
+std::atomic<bool> g_force_second_zoom{false};
+std::atomic<bool> g_force_viewmodel_scope{false};
 std::atomic<bool> g_vm_fov_enabled{false};
 std::atomic<float> g_vm_fov{90.f};
-std::atomic<bool> g_hide_local{false};
 } // namespace
 
 void Publish(const Settings& settings) {
@@ -25,16 +30,17 @@ void Publish(const Settings& settings) {
     g_thirdperson_grenade.store(settings.thirdperson_grenade, std::memory_order_relaxed);
     g_fov_enabled.store(settings.fov_enabled, std::memory_order_relaxed);
     g_fov.store(settings.fov, std::memory_order_relaxed);
+    g_aspect.store(settings.aspect, std::memory_order_relaxed);
+    g_fov_scope.store(settings.fov_scope, std::memory_order_relaxed);
+    g_force_second_zoom.store(settings.force_second_zoom, std::memory_order_relaxed);
+    g_force_viewmodel_scope.store(settings.force_viewmodel_scope, std::memory_order_relaxed);
     g_vm_fov_enabled.store(settings.vm_fov_enabled, std::memory_order_relaxed);
     g_vm_fov.store(settings.vm_fov, std::memory_order_relaxed);
 }
 
-bool HideLocalModel() {
-    return g_hide_local.load(std::memory_order_relaxed);
-}
-
 void Shutdown() {
-    g_hide_local.store(false, std::memory_order_relaxed);
+    ResetThirdPerson();
+    ResetFov();
 }
 
 namespace Detail {
@@ -46,13 +52,13 @@ Settings Snapshot() {
     settings.thirdperson_grenade = g_thirdperson_grenade.load(std::memory_order_relaxed);
     settings.fov_enabled = g_fov_enabled.load(std::memory_order_relaxed);
     settings.fov = g_fov.load(std::memory_order_relaxed);
+    settings.aspect = g_aspect.load(std::memory_order_relaxed);
+    settings.fov_scope = g_fov_scope.load(std::memory_order_relaxed);
+    settings.force_second_zoom = g_force_second_zoom.load(std::memory_order_relaxed);
+    settings.force_viewmodel_scope = g_force_viewmodel_scope.load(std::memory_order_relaxed);
     settings.vm_fov_enabled = g_vm_fov_enabled.load(std::memory_order_relaxed);
     settings.vm_fov = g_vm_fov.load(std::memory_order_relaxed);
     return settings;
-}
-
-void SetHideLocalModel(bool hide) {
-    g_hide_local.store(hide, std::memory_order_relaxed);
 }
 } // namespace Detail
 } // namespace VisualsMisc

@@ -132,7 +132,9 @@ inline constexpr std::uintptr_t dwGameRulesProxy = 0x5330594;
 inline constexpr std::uintptr_t dwGetAllClasses = 0xE0CFA4;
 inline constexpr std::uintptr_t dwGlobalVars = 0x59EE60;
 inline constexpr std::uintptr_t dwGlowObjectManager = 0x535BAD0;
-inline constexpr std::uintptr_t dwInput = 0x525E600;
+// Verified on the supplied client.dll: the `B9 ? ? ? ? F3 0F 11 04 24 FF 50 10`
+// pattern lands on `mov ecx, 0x152627B0`, i.e. g_Input at client+0x52627B0.
+inline constexpr std::uintptr_t dwInput = 0x52627B0;
 inline constexpr std::uintptr_t dwInterfaceLinkList = 0x99CF84;
 inline constexpr std::uintptr_t dwLocalPlayer = 0xDEB99C;
 inline constexpr std::uintptr_t dwMouseEnable = 0x523A260;

@@ -5,7 +5,6 @@
 #include "../visual_runtime_state.hpp"
 #include "../../features/visuals/material_renderer.hpp"
 #include "../../features/visuals/chams_entities.hpp"
-#include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/shot_chams.hpp"
 #include "../../features/visuals/model_transparency.hpp"
 #include "../../utils/log.hpp"
@@ -87,15 +86,6 @@ void NoteTransparency(const DrawModelState_t& state,const ModelRenderInfo_t& inf
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
-    // Third person puts the camera behind a body that would otherwise fill the frame.
-    // Skipping the local player's own model is what the engine does for the same reason;
-    // the viewmodel and arms are separate model calls with their own indices, so they stay.
-    if (VisualsMisc::HideLocalModel() && ctx.in_game && Interfaces::Engine) {
-        int local_index = -1;
-        __try { local_index = Interfaces::Engine->GetLocalPlayer(); }
-        __except (EXCEPTION_EXECUTE_HANDLER) { local_index = -1; }
-        if (local_index > 0 && info.entity_index == local_index) return;
-    }
     bool handled=false;
     __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);NoteTransparency(state,info);}
     __except(LogChamsFault(GetExceptionInformation())) {

@@ -2,32 +2,36 @@
 #include "../interfaces/interfaces.hpp"
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../utils/log.hpp"
+#include <cstdint>
 
 namespace HooksInternal {
 namespace {
 // Both detours hand the feature a plain argument and nothing else: the hook owns the
 // virtual call, the feature owns the maths. An exception in the feature must cost one
 // frame, never the camera, so each one keeps its own latch for the log.
-bool g_override_view_failed{};
 bool g_viewmodel_fov_failed{};
+bool g_aspect_failed{};
 } // namespace
 
-// ClientMode::OverrideView - vtable slot 18 (main: OVERRIDE_VIEW_IDX).
+// IEngineClient::GetScreenAspectRatio - vtable slot 101 (main: GET_SCREEN_ASPECT_RATIO_IDX).
 //
-// The original runs first: it fills the CViewSetup with the field of view, origin and
-// angles the client computed for this frame, and third person then moves the origin
-// backwards along the view direction, which is what main's run_alive does to CInput.
-void __fastcall OverrideView(void* ecx, void* /*edx*/, void* setup) {
-    using Fn = void (__thiscall*)(void*, void*);
+// The original is `float __thiscall(int width, int height)`, so the fastcall thunk receives
+// the object in ecx, the width in edx and the height on the stack. The renderer asks once per
+// view, and the value it gets back is what decides the horizontal stretch, which is why
+// "Aspect ratio" is a real hook and not a post-process.
+float __fastcall GetScreenAspectRatio(void* ecx, void* edx, int height) {
+    using Fn = float (__thiscall*)(void*, int, int);
     static Fn original = nullptr;
-    if (!original) original = Hooks::GetOverrideViewOriginal();
-    if (original) original(ecx, setup);
-    if (!setup || g_override_view_failed) return;
-    __try { VisualsMisc::OverrideView(setup); }
+    if (!original) original = Hooks::GetScreenAspectRatioOriginal();
+    const int width = static_cast<int>(reinterpret_cast<std::intptr_t>(edx));
+    const float value = original ? original(ecx, width, height) : 0.f;
+    if (g_aspect_failed) return value;
+    __try { return VisualsMisc::ScreenAspectRatio(value); }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        g_override_view_failed = true;
-        LOG_ERROR("visuals misc: exception on the OverrideView hook 0x%08lX; third person disabled",
+        g_aspect_failed = true;
+        LOG_ERROR("visuals misc: exception on the aspect-ratio hook 0x%08lX; original value returned",
                   GetExceptionCode());
+        return value;
     }
 }
 

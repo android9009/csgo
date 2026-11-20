@@ -119,8 +119,7 @@ namespace menu::group
 	{
 		const auto c = MAKE("misc>movement>autostrafer", combo_box, cfg.misc.autostrafe);
 		c->allow_multiple = true;
-		c->add({MAKE("misc>movement>autostrafer>viewangles", selectable, "Viewangles", cfg_t::autostrafe_viewangles),
-			MAKE("misc>movement>autostrafer>movement keys", selectable, "Movement keys", cfg_t::autostrafe_movement_keys),
+		c->add({MAKE("misc>movement>autostrafer>movement keys", selectable, "Movement keys", cfg_t::autostrafe_movement_keys),
 			MAKE("misc>movement>autostrafer>easy strafe", selectable, "Easy strafe", cfg_t::autostrafe_easy_strafe),
 			MAKE("misc>movement>autostrafer>jump release", selectable, "Jump release", cfg_t::autostrafe_jump_release)});
 		ADD_INLINE("Air strafe", c, MAKE("misc>movement>autostrafer>settings", settings, [](auto e) {

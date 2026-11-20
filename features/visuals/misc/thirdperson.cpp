@@ -3,11 +3,9 @@
 #include "../../../sdk/entity/player.hpp"
 #include "../../../sdk/entity/weapon.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
-#include "../../../sdk/structs.hpp"
 #include "../../../sdk/trace_ray.hpp"
 #include "../../../utils/log.hpp"
 #include "../../../utils/math/math.hpp"
-#include <windows.h>
 #include <cmath>
 
 namespace VisualsMisc {
@@ -21,17 +19,21 @@ constexpr float kCameraExtent = 16.f;
 // dead" flips, exactly like main's c_thirdperson::run_alive does.
 constexpr int kObserverInEye = 4;
 constexpr int kObserverChase = 5;
+// True while the camera flag currently on `CInput` is ours. The engine never sets it on its
+// own for a live player, but a demo, a spec camera or another tool can, and clearing those
+// would fight them.
+bool g_camera_owned{};
 bool g_reported{};
 } // namespace
 
-void OverrideView(void* view_setup) {
-    auto* setup = static_cast<ViewSetup*>(view_setup);
-    if (!setup) return;
-    const Settings settings = Detail::Snapshot();
-    if (!Interfaces::Engine) {
-        Detail::SetHideLocalModel(false);
+// ClientMode::CreateMove calls this through the frame stage; see FrameStage().
+void ApplyThirdPerson() {
+    IInput* input = Interfaces::Input;
+    if (!input || !Interfaces::Engine) {
+        g_camera_owned = false;
         return;
     }
+    const Settings settings = Detail::Snapshot();
 
     bool in_game = false;
     __try { in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected(); }
@@ -57,62 +59,76 @@ void OverrideView(void* view_setup) {
         }
     }
 
-    if (!plan.active || !local || !Interfaces::EngineTrace) {
-        Detail::SetHideLocalModel(false);
+    if (!plan.active || !local) {
+        // Hand the camera back exactly once; after that the flag is not ours.
+        if (g_camera_owned) {
+            input->ClearThirdPersonCamera();
+            g_camera_owned = false;
+        }
         return;
     }
 
-    Vector eye;
     QAngle angles;
-    __try {
-        eye = local->GetEyePosition();
-        Interfaces::Engine->GetViewAngles(angles);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        Detail::SetHideLocalModel(false);
+    __try { Interfaces::Engine->GetViewAngles(angles); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (g_camera_owned) { input->ClearThirdPersonCamera(); g_camera_owned = false; }
         return;
     }
     if (!angles.IsValid()) {
-        Detail::SetHideLocalModel(false);
-        return;
-    }
-
-    const Vector forward = Math::angle_vector(angles);
-    if (!std::isfinite(forward.x) || !std::isfinite(forward.y) || !std::isfinite(forward.z)) {
-        Detail::SetHideLocalModel(false);
+        if (g_camera_owned) { input->ClearThirdPersonCamera(); g_camera_owned = false; }
         return;
     }
 
     // Walk backwards from the eye and stop at the first thing the world throws in the way,
-    // so the camera never ends up inside a wall.
-    const Vector target = eye - forward * plan.distance;
-    Ray_t ray;
-    ray.Init(eye, target, Vector{-kCameraExtent, -kCameraExtent, -kCameraExtent},
-             Vector{kCameraExtent, kCameraExtent, kCameraExtent});
-    CGameTrace trace;
-    CTraceFilterSimple filter(local);
-    float fraction = 1.f;
-    __try {
-        Interfaces::EngineTrace->TraceRay(ray, kMaskWorld, &filter, &trace);
-        fraction = trace.fraction;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        fraction = 0.f;
+    // so the camera never ends up inside a wall. main does the same trace and multiplies its
+    // distance by the fraction; the engine only clamps against the map hull, which lets the
+    // camera clip through props.
+    float distance = plan.distance;
+    if (Interfaces::EngineTrace) {
+        Vector eye;
+        __try { eye = local->GetEyePosition(); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { eye = {}; }
+        const Vector forward = Math::angle_vector(QAngle{angles.x, angles.y, 0.f});
+        if (std::isfinite(forward.x) && std::isfinite(forward.y) && std::isfinite(forward.z)) {
+            Ray_t ray;
+            ray.Init(eye, eye - forward * plan.distance,
+                     Vector{-kCameraExtent, -kCameraExtent, -kCameraExtent},
+                     Vector{kCameraExtent, kCameraExtent, kCameraExtent});
+            CGameTrace trace;
+            CTraceFilterSimple filter(local);
+            float fraction = 1.f;
+            __try {
+                Interfaces::EngineTrace->TraceRay(ray, kMaskWorld, &filter, &trace);
+                fraction = trace.fraction;
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                fraction = 1.f;
+            }
+            distance = Detail::ClampedDistance(plan.distance, fraction);
+        }
     }
 
-    const float distance = Detail::ClampedDistance(plan.distance, fraction);
     if (distance <= 0.f) {
-        // Something is right behind the head: keep the first-person camera rather than
-        // placing it inside the wall.
-        Detail::SetHideLocalModel(false);
+        // Something is right behind the head: stay in first person rather than inside it.
+        if (g_camera_owned) { input->ClearThirdPersonCamera(); g_camera_owned = false; }
         return;
     }
 
-    setup->origin = eye - forward * distance;
-    Detail::SetHideLocalModel(true);
+    // The engine reads this pair while it builds the view for the frame: x/y are the angles
+    // the camera looks along, z is how far back it sits. main writes the engine's own view
+    // angles here, and so do we - the camera must not lag the crosshair.
+    input->SetThirdPersonCamera(angles.x, angles.y, distance);
+    g_camera_owned = true;
 
     if (!g_reported) {
         g_reported = true;
-        LOG_INFO("visuals misc: third person active from ClientMode::OverrideView "
-                 "(distance=%.0f dead=force chase)", static_cast<double>(plan.distance));
+        LOG_INFO("visuals misc: third person drives CInput::camera_offset "
+                 "(distance=%.0f, CInput at %p)", static_cast<double>(distance),
+                 static_cast<void*>(input));
     }
+}
+
+void ResetThirdPerson() {
+    if (g_camera_owned && Interfaces::Input) Interfaces::Input->ClearThirdPersonCamera();
+    g_camera_owned = false;
 }
 } // namespace VisualsMisc

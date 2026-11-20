@@ -45,11 +45,15 @@ features/misc/
     buybot.cpp             game-rules lookup, client command, once-per-round latch
 
 features/visuals/misc/     MISC group of the Visuals tab (visuals>misc>local)
-  misc.hpp                 the folder's single header: Settings, camera and fov rules
-  misc.cpp                 published settings (atomics)
-  thirdperson.cpp          "Thirdperson" - camera placement in OverrideView
-  fov.cpp                  "Fov changer" (+ "Viewmodel changer" fov) - player fov fields
-                           and the GetViewModelFOV detour
+  misc.hpp                 the folder's single header: Settings, camera, fov, zoom and
+                           aspect rules
+  publish.cpp              published settings (atomics) - named publish, not misc, because
+                           features/misc/misc.cpp already owns that file name (MSB8027)
+  thirdperson.cpp          "Thirdperson" - writes CInput's chase camera
+  fov.cpp                  "Fov changer" + "Remove zoom" + "Force second zoom" +
+                           "Force viewmodel in scope" - player fov fields and the weapon
+                           info flag; the aspect ratio and viewmodel fov detours live in
+                           sdk/hooks/viewhooks.cpp
 
 features/visuals/removals/
   removals.hpp/.cpp        façade + bit order of the Removals combo box
@@ -86,8 +90,12 @@ because the flash switch is the first item of the Removals combo box.
 | Auto-accept | `cfg.misc.autoaccept` | hook | accepts the match when the accept popup beeps |
 | Console filter | `cfg.misc.console_filter` | hook | drops five documented connection/queue lines from the console |
 | Buy bot | `cfg.misc.buybot_*` | CreateMove (tick) | during freeze time, sends one `buy X; buy Y; ...` line through `IEngineClient::ClientCmd_Unrestricted`; up to three attempts per round |
-| Third person | `cfg.misc.thirdperson` (+ `_dist`, `_dead`, `_grenade`) | OverrideView (slot 18) | moves the camera backwards along the view direction, clipped by an engine trace; the local model is skipped while the camera is outside it; "Force when dead" flips observer mode 4 -> 5 |
+| Third person | `cfg.misc.thirdperson` (+ `_dist`, `_dead`, `_grenade`) | FRAME_RENDER_START + CInput | sets `CInput::camera_in_third_person` and `camera_offset = { pitch, yaw, distance }`; the distance is clipped by the same `MASK_NPCWORLDSTATIC` +-16 unit trace `main` uses; "Force when dead" flips observer mode 4 -> 5 |
 | Fov changer | `cfg.misc.fov_enabled`, `cfg.misc.fov` | FRAME_RENDER_START | writes the player's `m_iDefaultFOV` / `m_iFOV` / `m_iFOVStart`, restores the captured original when switched off or while scoped |
+| Remove zoom | `cfg.misc.fov_scope` | FRAME_RENDER_START | while scoped, interpolates between the zoom field of view the game wrote and the world fov: 0% keeps the zoom, 100% removes it |
+| Force second zoom | `cfg.misc.force_second_zoom` | FRAME_RENDER_START | keeps the first zoom level's field of view when the weapon zooms further |
+| Force viewmodel in scope | `cfg.misc.force_viewmodel_scope` | FRAME_RENDER_START | clears `CCSWeaponData::hide_viewmodel_in_zoom` (main's `+0x1BD`) |
+| Aspect ratio | `cfg.misc.aspect` | IEngineClient `GetScreenAspectRatio` (slot 101) | returns `aspect / 100.f` (main's detour); 0 keeps the engine value |
 | Viewmodel fov | `cfg.misc.vm_fov_enabled`, `cfg.misc.vm_fov` | GetViewModelFOV (slot 35) | replaces the viewmodel field of view with the slider value |
 
 Entry point: `Misc::FrameStage(stage)` and `Removals::FrameStage(stage)` from
@@ -211,7 +219,7 @@ of replacing the player's input.
 
 | Item | Where it comes from | What it writes |
 |---|---|---|
-| Air strafe | `main`: `c_movement::auto_strafe` | in the air only: `forwardmove = clamp(5850/speed, ±cl_forwardspeed)`, `sidemove = ±cl_sidespeed` by the sign of the angle between velocity and view, view rotated by `-diff * smooth`; "Viewangles" sends the rotated angle and restores the camera, "Easy strafe" drops the smoothing, "Jump release" takes `IN_JUMP` away while airborne |
+| Air strafe | `main`: `c_movement::auto_strafe` | in the air only: `forwardmove = clamp(5850/speed, ±cl_forwardspeed)`, `sidemove = ±cl_sidespeed` by the sign of the angle between velocity and view, and the wish is rotated by `-diff * smooth` between ticks. The rotated wish is rotated *back* into the command's own view frame before it is written, so the camera never turns - the old "Viewangles" item wrote `cmd->view_angles` and the camera followed it, which is why that item is gone. "Easy strafe" drops the smoothing, "Jump release" takes `IN_JUMP` away while airborne |
 | Bhop | `main`: `c_movement::auto_jump` | adds or removes `IN_JUMP` so the jump is released for a tick and re-issued on landing; ladders and noclip are skipped |
 | Quick stop | `main`: `fast_stop` + `instant_stop` | on the ground for 3 ticks with no movement button: the full counter-strafe, `-speed * (cos, sin)(view - velocity yaw)`; stops once the speed is under 15 |
 | Edge jump | this build (no reference: `main`'s `edge_jump` is an empty stub) | a 24-unit probe ahead along the direction of travel plus a downward trace; a drop deeper than 16 units while moving faster than 90 adds `IN_JUMP` |
@@ -278,35 +286,43 @@ the hooks, never the other way round.
 
 | Item | Hook | Provenance |
 |---|---|---|
-| Thirdperson (+ Distance, Force when dead, Disable on grenade) | `ClientMode::OverrideView`, slot 18 | `main`: `thirdperson.cpp` (`c_thirdperson::run_alive`, `fix_camera_on_fakeduck`) - same +-16 unit trace box, same `MASK_NPCWORLDSTATIC`, same observer-mode 4 -> 5 flip for the dead camera |
+| Thirdperson (+ Distance, Force when dead, Disable on grenade) | `FrameStageNotify` FRAME_RENDER_START + `CInput` | `main`: `thirdperson.cpp` (`c_thirdperson::run_alive`) - same `CInput` fields, same `{ pitch, yaw, distance }` offset, same +-16 unit trace box, same `MASK_NPCWORLDSTATIC`, same observer-mode 4 -> 5 flip for the dead camera |
 | Fov changer (Fov) | `FrameStageNotify` FRAME_RENDER_START | `main`: `c_fov_and_view::change_fov` writes the same player fields (`default_fov`, `fov`, `fov_start`) |
+| Remove zoom, Force second zoom | FRAME_RENDER_START | `main`: the `fovs[zoom]` term of `change_fov` and its `skip_second_zoom` clamp, expressed against the zoom field of view the game itself wrote |
+| Force viewmodel in scope | FRAME_RENDER_START | `main`: `change_fov_dead_and_remove_recoil` writes `weapon_info->hide_viewmodel_in_zoom` |
+| Aspect ratio | `IEngineClient::GetScreenAspectRatio`, slot 101 | `main`: `get_screen_aspect_ratio` detour |
 | Viewmodel changer (FOV) | `ClientMode::GetViewModelFOV`, slot 35 | `main`: `get_viewmodel_fov` detour |
 
-Third person does **not** write `CInput::camera_in_third_person` the way `main` does: those
-are plain struct offsets inside `CInput` with no signature of their own, and a wrong guess
-writes into unrelated input state. The camera is placed in `OverrideView` instead, using the
-`CViewSetup` tail (`fov` at `+0xB0`, `origin` at `+0xB8`) that `main`'s own fake-duck fixup
-also writes, and the local player's model is skipped in `DrawModelExecute` while the camera
-is outside it - otherwise the body fills the frame. The viewmodel and arms are separate
-model calls, so they keep rendering.
+Third person writes the engine's own camera instead of moving `CViewSetup` in
+`ClientMode::OverrideView`. An earlier revision did the latter and it is exactly what made
+the picture wrong: moving the render origin leaves the engine's third-person path out of the
+loop, so the view is composed as if the camera were still in the head and the aspect/fov
+handling that belongs to that path never runs. The two fields it needs are
+`CInput::camera_in_third_person` (`+0xA9`) and `CInput::camera_offset` (`+0xAC`, `+0xB0`,
+`+0xB4` = pitch, yaw, distance); both were read out of the supplied `client.dll` - the
+`CInput` vtable slots that set and clear the flag, and the getter/setter pair that copies the
+vec3, are listed in `docs/interface-verification.md`. The object itself is the `dwInput`
+pattern's operand, validated at setup by checking that its vtable pointer lies in
+`client.dll`'s `.rdata`.
 
-The world fov slider is absolute and is skipped while scoped: the weapon owns both fov
-fields during the zoom animation, and "Remove zoom" is a separate item that stays
-unimplemented (see below). The viewmodel slider is absolute too, because that is what the
-menu shows; `main`'s version adds a delta.
+Nothing has to be hidden from the renderer any more: the engine draws the local model in its
+own third-person view, which is what `main` relies on too. The `DrawModelExecute` skip that
+this build used to do is gone with the `OverrideView` route.
 
-**Not implemented, and why:** the rest of the group needs engine surfaces this base does not
-have yet:
+The world fov slider is absolute and is skipped while scoped - the weapon owns both fov
+fields during the zoom animation - and "Remove zoom" / "Force second zoom" are the two items
+that operate on the scoped value instead. The zoom field of view itself is not modelled: the
+zoom table lives in the weapon's scripts and is not part of anything this build reads, so the
+scope code observes the value the game writes and interpolates from there. A scope session's
+first observed level is its reference, which is what "Force second zoom" keeps.
 
-- "Remove zoom", "Aspect ratio", "Force second zoom", "Force viewmodel in scope" - the
-  weapon-info zoom table (`get_zoom_fov` / `get_zoom_time` in `main`) and the
-  `hide_viewmodel_in_zoom` field at `+0x1BD` of the weapon info, neither of which is in
-  this build's `CCSWeaponData`.
+**Not implemented, and why:**
+
 - The viewmodel X/Y/Z/roll/yaw/pitch sliders and "Disable landing bob" - `main` writes them
   from its own viewmodel calculation; here they would need a `CBaseViewModel` / view-render
   hook that has not been verified for this client.
 - Grenade prediction, grenade proximity warning, penetration crosshair, force crosshair,
-  spread circle, hitmarker, bullet tracers, impacts, out-of-FOV, texture/prop transparency:
+  spread circle, hitmarker, bullet tracers, impacts, out-of-FOV, "Remove scope" overlay:
   all of them are 2D or material output. The pattern here is the same as the ESP world
   group: the render path for them (`esp_object_render` in `main`) was never ported, so
   implementing the settings alone would produce checkboxes that draw nothing.
@@ -367,8 +383,9 @@ have yet:
   every tick.
 - Third person: the camera distance is `slider * trace fraction`, clamped to `[0, 1]`; a
   fraction of zero (something right behind the head, or a trace that threw) keeps the
-  first-person camera instead of placing the camera inside geometry. An exception in the
-  `OverrideView` detour is latched and the untouched setup is passed on.
+  first-person camera instead of placing the camera inside geometry. The camera flag is only
+  cleared when this module set it, so a demo or spec camera is never fought. An exception in
+  the frame-stage call is caught by the stage's own handler and the camera is handed back.
 - Fov: the player's own `m_iDefaultFOV` is captured before the first override and written
   back when the checkbox is cleared or the player scopes, so switching the feature off
   never leaves the game on a hard-coded 90. Non-finite slider values are ignored, and the

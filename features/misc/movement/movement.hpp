@@ -34,7 +34,6 @@ namespace Misc::Movement {
 struct Settings {
     bool autostrafe{};
     // Bits of menu/tabs/tab_misc.cpp's "Auto strafe" combo box.
-    bool strafe_viewangles{};
     bool strafe_movement_keys{};
     bool strafe_easy{};
     bool strafe_jump_release{};
@@ -75,7 +74,6 @@ struct Tick {
 
 struct Runtime {
     std::atomic<bool> autostrafe{false};
-    std::atomic<bool> strafe_viewangles{false};
     std::atomic<bool> strafe_movement_keys{false};
     std::atomic<bool> strafe_easy{false};
     std::atomic<bool> strafe_jump_release{false};
@@ -160,6 +158,24 @@ inline StrafeWish AirStrafeWish(float velocity_x, float velocity_y, float view_y
     wish.view_yaw = NormalizeYaw(view_yaw - diff * smooth);
     wish.valid = true;
     return wish;
+}
+
+// Source reads forwardmove/sidemove in the command's OWN view frame (its yaw is
+// cmd->view_angles.y), so a wish computed in a different frame has to be rotated into that
+// one. Rotating the movement - instead of writing the command's angles and restoring the
+// engine's afterwards - is why the camera does not move: `main`'s auto strafe never writes
+// view angles either, it only turns its own base angle for the wish maths.
+struct MoveVector {
+    float forward{};
+    float side{};
+};
+
+inline MoveVector RotateIntoViewFrame(float forward, float side, float wish_yaw, float view_yaw) {
+    const float delta = (NormalizeYaw(wish_yaw) - NormalizeYaw(view_yaw)) * kDegToRad;
+    const float c = std::cos(delta);
+    const float s = std::sin(delta);
+    // forward' = f*cos(d) + s*sin(d), side' = -f*sin(d) + s*cos(d).
+    return MoveVector{forward * c + side * s, -forward * s + side * c};
 }
 
 // ---------------------------------------------------------------------------

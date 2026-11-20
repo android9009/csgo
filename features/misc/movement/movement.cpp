@@ -75,7 +75,6 @@ Runtime& GetRuntime() {
 void Publish(const Settings& settings) {
     auto& runtime = Detail::GetRuntime();
     runtime.autostrafe.store(settings.autostrafe);
-    runtime.strafe_viewangles.store(settings.strafe_viewangles);
     runtime.strafe_movement_keys.store(settings.strafe_movement_keys);
     runtime.strafe_easy.store(settings.strafe_easy);
     runtime.strafe_jump_release.store(settings.strafe_jump_release);

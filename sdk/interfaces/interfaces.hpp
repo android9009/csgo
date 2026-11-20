@@ -2,6 +2,7 @@
 // Capture<T> preserves Havoc's lightweight interface-acquisition style; wrappers only bind used vfuncs.
 #include <string_view>
 #include <cstdint>
+#include <cstddef>
 #include <windows.h>
 #include "../clientclass.hpp"
 #include "../../utils/math/vector.hpp"
@@ -74,6 +75,10 @@ constexpr std::size_t kClientModeViewModelFovSlot = 35;
 // with the flag from the second argument, while slot 108 is the one-argument ClientCmd
 // that also calls Cbuf_Execute. See docs/interface-verification.md.
 constexpr std::size_t kClientCmdUnrestrictedSlot = 114;
+// IEngineClient::GetScreenAspectRatio - slot 101 (main: GET_SCREEN_ASPECT_RATIO_IDX).
+// Verified on the supplied engine.dll: the slot is a two-argument function (`ret 8`) that
+// forwards both integers to a helper and returns the float the helper leaves in xmm0.
+constexpr std::size_t kEngineScreenAspectRatioSlot = 101;
 
 class IEngineClient {
 public:
@@ -143,7 +148,54 @@ class IClientState;
 class IPrediction;
 class IGameMovement;
 class IMoveHelper;
-class IInput;
+// CInput - the engine's single static input object. `dwInput` resolves the operand of a
+// `mov ecx, &g_Input`, so that pattern yields the OBJECT address, not a pointer slot.
+//
+// Only the third person camera fields are named; everything before them stays anonymous
+// padding because nothing here reads it. Offsets verified against the supplied client.dll
+// (the `CInput` vtable is at .rdata RVA 0xC14CEC; every claim below comes from a vtable
+// slot's own instructions - see docs/interface-verification.md):
+//   +0xA8  camera "moving with mouse" flag (cleared by the reset slots, set by the think slot)
+//   +0xA9  camera_in_third_person      `mov byte [esi+0xA9], 1` (slot at RVA 0x2F52B0)
+//                                      `mov byte [esi+0xA9], 0` (slot at RVA 0x2F85E0)
+//   +0xAA  second camera flag right next to it
+//   +0xAC  m_vecCameraOffset.x/y/z     getter at RVA 0x2F8990 copies 0xAC/0xB0/0xB4 out,
+//                                      setter at RVA 0x2F8020 stores the same three floats,
+//                                      and the third-person transition writes 30.0f into
+//                                      +0xB4, the initial chase distance
+// x/y carry the camera ANGLES and z the distance, which is why `main` writes
+// `{ angles.x, angles.y, distance }` into this vector every frame it wants third person.
+class IInput {
+public:
+    unsigned char unknown_00[0xA8]{};
+    bool camera_moving_with_mouse = false; // +0xA8
+    bool camera_in_third_person = false;   // +0xA9
+    bool camera_moving = false;            // +0xAA
+    unsigned char pad_ab = 0;              // +0xAB
+    float camera_offset_x = 0.f;           // +0xAC
+    float camera_offset_y = 0.f;           // +0xB0
+    float camera_offset_z = 0.f;           // +0xB4
+
+    // The whole point of the structure: hand the engine a chase camera. Angles are the
+    // ones the camera looks along, the distance is how far back it sits.
+    void SetThirdPersonCamera(float pitch, float yaw, float distance) {
+        camera_offset_x = pitch;
+        camera_offset_y = yaw;
+        camera_offset_z = distance;
+        camera_in_third_person = true;
+    }
+    void ClearThirdPersonCamera() {
+        camera_in_third_person = false;
+        camera_offset_x = 0.f;
+        camera_offset_y = 0.f;
+        camera_offset_z = 0.f;
+    }
+};
+static_assert(offsetof(IInput, camera_moving_with_mouse) == 0xA8, "CInput camera flag (client.dll)");
+static_assert(offsetof(IInput, camera_in_third_person) == 0xA9, "CInput third-person flag (client.dll)");
+static_assert(offsetof(IInput, camera_offset_x) == 0xAC, "CInput camera offset x (client.dll)");
+static_assert(offsetof(IInput, camera_offset_y) == 0xB0, "CInput camera offset y (client.dll)");
+static_assert(offsetof(IInput, camera_offset_z) == 0xB4, "CInput camera distance (client.dll)");
 class InterfaceView {
 protected:
     template <typename Fn> Fn VFunc(std::size_t index) {

@@ -23,15 +23,15 @@ inline void Configure() {
     Misc::General::Publish(general);
 
     // The MOVEMENT group box. "Auto strafe" has no master switch in the menu: the combo box
-    // is a mode selector, so any of its four items means "on" - the same way the combo
-    // itself stores the value.
+    // is a mode selector, so any of its three items means "on" - the same way the combo
+    // itself stores the value. (The old "Viewangles" item is gone: it wrote the command's
+    // angles and the camera followed them.)
     Misc::Movement::Settings movement;
-    movement.strafe_viewangles = cfg.misc.autostrafe->test(cfg_t::autostrafe_viewangles);
     movement.strafe_movement_keys = cfg.misc.autostrafe->test(cfg_t::autostrafe_movement_keys);
     movement.strafe_easy = cfg.misc.autostrafe->test(cfg_t::autostrafe_easy_strafe);
     movement.strafe_jump_release = cfg.misc.autostrafe->test(cfg_t::autostrafe_jump_release);
-    movement.autostrafe = movement.strafe_viewangles || movement.strafe_movement_keys ||
-                          movement.strafe_easy || movement.strafe_jump_release;
+    movement.autostrafe = movement.strafe_movement_keys || movement.strafe_easy ||
+                          movement.strafe_jump_release;
     movement.smoothing = static_cast<int>(cfg.misc.autostrafe_smoothing.get());
     movement.avoid_walls = cfg.misc.avoid_walls.get();
     movement.bhop = cfg.misc.bhop.get();

@@ -8,16 +8,12 @@
 // (the game's command object has one), and this header used to declare a second,
 // flat `struct CUserCmd` of the same name - every translation unit that saw both
 // failed with C2011. Only one definition exists now.
-// CViewSetup, pinned to the layout `main` uses (c_view_setup): 176 bytes of screen,
-// ortho and HUD state, then the fields ClientMode::OverrideView hands to the renderer.
-// Only the tail is read or written here.
-struct ViewSetup {
-    unsigned char reserved[176]{};
-    float fov = 0.f;            // +0xB0
-    float viewmodel_fov = 0.f;  // +0xB4
-    Vector origin{};            // +0xB8
-    QAngle angles{};            // +0xC4
-};
+// CViewSetup lives in sdk/model_preview.hpp: it is the same layout (`fov` at +0xB0, `origin`
+// at +0xB8, `angles` at +0xC4 - confirmed from ClientModeShared::OverrideView in the supplied
+// client.dll, which writes exactly those offsets) and it is the one the preview renderer
+// passes to IMatRenderContext::Push3DView. This header used to carry a second, partial copy
+// under the same name; a translation unit that saw both would fail with C2011, and third
+// person no longer needs it at all now that the engine owns its own camera.
 struct CVerifiedUserCmd { CUserCmd cmd{}; unsigned long crc = 0; };
 // Pinned 2023 (non-LEGACY) Source 1 layout: free-list link precedes entity.
 struct CGlowObjectDefinition {

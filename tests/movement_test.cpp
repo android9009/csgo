@@ -7,6 +7,7 @@
 #include "features/misc/movement/movement.hpp"
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 
 using namespace Misc::Movement;
 
@@ -72,6 +73,38 @@ int main() {
     assert(Near(StrafeSmoothFactor(100), 0.85f));
     assert(Near(StrafeSmoothFactor(-5), 1.f));
     assert(Near(StrafeSmoothFactor(500), 0.85f));
+
+
+    // ---- rotating the wish into the command's own frame ----------------------------
+    // Source reads forwardmove/sidemove in cmd->view_angles' frame. A wish computed for a
+    // different yaw has to be rotated, which keeps the physical direction and leaves the
+    // camera angle alone (that is the whole point: the strafer must not turn the camera).
+    {
+        // Same frame: nothing changes.
+        const MoveVector same = RotateIntoViewFrame(200.f, -450.f, 30.f, 30.f);
+        assert(Near(same.forward, 200.f));
+        assert(Near(same.side, -450.f));
+
+        // A pure forward wish in a frame 90 degrees off lands on the side axis.
+        const MoveVector turned = RotateIntoViewFrame(450.f, 0.f, 90.f, 0.f);
+        assert(Near(turned.forward, 0.f));
+        assert(Near(turned.side, -450.f));
+
+        // And the rotation is a rotation: the length of the vector is preserved.
+        for (float wish = -180.f; wish <= 180.f; wish += 15.f) {
+            const MoveVector m = RotateIntoViewFrame(300.f, -200.f, wish, -77.f);
+            const float len = std::sqrt(m.forward * m.forward + m.side * m.side);
+            assert(Near(len, std::sqrt(300.f * 300.f + 200.f * 200.f), 0.05f));
+        }
+
+        // Round trip: rotating back gives the original wish.
+        const float wish_yaw = 42.f;
+        const float view_yaw = -13.f;
+        const MoveVector there = RotateIntoViewFrame(120.f, 80.f, wish_yaw, view_yaw);
+        const MoveVector back = RotateIntoViewFrame(there.forward, there.side, view_yaw, wish_yaw);
+        assert(Near(back.forward, 120.f));
+        assert(Near(back.side, 80.f));
+    }
 
     // ---- bhop ---------------------------------------------------------------------
     {

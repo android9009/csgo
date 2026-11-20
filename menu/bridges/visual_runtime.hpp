@@ -66,6 +66,10 @@ inline void Configure() {
     misc.thirdperson_grenade=cfg.misc.thirdperson_grenade.get();
     misc.fov_enabled=cfg.misc.fov_enabled.get();
     misc.fov=cfg.misc.fov.get();
+    misc.aspect=cfg.misc.aspect.get();
+    misc.fov_scope=cfg.misc.fov_scope.get();
+    misc.force_second_zoom=cfg.misc.force_second_zoom.get();
+    misc.force_viewmodel_scope=cfg.misc.force_viewmodel_scope.get();
     misc.vm_fov_enabled=cfg.misc.vm_fov_enabled.get();
     misc.vm_fov=cfg.misc.vm_fov.get();
     VisualsMisc::Publish(misc);

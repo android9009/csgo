@@ -115,8 +115,28 @@ bool Setup() {
     if(Globals)LOG_INFO("globals: validated direct object=%p interval=%.6f max_clients=%d",Globals,Globals->interval_per_tick,Globals->maxClients);
     else LOG_WARN("globals: invalid direct candidate=%p; dependent game features will not read it",direct_globals);
     // dwInput is a `mov ecx, &g_Input` operand: an object, NOT a pointer slot.
-    const auto input_rva=offsets::Get("dwInput");
-    Input=input_rva ? reinterpret_cast<IInput*>(reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"))+input_rva) : nullptr;
+    // Third person writes two fields of it, so the object is only accepted when its vtable
+    // pointer lives inside client.dll's .rdata - the same rule as every other interface here.
+    // A pattern that resolves to something else leaves Input null and the feature off.
+    {
+        const auto input_rva = offsets::Get("dwInput");
+        const auto client_base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+        if (input_rva && client_base) {
+            auto* candidate = reinterpret_cast<IInput*>(client_base + input_rva);
+            const auto vtable = *reinterpret_cast<std::uintptr_t*>(candidate);
+            std::uintptr_t rdata_start = 0, rdata_size = 0;
+            const bool in_module = vtable >= client_base &&
+                                   MEM::GetSection(client_base, ".rdata", &rdata_start, &rdata_size) &&
+                                   rdata_size && vtable >= rdata_start && vtable < rdata_start + rdata_size;
+            Input = in_module ? candidate : nullptr;
+            if (Input) LOG_INFO("interfaces: CInput at %p (vtable %p)", static_cast<void*>(Input),
+                                reinterpret_cast<void*>(vtable));
+            else LOG_ERROR("interfaces: dwInput resolved to %p but its vtable %p is not client.dll .rdata",
+                           static_cast<void*>(candidate), reinterpret_cast<void*>(vtable));
+        } else {
+            Input = nullptr;
+        }
+    }
     // dwGlowObjectManager is the address of the CUtlVector-backed manager,
     // not a pointer slot. Dereferencing it here would yield the entry array.
     const auto glow_rva = offsets::Get("dwGlowObjectManager");

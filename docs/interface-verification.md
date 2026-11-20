@@ -54,6 +54,38 @@ Confirmed by `ClientModeShared::OverrideView`:
 `OverrideView` itself never touches them. Worth knowing if a fov problem is ever
 blamed on this struct.
 
+## `client.dll` — `CInput` (the third-person camera)
+
+`CInput` is a single static object, not an interface handed out by a factory: the
+`dwInput` pattern (`B9 ? ? ? ? F3 0F 11 04 24 FF 50 10`) is the operand of a
+`mov ecx, &g_Input`, and in the supplied `client.dll` it resolves to `client+0x52627B0`
+(absolute `0x152627B0`). Its first dword is zero in the file because the vtable is
+stored by the constructor; the constructor's `mov dword ptr [0x152627B0], 0x10C14CEC`
+gives the vtable, `.rdata` RVA `0xC14CEC`.
+
+| item | evidence |
+|---|---|
+| `m_fCameraInThirdPerson` = **`+0xA9`** | vtable slot at RVA `0x2F52B0` is `cmp byte [esi+0xA9], 0` / `mov byte [esi+0xA9], 1` followed by clearing `+0x100` and setting `+0xCD`; the opposite slot at `0x2F85E0` is `mov byte [esi+0xA9], 0`. Slot `0x2F8580` sets the flag *and* writes `+0xAC`, `+0xB0`, `+0xB4 = 30.0f` (the initial chase distance) in one go |
+| `m_vecCameraOffset` = **`+0xAC`/`+0xB0`/`+0xB4`** | getter at `0x2F8990` copies exactly those three floats into the caller's vec3; setter at `0x2F8020` stores a vec3 into the same three after writing an int to `+0xFC`; slot `0x2F8850`/`0x2F8920` clear the neighbouring flags `+0xA8` and `+0xAA` |
+| the flags mean what `main` calls them | `+0xA8` is set by the camera-think slot (`0x2F87AD`) next to the mouse-delta bookkeeping, `+0xAA` is set/cleared with it, `+0xCC`/`+0xCD` are the "camera was requested" pair (`0x2F8610` returns `+0xCC`; `0x2F89D0` clears both) |
+
+`CameraOffset` holds **angles in x/y and the distance in z**, which is why `main`
+writes `{ angles.x, angles.y, distance }` into it and why the third-person code here
+does the same.
+
+`Interfaces::Setup` accepts the object only when its vtable pointer lies inside
+`client.dll`'s `.rdata`; otherwise `Input` stays null and third person is off.
+
+## `engine.dll` — `IEngineClient` slots 18/19/101
+
+Vtable at `engine+0x47D850` (`CEngineClient`).
+
+| slot | method | evidence |
+|---|---|---|
+| 18 | `GetViewAngles(QAngle&)` | one pointer argument, copies the per-player `+0x4D90/+0x4D94/+0x4D98` triple out |
+| 19 | `SetViewAngles(const QAngle&)` | one pointer argument, reads three floats and forwards them (`ret 4`) |
+| 101 | `GetScreenAspectRatio(int width, int height)` | two integer arguments (`ret 8`), forwards both to a helper and returns the float from `xmm0`; this is `main`'s `GET_SCREEN_ASPECT_RATIO_IDX` |
+
 ## `client.dll` — `C_CSGameRules`
 
 `m_bFreezePeriod` is **`+0x20`** in this build. It is not guessed: the game builds
@@ -190,16 +222,18 @@ Modulating the material itself gets the same picture — see
 - `IVModelInfo` slots (see above) — not provable from the supplied `engine.dll`.
 - `IClientMode` 37/38/44 (`FrameStageNotify`, `DispatchUserMessage`,
   `DoPostScreenEffects`) — untouched, the repo keeps the reference numbers.
-- `CInput`: `client.dll` loads the interface pointer from one global and calls its
-  vfuncs through it, which confirms the "global object, vtable at `+0`" model the
-  third-person code relies on, but not the camera field offsets.
+- `CInput` beyond the camera pair: the command ring buffers (`m_pCommands` /
+  `m_pVerifiedCommands`) and the mouse/key state are not needed by anything here and
+  were not mapped.
 - Anything inside `shaderapidx9.dll` (e.g. `CShaderAPIDx8::DrawMesh`, which is where
   Fatality writes per-mesh alpha) — the module was not supplied.
 
 ## Consequences in the repo
 
 - `kClientModeCreateMoveSlot = 24`, `kClientModeOverrideViewSlot = 18`,
-  `kClientModeViewModelFovSlot = 35` — verified.
+  `kClientModeViewModelFovSlot = 35` — verified. Only 24 and 35 are hooked: third
+  person no longer uses `OverrideView` (it drives `CInput` instead).
+- `kEngineScreenAspectRatioSlot = 101` — verified, hooked for "Aspect ratio".
 - `IMaterial`/`IMaterialVar` indices in `sdk/material.hpp` — verified.
 - `IMaterialSystem` 83/84/115 — verified.
 - `IStudioRender` 33 for `ForcedMaterialOverride` — verified; 34 is the query.

@@ -70,9 +70,11 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // after the context refresh above, still inside this SEH frame.
             Misc::FrameStage(stage);
             Removals::FrameStage(stage);
-            // Visuals -> Misc: the fov changer writes the player's own fov fields at
-            // FRAME_RENDER_START, before the renderer samples them.
+            // Visuals -> Misc: the fov changer writes the player's own fov fields and the
+            // third person camera writes CInput, both at FRAME_RENDER_START - before the
+            // engine builds the view for this frame.
             VisualsMisc::FrameStage(stage);
+            if (stage == 5) VisualsMisc::ApplyThirdPerson();
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
