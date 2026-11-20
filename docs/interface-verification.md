@@ -195,8 +195,14 @@ matches the published `IVModelInfo` order that also places `GetModelMaterials` a
 19; neither is used by the transparency path (model materials are resolved from the
 studio header texture names), so nothing new depends on them.
 
-Note: this `engine.dll` carries timestamp `0x64ee7e86`, while the supplied
-`client.dll` carries `0x65272025`, i.e. they are not from the same build date. The
+Note: this `engine.dll` carries timestamp `0x64ee7e86` (2023-08-29), while the supplied
+`client.dll` carries `0x65272025` (2023-10-11), i.e. they are six weeks apart but both belong to
+the **last CS:GO build** (before the CS2 hand-over on 2023-09-27 shipped the legacy branch).
+That is also the build the project's hazedumper snapshot (`kLegacySnapshotCatalog`, 2023-09-05)
+describes: re-checked against `frk1/hazedumper`'s final `csgo.json`, `m_bIsScoped = 0x9974` and
+`m_fAccuracyPenalty = 0x3340` are exactly the values the repo already carries as fallbacks, so
+the numeric fallbacks and the supplied binaries are the same generation. Everything is still
+resolved at runtime - the fallbacks only cover a netvar the prop walk cannot see. The
 slot map above is self-consistent (all the classic client-state shapes agree), but
 if a future `engine.dll` is supplied, re-running the same walk is cheap.
 
