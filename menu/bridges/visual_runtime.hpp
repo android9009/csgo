@@ -75,6 +75,10 @@ inline void Configure() {
     s.fx.hitmarker_color[cfg_t::hitmarker_world]=cfg.misc.hitmarker_world_color.get().rgba();
     s.fx.hitmarker_color[cfg_t::hitmarker_cross]=cfg.misc.hitmarker_screen_color.get().rgba();
     s.fx.hitmarker_color[cfg_t::hitmarker_kibit]=cfg.misc.hitmarker_kibit_color.get().rgba();
+    s.fx.out_of_fov=cfg.visuals.out_of_fov.get();
+    s.fx.out_of_fov_color=cfg.visuals.out_of_fov_col.get().rgba();
+    s.fx.out_of_fov_distance=cfg.visuals.out_of_fov_dst.get();
+    s.fx.out_of_fov_size=cfg.visuals.out_of_fov_size.get();
     s.world_fog=cfg.visuals.world_effects.fog.get();
     s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},

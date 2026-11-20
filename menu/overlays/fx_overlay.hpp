@@ -59,11 +59,28 @@ void Hitmarker(const std::shared_ptr<layer>& d, const VisualRuntime::ScreenMark&
     d->add_line(vec2{centre.x + gap, centre.y + gap}, vec2{centre.x + size, centre.y + size}, c, 1.5f);
 }
 
+// "Out of FOV": a triangle at the screen edge, pointing at the player it belongs to. The base
+// of the triangle is perpendicular to the direction, so it reads as an arrow instead of a dot.
+void EdgeArrow(const std::shared_ptr<layer>& d, const VisualRuntime::ScreenArrow& arrow,
+               const vec2& display) {
+    if (!d) return;
+    const float size = (std::max)(arrow.size * display.y, 4.f);
+    const vec2 tip{arrow.x * display.x, arrow.y * display.y};
+    const float dir_x = std::cos(arrow.angle);
+    const float dir_y = std::sin(arrow.angle);
+    // Tip on the edge position, the two base corners behind it.
+    const vec2 base{tip.x - dir_x * size, tip.y - dir_y * size};
+    const float half = size * 0.55f;
+    const vec2 left{base.x - dir_y * half, base.y + dir_x * half};
+    const vec2 right{base.x + dir_y * half, base.y - dir_x * half};
+    d->add_triangle_filled(tip, left, right, color{arrow.color});
+}
+
 } // namespace
 
 inline void Render() {
     const auto frame = VisualRuntime::GetFx();
-    if (frame.line_count <= 0 && frame.mark_count <= 0) return;
+    if (frame.line_count <= 0 && frame.mark_count <= 0 && frame.arrow_count <= 0) return;
     const auto display = draw.display / draw.scale;
     if (display.x <= 1.f || display.y <= 1.f) return;
     const auto& d = draw.layers[l_back];
@@ -76,5 +93,7 @@ inline void Render() {
         if (mark.kind == 0) ImpactBox(d, mark, display);
         else Hitmarker(d, mark, display);
     }
+    for (int i = 0; i < frame.arrow_count && i < static_cast<int>(frame.arrows.size()); ++i)
+        EdgeArrow(d, frame.arrows[i], display);
 }
 } // namespace FxOverlay

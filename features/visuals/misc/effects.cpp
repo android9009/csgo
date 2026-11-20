@@ -115,6 +115,52 @@ void OnPlayerHurt(IGameEvent* event, const Settings& settings) {
     }
 }
 
+// "Out of FOV": every player that is alive, not the local one and not in front of the camera
+// becomes an edge arrow. The projection is the same one the tracers use; a point behind the
+// camera (w <= 0) counts as out of view and its direction is flipped back in
+// VisualsFx::ScreenDirection.
+void CollectArrows(const std::array<float, 16>& matrix, const Settings& settings,
+                    VisualRuntime::FxFrame& frame, float screen_height) {
+    if (!settings.out_of_fov || !Interfaces::Engine || !Interfaces::EntityList || !ctx.local)
+        return;
+    const int max_clients = (std::min)(64, Interfaces::Engine->GetMaxClients());
+    if (max_clients <= 0) return;
+    float distance = settings.out_of_fov_distance;
+    if (!std::isfinite(distance)) distance = 40.f;
+    distance = (std::max)(1.f, (std::min)(100.f, distance));
+    // The slider is "how far from the edge", so 100 % sits at the edge and 1 % near the centre.
+    const float inset = 0.5f * (1.f - distance * 0.01f);
+    const float size = NormalizedSize(settings.out_of_fov_size, screen_height);
+    if (size <= 0.f) return;
+    for (int index = 1; index <= max_clients; ++index) {
+        if (frame.arrow_count >= static_cast<int>(frame.arrows.size())) break;
+        auto* entity = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(index));
+        if (!entity || entity == ctx.local || entity->IsDormant() || !entity->IsAlive()) continue;
+        const Vec3 eye = ToVec(entity->GetEyePosition());
+        const float w = matrix[12] * eye.x + matrix[13] * eye.y + matrix[14] * eye.z + matrix[15];
+        const float cx = matrix[0] * eye.x + matrix[1] * eye.y + matrix[2] * eye.z + matrix[3];
+        const float cy = matrix[4] * eye.x + matrix[5] * eye.y + matrix[6] * eye.z + matrix[7];
+        // In front of the camera and inside the viewport: the ESP covers it, no arrow.
+        if (w > 0.01f) {
+            const float nx = 0.5f + cx / (2.f * w);
+            const float ny = 0.5f - cy / (2.f * w);
+            if (std::isfinite(nx) && std::isfinite(ny) && nx >= 0.f && nx <= 1.f && ny >= 0.f &&
+                ny <= 1.f)
+                continue;
+        }
+        float dx = 0.f, dy = 0.f;
+        if (!ScreenDirection(cx, cy, w, dx, dy)) continue;
+        float x = 0.f, y = 0.f;
+        if (!EdgePosition(dx, dy, inset, x, y)) continue;
+        auto& arrow = frame.arrows[frame.arrow_count++];
+        arrow.x = x;
+        arrow.y = y;
+        arrow.angle = std::atan2(dy, dx);
+        arrow.size = size;
+        arrow.color = settings.out_of_fov_color;
+    }
+}
+
 // The hitmarker lifetimes come from the menu (one slider per variant); the array is filled
 // from the published settings before Prune runs, so the predicate stays cheap.
 std::array<float, 4> g_current_life{0.f, 1.f, 1.f, 1.f};
@@ -195,7 +241,7 @@ void Frame() {
         if (!std::isfinite(life) || life <= 0.f) life = 1.f;
     Prune(now);
 
-    if (g_tracers.empty() && g_impacts.empty() && g_hits.empty()) {
+    if (g_tracers.empty() && g_impacts.empty() && g_hits.empty() && !settings.out_of_fov) {
         VisualRuntime::PublishFx(frame);
         return;
     }
@@ -255,6 +301,8 @@ void Frame() {
         mark.color2 = mark.color1;
         mark.kind = hit.kind == 1 ? 1 : 2;
     }
+
+    if (settings.out_of_fov) CollectArrows(matrix, settings, frame, screen_height);
 
     VisualRuntime::PublishFx(frame);
 }

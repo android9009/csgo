@@ -11,6 +11,7 @@
 //
 // Nothing here touches Windows or the SDK, so the geometry, the category rules and the
 // lifetimes can be checked on the host (tests/visuals_fx_test.cpp).
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -35,6 +36,11 @@ struct Settings {
     std::array<bool, 4> hitmarker{}; // indexed by cfg_t::hitmarker_* (world=1, screen=2, kibit=3)
     std::array<std::uint32_t, 4> hitmarker_color{};
     std::array<float, 4> hitmarker_life{};
+    // "Out of FOV": an edge arrow for every player that is not in front of the camera.
+    bool out_of_fov{};
+    std::uint32_t out_of_fov_color{};
+    float out_of_fov_distance{40.f}; // percent of the half-extent, 1..100
+    float out_of_fov_size{10.f};     // pixels
 };
 
 // A tracer that has not been pruned yet: both ends are world positions.
@@ -130,6 +136,37 @@ inline bool ProjectSegment(const std::array<float, 16>& matrix, const Vec3& a, c
     out.y2 = 0.5f - by / (2.f * bw);
     return std::isfinite(out.x1) && std::isfinite(out.y1) && std::isfinite(out.x2) &&
            std::isfinite(out.y2);
+}
+
+// "Out of FOV": which way to point an edge arrow for a world point, from its clip-space
+// coordinates. A point behind the camera projects mirrored, so the direction is flipped back;
+// the result is a unit vector in normalized screen space (x to the right, y downwards).
+inline bool ScreenDirection(float clip_x, float clip_y, float w, float& dx, float& dy) {
+    if (!std::isfinite(clip_x) || !std::isfinite(clip_y) || !std::isfinite(w)) return false;
+    const float sign = w >= 0.f ? 1.f : -1.f;
+    float x = clip_x * sign;
+    float y = -clip_y * sign;
+    const float length = std::sqrt(x * x + y * y);
+    if (!(length > 1e-6f)) return false;
+    dx = x / length;
+    dy = y / length;
+    return true;
+}
+
+// Where the arrow sits: the crossing of that direction with the screen rectangle, inset by
+// `inset` (0 = the edge itself, 0..0.49 keeps the arrow fully on screen).
+inline bool EdgePosition(float dx, float dy, float inset, float& x, float& y) {
+    if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(inset)) return false;
+    if (inset < 0.f) inset = 0.f;
+    if (inset > 0.49f) inset = 0.49f;
+    const float half = 0.5f - inset;
+    float t = 1e30f;
+    if (std::fabs(dx) > 1e-6f) t = (std::min)(t, half / std::fabs(dx));
+    if (std::fabs(dy) > 1e-6f) t = (std::min)(t, half / std::fabs(dy));
+    if (!(t < 1e29f)) return false;
+    x = 0.5f + dx * t;
+    y = 0.5f + dy * t;
+    return std::isfinite(x) && std::isfinite(y);
 }
 
 // Pixel size -> the same size as a fraction of the screen height, which is what the published

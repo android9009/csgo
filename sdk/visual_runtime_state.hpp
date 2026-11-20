@@ -96,6 +96,16 @@ struct ScreenMark {
     int kind{};     // 0 = impact box, 1 = world hitmarker, 2 = centre hitmarker
 };
 
+// "Out of FOV": an arrow at the screen edge. `x`/`y` are normalized, `angle` is the direction
+// in radians (0 = right, positive = downwards, matching the screen axes), `size` a fraction of
+// the screen height.
+struct ScreenArrow {
+    float x{}, y{};
+    float angle{};
+    float size{};
+    std::uint32_t color{};
+};
+
 // The events keep firing while the frame is built, so the list is a snapshot per frame: the
 // game thread fills a fresh one at FRAME_RENDER_START and the render thread copies it.
 struct FxFrame {
@@ -103,6 +113,8 @@ struct FxFrame {
     int line_count{};
     std::array<ScreenMark, 96> marks{};
     int mark_count{};
+    std::array<ScreenArrow, 32> arrows{};
+    int arrow_count{};
 };
 inline std::mutex fx_mutex;
 inline FxFrame fx_frame;

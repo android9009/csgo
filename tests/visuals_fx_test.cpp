@@ -105,6 +105,35 @@ int main() {
         assert(Near(NormalizedSize(kNan, 1080.f), 0.f));
     }
 
+    // "Out of FOV": a point to the right of the centre points right, a point behind the
+    // camera points the other way round, and the edge position lands on the inset rectangle.
+    {
+        float dx = 0.f, dy = 0.f;
+        assert(ScreenDirection(2.f, 0.f, 4.f, dx, dy));
+        assert(Near(dx, 1.f) && Near(dy, 0.f));
+        // Screen y grows downwards, clip y grows upwards.
+        assert(ScreenDirection(0.f, 2.f, 4.f, dx, dy));
+        assert(Near(dx, 0.f) && Near(dy, -1.f));
+        // Behind the camera: the projection is mirrored, the arrow is not.
+        assert(ScreenDirection(2.f, 0.f, -4.f, dx, dy));
+        assert(Near(dx, -1.f));
+        // A point exactly at the centre has no direction.
+        assert(!ScreenDirection(0.f, 0.f, 4.f, dx, dy));
+
+        float x = 0.f, y = 0.f;
+        assert(EdgePosition(1.f, 0.f, 0.1f, x, y));
+        assert(Near(x, 0.9f) && Near(y, 0.5f));
+        assert(EdgePosition(0.f, -1.f, 0.f, x, y));
+        assert(Near(x, 0.5f) && Near(y, 0.f));
+        // A diagonal leaves through whichever edge it reaches first.
+        assert(EdgePosition(0.7071f, 0.7071f, 0.f, x, y));
+        assert(Near(x, 1.f) && Near(y, 1.f));
+        // The inset is measured inwards from the edge, so 0.49 leaves the arrow just off the
+        // centre (which is what a "Distance" slider at the bottom of its range means).
+        assert(EdgePosition(1.f, 0.f, 0.49f, x, y));
+        assert(Near(x, 0.51f));
+    }
+
     std::puts("visuals_fx_test: ok");
     return 0;
 }

@@ -75,8 +75,8 @@ screen.
 | `Force crosshair` | **not implemented.** The native crosshair is a HUD element whose paint routine has to be reached (or its visibility condition patched); drawing a copy was explicitly out of scope. |
 | `Spread` | **implemented; needs a manual check.** A circle whose radius is `Detail::SpreadRadiusPixels` — the same `focalPx * tan(inaccuracy)` conversion as the dynamic scope gap, so the circle and the gap always agree — drawn by `screen_overlay.hpp` from colour 1 to colour 2 around the ring, with no circle at all below one pixel. Independent of `Remove scope`: it draws whether or not the mask is off. |
 
-`Out of FOV` stays **not implemented** (it needs a per-player off-screen direction published
-alongside the ESP frame; the ESP capture is where that belongs and it is not wired yet).
+| `Out of FOV` | **implemented; needs a manual check.** Every player that is alive, not the local one and not inside the viewport becomes a filled arrow at the screen edge (`VisualsFx::ScreenDirection` + `EdgePosition`, both host-tested), pointing at them; `Distance` is how far from the edge the arrow sits, `Size` its pixel size, `Color` its fill. The arrow of a player behind the camera points the right way round, because the mirrored projection is flipped back. Published with the same frame as the tracers, so it costs no extra entity walk on the render thread. |
+
 `Force crosshair` and `Penetration crosshair` stay **not implemented**: neither was replaced by a
 placeholder. `Force crosshair` has to change the HUD's own crosshair visibility (drawing a copy
 was explicitly rejected), and `Penetration crosshair` needs a real penetration test (surface
@@ -113,16 +113,17 @@ same-named `Misc → Other` of `tab_misc.cpp`.
 | --- | --- |
 | `Texture transparency` | works: material `$alpha` + `MATERIAL_VAR_TRANSLUCENT` from the recorded original (see `model_transparency.hpp`) |
 | `Prop transparency` | works, same mechanism |
-| `Tracers` (Local/Enemy/Teammates, colours, style) | **not implemented** – needs a `bullet_impact` / `weapon_fire` listener (the pattern exists in `shot_chams.cpp`) plus a screen-space line per shot; nothing is drawn today |
-| `Hitmarker` (world/screen/kibit, duration) | **not implemented** – same event listener plus overlay drawing |
-| `Show impacts` | **not implemented** |
-| `Out of FOV` | **not implemented** |
+| `Tracers` (Local/Enemy/Teammates, colours, style) | **implemented**: `features/visuals/misc/effects.cpp` listens to `bullet_impact` through the shared listener, resolves the shooter with `IEngineClient::GetPlayerForUserID` (slot 9, verified in the supplied `engine.dll`), and publishes one projected line per impact — the shooter's eye to the impact point, per-category colour, `Laser` thicker than `Line` |
+| `Hitmarker` (world/screen/kibit, duration) | **implemented**: `player_hurt` whose `attacker` is the local player; `World` marks the victim, `Screen`/`Kibit` the crosshair, each with its own colour and its own duration slider |
+| `Show impacts` | **implemented**: the local player's own impacts as four-second boxes in `impacts_color` with `impacts_color2` corners |
+| `Out of FOV` | **implemented**: an edge arrow per off-screen player, with the menu's colour, distance and size |
 | `Fog` | **new consumer**: `features/visuals/world_fog.hpp`, called at `FRAME_RENDER_START`. The colour from the menu is written into `fog_color` and `fog_override` is asserted to `1` (once per frame at most, and only when the cvar no longer holds the value this module wants, because the game re-applies the map's fog on every level change). The map's own density and start/end range are left alone, so the checkbox recolours the map's fog instead of replacing it. Both cvars are captured before the first write and handed back when the checkbox goes off, when there is no game running, and on unload. |
 | `Nightmode`, `Fullbright`, `Sunlight`, `Sky`, `Vignette`, `Exposure`, `Bloom`, `Local contrast`, `Color correction`, `Depth of field`, `Weather` | **not implemented.** main implements these through four different mechanisms, none of which exists in this branch yet: world-texture modulation (a hooked material colour path, `world_modulation.cpp`), `DT_EnvTonemapController` netvars for bloom/exposure, the `fog_override` / `cl_csm_*` cvar families, and `load_named_sky` for the sky box. `Fog` is done through the cvar layer (above); the rest needs either the world-texture colour
 modulation hook or the tonemap entity netvars or `load_named_sky`, none of which is part of
 this branch yet. |
 
-The two transparency sliders and `Fog` are the only members of these groups with a real
+The two transparency sliders, `Tracers`, `Hitmarker`, `Show impacts`, `Out of FOV` and `Fog` are
+the members of these groups with a real
 consumer today.
 Everything else in the two groups is a live control with no effect, and this table is the
 honest state of it.
