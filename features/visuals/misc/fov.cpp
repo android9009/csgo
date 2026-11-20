@@ -222,10 +222,13 @@ float ScreenAspectRatio(float original) {
             g_aspect.shown = Detail::SmoothAspectRatio(g_aspect.shown, target, dt);
         g_aspect.target = target;
     }
-    if (g_aspect.shown != g_aspect.reported) {
-        g_aspect.reported = g_aspect.shown;
-        LOG_INFO("visuals misc: aspect ratio %.3f -> %.3f (engine %.3f)", static_cast<double>(target),
-                 static_cast<double>(g_aspect.shown), static_cast<double>(original));
+    // Log the slider target, not every smoothed frame: a drag is one line per moved pixel,
+    // not one line per frame.
+    if (target != g_aspect.reported) {
+        g_aspect.reported = target;
+        LOG_INFO("visuals misc: aspect ratio target %.3f (showing %.3f, engine %.3f)",
+                 static_cast<double>(target), static_cast<double>(g_aspect.shown),
+                 static_cast<double>(original));
     }
     return g_aspect.shown;
 }

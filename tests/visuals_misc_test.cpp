@@ -124,7 +124,12 @@ int main() {
         assert(Near(Detail::TargetAspectRatio(s, 1.777f), 1.777f));       // off
         s.aspect = 133.f;
         assert(Near(Detail::TargetAspectRatio(s, 1.777f), 1.33f));        // 4:3
+        // Below the usable range the value blends from the engine's ratio to the floor, so a
+        // slow drag off 0 is continuous; at the floor it is the floor itself.
         s.aspect = 5.f;
+        const float low = Detail::TargetAspectRatio(s, 1.777f);
+        assert(low < 1.777f && low > Detail::kAspectMin * 0.01f);
+        s.aspect = Detail::kAspectMin;
         assert(Near(Detail::TargetAspectRatio(s, 1.777f), Detail::kAspectMin * 0.01f));
         s.aspect = 1000.f;
         assert(Near(Detail::TargetAspectRatio(s, 1.777f), Detail::kAspectMax * 0.01f));
@@ -279,6 +284,15 @@ int main() {
         assert(Near(Detail::TargetAspectRatio(s, 1.333f), 1.78f));
         s.aspect = 0.f;
         assert(Near(Detail::TargetAspectRatio(s, 1.333f), 1.333f));
+        // Leaving 0 is continuous: the first percent steps blend from the engine's own ratio
+        // down to the floor instead of jumping straight to it.
+        s.aspect = 0.5f;
+        assert(Near(Detail::TargetAspectRatio(s, 1.333f), 1.333f, 0.05f));
+        s.aspect = 10.f;
+        const float mid = Detail::TargetAspectRatio(s, 1.333f);
+        assert(mid < 1.333f && mid > 0.5f);
+        s.aspect = Detail::kAspectMin;
+        assert(Near(Detail::TargetAspectRatio(s, 1.333f), Detail::kAspectMin * 0.01f));
     }
 
     std::puts("visuals_misc_test: ok");

@@ -1,5 +1,16 @@
 # Misc runtime
 
+
+> **November 2026 rework.** The third person camera distance is now driven by the chase
+> camera's own cvars (`cam_idealdist` written from the `Distance` slider, `c_mindistance` /
+> `c_maxdistance` widened once and restored on unload), the collision-clipped distance is
+> never written back, `Transparency` / `+ with nades` write the local model's colour alpha and
+> render mode, the aspect ratio is smoothed once per rendered frame, the zoom session refuses
+> to read this module's own writes, and `Viewmodel changer → X/Y/Z` writes
+> `viewmodel_offset_x/y/z`. `Disable animation` is gone from the menu. See
+> `docs/visuals-audit.md` for the per-control status, including what is still not applied.
+
+
 The Misc tab was pure UI: `menu/tabs/tab_misc.cpp` built controls for `cfg.misc.*`,
 and no code read those values. This module implements the subset the existing SDK and
 hook set can support safely, and documents the rest instead of pretending it works.

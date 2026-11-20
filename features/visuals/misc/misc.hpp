@@ -300,11 +300,15 @@ inline float TargetAspectRatio(const Settings& settings, float original) {
     if (!std::isfinite(original) || original <= 0.f) return original;
     float percent = settings.aspect;
     if (!std::isfinite(percent) || percent <= 0.f) return original;
-    if (percent < kAspectMin) percent = kAspectMin;
     if (percent > kAspectMax) percent = kAspectMax;
     // The slider is the ratio in percent - main's `aspect_ratio / 100.f` - so the menu's
     // 178 renders 16:9 on a 4:3-ish setup, and 0 (the default) keeps the engine value.
-    return percent * 0.01f;
+    const float ratio = percent * 0.01f;
+    if (percent >= kAspectMin) return ratio;
+    // Below the usable range the value is blended from the engine's own ratio down to the
+    // floor, so dragging off 0 is continuous: the old version snapped to 20% (a visible jump
+    // and the first "nothing happens, then it kicks in" step on the slider).
+    return original + (ratio - original) * (percent / kAspectMin);
 }
 
 // The settings the render thread last published.
