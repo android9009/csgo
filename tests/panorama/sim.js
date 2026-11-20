@@ -15,6 +15,7 @@ function section(name) {
     return dump.slice(from, next < 0 ? dump.length : next).trim();
 }
 const engine = section('ENGINE');
+const engine2 = section('ENGINE2');
 const updates = section('UPDATES');
 const clear = section('CLEAR');
 const reset = section('RESET');
@@ -73,15 +74,22 @@ const hud = new Panel('Panel', 'CSGOHud');
 const container = new Panel('Panel', 'ScoreboardContainer', hud);
 const scoreboard = new Panel('Panel', 'Scoreboard', container);
 
-function addRow(xuid, nickname) {
+function addRow(xuid, nickname, opts) {
     const row = new Panel('Panel', 'sb-row', scoreboard);
     row.AddClass('sb-row');
     row.m_xuid = xuid;
     const nameCell = new Panel('Panel', 'name', row);
     nameCell.attrs['data-stat'] = 'name';
-    const label = new Panel('Label', 'id-sb-name', nameCell);
-    label.text = nickname;
-    new Panel('Panel', 'id-sb-name__commendations__friendly', nameCell);
+    if (opts && opts.plainLabel) {
+        // A bot row: the name sits in a plain label, not in the id the client uses for
+        // real players, and the text keeps the padding the client adds.
+        const plain = new Panel('Label', 'sb-localplayer-name', nameCell);
+        plain.text = nickname;
+    } else {
+        const label = new Panel('Label', 'id-sb-name', nameCell);
+        label.text = nickname;
+        new Panel('Panel', 'id-sb-name__commendations__friendly', nameCell);
+    }
     new Panel('Image', 'id-sb-skillgroup-image', nameCell);
     const stat = new Panel('Panel', 'stat-kd', row);
     stat.attrs['data-stat'] = 'kd';
@@ -91,18 +99,31 @@ function addRow(xuid, nickname) {
 const messages = [];
 let created = 0;
 global.__events = {};
+global.__nextEventId = 1;
+// RegisterForUnhandledEvent returns an id, and UnregisterForUnhandledEvent only accepts that
+// id - passing the callback throws in the real client ("Second argument ... must be an
+// unsigned integer type"), which aborted the rest of the installer. The fake is just as
+// strict, so this test fails if the script ever passes a callback again.
 global.$ = {
     GetContextPanel: () => hud,
     CreatePanel: (type, parent, id, props) => { created++; return new Panel(type, id, parent, props); },
-    RegisterForUnhandledEvent: (name, fn) => { (global.__events[name] = global.__events[name] || []).push(fn); return fn; },
-    UnregisterForUnhandledEvent: (name, fn) => {
+    RegisterForUnhandledEvent: (name, fn) => {
+        const id = global.__nextEventId++;
+        (global.__events[name] = global.__events[name] || []).push({ id, fn });
+        return id;
+    },
+    UnregisterForUnhandledEvent: (name, id) => {
+        if (typeof id !== 'number') {
+            throw new Error('Second argument to UnregisterForUnhandledEvent must be an ' +
+                'unsigned integer type (as returned from RegisterForUnhandledEvent)');
+        }
         const list = global.__events[name] || [];
-        const at = list.indexOf(fn);
+        const at = list.findIndex((entry) => entry.id === id);
         if (at >= 0) list.splice(at, 1);
     },
     Msg: (...args) => messages.push(args.join(' ')),
 };
-function fire(name) { for (const fn of (global.__events[name] || []).slice()) fn(); }
+function fire(name) { for (const entry of (global.__events[name] || []).slice()) entry.fn(); }
 
 // ---- install ---------------------------------------------------------------------------
 eval(engine);
@@ -112,6 +133,9 @@ assert(messages.some((m) => m.includes('equipment engine installed')), 'install 
 assert(created === 0, 'nothing is drawn before an update arrives');
 assert(global.__events['OnOpenScoreboard'] && global.__events['OnOpenScoreboard'].length === 1,
     'the scoreboard events are registered once');
+assert(typeof global.__events['OnOpenScoreboard'][0].id === 'number',
+    'the handler id from RegisterForUnhandledEvent is kept');
+assert(!messages.some((m) => m.includes('could not unregister')), 'the install does not report a failed unregister');
 
 // A reinstall must not stack handlers.
 eval(engine);
@@ -169,6 +193,25 @@ fire('OnOpenScoreboard');
 const redrawn = scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003');
 assert(!!redrawn && icons(redrawn).length === 3, 'a rebuilt scoreboard is redrawn without a new message');
 
+// ---- reinstall ----------------------------------------------------------------------
+// The native side re-sends the installer every few seconds. In a context that never
+// reloaded, that must be a no-op - a fresh engine would forget every player until a loadout
+// changed again.
+const installs = messages.filter((m) => m.includes('equipment engine installed')).length;
+eval(engine);
+assert(messages.filter((m) => m.includes('equipment engine installed')).length === installs,
+    'a re-send with the same sliders changes nothing');
+assert(global.__events['OnOpenScoreboard'].length === 1, 'and does not touch the handlers');
+
+// The sliders moved: the engine is replaced, but the players carry over and are redrawn at
+// the new size straight away.
+eval(engine2);
+const rescaled = scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003');
+assert(!!rescaled && icons(rescaled).length === 3, 'a reinstall keeps the rows');
+assert(imageOf(rescaled, 'ak47').style.width === '78px', 'a reinstall applies the new slider');
+assert(imageOf(rescaled, 'flashbang').style.height === '14px', 'the weapon slider is applied too');
+assert(global.__events['OnOpenScoreboard'].length === 1, 'the handlers stay single after a reinstall');
+
 // ---- clear -----------------------------------------------------------------------------
 eval(clear);
 assert(!scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003'),
@@ -181,6 +224,31 @@ addRow(null, 'bot_alice');
 eval('SClient.receive({type:"updateWeapons",content:{xuid:null,nickname:"bot_alice",weapons:[{path:"glock",type:1}],active:"glock",armor:0,defuser:0}});');
 assert(!!scoreboard.FindChildTraverse('custom-weapons-container-bot_alice'),
     'a row without m_xuid is matched by its nickname');
+
+// The client pads and re-cases the name it shows; the same player must still be found.
+addRow(null, ' Dan ', { plainLabel: true });
+eval('SClient.receive({type:"updateWeapons",content:{xuid:null,nickname:"Dan",weapons:[{path:"glock",type:1}],active:"glock",armor:0,defuser:0}});');
+assert(!!scoreboard.FindChildTraverse('custom-weapons-container-Dan'),
+    'a bot row with a padded name in a plain label is matched');
+
+addRow(null, 'jim', { plainLabel: true });
+eval('SClient.receive({type:"updateWeapons",content:{xuid:null,nickname:"JIM",weapons:[{path:"glock",type:1}],active:"glock",armor:0,defuser:0}});');
+assert(!!scoreboard.FindChildTraverse('custom-weapons-container-JIM'),
+    'the nickname match ignores case');
+
+// ---- a row that does not exist yet is picked up later ----------------------------------
+const beforePending = messages.length;
+eval('SClient.receive({type:"updateWeapons",content:{xuid:"76561198000000099",nickname:"later",weapons:[{path:"ak47",type:3}],active:"ak47",armor:0,defuser:0}});');
+assert(!scoreboard.FindChildTraverse('custom-weapons-container-76561198000000099'),
+    'nothing is drawn for a player without a row');
+const missingLog = messages.slice(beforePending).find((m) => m.includes('no row for 76561198000000099'));
+assert(!!missingLog, 'the missing row is reported');
+assert(missingLog.includes('=') && missingLog.includes('dan') && missingLog.includes('jim'),
+    'the report lists the rows that do exist, with their names');
+addRow('76561198000000099', 'later');
+fire('Scoreboard_UpdateJob');
+assert(!!scoreboard.FindChildTraverse('custom-weapons-container-76561198000000099'),
+    'the player is attached once his row exists, without a new message');
 
 // ---- reset -----------------------------------------------------------------------------
 eval(reset);

@@ -99,6 +99,24 @@ std::string Quote(const char* text) {
 // The row lookup is CS:GO's own (sb-row + m_xuid, as in the gamesense Lua), because the
 // CS2 ids ("player-<xuid>") do not exist in this client.
 constexpr const char* kEngineTemplate = R"JS((function () {
+	var layout = "@TAG@";
+
+	// Already installed with these sliders: do nothing. The native side re-sends the engine
+	// every few seconds so a HUD reload recovers, and in a context that never reloaded the
+	// re-send must not throw away the state the scoreboard is drawn from.
+	if (typeof SWeaponManager !== "undefined" && SWeaponManager && SWeaponManager.layout === layout &&
+		typeof SWeaponManager.redraw === "function") {
+		return;
+	}
+
+	// The sliders changed (or a HUD reload left a partial engine): carry the players over so
+	// the rows are redrawn at the new size instead of staying empty until a loadout changes.
+	var previous = null;
+	if (typeof SWeaponManager !== "undefined" && SWeaponManager &&
+		typeof SWeaponManager.snapshot === "function") {
+		previous = SWeaponManager.snapshot();
+	}
+
 	if (typeof SClient !== "undefined") { SClient = undefined; }
 
 	SClient = (function () {
@@ -116,7 +134,7 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 			"id-sb-name__commendations__friendly", "id-sb-name__musickit"];
 		var TEAM_COLORS = { CT: "#B5D4EE40", TERRORIST: "#EAD18A61" };
 		var CFG = {
-			layout: "@TAG@",
+			layout: layout,
 			horizontal: @HORIZ@,
 			iconHeight: @ICONH@,
 			armorHeight: @ARMORH@,
@@ -150,6 +168,35 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 
 		var rows = function (sb) { return sb.FindChildrenWithClassTraverse("sb-row"); };
 
+		// Names arrive from the client with colour codes, padding and mixed case, so they are
+		// compared after the same normalisation on both sides.
+		var normalize = function (value) {
+			if (value === null || typeof value === "undefined") { return ""; }
+			return String(value).replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ")
+				.replace(/^\s+|\s+$/g, "").toLowerCase();
+		};
+
+		// Every string a row shows as its name: the dedicated label when the client has one,
+		// the name cell itself and the cell's children otherwise. Bots in particular keep
+		// their name in a child label, not in an id.
+		var rowNames = function (row) {
+			var out = [];
+			var push = function (panel) {
+				if (!panel) { return; }
+				var text = panel.text;
+				if (text) { out.push(text); }
+			};
+			var cell = nameCell(row);
+			if (cell) {
+				push(cell.FindChildTraverse("id-sb-name"));
+				push(cell);
+				var kids = cell.Children();
+				for (var i = 0; i < kids.length; i++) { push(kids[i]); }
+			}
+			push(row.FindChildTraverse("id-sb-name"));
+			return out.map(normalize).filter(function (value) { return value.length > 0; });
+		};
+
 		// CS:GO sets m_xuid on every row; the nickname covers rows whose xuid is not there
 		// (and bots, which have none).
 		var findRow = function (sb, xuid, nickname) {
@@ -160,12 +207,23 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 				}
 			}
 			if (nickname) {
-				for (var j = 0; j < list.length; j++) {
-					var label = list[j].FindChildTraverse("id-sb-name");
-					if (label && label.text === nickname) { return list[j]; }
+				var wanted = normalize(nickname);
+				if (wanted) {
+					for (var j = 0; j < list.length; j++) {
+						if (rowNames(list[j]).indexOf(wanted) !== -1) { return list[j]; }
+					}
 				}
 			}
 			return null;
+		};
+
+		// "xuid=name, …" for the diagnostics: without the names there is no way to tell a
+		// missing row from a row that is there under another name.
+		var describeRows = function (sb) {
+			return rows(sb).map(function (row) {
+				var name = rowNames(row)[0] || "?";
+				return (row.m_xuid || "?") + "=" + name;
+			}).join(", ");
 		};
 
 		var nameCell = function (row) {
@@ -236,7 +294,10 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 				finalPath = "file://{images}/" + finalPath;
 			}
 			img.SetImage(finalPath);
-			img.style.width = px(sizeFor({ path: path, type: type }));
+			// The reference table is the width at 100%; the horizontal slider scales it, so a
+			// wider panel really does make the row wider rather than only its minimum.
+			var width = Math.round(sizeFor({ path: path, type: type }) * CFG.horizontal / 100);
+			img.style.width = px(width < 1 ? 1 : width);
 			slot.style.width = img.style.width;
 			slot.style.opacity = active ? "1.0" : "0.35";
 			if (wash) { img.style.washColorFast = wash; }
@@ -337,6 +398,12 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 
 		var draw = function (msg) {
 				var content = msg.content || {};
+				var key = String(content.xuid || content.nickname);
+				// The entry is remembered before the row is looked up: a row can be missing for a
+				// while (the scoreboard is rebuilt on every round start) and the earlier version
+				// dropped such a player for good, until his loadout happened to change again.
+				entries[key] = content;
+
 				var sb = scoreboard();
 				if (!sb) {
 					if (!reportedContext) {
@@ -347,23 +414,30 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 					return;
 				}
 				var row = findRow(sb, content.xuid, content.nickname);
-				var key = String(content.xuid || content.nickname);
 				if (!row) {
 					if (!reportedMissing[key]) {
 						reportedMissing[key] = true;
-						$.Msg("csgo-base: no row for " + key + " (rows: " +
-							rows(sb).map(function (r) { return r.m_xuid || "?"; }).join(",") + ")");
+						$.Msg("csgo-base: no row for " + key + " (rows: " + describeRows(sb) + ")");
 					}
 					return;
 				}
 				var cell = nameCell(row);
-				if (!cell) { return; }
+				if (!cell) {
+					if (!reportedMissing[key]) {
+						reportedMissing[key] = true;
+						$.Msg("csgo-base: row " + key + " has no name cell (cells: " +
+							row.Children().map(function (child) {
+								return child.GetAttributeString("data-stat", "?");
+							}).join(",") + ")");
+					}
+					return;
+				}
 				var container = containerFor(cell, key);
 				if (!container) { return; }
 				container.style.visibility = "visible";
 				build(container, content);
 				panels[key] = container;
-				entries[key] = content;
+				delete reportedMissing[key];
 				if (!reportedAttach) {
 					reportedAttach = true;
 					$.Msg("csgo-base: equipment attached to row " + key + " (" + rows(sb).length + " row(s))");
@@ -374,7 +448,11 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 			update: function (msg) { draw(msg); },
 
 			redraw: function () {
-				for (var key in entries) { draw({ content: entries[key] }); }
+				var keys = [];
+				for (var key in entries) { keys.push(key); }
+				for (var i = 0; i < keys.length; i++) {
+					if (entries[keys[i]]) { draw({ content: entries[keys[i]] }); }
+				}
 			},
 
 			clear: function () {
@@ -425,6 +503,13 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 
 			layout: CFG.layout,
 
+			// The state a reinstall has to carry over: everything received, drawn or not.
+			snapshot: function () { return entries; },
+			restore: function (state) {
+				if (!state) { return; }
+				for (var key in state) { entries[key] = state[key]; }
+			},
+
 			clear: function () {
 				var sb = scoreboard();
 				if (sb) {
@@ -447,18 +532,40 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 	SClient.register_handler("updateWeapons", function (msg) { SWeaponManager.update(msg); });
 	SClient.register_handler("clearWeapons", function (msg) { SWeaponManager.clear_one(msg); });
 
-	// A reinstalled engine must not stack handlers on the HUD.
-	if (typeof __sbHandlers !== "undefined" && __sbHandlers) {
+	// A reinstalled engine must not stack handlers on the HUD. UnregisterForUnhandledEvent
+	// takes the id RegisterForUnhandledEvent returned, not the callback - passing the callback
+	// throws, and a throw here used to abort the rest of the installer (so after the first
+	// reinstall the scoreboard events stayed dead). The ids are stored, every call is guarded,
+	// and when the client hands out no ids the live handlers are kept as they are: they look
+	// SWeaponManager up by name when they fire, so they already point at the new engine.
+	if (typeof __sbHandlers === "undefined" || !__sbHandlers) { __sbHandlers = []; }
+	if (__sbHandlers.length > 0) {
+		var removable = true;
 		for (var i = 0; i < __sbHandlers.length; i++) {
-			$.UnregisterForUnhandledEvent(__sbHandlers[i].name, __sbHandlers[i].handler);
+			if (typeof __sbHandlers[i].id !== "number") { removable = false; }
+		}
+		if (removable) {
+			try {
+				for (var j = 0; j < __sbHandlers.length; j++) {
+					$.UnregisterForUnhandledEvent(__sbHandlers[j].name, __sbHandlers[j].id);
+				}
+				__sbHandlers = [];
+			} catch (e) {
+				$.Msg("csgo-base: could not unregister scoreboard handlers: " + e);
+			}
 		}
 	}
-	__sbHandlers = [];
-	["OnOpenScoreboard", "Scoreboard_UpdateEverything", "Scoreboard_UpdateJob"].forEach(function (name) {
-		var handler = function () { SWeaponManager.redraw(); };
-		$.RegisterForUnhandledEvent(name, handler);
-		__sbHandlers.push({ name: name, handler: handler });
-	});
+	if (__sbHandlers.length === 0) {
+		["OnOpenScoreboard", "Scoreboard_UpdateEverything", "Scoreboard_UpdateJob"].forEach(function (name) {
+			var id = $.RegisterForUnhandledEvent(name, function () { SWeaponManager.redraw(); });
+			__sbHandlers.push({ name: name, id: (typeof id === "number") ? id : null });
+		});
+	}
+
+	if (previous) {
+		SWeaponManager.restore(previous);
+		SWeaponManager.redraw();
+	}
 
 	$.Msg("csgo-base: equipment engine installed (layout " + SWeaponManager.layout + ")");
 })();)JS";

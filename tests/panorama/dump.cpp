@@ -42,6 +42,13 @@ int main(int argc, char** argv) {
     players.push_back(MakePlayer(3, 76561198000000003ull, "enemy", enemy_weapons, 3, 0, 2, true, 4321));
     players.push_back(MakePlayer(7, 76561198000000007ull, "mate", mate_weapons, 1, 0, 1, false, -1));
 
+    // A second installer with other sliders: proves a reinstall keeps the state and applies
+    // the new geometry.
+    std::fwrite("/*ENGINE2*/\n", 1, 12, stdout);
+    const auto rescaled = Misc::Scoreboard::BuildEngineScript({150, 120, 90});
+    std::fwrite(rescaled.data(), 1, rescaled.size(), stdout);
+    std::fwrite("\n", 1, 1, stdout);
+
     std::fwrite("/*UPDATES*/\n", 1, 12, stdout);
     for (const auto& player : players) {
         const auto update = Misc::Scoreboard::BuildUpdateScript(player, scales);

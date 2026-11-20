@@ -185,7 +185,17 @@ void TestEngineIsSelfContained() {
     assert(!Contains(script, "@"));
     // The installer must be idempotent, otherwise every reinstall would stack handlers.
     assert(Contains(script, "__sbHandlers"));
+    // UnregisterForUnhandledEvent takes the id the client returned, not the callback; the
+    // callback form throws and used to abort the rest of the installer.
     assert(Contains(script, "UnregisterForUnhandledEvent"));
+    assert(!Contains(script, "__sbHandlers[j].handler"));
+    assert(Contains(script, "typeof __sbHandlers[i].id !== \"number\""));
+    assert(Contains(script, "var id = $.RegisterForUnhandledEvent"));
+    // Re-sending the installer in a live context is a no-op, and a slider change carries the
+    // players over instead of blanking every row.
+    assert(Contains(script, "SWeaponManager.layout === layout"));
+    assert(Contains(script, "SWeaponManager.snapshot()"));
+    assert(Contains(script, "SWeaponManager.restore(previous)"));
     // Panels are removed on destroy so disabling the feature leaves no orphan rows.
     assert(Contains(script, "DeleteAsync"));
     // Equipment icons come from the client's own icon set.
@@ -201,6 +211,14 @@ void TestEngineIsSelfContained() {
     assert(Contains(script, "addArmorIcon(content, CFG.armorHeight, \"kevlar\""));
     assert(Contains(script, "addArmorIcon(content, CFG.helmetHeight, \"helmet\""));
     assert(Contains(script, "\"defuser\""));
+    // A row that does not exist yet must not lose the player: the entry is stored before
+    // the lookup and retried when the board rebuilds.
+    assert(Contains(script, "entries[key] = content;"));
+    assert(Contains(script, "delete reportedMissing[key];"));
+    // Names are compared the way the client shows them, and the diagnostic lists the rows
+    // that do exist - otherwise a missing row and a differently-named row look the same.
+    assert(Contains(script, "rowNames(list[j]).indexOf(wanted)"));
+    assert(Contains(script, "describeRows(sb)"));
     // The panel is moved to the first column (appended it would be clipped by the row) and
     // the row is re-created from the scoreboard's own events.
     assert(Contains(script, "MoveChildBefore"));

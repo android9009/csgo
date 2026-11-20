@@ -104,8 +104,16 @@ re-injecting the whole script every frame. Two builders remain, in
   (`OnOpenScoreboard`, `Scoreboard_UpdateEverything`, `Scoreboard_UpdateJob`) so a rebuilt
   row redraws from the stored state, and bakes the sliders into `CFG` (icon 16 px, armour
   17 px, helmet 22 px, money label 13 px, panel `min-width` 30 px, all scaled). A layout tag
-  is not needed for reinstalling any more: the geometry is read from `CFG` on every draw.
-  Reinstalling unregisters the previous handlers first, so nothing stacks.
+  is not needed for reinstalling any more: the geometry is read from `CFG` on every draw,
+  and the layout label only serves as the "already installed" marker. A re-send in a context
+  that never reloaded is therefore a **no-op**, and a re-send with new sliders carries the
+  players over (`snapshot`/`restore`) and redraws them, so moving a slider never blanks the
+  board. Handlers are unregistered with the **id** `RegisterForUnhandledEvent` returned -
+  passing the callback throws ("Second argument to UnregisterForUnhandledEvent must be an
+  unsigned integer type"), and that throw aborted the rest of the installer, which is how
+  the scoreboard events went dead after the first reinstall. When the client returns no id
+  the live handlers are kept instead of being duplicated; they resolve `SWeaponManager` by
+  name when they fire, so they already call the new engine.
 - `BuildUpdateScript(player, scales)` / `BuildClearScript(xuid, nickname)` — one message per
   player: `SClient.receive({type:"updateWeapons",content:{xuid,nickname,weapons:[{path,type}],
   active,armor,defuser,money}})`, and the explicit `clearWeapons` for a row that lost its
@@ -115,9 +123,20 @@ re-injecting the whole script every frame. Two builders remain, in
 The row itself is **CS:GO's**, not CS2's: velocity looks rows up by `player-<xuid>` / `id-<xuid>`
 panel ids, which do not exist in this client, so the gamesense Lua's approach is used —
 `FindChildrenWithClassTraverse("sb-row")`, matched by the row's own `m_xuid` (the steam id,
-now read natively from `player_info_t` +0x8) and, for bots which have no xuid, by the
-nickname label. The container is created in the `data-stat="name"` cell and moved before the
-cell's second child, because an appended panel is clipped by the row's width.
+now read natively from `player_info_t` +0x8) and, for bots which have no xuid, by the name
+the row shows. That comparison normalises control codes, repeated spaces, padding and case
+on both sides, and collects every string a row can keep its name in (the client's
+`id-sb-name` label, the name cell, its children), because a bot's row does not use the id a
+real player's row uses. The container is created in the `data-stat="name"` cell and moved
+before the cell's second child, because an appended panel is clipped by the row's width.
+
+A player whose row does not exist yet is **kept, not dropped**: the entry is stored before
+the lookup and retried on `OnOpenScoreboard` / `Scoreboard_UpdateEverything` /
+`Scoreboard_UpdateJob`, so a row created later (the board is rebuilt every round start) is
+picked up without waiting for that player's loadout to change again. The single diagnostic
+lists the rows that do exist, with their names -
+`no row for 76561198... (rows: ?=dan,76561198000000003=enemy,2=jim)` - because a missing row
+and a row under another name are otherwise indistinguishable in a log.
 
 What comes from velocity and is now part of this build:
 
@@ -139,7 +158,7 @@ flair-hiding ids - is the gamesense Lua port described below.
 
 | Slider | What it scales |
 |---|---|
-| Horizontal scale | container `min-width` (30 px base) and every icon width (velocity's table) |
+| Horizontal scale | container `min-width` (30 px base) and every icon width (velocity's table is the width at 100 %) |
 | Vertical scale | armour / helmet icon height (17 / 22 px base) and the money label (13 px base) |
 | Weapon scale | weapon icon height (16 px base) |
 
