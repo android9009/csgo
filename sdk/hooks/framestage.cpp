@@ -19,16 +19,17 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
-    // Prop / texture transparency: hold the model's own materials translucent for the
-    // frame the engine is about to build its render lists in, then restore.
-    if (stage == 5 || stage == 6) {
+    // Prop / texture transparency: bring the recorded models' own materials to the
+    // requested alpha before the engine builds its render lists, so props are queued
+    // as translucent. Values are written only when they change.
+    if (stage == 5) {
         const auto effects = VisualRuntime::GetEffects();
-        __try {
-            if (stage == 5) ModelTransparency::Begin(effects.texture_transparency, effects.prop_transparency);
-            else ModelTransparency::End();
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            static bool logged = false;
-            if (!logged) { logged = true; LOG_WARN("transparency: material pass raised an exception"); }
+        if (effects.texture_transparency > 0.f || effects.prop_transparency > 0.f) {
+            __try { ModelTransparency::Sync(effects.texture_transparency, effects.prop_transparency); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                static bool logged = false;
+                if (!logged) { logged = true; LOG_WARN("transparency: material pass raised an exception"); }
+            }
         }
     }
     if(stage==6)VisualRuntime::RestoreGlow();

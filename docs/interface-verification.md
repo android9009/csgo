@@ -167,6 +167,24 @@ Note: this `engine.dll` carries timestamp `0x64ee7e86`, while the supplied
 slot map above is self-consistent (all the classic client-state shapes agree), but
 if a future `engine.dll` is supplied, re-running the same walk is cheap.
 
+## `shaderapidx9.dll` — `CShaderAPIDx8`
+
+`CShaderAPIDx8` implements ~367 virtuals (shader API + device + device manager +
+shadow + …). Two things were needed to judge Fatality's prop-transparency hook:
+
+| item | evidence |
+|---|---|
+| bound material at **`this + 0x2FA4`** | a one-instruction getter (`mov eax, [ecx+0x2FA4]; ret`) and a setter that stores into the same displacement; this is exactly the field Fatality's `shader_api_draw_mesh` reads |
+| **`DrawMesh`**, 6 arguments (`ret 0x18`) | it loads `[this+0x2FA4]`, takes the material's shader name and compares it against `VertexLitGeneric`, `LightmappedGeneric` and `UnlitGeneric`, then forwards all six arguments to one of three shader-specific inner paths (`ecx = this - 0x25c`), skipping entirely when the device is in its 2D mode (`[device+0x4b]`). Slot 291 of the 367-slot vtable |
+
+That is a genuine match for Fatality's hook signature, so the entry point is
+available. It is **not** hooked here, for one reason: writing the per-instance alpha
+the way Fatality does needs `MeshInstanceData_t`'s layout, and nothing in the module
+proves it (the only float reachable from the instance pointer that the inner paths
+touch is `+0x44`, which is compared against a constant rather than used as colour).
+Modulating the material itself gets the same picture — see
+`features/visuals/model_transparency.hpp` and `docs/chams-rendering.md`.
+
 ## What is still unverified
 
 - `IVModelInfo` slots (see above) — not provable from the supplied `engine.dll`.

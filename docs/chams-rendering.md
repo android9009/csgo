@@ -152,21 +152,29 @@ that were previously dead.
 Fatality's reference implementation (reversed2603/fatality_source dee7327) does it in
 two places: `hooks/scene_end.cpp` forces `RenderableInfo_t::m_nTranslucencyType` so the
 leaf system queues studio props into the translucent list, and
-`hooks/draw_model_execute.cpp` `shader_api_draw_mesh` writes the alpha straight into
-`MeshInstanceData_t::m_DiffuseModulation.w` inside `CShaderAPIDx8::DrawMesh`. The
-second one lives in `shaderapidx9.dll`, which the user did not supply, and the leaf
-function has no signature we can prove either, so this port keeps the *effects* and
-reaches them through the material system with verified slots only:
+`hooks/draw_model_execute.cpp` `shader_api_draw_mesh` writes the alpha into
+`MeshInstanceData_t::m_DiffuseModulation.w` inside `CShaderAPIDx8::DrawMesh`.
+
+Both entry points are now identified on the supplied binaries — `DrawMesh` is the
+6-argument virtual that reads the bound material at `this + 0x2FA4` and branches on the
+material's shader name (`VertexLitGeneric` / `LightmappedGeneric` / `UnlitGeneric`),
+see `docs/interface-verification.md` — but the per-instance write needs
+`MeshInstanceData_t`'s layout, which the module does not prove, and the leaf function
+has no signature we can prove either. So the port keeps both *effects* and reaches
+them through the material system with verified slots only:
 
 - `DrawModelExecute` only *records* the draw: the model's studio header plus whether
   it is a prop or a character. Materials come from the header's texture list (the
   texture name is the material name inside the `Model textures` group).
-- At `FRAME_RENDER_START` the recorded models' materials get `$alpha` and
-  `MATERIAL_VAR_TRANSLUCENT`; `FRAME_RENDER_END` restores them. Because the engine
-  asks the material for translucency while it builds the render lists
-  (`ComputeTranslucencyType` → `IMaterial::IsTranslucent`), this places props on the
-  translucent list exactly where Fatality's leaf hook does, and `$alpha` carries the
+- At `FRAME_RENDER_START` those materials are held at `$alpha` with
+  `MATERIAL_VAR_TRANSLUCENT`, and released when the slider or the subject goes away.
+  The engine asks the material for translucency while it builds the render lists
+  (`ComputeTranslucencyType` → `IMaterial::IsTranslucent`), so props are queued as
+  translucent exactly where Fatality's leaf hook puts them, and `$alpha` carries the
   amount `m_DiffuseModulation.w` would have.
+- Values are written only when they change: flipping the translucent flag makes the
+  engine recompute the material's state snapshot, so it happens once per slider change
+  instead of once per frame.
 - `prop_transparency` applies to world props (phys/dynamic props, breakables, doors,
   foliage); `texture_transparency` applies to character models (`CCSPlayer`,
   `CCSRagdoll`, `CHostage`) so their own skins go see-through.
@@ -176,6 +184,5 @@ reaches them through the material system with verified slots only:
 - The slider is a percentage: 0 leaves the model untouched, 100 is fully invisible.
   `model_transparency_rules.hpp` holds that mapping and the classification, and is
   interface-free so `tests/model_transparency_test.cpp` can check it off-target.
-- Captured "original" alpha/flag values are kept per material so a missed restore
-  (an exception between the begin and the end) cannot drift; the map is dropped when
-  the in-game context resets.
+- A ledger keeps each material's original alpha/flag so a missed release cannot drift,
+  and the whole map is dropped when the in-game context resets.

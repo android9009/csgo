@@ -1,29 +1,27 @@
 #pragma once
 // Prop / texture transparency.
 //
-// How Fatality does it (reference: reversed2603/fatality_source dee7327,
-// hooks/draw_model_execute.cpp `shader_api_draw_mesh` and hooks/scene_end.cpp
-// `add_renderables_to_render_lists`): the leaf system is forced to queue studio
-// props into the translucent render list (`RenderableInfo_t::m_nTranslucencyType`),
-// and the per-mesh alpha is written straight into
-// `MeshInstanceData_t::m_DiffuseModulation.w` inside CShaderAPIDx8::DrawMesh.
-//
-// Both of those entry points are outside what the supplied binaries let us verify:
-// DrawMesh lives in shaderapidx9.dll (not supplied) and the leaf-system function has
-// no portable signature we can prove. This file therefore reaches the same two
-// effects through the material system, using only slots verified against the
-// supplied binaries (docs/interface-verification.md):
+// Fatality (reversed2603/fatality_source dee7327) does this in two hooks: it forces
+// RenderableInfo_t::m_nTranslucencyType in CClientLeafSystem::AddRenderablesToRender-
+// Lists so studio props are queued on the translucent render list, and it writes the
+// alpha straight into MeshInstanceData_t::m_DiffuseModulation.w inside
+// CShaderAPIDx8::DrawMesh. Both entry points are reachable but neither is needed to
+// get the same picture, and the second one needs a MeshInstanceData_t layout we
+// cannot prove from the supplied module, so this file drives the material system
+// instead, using only slots verified against the supplied binaries:
 //   IMaterialSystem::FindMaterial                        slot 84
 //   IMaterial::FindVar 11, AlphaModulate 27,
 //              SetMaterialVarFlag 29, GetMaterialVarFlag 30,
 //              IsErrorMaterial 42, GetAlphaModulation 44
 //
-// The equivalence holds because the engine asks the material for translucency when
-// it builds the render lists (IModelInfo::ComputeTranslucencyType ->
-// IMaterial::IsTranslucent), so writing MATERIAL_VAR_TRANSLUCENT before
-// FRAME_RENDER_START puts the prop on the translucent list the same way Fatality's
-// leaf hook does, and `$alpha` supplies the amount that DrawMesh would have written
-// per instance.
+// The engine asks the *material* whether it is translucent while it builds the render
+// lists (IModelInfo::ComputeTranslucencyType -> IMaterial::IsTranslucent), so holding
+// $alpha and MATERIAL_VAR_TRANSLUCENT on the model's own materials puts props on the
+// translucent list exactly where Fatality's leaf hook does.
+//
+// Values are written only when they change, not every frame: flipping the translucent
+// flag makes the engine recompute the material's state snapshot, so doing it once per
+// slider change instead of once per frame keeps the cost off the render thread's back.
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -35,19 +33,21 @@
 #include "model_transparency_rules.hpp"
 
 namespace ModelTransparency {
-// State captured the first time a material is touched, so a missed restore cannot
-// make the value drift across frames.
-struct Original {
-    float alpha = 1.f;
-    bool translucent = false;
+// What a material looked like before we touched it, and what we last wrote to it.
+struct Ledger {
+    float original_alpha = 1.f;
+    bool original_translucent = false;
+    float written_alpha = 1.f;
+    bool written_translucent = false;
+    bool touched = false;
 };
-inline std::unordered_map<IMaterial*, Original>& Originals() {
-    static std::unordered_map<IMaterial*, Original> originals;
-    return originals;
+inline std::unordered_map<IMaterial*, Ledger>& Ledgers() {
+    static std::unordered_map<IMaterial*, Ledger> ledgers;
+    return ledgers;
 }
 
-// One entry per model that was actually drawn, with the materials resolved from its
-// studio header texture list (the texture name is the material name inside the
+// One entry per model that was drawn, with the materials resolved from its studio
+// header texture list (the texture name is the material name inside the
 // "Model textures" group).
 struct Model {
     std::vector<IMaterial*> materials;
@@ -61,15 +61,6 @@ inline std::unordered_map<const studiohdr_t*, Model>& Models() {
 inline std::uint64_t& Clock() {
     static std::uint64_t clock = 0;
     return clock;
-}
-// Materials currently held in the translucent state by Begin, restored by End.
-inline std::array<IMaterial*, kMaxMaterials * 8>& Applied() {
-    static std::array<IMaterial*, kMaxMaterials * 8> applied{};
-    return applied;
-}
-inline int& AppliedCount() {
-    static int count = 0;
-    return count;
 }
 
 inline IMaterial* MaterialFor(const mstudiotexture_t* texture) {
@@ -107,61 +98,84 @@ inline void Note(const studiohdr_t* header, Target target) {
     Record(header, target);
 }
 
-// Drop models that were not drawn for a while (map change is detected separately).
+// Hold one material at the requested state; writes only on change.
+inline void Apply(IMaterial* material, float alpha) {
+    auto& ledgers = Ledgers();
+    auto it = ledgers.find(material);
+    if (it == ledgers.end()) {
+        Ledger fresh;
+        fresh.original_alpha = material->GetAlphaModulation();
+        fresh.original_translucent = material->GetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT);
+        fresh.written_alpha = fresh.original_alpha;
+        fresh.written_translucent = fresh.original_translucent;
+        it = ledgers.emplace(material, fresh).first;
+    }
+    auto& ledger = it->second;
+    ledger.touched = true;
+    const bool translucency_wanted = alpha < 1.f;
+    if (translucency_wanted != ledger.written_translucent) {
+        material->SetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT, translucency_wanted);
+        ledger.written_translucent = translucency_wanted;
+    }
+    if (alpha != ledger.written_alpha) {
+        material->AlphaModulate(alpha);
+        ledger.written_alpha = alpha;
+    }
+}
+
+// Put one material back the way it was found.
+inline void Release(IMaterial* material) {
+    auto& ledgers = Ledgers();
+    const auto it = ledgers.find(material);
+    if (it == ledgers.end() || !it->second.touched) return;
+    auto& ledger = it->second;
+    if (ledger.written_translucent != ledger.original_translucent) {
+        material->SetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT, ledger.original_translucent);
+        ledger.written_translucent = ledger.original_translucent;
+    }
+    if (ledger.written_alpha != ledger.original_alpha) {
+        material->AlphaModulate(ledger.original_alpha);
+        ledger.written_alpha = ledger.original_alpha;
+    }
+    ledger.touched = false;
+}
+
+// Drop models that have not been drawn for a while (releasing their materials first)
+// and ledger entries that are back to their original state.
 inline void Prune() {
-    auto& models = Models();
-    if (models.size() < 64) return;
     const auto now = Clock();
+    auto& models = Models();
     for (auto it = models.begin(); it != models.end();) {
-        if (now - it->second.seen > 600) it = models.erase(it);
+        if (now - it->second.seen <= 600) { ++it; continue; }
+        for (auto* material : it->second.materials) Release(material);
+        it = models.erase(it);
+    }
+    auto& ledgers = Ledgers();
+    for (auto it = ledgers.begin(); it != ledgers.end();) {
+        if (!it->second.touched) it = ledgers.erase(it);
         else ++it;
     }
 }
 
-// FRAME_RENDER_START: hold the model's own materials at the requested alpha so the
-// engine queues them as translucent for this frame.
-inline void Begin(float texture_percent, float prop_percent) {
-    auto& applied = Applied();
-    auto& count = AppliedCount();
-    auto& originals = Originals();
-    count = 0;
-    if ((!(texture_percent > 0.f) && !(prop_percent > 0.f)) || !Interfaces::MaterialSystem) return;
+// FRAME_RENDER_START: bring every recorded model's materials to the requested state
+// and let go of the ones that no longer want it.
+inline void Sync(float texture_percent, float prop_percent) {
     ++Clock();
     for (auto& [header, model] : Models()) {
         const float alpha = AlphaFor(PercentFor(model.target, texture_percent, prop_percent));
-        if (alpha >= 1.f) continue;
-        for (auto* material : model.materials) {
-            if (!material || count >= static_cast<int>(applied.size())) continue;
-            if (originals.find(material) == originals.end())
-                originals.emplace(material, Original{material->GetAlphaModulation(), material->GetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT)});
-            const auto& original = originals[material];
-            material->AlphaModulate(alpha);
-            if (!original.translucent) material->SetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT, true);
-            applied[count++] = material;
+        if (alpha >= 1.f) {
+            for (auto* material : model.materials) Release(material);
+            continue;
         }
+        for (auto* material : model.materials) Apply(material, alpha);
     }
+    if ((Clock() & 0xff) == 0) Prune();
 }
 
-// FRAME_RENDER_END: put every touched material back.
-inline void End() {
-    auto& applied = Applied();
-    auto& count = AppliedCount();
-    auto& originals = Originals();
-    for (int i = 0; i < count; ++i) {
-        auto* material = applied[i];
-        if (!material) continue;
-        const auto it = originals.find(material);
-        if (it == originals.end()) continue;
-        material->AlphaModulate(it->second.alpha);
-        material->SetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT, it->second.translucent);
-    }
-    count = 0;
-}
-
-// Map change: forget everything. Never dereferences the stale keys.
+// Map change: the material pointers are about to become stale. Never dereferences the
+// old keys, it just forgets them.
 inline void Purge() {
     Models().clear();
-    Originals().clear();
-    AppliedCount() = 0;
+    Ledgers().clear();
 }
 }
