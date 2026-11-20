@@ -176,7 +176,7 @@
     <ClCompile Include="features\misc\other\accept.cpp" />
     <ClCompile Include="features\misc\other\console_filter.cpp" />
     <ClCompile Include="features\visuals\misc\fov.cpp" />
-    <ClCompile Include="features\visuals\misc\misc.cpp" />
+    <ClCompile Include="features\visuals\misc\publish.cpp" />
     <ClCompile Include="features\visuals\misc\thirdperson.cpp" />
     <ClCompile Include="features\visuals\removals\removals.cpp" />
     <ClCompile Include="features\visuals\removals\flash.cpp" />

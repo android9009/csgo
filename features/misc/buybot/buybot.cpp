@@ -131,6 +131,35 @@ bool FreezePeriod(void* rules) {
     }
     return freeze;
 }
+// MSVC refuses __try in a function that owns objects with destructors (C2712), so every
+// SEH region lives in its own leaf helper that only touches pointers and PODs. Tick() then
+// keeps the settings snapshot and the built command string outside any handler.
+bool InGame() noexcept {
+    __try {
+        IEngineClient* engine = Interfaces::Engine;
+        return engine != nullptr && engine->IsInGame() && engine->IsConnected();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+bool LocalAlive(CCSPlayer* local) noexcept {
+    __try {
+        return local != nullptr && local->IsAlive();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// False means the call threw; the caller reports that once and stops trying.
+bool ExecuteCommand(const char* command) noexcept {
+    __try {
+        Interfaces::Engine->ExecuteClientCmd(command);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+    return true;
+}
 } // namespace Detail
 
 void Tick() {
@@ -141,18 +170,14 @@ void Tick() {
     }
     if (!Interfaces::Engine) return;
 
-    bool in_game = false;
-    __try { in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected(); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { in_game = false; }
+    const bool in_game = Detail::InGame();
 
     void* rules = in_game ? Detail::GameRules() : nullptr;
     const bool freeze = in_game && Detail::FreezePeriod(rules);
     g_window.Update(freeze);
 
     CCSPlayer* local = ctx.local;
-    bool alive = false;
-    __try { alive = local && local->IsAlive(); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { alive = false; }
+    const bool alive = Detail::LocalAlive(local);
 
     const float now = Interfaces::Globals ? Interfaces::Globals->curtime : 0.f;
     if (!ShouldAttempt(settings, in_game, alive, g_window.open, g_window, now)) return;
@@ -164,11 +189,10 @@ void Tick() {
         g_active_reported = true;
         LOG_INFO("buy bot: armed (freeze-time purchases, up to %d attempts per round)", kMaxAttempts);
     }
-    __try { Interfaces::Engine->ExecuteClientCmd(command.c_str()); }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    if (!Detail::ExecuteCommand(command.c_str())) {
         if (!g_buy_reported) {
             g_buy_reported = true;
-            LOG_ERROR("buy bot: client command threw 0x%08lX; auto buy disabled", GetExceptionCode());
+            LOG_ERROR("buy bot: the client command threw through the engine; auto buy disabled");
         }
         return;
     }

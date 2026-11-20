@@ -1,3 +1,8 @@
+// Menu thread -> game thread publication for the visuals misc block (third person, FOV,
+// viewmodel FOV, hide local model). Named publish.cpp rather than misc.cpp because
+// features/misc/misc.cpp already owns that file name and MSBuild refuses two
+// translation units with the same name in one project (MSB8027: both .objs would be
+// called misc.obj, so a stale object could be linked into the other module).
 #include "misc.hpp"
 
 namespace VisualsMisc {

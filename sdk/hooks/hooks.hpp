@@ -3,7 +3,7 @@
 #include <d3d9.h>
 #include "../studiohdr.hpp"
 #include "../../utils/math/matrix.hpp"
-struct CUserCmd;
+class CUserCmd;
 namespace Hooks {
     bool Setup();
     void Restore();
@@ -20,6 +20,7 @@ namespace Hooks {
     using FrameStageNotifyFn = void (__thiscall*)(void*, int);
     using SceneEndFn = void (__thiscall*)(void*);
     using DrawModelExecuteFn = void (__thiscall*)(void*, void*, const DrawModelState_t&, const ModelRenderInfo_t&, matrix3x4_t*);
+    CreateMoveFn GetCreateMoveOriginal();
     FrameStageNotifyFn GetFrameStageNotifyOriginal();
     OverrideViewFn GetOverrideViewOriginal();
     ViewModelFovFn GetViewModelFovOriginal();

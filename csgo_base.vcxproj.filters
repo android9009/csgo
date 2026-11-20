@@ -184,7 +184,7 @@
     <ClCompile Include="features\visuals\misc\fov.cpp">
       <Filter>Features\visuals\misc</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\misc\misc.cpp">
+    <ClCompile Include="features\visuals\misc\publish.cpp">
       <Filter>Features\visuals\misc</Filter>
     </ClCompile>
     <ClCompile Include="features\visuals\misc\thirdperson.cpp">

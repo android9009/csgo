@@ -1,28 +1,13 @@
 #pragma once
 #include "datatypes/datatypes.hpp"
+#include "datatypes/c_user_cmd.hpp"
 #include <cstdint>
 #include <cstddef>
 
-struct CUserCmd {
-    void* vtable = nullptr;
-    int command_number = 0;
-    int tick_count = 0;
-    QAngle viewangles{};
-    Vector aimdirection{};
-    float forwardmove = 0.f;
-    float sidemove = 0.f;
-    float upmove = 0.f;
-    int buttons = 0;
-    unsigned char impulse = 0;
-    int weaponselect = 0;
-    int weaponsubtype = 0;
-    int random_seed = 0;
-    short mousedx = 0;
-    short mousedy = 0;
-    bool hasbeenpredicted = false;
-    QAngle headangles{};
-    Vector headoffset{};
-};
+// CUserCmd lives in datatypes/c_user_cmd.hpp: it is a class with a virtual destructor
+// (the game's command object has one), and this header used to declare a second,
+// flat `struct CUserCmd` of the same name - every translation unit that saw both
+// failed with C2011. Only one definition exists now.
 // CViewSetup, pinned to the layout `main` uses (c_view_setup): 176 bytes of screen,
 // ortho and HUD state, then the fields ClientMode::OverrideView hands to the renderer.
 // Only the tail is read or written here.
