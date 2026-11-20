@@ -21,15 +21,18 @@ smoothing, the strafe modes, the jump gate) are covered by tests instead.
 | Control | Where it goes now | Result |
 | --- | --- | --- |
 | `Thirdperson` | `VisualsMisc::Settings::thirdperson` → `Detail::Plan` → `CInput::camera_in_third_person` + `CInput::camera_offset` (`thirdperson.cpp`) | built |
-| `Distance` | slider → `Settings::thirdperson_dist` → `DesiredDistance` → **`cam_idealdist`** → the camera code reads that cvar back, clips it with a `MASK_NPCWORLDSTATIC` trace and writes only the clipped copy into `CInput::camera_offset.z` | built |
+| `Distance` | slider → `Settings::thirdperson_dist` → `PublishDistance` → **`cam_idealdist`** (written on every frame the slider changed, whatever the camera plan says) → the camera code reads that cvar back as the desired distance, clips it with a `MASK_NPCWORLDSTATIC` trace and writes only the clipped copy into `CInput::camera_offset.z` | built |
 | `Force when dead` | `Settings::thirdperson_dead` → observer mode `4 → 5` while the local player is dead | built |
 | `Disable on grenade` | `Settings::thirdperson_grenade` + `ctx.weapon_data->weapon_type == 9` → `Plan` returns an inactive plan, so the camera is handed back while a grenade is out and re-taken when it is put away | built |
 | `Transparency` | `Settings::thirdperson_transparency` → `Detail::LocalModelAlpha` → the local model's `m_clrRender` alpha plus `m_nRenderMode = kRenderTransTexture`; the original pair is captured before the first write and restored when third person goes off | built |
 | `+ with nades` | `Settings::thirdperson_transparency_nade`, used instead of `Transparency` while a grenade is out (0 keeps the base slider in charge) | built |
 | `Disable animation` | **removed from the menu**; `cfg.misc.thirdperson_no_interp` is still parsed from old configs and now has no consumer at all | done |
 
-`c_mindistance` / `c_maxdistance` are captured once the ConVar interface exists and widened to
-`0` / `99999`; the originals are handed back in `VisualsMisc::Shutdown()`, together with
+`c_mindistance` / `c_maxdistance` are captured as soon as the ConVar interface exists -
+`VisualsMisc::PrepareChaseCvars()` runs from `Hooks::Initialize`, i.e. at inject, and is
+retried from the frame stage if the interface was not up yet - and widened to `0` / `99999`.
+The same call pushes the saved slider value into `cam_idealdist`, so the cvar is already
+correct before the first third person frame; the originals are handed back in `VisualsMisc::Shutdown()`, together with
 `cam_idealdist`. Every write goes through the cvar's own `SetValue(float)` – no console
 command is issued anywhere.
 

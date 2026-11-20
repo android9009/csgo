@@ -208,6 +208,10 @@ bool Setup() {
     if (Interfaces::ModelRender)
         model_render_hook.attach(Interfaces::ModelRender, 21, reinterpret_cast<void*>(&HooksInternal::DrawModelExecute));
 
+    // Chase camera cvars, at inject and not on the first third person frame: c_mindistance /
+    // c_maxdistance are widened here and cam_idealdist receives the saved slider value.
+    VisualsMisc::PrepareChaseCvars();
+
     ShotChams::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d PaintTraverse=%d FrameStageNotify=%d CreateMove=%d SceneEnd=%d DrawModelExecute=%d "
              "GetViewModelFOV=%d GetScreenAspectRatio=%d)",

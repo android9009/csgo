@@ -73,6 +73,11 @@ void FrameStage(int stage);
 // FrameStageNotify(FRAME_RENDER_START): hand the engine its third person camera through
 // CInput, which is what makes the view aspect-correct (the engine builds it).
 void ApplyThirdPerson();
+// Captures c_mindistance / c_maxdistance / cam_idealdist and widens the bounds to
+// 0 / 99999. Called as soon as the ConVar interface exists (Hooks::Initialize) and retried
+// from the frame stage, so the cvars are already in place before the first third person
+// frame instead of on the first one. Safe to call any number of times.
+void PrepareChaseCvars();
 void Shutdown();
 
 // Cleanup used by Shutdown(): hand the engine's camera back and the player's fov fields back.

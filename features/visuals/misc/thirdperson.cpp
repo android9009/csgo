@@ -95,17 +95,27 @@ void RestoreChaseVars() {
     g_chase = ChaseVars{};
 }
 
-// The desired distance: the slider drives cam_idealdist, and the camera code then reads the
-// cvar back. Reading it (instead of the slider) is what keeps a single source of truth - if
-// the game or the user changes cam_idealdist, the camera follows it. The value clipped by the
-// world trace is never written back into either of them.
+// The slider -> cam_idealdist write-through. It runs on every frame the module is alive,
+// whatever the camera plan says, so dragging the slider lands in the cvar even while third
+// person is momentarily off (dead, grenade out, wall behind the head). Only a changed value is
+// written, so this is one comparison per frame in the steady state.
+void PublishDistance(const Settings& settings) {
+    if (!InitChaseVars() || !g_chase.ideal.var) return;
+    const float slider = Detail::DesiredDistance(settings);
+    if (!(slider > 0.f)) return;
+    if (std::fabs(g_chase.written - slider) <= 0.01f) return;
+    if (!ConVars::SetFloat(g_chase.ideal.var, slider)) return;
+    g_chase.written = slider;
+    LOG_INFO("visuals misc: cam_idealdist = %.0f (from the Distance slider)", static_cast<double>(slider));
+}
+
+// The desired distance the camera works with: the current value of cam_idealdist, which the
+// slider has just published. Reading the cvar (instead of the slider alone) keeps a single
+// source of truth - if the game or the user changes cam_idealdist, the camera follows it. The
+// value clipped by the world trace is never written back into either of them.
 float DesiredDistance(const Settings& settings) {
     const float slider = Detail::DesiredDistance(settings);
-    if (!InitChaseVars() || !g_chase.ideal.var) return slider;
-    if (!(slider > 0.f)) return slider;
-    if (std::fabs(g_chase.written - slider) > 0.01f) {
-        if (ConVars::SetFloat(g_chase.ideal.var, slider)) g_chase.written = slider;
-    }
+    if (!g_chase.ready || !g_chase.ideal.var) return slider;
     const float live = g_chase.ideal.var->GetFloat();
     if (std::isfinite(live) && live > 0.f && live < 5000.f) return live;
     return slider;
@@ -173,14 +183,25 @@ void ApplyLocalModel(CBaseEntity* model, int alpha) {
 }
 } // namespace
 
+void PrepareChaseCvars() {
+    if (!InitChaseVars()) return;
+    // The first publish has to happen here as well: at inject the slider may already hold a
+    // saved value, and cam_idealdist has to carry it before the first frame.
+    PublishDistance(Detail::Snapshot());
+}
+
 // Called from the frame stage; see FrameStageNotify in sdk/hooks/framestage.cpp.
 void ApplyThirdPerson() {
+    // The distance goes into cam_idealdist first, and unconditionally: the camera below may
+    // decide to stay in first person for this frame, but the slider has to reach the cvar.
+    const Settings settings = Detail::Snapshot();
+    PublishDistance(settings);
+
     IInput* input = Interfaces::Input;
     if (!input || !Interfaces::Engine) {
         g_camera_owned = false;
         return;
     }
-    const Settings settings = Detail::Snapshot();
 
     bool in_game = false;
     __try { in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected(); }
