@@ -50,10 +50,10 @@ features/visuals/misc/     MISC group of the Visuals tab (visuals>misc>local)
   publish.cpp              published settings (atomics) - named publish, not misc, because
                            features/misc/misc.cpp already owns that file name (MSB8027)
   thirdperson.cpp          "Thirdperson" - writes CInput's chase camera
-  fov.cpp                  "Fov changer" + "Remove zoom" + "Force second zoom" +
-                           "Force viewmodel in scope" - player fov fields and the weapon
-                           info flag; the aspect ratio and viewmodel fov detours live in
-                           sdk/hooks/viewhooks.cpp
+  fov.cpp                  "Fov changer" + "Remove zoom" + "Force second zoom" - player fov
+                           fields; "Force viewmodel in scope" is published but not applied
+                           (unverified weapon-info flag); the aspect ratio and viewmodel fov
+                           detours live in sdk/hooks/viewhooks.cpp
 
 features/visuals/removals/
   removals.hpp/.cpp        façade + bit order of the Removals combo box
@@ -94,7 +94,7 @@ because the flash switch is the first item of the Removals combo box.
 | Fov changer | `cfg.misc.fov_enabled`, `cfg.misc.fov` | FRAME_RENDER_START | writes the player's `m_iDefaultFOV` / `m_iFOV` / `m_iFOVStart`, restores the captured original when switched off or while scoped |
 | Remove zoom | `cfg.misc.fov_scope` | FRAME_RENDER_START | while scoped, interpolates between the zoom field of view the game wrote and the world fov: 0% keeps the zoom, 100% removes it |
 | Force second zoom | `cfg.misc.force_second_zoom` | FRAME_RENDER_START | keeps the first zoom level's field of view when the weapon zooms further |
-| Force viewmodel in scope | `cfg.misc.force_viewmodel_scope` | FRAME_RENDER_START | clears `CCSWeaponData::hide_viewmodel_in_zoom` (main's `+0x1BD`) |
+| Force viewmodel in scope | `cfg.misc.force_viewmodel_scope` | - | **not applied**: main clears `weapon_info->hide_viewmodel_in_zoom` at `+0x1BD`; in the supplied `client.dll` the only reader/writer of that displacement belongs to another object, and this repo's `CCSWeaponData` puts its own tail byte at `+0x1DD`, so neither the object nor the offset is proven |
 | Aspect ratio | `cfg.misc.aspect` | IEngineClient `GetScreenAspectRatio` (slot 101) | returns `aspect / 100.f` (main's detour); 0 keeps the engine value |
 | Viewmodel fov | `cfg.misc.vm_fov_enabled`, `cfg.misc.vm_fov` | GetViewModelFOV (slot 35) | replaces the viewmodel field of view with the slider value |
 
@@ -289,7 +289,7 @@ the hooks, never the other way round.
 | Thirdperson (+ Distance, Force when dead, Disable on grenade) | `FrameStageNotify` FRAME_RENDER_START + `CInput` | `main`: `thirdperson.cpp` (`c_thirdperson::run_alive`) - same `CInput` fields, same `{ pitch, yaw, distance }` offset, same +-16 unit trace box, same `MASK_NPCWORLDSTATIC`, same observer-mode 4 -> 5 flip for the dead camera |
 | Fov changer (Fov) | `FrameStageNotify` FRAME_RENDER_START | `main`: `c_fov_and_view::change_fov` writes the same player fields (`default_fov`, `fov`, `fov_start`) |
 | Remove zoom, Force second zoom | FRAME_RENDER_START | `main`: the `fovs[zoom]` term of `change_fov` and its `skip_second_zoom` clamp, expressed against the zoom field of view the game itself wrote |
-| Force viewmodel in scope | FRAME_RENDER_START | `main`: `change_fov_dead_and_remove_recoil` writes `weapon_info->hide_viewmodel_in_zoom` |
+| Force viewmodel in scope | - | `main`: `change_fov_dead_and_remove_recoil` writes `weapon_info->hide_viewmodel_in_zoom`; left unwritten here until the field is pinned down (a wrong byte in live weapon state is worse than a disabled checkbox) |
 | Aspect ratio | `IEngineClient::GetScreenAspectRatio`, slot 101 | `main`: `get_screen_aspect_ratio` detour |
 | Viewmodel changer (FOV) | `ClientMode::GetViewModelFOV`, slot 35 | `main`: `get_viewmodel_fov` detour |
 

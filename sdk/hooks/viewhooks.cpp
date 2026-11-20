@@ -2,7 +2,6 @@
 #include "../interfaces/interfaces.hpp"
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../utils/log.hpp"
-#include <cstdint>
 
 namespace HooksInternal {
 namespace {
@@ -15,16 +14,24 @@ bool g_aspect_failed{};
 
 // IEngineClient::GetScreenAspectRatio - vtable slot 101 (main: GET_SCREEN_ASPECT_RATIO_IDX).
 //
-// The original is `float __thiscall(int width, int height)`, so the fastcall thunk receives
-// the object in ecx, the width in edx and the height on the stack. The renderer asks once per
-// view, and the value it gets back is what decides the horizontal stretch, which is why
-// "Aspect ratio" is a real hook and not a post-process.
-float __fastcall GetScreenAspectRatio(void* ecx, void* edx, int height) {
+// The original is `float __thiscall(int width, int height)`: `this` in ecx, both integers on
+// the stack, callee pops 8 bytes (`ret 8`, confirmed in the supplied engine.dll). The thunk
+// is __fastcall - `this` in ecx, an unused edx, and both integers taken from the stack - so
+// that it pops exactly the 8 bytes the caller pushed. The previous version declared a single
+// stack argument, popped 4, and the first frame returned into a shifted stack: instant crash.
+float __fastcall GetScreenAspectRatio(void* ecx, void* edx, int width, int height) {
     using Fn = float (__thiscall*)(void*, int, int);
     static Fn original = nullptr;
     if (!original) original = Hooks::GetScreenAspectRatioOriginal();
-    const int width = static_cast<int>(reinterpret_cast<std::intptr_t>(edx));
+    (void)edx; // a __thiscall callee never reads it
     const float value = original ? original(ecx, width, height) : 0.f;
+    // One-shot proof that slot 101 really is the aspect-ratio getter: the log line carries the
+    // width/height the engine asked about plus the value it would have used on its own.
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        LOG_INFO("visuals misc: GetScreenAspectRatio(%d, %d) = %.4f", width, height, value);
+    }
     if (g_aspect_failed) return value;
     __try { return VisualsMisc::ScreenAspectRatio(value); }
     __except (EXCEPTION_EXECUTE_HANDLER) {

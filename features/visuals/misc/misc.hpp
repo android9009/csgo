@@ -28,8 +28,9 @@
 //     which in this build is a two-argument function that returns a float.
 //   - The viewmodel fov is added in ClientMode::GetViewModelFOV (slot 35), which is `main`'s
 //     get_viewmodel_fov detour; here the slider is the absolute viewmodel fov instead of a
-//     delta, because that is what the menu shows. "Force viewmodel in scope" writes
-//     `CCSWeaponData::hide_viewmodel_in_zoom`, the field main writes at +0x1BD.
+//     delta, because that is what the menu shows. "Force viewmodel in scope" is published but
+//     not applied: main writes `CCSWeaponData::hide_viewmodel_in_zoom` at +0x1BD and that
+//     offset/object pair is not verified for this build (see docs/misc-runtime.md).
 //   - The viewmodel position/rotation sliders ("Disable landing bob" included) stay
 //     unimplemented: they need a viewmodel calc-view hook this build does not have. See
 //     docs/misc-runtime.md.

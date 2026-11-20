@@ -35,8 +35,13 @@ namespace HooksInternal {
     long __stdcall Reset(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
     bool __fastcall CreateMove(void* ecx, void* edx, float input_sample_time, void* cmd);
     float __fastcall GetViewModelFov(void* ecx, void* edx);
-    // `width` arrives in edx (fastcall), `height` on the stack - the original is __thiscall.
-    float __fastcall GetScreenAspectRatio(void* ecx, void* edx, int height);
+    // The original is __thiscall: `this` in ecx, `width` and `height` on the stack,
+    // callee pops 8 bytes (`ret 8`). A __fastcall thunk therefore has to declare BOTH stack
+    // arguments so that it pops exactly those 8 bytes - declaring only the first one (what
+    // this hook used to do) pops 4 and the caller returns into a shifted stack, which crashed
+    // the game on the first rendered frame. ecx carries `this`; edx is unused by a thiscall
+    // callee and is ignored here.
+    float __fastcall GetScreenAspectRatio(void* ecx, void* edx, int width, int height);
     void __fastcall FrameStageNotify(void* ecx, void* edx, int stage);
     void __fastcall SceneEnd(void* ecx, void* edx);
     void __fastcall DrawModelExecute(void* ecx, void* edx, void* context, const DrawModelState_t& state, const ModelRenderInfo_t& info, matrix3x4_t* bone_to_world);

@@ -47,6 +47,9 @@ public:
     char pad_8[96]{};
     bool unk = false;
     char pad_9[4]{};
+    // UNVERIFIED: main writes this flag at +0x1BD and this layout lands on +0x1DD, and the
+    // only code in the supplied client.dll that touches a byte at either displacement works on
+    // a different object. Nothing writes it today; see docs/misc-runtime.md.
     bool hide_viewmodel_in_zoom = false;
 };
 class CBaseWeapon : public CBaseEntity {

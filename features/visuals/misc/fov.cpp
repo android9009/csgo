@@ -27,9 +27,6 @@ struct ZoomSession {
 } g_zoom;
 // Last value handed to the engine, so the log carries state changes only.
 float g_vm_applied{};
-// Last `hide_viewmodel_in_zoom` value this module wrote, and the object it wrote it into.
-void* g_scope_weapon{};
-int g_scope_written{-1};
 
 // Reading the player's fov/state can fault on a stale entity; the caller treats a fault as
 // "nothing to do this frame".
@@ -93,22 +90,13 @@ void ApplyFov(CCSPlayer* local, int target_default, int target_fov) {
     g_fov.default_fov = target_default;
 }
 
-// "Force viewmodel in scope": main keeps the viewmodel visible by clearing the weapon info's
-// own flag. Written only when it actually differs, and only on the weapon info of the weapon
-// that is held now.
-void ApplyScopeViewmodel(const Settings& settings, CCSWeaponData* data) {
-    if (!data) {
-        g_scope_weapon = nullptr;
-        g_scope_written = -1;
-        return;
-    }
-    const int wanted = settings.force_viewmodel_scope ? 0 : 1;
-    if (g_scope_weapon == data && g_scope_written == wanted) return;
-    __try { data->hide_viewmodel_in_zoom = wanted != 0; }
-    __except (EXCEPTION_EXECUTE_HANDLER) { return; }
-    g_scope_weapon = data;
-    g_scope_written = wanted;
-}
+// "Force viewmodel in scope" is NOT applied yet. main clears a `hide_viewmodel_in_zoom`
+// byte on the weapon info (+0x1BD in its build); in this build the only writer/reader of a
+// byte at that displacement belongs to the viewmodel, and this repo's hand-written
+// CCSWeaponData places its own tail field at +0x1DD, so neither the object nor the offset is
+// proven. Writing an unverified byte into live weapon state is not worth a checkbox, so the
+// setting is published and ignored until the field is pinned down.
+
 } // namespace
 
 float ViewModelFov(float original) {
@@ -186,7 +174,6 @@ void FrameStage(int stage) {
     } else {
         ApplyFov(local, target_default, target_fov);
     }
-    ApplyScopeViewmodel(settings, ctx.weapon_data);
 }
 
 void ResetFov() {
@@ -200,8 +187,6 @@ void ResetFov() {
     }
     g_fov = OwnedFov{};
     g_zoom = ZoomSession{};
-    g_scope_weapon = nullptr;
-    g_scope_written = -1;
     g_vm_applied = 0.f;
 }
 } // namespace VisualsMisc
