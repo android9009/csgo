@@ -40,6 +40,8 @@ struct Effects {
     bool sky{};
     std::uint32_t sky_colour{0xFFFFFFFFu};
     bool fullbright{};
+    // Visuals -> World: "Sunlight" (cascaded-shadow rotation override).
+    bool sunlight{};
     // Visuals -> Misc -> local: "Remove scope" (mode, see VisualsMisc::Detail::ScopeMode),
     // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
     // menu/overlays/screen_overlay.hpp reads these; the game thread reads the same struct to

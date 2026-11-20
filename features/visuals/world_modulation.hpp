@@ -25,7 +25,15 @@ namespace WorldModulation {
 // strings, i.e. exactly what `IMaterial::GetTextureGroupName` returns.
 enum Group { GroupNone = 0, GroupWorld = 1, GroupSkyBox = 2 };
 
+// main's "sunset" mode (`override_shadows`, `world_modulation & 2`): the cascaded-shadow rotation
+// is overridden so the sun sits low and the shadows get long. main drives the direction from
+// `misc.sunset_angle`; this branch's menu has only the checkbox, so the angle is the fixed
+// low-sun angle below (documented as such rather than pretending the colour is used).
+constexpr float kSunsetRotation[3] = {-45.f, 90.f, 0.f};
+constexpr float kSunsetMaxShadowDistance = 10000.f;
+
 struct Settings {
+    bool sunlight{};
     bool nightmode{};
     std::uint32_t nightmode_colour{0xFFFFFFFFu};
     bool sky{};
@@ -103,7 +111,8 @@ Settings Snapshot();
 // Called from the GetColorModulation detour for every material the client modulates. `material`
 // is an IMaterial*, the three floats are the engine's own modulation for this frame.
 void Tint(void* material, float* r, float* g, float* b);
-// FRAME_RENDER_START: keeps `mat_fullbright` in step with the checkbox.
+// FRAME_RENDER_START: keeps `mat_fullbright` and the shadow-rotation cvars in step with the
+// menu.
 void Frame();
 // Hands `mat_fullbright` back to the game's value.
 void Shutdown();

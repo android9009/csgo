@@ -84,6 +84,7 @@ inline void Configure() {
     s.sky=cfg.visuals.world_effects.sky.get();
     s.sky_colour=cfg.visuals.world_effects.sky_color.get().rgba();
     s.fullbright=cfg.visuals.world_effects.fullbright.get();
+    s.sunlight=cfg.visuals.world_effects.sunlight.get();
     s.world_fog=cfg.visuals.world_effects.fog.get();
     s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},

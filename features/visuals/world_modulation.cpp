@@ -15,6 +15,66 @@ ConVars::SavedVar g_fullbright;
 bool g_fullbright_owned{};
 bool g_fullbright_attempted{};
 bool g_tint_reported{};
+
+// "Sunlight": the cascaded-shadow rotation, re-asserted only when the value is not what this
+// module wants (the game re-applies the map's own values on every level change, which is the
+// same reason `world_fog` re-asserts `fog_override`). main also clears the cvar's change
+// callbacks first (`fn_change_callbacks.remove_count()`); this branch has no callback registry,
+// so a value the game has changed back is simply rewritten on the next frame.
+struct ShadowState {
+    bool attempted{};
+    bool ready{};
+    bool active{};
+    ConVars::SavedVar rot_override{};
+    ConVars::SavedVar max_dist{};
+    ConVars::SavedVar rot[3]{};
+} g_shadows;
+
+void ApplySunlight(bool enabled) {
+    if (!Interfaces::ConVar) return;
+    if (!g_shadows.attempted) {
+        g_shadows.attempted = true;
+        g_shadows.ready = g_shadows.rot_override.Capture("cl_csm_rot_override") &&
+                          g_shadows.max_dist.Capture("cl_csm_max_shadow_dist") &&
+                          g_shadows.rot[0].Capture("cl_csm_rot_x") &&
+                          g_shadows.rot[1].Capture("cl_csm_rot_y") &&
+                          g_shadows.rot[2].Capture("cl_csm_rot_z");
+        if (!g_shadows.ready) {
+            LOG_WARN("visuals world: the cl_csm_* cvars did not resolve; \"Sunlight\" stays "
+                     "inactive");
+            return;
+        }
+        LOG_INFO("visuals world: shadow cvars captured (override %.0f, dist %.0f)",
+                 static_cast<double>(g_shadows.rot_override.value),
+                 static_cast<double>(g_shadows.max_dist.value));
+    }
+    if (!g_shadows.ready) return;
+    if (enabled) {
+        if (g_shadows.rot_override.var && ConVars::Float("cl_csm_rot_override", 0.f, 1.f, 0.f) < .5f)
+            ConVars::SetInt(g_shadows.rot_override.var, 1);
+        if (g_shadows.max_dist.var &&
+            ConVars::Float("cl_csm_max_shadow_dist", -1.f, 100000.f, -1.f) !=
+                kSunsetMaxShadowDistance)
+            ConVars::SetFloat(g_shadows.max_dist.var, kSunsetMaxShadowDistance);
+        static const char* names[3] = {"cl_csm_rot_x", "cl_csm_rot_y", "cl_csm_rot_z"};
+        for (int i = 0; i < 3; ++i) {
+            if (!g_shadows.rot[i].var) continue;
+            if (ConVars::Float(names[i], -360.f, 360.f, -999.f) == kSunsetRotation[i]) continue;
+            ConVars::SetFloat(g_shadows.rot[i].var, kSunsetRotation[i]);
+        }
+        if (!g_shadows.active) {
+            g_shadows.active = true;
+            LOG_INFO("visuals world: shadow rotation overridden (low sun)");
+        }
+    } else if (g_shadows.active) {
+        const bool ok = g_shadows.rot_override.Restore() && g_shadows.max_dist.Restore() &&
+                        g_shadows.rot[0].Restore() && g_shadows.rot[1].Restore() &&
+                        g_shadows.rot[2].Restore();
+        g_shadows.active = false;
+        LOG_INFO("visuals world: shadow cvars handed back%s", ok ? "" : " - one was already gone");
+    }
+}
+
 } // namespace
 
 Settings Snapshot() {
@@ -25,6 +85,7 @@ Settings Snapshot() {
     settings.sky = effects.sky;
     settings.sky_colour = effects.sky_colour;
     settings.fullbright = effects.fullbright;
+    settings.sunlight = effects.sunlight;
     return settings;
 }
 
@@ -77,6 +138,7 @@ void Frame() {
                  static_cast<double>(g_fullbright.value));
     }
     const Settings settings = Snapshot();
+    ApplySunlight(settings.sunlight);
     if (settings.fullbright && !g_fullbright_owned) {
         if (ConVars::SetInt(g_fullbright.var, 1)) {
             g_fullbright_owned = true;
@@ -92,6 +154,8 @@ void Frame() {
 }
 
 void Shutdown() {
+    ApplySunlight(false);
+    g_shadows = ShadowState{};
     if (g_fullbright_owned && g_fullbright.var) {
         ConVars::SetInt(g_fullbright.var, static_cast<int>(g_fullbright.value));
     }
