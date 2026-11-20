@@ -1,6 +1,6 @@
-// Portable checks for the three Misc rules that decide whether a hook touches the game:
-// revealing enemy chat, scaling ragdolls, and filtering the console. All three are
-// pure predicates so they can be pinned here without Windows or the engine.
+// Portable checks for the Misc rules that decide whether a hook touches the game: revealing
+// enemy chat and filtering the console, plus the message the reveal prints. All of them are
+// pure functions so they can be pinned here without Windows or the engine.
 #include "features/misc/general/general.hpp"
 #include "features/misc/other/other.hpp"
 #include <cassert>
@@ -49,13 +49,46 @@ int main() {
     assert(hash != Misc::Chat::HashChatText("gg ez2"));
     assert(hash == Misc::Chat::HashChatText("gg ez"));
     assert(Misc::Chat::HashChatText(nullptr) == Misc::Chat::HashChatText(""));
+    using Misc::Chat::RecordAnnounce;
     ChatGate gate;
     assert(ShouldAnnounce(gate, 5, hash, 1000));      // first line
-    gate.sender = 5; gate.text_hash = hash; gate.stamp_ms = 1000;
+    RecordAnnounce(gate, 5, hash, 1000);
     assert(!ShouldAnnounce(gate, 5, hash, 1200));     // same player, same line, inside 0.4 s
     assert(ShouldAnnounce(gate, 5, hash, 1400));      // the window has passed
     assert(ShouldAnnounce(gate, 5, Misc::Chat::HashChatText("other"), 1100)); // different line
-    assert(ShouldAnnounce(gate, 6, hash, 1100));      // different player
+    // The Lua keeps one stamp per player, so a second speaker is not silenced by the first.
+    RecordAnnounce(gate, 6, hash, 1100);
+    RecordAnnounce(gate, 5, hash, 1110);
+    assert(!ShouldAnnounce(gate, 5, hash, 1200));
+    assert(!ShouldAnnounce(gate, 6, hash, 1200));
+    assert(ShouldAnnounce(gate, 7, hash, 1200));
+    // A full table recycles instead of growing: 40 senders, all of them remembered later.
+    for (int i = 0; i < 40; ++i) RecordAnnounce(gate, 100 + i, hash, 2000 + i);
+    assert(!ShouldAnnounce(gate, 139, hash, 2100));   // the newest speaker is still there
+    assert(ShouldAnnounce(gate, 100, hash, 2100));    // the oldest one was recycled
+
+    // ---- the printed line is the game's own, not an invented one -------------------
+    using Misc::Chat::FormatChatLine;
+    // Alive: the "Loc" spelling, with the place after the name.
+    assert(FormatChatLine(2, true, "Dan", "Bombsite A", "gg") == "(T) Dan @ Bombsite A : gg");
+    assert(FormatChatLine(3, true, "Jim", "CT Spawn", "nice") == "(CT) Jim @ CT Spawn : nice");
+    // Dead: the "Dead" spelling, and no place at all.
+    assert(FormatChatLine(2, false, "Dan", "Bombsite A", "gg") == "*DEAD*(T) Dan : gg");
+    assert(FormatChatLine(3, false, "Jim", "", "gg") == "*DEAD*(CT) Jim : gg");
+    // The Lua localizes an empty place name to UI_Unknown, which this client shows as
+    // "Unknown".
+    assert(FormatChatLine(2, true, "Dan", "", "gg") == "(T) Dan @ Unknown : gg");
+    assert(FormatChatLine(2, true, "Dan", nullptr, "gg") == "(T) Dan @ Unknown : gg");
+    // Control codes and padding from the game string never reach the console.
+    // (The test literal is split because "\x07B" would be read as one hex escape.)
+    assert(FormatChatLine(2, true, "Dan", "\x07" "Bombsite\x01" " A  ", "gg") ==
+           "(T) Dan @ Bombsite A : gg");
+    // A line that cannot be a chat line is refused instead of printed half-way.
+    assert(FormatChatLine(0, true, "Dan", "A", "gg").empty());
+    assert(FormatChatLine(1, true, "Dan", "A", "gg").empty());
+    assert(FormatChatLine(2, true, "", "A", "gg").empty());
+    assert(FormatChatLine(2, true, nullptr, "A", "gg").empty());
+    assert(FormatChatLine(2, true, "Dan", "A", nullptr).empty());
 
     // ---- SayText2: the payload is decoded, never rewritten -------------------------
     {
@@ -134,23 +167,6 @@ int main() {
         (void) Misc::Chat::FindPayloadField(fields, Misc::Chat::kReadFieldCount, payload_size);
         for (int i = 0; i < 4; ++i) assert(fields[i] == before[i]);
     }
-
-    // ---- ragdoll thrust: the slider is clamped, and fast ragdolls are left alone --
-    assert(Misc::Ragdoll::ScalePercent(0) == 1.f);
-    assert(Misc::Ragdoll::ScalePercent(1) == 1.f);
-    assert(Misc::Ragdoll::ScalePercent(100) == 100.f);
-    assert(Misc::Ragdoll::ScalePercent(1000) == 1000.f);
-    assert(Misc::Ragdoll::ScalePercent(5000) == 1000.f);
-    assert(Misc::Ragdoll::ScalePercent(-20) == 1.f);
-
-    using Misc::Ragdoll::ShouldScale;
-    const float limit = Misc::Ragdoll::kSpeedLimit;
-    assert(ShouldScale(0.f, limit));
-    assert(ShouldScale(limit - 0.5f, limit));
-    assert(!ShouldScale(limit, limit));
-    assert(!ShouldScale(limit + 1.f, limit));
-    assert(!ShouldScale(-1.f, limit));    // unreadable velocity
-    assert(!ShouldScale(0.f / 0.f, limit)); // NaN from an uninitialised vector
 
     // ---- auto-accept triggers on exactly one sample -------------------------------
     using Misc::Other::Accept::IsAcceptSound;

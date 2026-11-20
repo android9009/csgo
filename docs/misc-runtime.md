@@ -23,13 +23,10 @@ features/misc/
   general/                 first Misc group box ("MISC", id misc>general)
     general.hpp            the folder's single header: Settings, Publish/FrameStage/
                            Shutdown, and every portable rule below
-    general.cpp            façade: fan out to radar, clan tag and scoreboard
+    general.cpp            façade: fan out to radar, clan tag, chat and ping
     radar.cpp              radar reveal
     clantag.cpp            clan tag
-    scoreboard.cpp         rank reveal + the equipment feed
-    scoreboard_script.cpp  the injected Panorama JavaScript builders
     chat.cpp               reveal enemy chat (DispatchUserMessage hook)
-    ragdoll.cpp            ragdoll thrust
     ping.cpp               ping spike (SendDatagram / ProcessPacket hooks)
   other/                   second Misc group box ("OTHER", id misc>other)
     other.hpp              the folder's single header
@@ -67,13 +64,9 @@ because the flash switch is the first item of the Removals combo box.
 |---|---|---|---|
 | Radar | `cfg.misc.radar` | 4 (net update end) | sets `m_bSpotted` on living, non-dormant players of a playable team |
 | Clan tag | `cfg.misc.clantag` | 0/4/5 | calls `SetClanTag` from `engine.dll` (signature `dwSetClanTag`) |
-| Reveal ranks | `cfg.misc.scoreboard_options` bit 0 | 4 | calls the client's `ServerRankRevealAll` handler at most once per second |
-| Reveal weapon | `cfg.misc.scoreboard_options` bit 1 | 4 | injects a Panorama script that draws the equipment row (see `docs/panorama.md`) |
-| Reveal money | `cfg.misc.scoreboard_options` bit 3 | 4 | adds each player's `m_iAccount` to the same row |
 | Remove flash | `cfg.misc.removals` bit 0 | 0/5 | zeroes `m_flFlashDuration` on the local player |
 | Visual punch | `cfg.misc.removals` bit 8 | 0/5 | zeroes `m_aimPunchAngle` and `m_viewPunchAngle` on the local player |
-| Reveal enemy chat | `cfg.misc.reveal_enemy_chat` | hook | re-addresses team chat as all-chat so the HUD prints it |
-| Ragdoll thrust | `cfg.misc.ragdoll_thrust_enabled` + `cfg.visuals.ragdoll_thrust` | 4 (every 4th frame) | scales `m_vecForce` and `m_vecRagdollVelocity` on every `CCSRagdoll` |
+| Reveal enemy chat | `cfg.misc.reveal_enemy_chat` | hook | prints the enemy team chat the client received but refuses to draw, in the game's own format |
 | Ping spike | `cfg.misc.ping_spike_enabled` + `cfg.aim.ping_spike_amt` | hook | lowers the incoming sequence number so the server measures a higher ping |
 | Auto-accept | `cfg.misc.autoaccept` | hook | accepts the match when the accept popup beeps |
 | Console filter | `cfg.misc.console_filter` | hook | drops five documented connection/queue lines from the console |
@@ -162,57 +155,27 @@ corrupting an unrelated structure, and the first successful spike logs the count
 and after. The whole detour body is SEH-guarded and switches itself off after one
 exception.
 
-**Ragdoll thrust** (`general/ragdoll.cpp`) walks the entity list above the player slots
-on stage 4 of every fourth frame, matches `m_pNetworkName == "CCSRagdoll"` (the class id
-differs between builds, the name does not), and multiplies `m_vecForce` and
-`m_vecRagdollVelocity` by the slider percentage. Both netvars are resolved through
-`DT_CSRagdoll`, falling back to `CBaseAnimating` for `m_vecForce`; a missing netvar logs
-once and leaves the feature idle. A ragdoll already moving faster than `kSpeedLimit` is
-skipped, because the write is not idempotent and a per-frame multiply would launch it.
+**Reveal enemy chat** (`general/chat.cpp`) hooks `IBaseClientDll::DispatchUserMessage`
+(slot 38, the table that also holds `FrameStageNotify` 37) and reads the `SayText2` the
+client already received. The engine hands team chat to every client - that is why the
+client carries `cl_mute_enemy_team` to hide it - so nothing is forged server-side and the
+message is never modified: the hook decodes a copy, decides, and forwards the original.
 
-## Scoreboard
+The decision mirrors the gamesense "Enemy team chat revealer" Lua line by line:
 
-The Scoreboard combo box has three items; two are wired:
+| Lua | Here |
+|---|---|
+| `player_say` → keep when `entity.is_enemy(sender)` | `IsEnemyChat`: sender team is 2/3 and differs from the local team |
+| `lastChatMessage[sender]` + 0.4 s window | `ChatGate`: one stamp per sender, a repeat inside `kChatRepeatMs` is dropped |
+| `Cstrike_Chat_<team>_<Loc\|Dead>` localization | `FormatChatLine`: `(T) name @ place : text`, `*DEAD*(CT) name : text`, empty place → `Unknown` |
+| `m_szLastPlaceName` | `CCSPlayer::LastPlaceName()` (prop offset, read-only) |
+| `entity.is_alive(sender)` | `CCSPlayer::IsAlive()` |
+| `chat.print_player` | one console line per revealed message |
 
-- **Reveal ranks** (bit 0) — the client ships a handler for the `ServerRankRevealAll`
-  user message. Calling it makes the server send the skill-group table, and the native
-  scoreboard then draws ranks for everybody it will ever show. The handler is looked up
-  through three candidate signatures (`server_rank_reveal_all`, `_alt1`, `_alt2`: the
-  CSGOSimple one plus the two variants UC threads report for older and newer clients),
-  and when none of them matches this build the feature dispatches
-  `CS_UM_ServerRankRevealAll` (50, from the CS:GO protobuf and CSGOSimple's `Enums.hpp`)
-  through `IBaseClientDll::DispatchUserMessage` with a zeroed read object instead of
-  dropping the feature. Both paths log which one is in use.
-
-  The verdict is never taken in the same tick as the request: the server answers on a later
-  frame, so reading `CCSPlayerResource` immediately reports zero everywhere. `RankVerdictDue`
-  waits `kRankVerifyMs` (3 s) after the request, retries while the resource is unreadable,
-  gives up at `kRankVerdictDeadlineMs` (15 s), and only then reports either "confirmed, N
-  slots carry a skill group" or the honest reason (this server publishes none, or the
-  resource never became readable). Switching the bit off re-arms the check. It is called from
-  `Misc::FrameStage` stage 4, at most once per second (`kRevealIntervalMs`): each call is
-  a user message, and flooding one would be both useless and measurable. Once per
-  session the log prints how many slots actually carry a skill group afterwards — the
-  server decides what it fills in, so that line is the only honest confirmation.
-- **Reveal money** (bit 3) — feeds the player's money into the same injected row (a
-  `Label` that only appears when a plausible `m_iAccount` was read). Same injection, same
-  failure policy.
-- **Reveal weapon** (bit 1) — the vanilla scoreboard only shows equipment the server
-  decided to send, and its equipment cells are sized for that. The feature injects
-  JavaScript into the `CSGOHud` Panorama context, creates one panel per scoreboard row
-  and fills it with the client's own equipment icons for every player. Data is read from
-  the entities (`m_hMyWeapons`, armor, helmet, defuser) and pushed twice a second; the
-  script re-installs itself on every push, so a HUD reload cannot leave it orphaned.
-  The three sliders under the combo box drive the injected layout:
-  `scoreboard_scale_x` (row and per-weapon widths), `scoreboard_scale_y` (armor and
-  helmet icons) and `scoreboard_weapon_scale` (weapon icons). See `docs/panorama.md` for
-  the vtable indices, the arity-safe call and the failure policy.
-- **Reveal unmatched ranks** (bit 2) and the `scoreboard_unmatched_scale` slider — not
-  implemented, by request.
-
-`CCSPlayerResource` (`sdk/entity/player_resource.hpp`) exposes the per-slot rank and win
-arrays through the `dwPlayerResource` global. It is used for the one-shot count above,
-but it is the SDK piece any future scoreboard work needs.
+Two differences, both deliberate: the Lua checks `GameStateAPI.IsSelectedPlayerMuted`,
+which lives only in Panorama's own JS state and has no native mirror in this client, so a
+player muted through the scoreboard is still revealed; and the line goes to the console
+instead of the cheat's chat panel, because this build has no chat panel.
 
 ## Threading and cost
 
@@ -227,8 +190,6 @@ but it is the SDK piece any future scoreboard work needs.
   so a settled frame performs no writes.
 - Ping spike does one arithmetic pass per datagram plus two ConVar reads behind range
   checks; nothing is allocated and nothing is formatted unless the one-shot log fires.
-- Ragdoll thrust sweeps the entity list only on every fourth stage-4 frame and stops at
-  the highest entity index, so a full round of ragdolls costs four sweeps per second.
 - The three hooks do nothing at all while their switch is off: the chat hook returns on
   the message type, the sound hook on the sample name, the console hooks on a flag they
   read before formatting anything.
@@ -274,7 +235,10 @@ reports that once in the log when it is switched on instead of silently doing no
 
 - **Logs, hitsounds, indicators** - need a shot/hit pipeline (ragebot + event tracking);
   to be implemented together with the ragebot.
-- **Scoreboard "Reveal unmatched ranks"** - needs the engine's own rank lookup for players
+- **Rank reveal and the scoreboard equipment row** - removed on request: the injected
+  Panorama row never looked right on this client, so the whole group went. The reason
+  the unmatched-ranks item was never done is unchanged: it needs the engine's own rank
+  lookup for players
   the server never sent a skill group for; not implemented by request.
 - **sv_cheats bypass** - `main` implements exactly one narrow case: a hook on the
   `sv_cheats` ConVar's `GetInt` that returns 1 only when the caller is `cam_think`'s
@@ -316,14 +280,11 @@ Portable tests:
   player, null pointers), `ShouldRestore` exactly-once semantics, and the tag length.
 - `tests/removals_test.cpp` - the combo box bit order, `FromMask`, and the flash/punch
   write rules including NaN and infinity.
-- `tests/scoreboard_test.cpp` - the Scoreboard combo box bit order (ranks, weapon,
-  unmatched, money), the rank reveal gate (disabled, not in game, zero interval, first
-  send, inside the interval, and the `GetTickCount` wrap).
-- `tests/scoreboard_script_test.cpp` - scale clamping and the scaled layout/precision
-  values, the icon table, and the feed payload: no player without equipment, no slot 0,
-  balanced braces, self-contained engine, and icon names restricted to plain identifiers
-  (which is what makes injection through the payload impossible).
+- `tests/misc_hooks_test.cpp` - the reveal rules above (team names, all-chat exclusion,
+  the per-sender 0.4 s window, the recycling table), the printed line in every shape
+  (alive/dead, place known/unknown, control codes stripped, malformed input refused),
+  `SayText2` decoding and the read-object field probe.
 
 The engine-facing code is guarded but cannot be verified in a live process here: check
-in game that the log has no `misc: frame-stage exception` and that the tag, radar and
-removals behave.
+in game that the log has no `misc: frame-stage exception` and that the tag, radar,
+removals and the chat reveal behave.

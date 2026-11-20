@@ -19,19 +19,8 @@ struct Settings {
     bool radar{};
     bool clantag{};
 
-    // "Scoreboard" combo box mask; the bit order is pinned in the Scoreboard section
-    // below and by tests/scoreboard_test.cpp.
-    std::uint64_t scoreboard{};
-
-    // "Scoreboard > settings" sliders, in percent (50..200).
-    int scoreboard_scale_x{100};
-    int scoreboard_scale_y{100};
-    int scoreboard_scale_weapon{100};
-
     // "Auto-accept" lives in Misc::Other::Settings: its checkbox is in the OTHER group.
     bool reveal_enemy_chat{};  // "Reveal enemy chat"
-    bool ragdoll_thrust{};     // "Ragdoll thrust"
-    float ragdoll_percent{100.f}; // "Ragdoll thrust > Amount" (1..1000 %)
 
     bool ping_spike{};
     float ping_spike_ms{}; // "Ping spike > Amount", milliseconds
@@ -107,142 +96,6 @@ void SetEnabled(bool enabled);
 void FrameStage(int stage); // stages 0/4/5
 void Shutdown();            // restores the tag this module owns
 } // namespace Misc::ClanTag
-
-// ---------------------------------------------------------------------------
-// Scoreboard (scoreboard.cpp + scoreboard_script.cpp)
-//
-// Rank reveal: asks the server for the rank table through the client's own
-// ServerRankRevealAll handler. Weapon reveal: draws the equipment row with JavaScript
-// injected into the Panorama HUD context (docs/panorama.md).
-// ---------------------------------------------------------------------------
-namespace Misc::Scoreboard {
-// Item order of the "Scoreboard" combo box in menu/tabs/tab_misc.cpp
-// ("Reveal ranks", "Reveal weapon", "Reveal unmatched ranks", "Reveal money") is the
-// bit order.
-namespace Bits {
-inline constexpr int RevealRanks = 0;
-inline constexpr int RevealWeapon = 1;
-inline constexpr int RevealUnmatched = 2;
-inline constexpr int RevealMoney = 3;
-} // namespace Bits
-
-// Every rank-reveal send makes the server answer with the rank table, so it is
-// throttled far below the tick rate instead of being sent every frame.
-inline constexpr std::uint32_t kRevealIntervalMs = 1000;
-
-// The equipment script is re-fed while the scoreboard is open; each feed is a small
-// script execution, so twice a second is both plenty and cheap.
-// How often the equipment state is compared with what the HUD was last told. The reference
-// client runs its update every five frames; 100 ms is the same rate at 64 tick.
-inline constexpr std::uint32_t kFeedIntervalMs = 100;
-// The installer is re-sent this often so a HUD reload (which drops the objects the script
-// defines) recovers on its own. The message is idempotent.
-inline constexpr std::uint32_t kReinstallMs = 10000;
-
-constexpr bool Enabled(std::uint64_t mask, int bit) {
-    return bit >= 0 && bit < 64 && ((mask >> bit) & 1ull) != 0ull;
-}
-
-// The reveal only makes sense while a match is live, and only once per interval.
-// The server answers a rank reveal on a *later* frame, so asking the player resource for
-// skill groups in the same tick as the request can only ever find zeros. The verdict is
-// taken this long after the last request, and given up on after the deadline.
-constexpr std::uint32_t kRankVerifyMs = 3000;
-constexpr std::uint32_t kRankVerdictDeadlineMs = 15000;
-
-constexpr bool RankVerdictDue(std::uint32_t now_ms, std::uint32_t request_ms,
-                              std::uint32_t wait_ms) {
-    if (request_ms == 0) return false;
-    return static_cast<std::uint32_t>(now_ms - request_ms) >= wait_ms;
-}
-
-constexpr bool ShouldRevealRanks(bool enabled, bool in_game, std::uint32_t now_ms,
-                                 std::uint32_t last_ms, std::uint32_t interval_ms) {
-    if (!enabled || !in_game || interval_ms == 0) return false;
-    // Unsigned subtraction, so the comparison survives the GetTickCount() wrap.
-    return static_cast<std::uint32_t>(now_ms - last_ms) >= interval_ms;
-}
-
-// ---- the injected script -------------------------------------------------
-// The sliders are 50..200 percent; anything outside is clamped so the emitted CSS can
-// never produce a negative or absurd size.
-constexpr int kScaleMin = 50;
-constexpr int kScaleMax = 200;
-constexpr int kScaleDefault = 100;
-int ClampScale(int percent);
-
-struct Scales {
-    int x{kScaleDefault};      // "Horizontal scale" - row width and per-weapon widths
-    int y{kScaleDefault};      // "Vertical scale"   - armor and helmet icons
-    int weapon{kScaleDefault}; // "Weapon scale"     - weapon icons
-};
-
-// One player's equipment in the form the script draws it. `weapons` holds icon names,
-// never console names: every entry comes from WeaponIcon(), so no string reaching the
-// script can be attacker controlled.
-// The reference layout keeps 25 slot parents per row: four pistols, a rifle, a knife, the
-// grenades, the kit and the bomb all fit without ever re-flowing the row.
-constexpr int kEquipmentSlots = 25;
-
-struct Equipment {
-    int slot{};       // entity index
-    std::uint64_t xuid{}; // steam id from player_info_t; 0 for bots and unresolved slots
-    int armor{};      // 0 none, 1 kevlar, 2 kevlar + helmet
-    bool defuser{};
-    int money{-1};    // -1 when "Reveal money" is off or the value is not readable
-    int weapon_count{};
-    int selected{-1}; // index into weapons, -1 when nothing is selected
-    const char* weapons[kEquipmentSlots]{};
-    // Weapon class per slot, so the script can size an icon the way the reference does
-    // ("mac10" is narrower than a rifle, a grenade narrower still). Values are the ones
-    // WeaponTypeOf() documents.
-    int weapon_types[kEquipmentSlots]{};
-    // Nickname, used only as a row key when GameStateAPI is out of reach from the script's
-    // context. Stored by value: the engine's player_info_t lives on this function's stack,
-    // so a pointer into it would dangle the moment the loop moved on.
-    char name[64]{};
-};
-
-// Icon name for an item definition index (7 -> "ak47"), or nullptr when the item has no
-// scoreboard icon. Names follow the client's icon files: the console name without its
-// "item_"/"weapon_" prefix.
-const char* WeaponIcon(int definition);
-
-// Minimum width, in unscaled pixels, that a given icon needs to look right.
-// 0 means "let the icon size itself".
-int WeaponBaseWidth(const char* icon);
-
-// Size class the icon is drawn with ("smaller" for knives), or nullptr for the default.
-const char* WeaponSlotClass(const char* icon);
-
-// Weapon class of an icon, used by the injected script to pick an icon width instead of
-// stretching everything to one size: 0 knife, 1 pistol, 2 smg, 3 rifle, 4 shotgun,
-// 5 sniper, 6 machine gun, 7 bomb, 8 taser, 9 grenade, 10 defuse kit, -1 unknown.
-int WeaponTypeOf(const char* icon);
-
-// Installer for the HUD context. Idempotent per layout: calling it again with the same
-// scales does nothing, calling it with new scales destroys the previous rows first, so
-// moving a slider takes effect on the next feed.
-std::string BuildEngineScript(const Scales& scales);
-
-// One small message per player, the shape the reference client uses: the engine is injected
-// once, then every update is a single `SClient.receive({type:"updateWeapons", ...})` call.
-std::string BuildUpdateScript(const Equipment& player, const Scales& scales);
-
-// "This player has nothing to show" - the reference sends an explicit clear instead of
-// letting stale icons sit in the row.
-std::string BuildClearScript(std::uint64_t xuid, const char* nickname);
-
-// Engine plus one update per player; used for the first push after installing.
-std::string BuildFeedScript(const std::vector<Equipment>& players, const Scales& scales);
-
-// Removes the injected rows and unregisters the handlers.
-std::string BuildResetScript();
-
-// ---- runtime -------------------------------------------------------------
-void Publish(std::uint64_t mask, int scale_x, int scale_y, int scale_weapon);
-void FrameStage(int stage); // stage 4 only
-} // namespace Misc::Scoreboard
 
 // ---------------------------------------------------------------------------
 // Reveal enemy chat (chat.cpp): hooks IBaseClientDll::DispatchUserMessage (slot 38, the
@@ -391,14 +244,35 @@ inline bool IsEnemyChat(bool enabled, int sender_team, int local_team) {
     return local_team != sender_team;
 }
 
-// The Lua remembers when each player last spoke and drops a repeat inside 0.4 s, because
-// the same line reaches the client twice (once for the team, once as the spectator copy).
+// The Lua keeps a table of "when did this player last speak" and drops a repeat inside
+// 0.4 s, because the same line can reach the client twice (the team copy and the
+// spectator copy). One slot per sender mirrors that table without allocating.
 constexpr unsigned long long kChatRepeatMs = 400;
+constexpr int kChatGateSlots = 32;
 
 struct ChatGate {
-    int sender{-1};
-    unsigned long long text_hash{};
-    unsigned long long stamp_ms{};
+    struct Entry {
+        int sender{-1};
+        unsigned long long text_hash{};
+        unsigned long long stamp_ms{};
+    };
+    Entry entries[kChatGateSlots]{};
+
+    Entry* Slot(int sender) {
+        Entry* free_slot = nullptr;
+        for (auto& entry : entries) {
+            if (entry.sender == sender) return &entry;
+            if (free_slot == nullptr && entry.sender < 0) free_slot = &entry;
+        }
+        if (free_slot != nullptr) { free_slot->sender = sender; return free_slot; }
+        // Table full: recycle the oldest speaker, the Lua's table would simply grow.
+        Entry* oldest = &entries[0];
+        for (auto& entry : entries) if (entry.stamp_ms < oldest->stamp_ms) oldest = &entry;
+        oldest->sender = sender;
+        oldest->text_hash = 0;
+        oldest->stamp_ms = 0;
+        return oldest;
+    }
 };
 
 inline unsigned long long HashChatText(const char* text) {
@@ -411,10 +285,78 @@ inline unsigned long long HashChatText(const char* text) {
     return hash;
 }
 
-inline bool ShouldAnnounce(const ChatGate& gate, int sender, unsigned long long text_hash,
+// True when this line was not already printed for this sender within the window.
+inline bool ShouldAnnounce(ChatGate& gate, int sender, unsigned long long text_hash,
                            unsigned long long now_ms) {
-    if (gate.sender != sender || gate.text_hash != text_hash) return true;
-    return now_ms < gate.stamp_ms || now_ms - gate.stamp_ms >= kChatRepeatMs;
+    const ChatGate::Entry* entry = gate.Slot(sender);
+    if (entry->text_hash != text_hash) return true;
+    if (now_ms < entry->stamp_ms) return true;
+    return now_ms - entry->stamp_ms >= kChatRepeatMs;
+}
+
+inline void RecordAnnounce(ChatGate& gate, int sender, unsigned long long text_hash,
+                           unsigned long long now_ms) {
+    ChatGate::Entry* entry = gate.Slot(sender);
+    entry->text_hash = text_hash;
+    entry->stamp_ms = now_ms;
+}
+
+// ---- rendering ----------------------------------------------------------
+// The Lua does not print the raw line: it rebuilds the game's own localization string, so
+// the reveal reads exactly like the message the client refused to draw.
+//   Cstrike_Chat_T_Loc / Cstrike_Chat_CT_Loc ......... "(T) name @ place : text"
+//   Cstrike_Chat_T_Dead / Cstrike_Chat_CT_Dead ....... "*DEAD*(T) name : text"
+// The Lua picks the "Loc" spelling whenever the speaker is alive, and localizes an empty
+// place name to UI_Unknown; "Unknown" is what that string says in this client's language.
+inline const char* ChatTeamTag(int team) {
+    if (team == 2) return "T";
+    if (team == 3) return "CT";
+    return nullptr;
+}
+
+inline const char* ChatDeadTag() { return "*DEAD*"; }
+inline const char* ChatUnknownPlace() { return "Unknown"; }
+
+// Copy a game string (place name) into place, dropping control codes and anything past the
+// capacity. Returns false when nothing usable was left, which the caller renders as
+// "Unknown".
+inline bool SanitiseChatPlace(const char* source, char* place, int capacity) {
+    if (!place || capacity < 2) return false;
+    place[0] = '\0';
+    if (!source) return false;
+    int written = 0;
+    for (const char* it = source; *it && written < capacity - 1; ++it) {
+        const unsigned char c = static_cast<unsigned char>(*it);
+        if (c < 0x20) continue;
+        place[written++] = static_cast<char>(c);
+    }
+    place[written] = '\0';
+    while (written > 0 && place[written - 1] == ' ') place[--written] = '\0';
+    return written > 0;
+}
+
+// The line the chat panel would have shown. Returns an empty string when the caller passed
+// something that cannot be a chat line (no team, no name or no text), so a malformed payload
+// can never print half a line.
+inline std::string FormatChatLine(int team, bool alive, const char* name, const char* place,
+                                  const char* text) {
+    const char* tag = ChatTeamTag(team);
+    if (!tag || !name || !name[0] || !text) return {};
+    std::string line;
+    if (!alive) { line += ChatDeadTag(); }
+    line += "(";
+    line += tag;
+    line += ") ";
+    line += name;
+    if (alive) {
+        char safe_place[64]{};
+        const bool has_place = SanitiseChatPlace(place, safe_place, static_cast<int>(sizeof(safe_place)));
+        line += " @ ";
+        line += has_place ? safe_place : ChatUnknownPlace();
+    }
+    line += " : ";
+    line += text;
+    return line;
 }
 
 void SetEnabled(bool enabled);
@@ -422,39 +364,6 @@ void SetEnabled(bool enabled);
 void FrameStage(int stage);
 void Shutdown();
 } // namespace Misc::Chat
-
-// ---------------------------------------------------------------------------
-// Ragdoll thrust (ragdoll.cpp): scales m_vecForce and m_vecRagdollVelocity on every
-// CCSRagdoll, so bodies fly "further" without touching anything else.
-// ---------------------------------------------------------------------------
-namespace Misc::Ragdoll {
-// The menu slider runs 1..1000 %.
-constexpr int kPercentMin = 1;
-constexpr int kPercentMax = 1000;
-// Above this speed the ragdoll is left alone: the write is not idempotent, so without a
-// ceiling a per-frame multiply would launch it into space.
-constexpr float kSpeedLimit = 2000.f;
-
-inline float ScalePercent(int percent) {
-    if (percent < kPercentMin) return static_cast<float>(kPercentMin);
-    if (percent > kPercentMax) return static_cast<float>(kPercentMax);
-    return static_cast<float>(percent);
-}
-
-// Scaling is idempotent only while the ragdoll is slow: past the limit the value is left
-// alone, so repeated frames cannot accelerate it into an explosion. A NaN velocity (an
-// uninitialised vector) fails the comparison and is therefore refused as well.
-inline bool ShouldScale(float speed, float limit) {
-    if (!(speed >= 0.f)) return false;
-    return speed < limit;
-}
-
-// Called from the menu bridge on the render thread.
-void Publish(bool enabled, float percent);
-
-// Called on the game thread from FrameStageNotify (stage 4, every fourth frame).
-void FrameStage(int stage);
-} // namespace Misc::Ragdoll
 
 // ---------------------------------------------------------------------------
 // Ping spike (ping.cpp): hooks CNetChan::SendDatagram and CNetChan::ProcessPacket and

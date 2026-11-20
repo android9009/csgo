@@ -6,6 +6,7 @@
 #include "../../../utils/log.hpp"
 #include <atomic>
 #include <cstring>
+#include <string>
 #include <windows.h>
 
 namespace Misc::Chat {
@@ -61,15 +62,18 @@ bool g_announce_reported{};
 int g_payload_field{-1};
 ChatGate g_gate;
 
-// Prints one revealed line. The prefix says where it came from, because this line did not
-// travel through the HUD and therefore does not show up in the chat panel.
-void PrintLine(const SayText2& message) {
+// Prints one revealed line, already formatted the way the chat panel would have shown it
+// ("(T) name @ place : text", "*DEAD*(CT) name : text"). Only the newline is added: the line
+// itself is the game's, because the Lua rebuilds the same localization string rather than
+// inventing its own layout.
+void PrintLine(const std::string& line) {
+    if (line.empty()) return;
     Color color{170, 210, 255, 255};
     if (const auto color_msg = ResolveColorMsg()) {
-        color_msg(color, "\x07[chat] %s : %s\n", message.speaker, message.text);
+        color_msg(color, "\x07%s\n", line.c_str());
         return;
     }
-    if (const auto msg = ResolveMsg()) msg("[chat] %s : %s\n", message.speaker, message.text);
+    if (const auto msg = ResolveMsg()) msg("%s\n", line.c_str());
 }
 
 int TeamOf(int index) {
@@ -105,18 +109,24 @@ void Analyse(const void* read_object, int data_bytes) {
     const int sender_team = TeamOf(message.ent_index);
     if (!IsEnemyChat(true, sender_team, local_team)) return;
 
+    // The Lua prints the speaker's own team, whether he is alive (which switches the line to
+    // the "@ place" spelling) and the place he is standing in.
+    auto* sender = Interfaces::EntityList
+        ? static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(message.ent_index))
+        : nullptr;
+    const bool alive = sender ? sender->IsAlive() : false;
+    const char* place = sender ? sender->LastPlaceName() : "";
+
     const unsigned long long now = GetTickCount64();
     const unsigned long long hash = HashChatText(message.text);
     if (!ShouldAnnounce(g_gate, message.ent_index, hash, now)) return;
-    g_gate.sender = message.ent_index;
-    g_gate.text_hash = hash;
-    g_gate.stamp_ms = now;
+    RecordAnnounce(g_gate, message.ent_index, hash, now);
 
-    PrintLine(message);
-    if (!g_announce_reported) {
+    const std::string line = FormatChatLine(sender_team, alive, message.speaker, place, message.text);
+    PrintLine(line);
+    if (!g_announce_reported && !line.empty()) {
         g_announce_reported = true;
-        LOG_INFO("misc: reveal enemy chat - printing enemy team chat (\"%s\" as \"%s\", %s)",
-                 message.text, message.speaker, message.name);
+        LOG_INFO("misc: reveal enemy chat - printing enemy team chat (\"%s\")", line.c_str());
     }
 }
 

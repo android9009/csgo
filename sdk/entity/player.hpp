@@ -16,4 +16,7 @@ public:
     NETVAR_FALLBACK(bool, m_bHasDefuser, "DT_CSPlayer", "m_bHasDefuser", offsets::netvars::m_bHasDefuser)
     NETVAR_FALLBACK(int, m_ArmorValue, "DT_CSPlayer", "m_ArmorValue", offsets::netvars::m_ArmorValue)
     CBaseWeapon* GetActiveWeapon() const;
+    // m_szLastPlaceName (DT_CSPlayer): the map area the player is standing in, the string
+    // the game's own chat lines put after "@". Empty when the client has not filled it.
+    const char* LastPlaceName() const;
 };

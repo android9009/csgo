@@ -96,14 +96,11 @@ makes the provenance obvious and keeps the "ported from `main`" count honest.
 
 | Name | Module | Used by |
 |---|---|---|
-| `server_rank_reveal_all` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
 | `set_local_player_ready` | `client.dll` | Misc → Other → "Auto-accept" |
 | `send_datagram`, `send_datagram_alt` | `engine.dll` | Misc → General → "Ping spike" |
-| `server_rank_reveal_all_alt1`, `server_rank_reveal_all_alt2` | `client.dll` | Misc → Scoreboard → "Reveal ranks" |
 
-`server_rank_reveal_all_alt1` and `_alt2` are the older and newer spellings of the same
-rank-reveal handler; the feature tries all three and falls back to the
-`CS_UM_ServerRankRevealAll` user message when none matches (see `docs/misc-runtime.md`).
+The three `server_rank_reveal_all` entries went with the scoreboard feature when it was
+removed; the catalogue no longer carries a signature nothing calls.
 
 `send_datagram` and `send_datagram_alt` are the two `CNetChan::SendDatagram`
 signatures this repository's `main` branch carries, one per supported game build; the
@@ -123,7 +120,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 
 `tests/pattern_catalog_test.cpp` (portable, no Windows headers) verifies:
 
-- all three catalogues have the expected entry counts (58 / 99 / 6) and globally unique
+- all three catalogues have the expected entry counts (58 / 99 / 3) and globally unique
   names;
 - every module name is one the scanner can load, every signature token is either two
   uppercase hex digits or `?`/`??`, offsets stay within the 4-slot operand chain, and
@@ -137,8 +134,7 @@ warning and stays off (see `docs/misc-runtime.md`).
 `Patterns::Init` prints one line with the totals and, when a signature did not match, two
 more that say what that actually cost:
 
-- `matched through an alternative spelling: server_rank_reveal_all (via
-  server_rank_reveal_all_alt2), send_datagram (via send_datagram_alt)` — the catalogue
+- `matched through an alternative spelling: send_datagram (via send_datagram_alt)` — the catalogue
   carries the spellings of the same function for different builds, and the report is per
   *group* (`Patterns::AlternativeBase`), so a group is named once whether the base name or
   one of its `_alt`/`_altN` spellings matched.

@@ -15,13 +15,7 @@ inline void Configure() {
     Misc::General::Settings general;
     general.radar = cfg.misc.radar.get();
     general.clantag = cfg.misc.clantag.get();
-    general.scoreboard = static_cast<std::uint64_t>(cfg.misc.scoreboard_options.get());
-    general.scoreboard_scale_x = static_cast<int>(cfg.misc.scoreboard_scale_x.get());
-    general.scoreboard_scale_y = static_cast<int>(cfg.misc.scoreboard_scale_y.get());
-    general.scoreboard_scale_weapon = static_cast<int>(cfg.misc.scoreboard_weapon_scale.get());
     general.reveal_enemy_chat = cfg.misc.reveal_enemy_chat.get();
-    general.ragdoll_thrust = cfg.misc.ragdoll_thrust_enabled.get();
-    general.ragdoll_percent = cfg.visuals.ragdoll_thrust.get();
     general.ping_spike = cfg.misc.ping_spike_enabled.get();
     general.ping_spike_ms = cfg.aim.ping_spike_amt.get();
     Misc::General::Publish(general);

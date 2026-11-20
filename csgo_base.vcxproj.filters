@@ -169,16 +169,7 @@
     <ClCompile Include="features\misc\general\clantag.cpp">
       <Filter>Features\misc\general</Filter>
     </ClCompile>
-    <ClCompile Include="features\misc\general\scoreboard.cpp">
-      <Filter>Features\misc\general</Filter>
-    </ClCompile>
-    <ClCompile Include="features\misc\general\scoreboard_script.cpp">
-      <Filter>Features\misc\general</Filter>
-    </ClCompile>
     <ClCompile Include="features\misc\general\chat.cpp">
-      <Filter>Features\misc\general</Filter>
-    </ClCompile>
-    <ClCompile Include="features\misc\general\ragdoll.cpp">
       <Filter>Features\misc\general</Filter>
     </ClCompile>
     <ClCompile Include="features\misc\general\ping.cpp">

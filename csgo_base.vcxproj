@@ -164,10 +164,7 @@
     <ClCompile Include="features\misc\general\general.cpp" />
     <ClCompile Include="features\misc\general\radar.cpp" />
     <ClCompile Include="features\misc\general\clantag.cpp" />
-    <ClCompile Include="features\misc\general\scoreboard.cpp" />
-    <ClCompile Include="features\misc\general\scoreboard_script.cpp" />
     <ClCompile Include="features\misc\general\chat.cpp" />
-    <ClCompile Include="features\misc\general\ragdoll.cpp" />
     <ClCompile Include="features\misc\general\ping.cpp" />
     <ClCompile Include="features\misc\other\other.cpp" />
     <ClCompile Include="features\misc\other\accept.cpp" />

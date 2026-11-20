@@ -44,14 +44,6 @@ namespace menu::group
 
 	void misc_general(std::shared_ptr<layout> &e)
 	{
-		const auto scoreboard = make_multi("misc>general>scoreboard", cfg.misc.scoreboard_options, {"Reveal ranks", "Reveal weapon", "Reveal unmatched ranks", "Reveal money"});
-		const auto scoreboard_settings = MAKE("misc>general>scoreboard>settings", settings, [](auto e) {
-			ADD("Horizontal scale", "misc>general>scoreboard>scale x", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_x, "%.0f%%");
-			ADD("Vertical scale", "misc>general>scoreboard>scale y", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_scale_y, "%.0f%%");
-			ADD("Weapon scale", "misc>general>scoreboard>weapon scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_weapon_scale, "%.0f%%");
-			ADD("Unmatched scale", "misc>general>scoreboard>unmatched scale", slider<float>, 50.f, 200.f, cfg.misc.scoreboard_unmatched_scale, "%.0f%%");
-		});
-		ADD_INLINE("Scoreboard", scoreboard, scoreboard_settings);
 		const auto logs = make_multi("misc>general>logs", cfg.misc.log_types, {"Hit logs", "Miss logs", "Buy logs", "Hurt logs", "Naded logs"});
 		const auto log_settings = MAKE("misc>general>logs>settings", settings, [](auto e) {
 			const std::vector<std::string> details{"Damage dealt", "Damage aimed", "Hitchance", "Shot", "Backtrack", "Safe point"};
@@ -97,9 +89,6 @@ namespace menu::group
 
 		ADD("Clantag", "misc>general>clan tag", checkbox, cfg.misc.clantag);
 		ADD("Reveal enemy chat", "misc>general>enemy chat", checkbox, cfg.misc.reveal_enemy_chat);
-		ADD_INLINE("Ragdoll thrust", MAKE("misc>general>ragdoll thrust", checkbox, cfg.misc.ragdoll_thrust_enabled), MAKE("misc>general>ragdoll thrust>settings", settings, [](auto e) {
-			ADD("Amount", "misc>general>ragdoll thrust>amount", slider<float>, 1.f, 1000.f, cfg.visuals.ragdoll_thrust, "%.0f%%");
-		}));
 		ADD_INLINE("Ping spike", MAKE("misc>general>ping spike", checkbox, cfg.misc.ping_spike_enabled), MAKE("misc>general>ping spike>settings", settings, [](auto e) {
 			ADD("Amount", "misc>general>ping spike>amount", slider<float>, 0.f, 200.f, cfg.aim.ping_spike_amt, "%.0f ms");
 		}));

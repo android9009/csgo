@@ -558,10 +558,10 @@ struct cfg_t {
 			hitmarker{};
 
 		setting<bool> force_second_zoom, force_viewmodel_scope, disable_landing_bob;
-		setting<bool> sv_cheats, console_filter, console_logs, reveal_enemy_chat, ragdoll_thrust_enabled, ping_spike_enabled;
+		setting<bool> sv_cheats, console_filter, console_logs, reveal_enemy_chat, ping_spike_enabled;
 		setting<bool> edge_stop, edge_bug, pixel_surf, long_jump, ladder_jump;
 		setting<bool> hit_sound_enabled, kill_sound_enabled;
-		setting<bitset> scoreboard_options, log_types, hit_log_details, miss_log_details, buy_log_targets, kill_sound_select{1 << hitsound_none};
+		setting<bitset> log_types, hit_log_details, miss_log_details, buy_log_targets, kill_sound_select{1 << hitsound_none};
 		arr_setting<color> log_colors{color::white()};
 		setting<float> viewmodel_x, viewmodel_y, viewmodel_z, viewmodel_roll, viewmodel_yaw, viewmodel_pitch;
 		setting<color> grenade_warning_color{color::white()};
@@ -571,7 +571,6 @@ struct cfg_t {
 		arr_setting<bitset> tracer_style{1};
 		arr_setting<color> tracer_colors{color::white()};
 		setting<float> texture_transparency, peek_assist_distance{-1.f};
-		setting<float> scoreboard_scale_x{100.f}, scoreboard_scale_y{100.f}, scoreboard_weapon_scale{100.f}, scoreboard_unmatched_scale{100.f};
 		setting<bitset> peek_assist_visual{1};
 		setting<bitset> dpi_scale{ 1 << dpi_automatic };
 		bool in_peek_assist( );
@@ -579,7 +578,7 @@ struct cfg_t {
 
 	struct visuals_t {
 		setting<bool> disable_postprocessing, dark, out_of_fov, autowall_crosshair;
-		setting<float> darkness, prop_transparency, out_of_fov_dst{ 50.f }, out_of_fov_size{ 24.f }, ragdoll_thrust{ 100.f };
+		setting<float> darkness, prop_transparency, out_of_fov_dst{ 50.f }, out_of_fov_size{ 24.f };
 		setting<color> skybox_color{ color::white( ) }, dark_color{ color::white( ) }, prop_color{ color::white( ) }, spread_circle_color1{ color::white( ) }, spread_circle_color2
 		{ color::white( ) }, out_of_fov_col{ color::white( ) };
 		setting<bitset> skybox{ 0 }, spread_circle_type{ 1 << spread_circle_off }, model_t, model_ct, mask_t, mask_ct, disablers, preview{ 0 };
