@@ -1,4 +1,5 @@
 #include "general.hpp"
+#include <cstddef>
 #include <cstdio>
 
 namespace Misc::Scoreboard {
@@ -98,7 +99,12 @@ std::string Quote(const char* text) {
 // following frame only has to send a message instead of re-injecting the whole feature.
 // The row lookup is CS:GO's own (sb-row + m_xuid, as in the gamesense Lua), because the
 // CS2 ids ("player-<xuid>") do not exist in this client.
-constexpr const char* kEngineTemplate = R"JS((function () {
+// The engine is ~17 KB of JavaScript, and MSVC refuses a single string literal longer than
+// 16380 single-byte characters (C2026: "string too big, trailing characters truncated"). It is
+// therefore kept in chunks that are joined when the script is built; the split always falls
+// on a line boundary and never inside a @PLACEHOLDER@, so substitution still sees one text.
+constexpr const char* kEngineChunks[] = {
+    R"JS((function () {
 	var layout = "@TAG@";
 
 	// Already installed with these sliders: do nothing. The native side re-sends the engine
@@ -262,7 +268,8 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 				return 30;
 			}
 			if (type === 2 || type === 3 || type === 4 || type === 5 || type === 6) {
-				return path.indexOf("mac10") !== -1 ? 30 : 52;
+)JS",
+    R"JS(				return path.indexOf("mac10") !== -1 ? 30 : 52;
 			}
 			if (type === 9) {
 				if (path.indexOf("incgrenade") !== -1 || path.indexOf("smokegrenade") !== -1) { return 14; }
@@ -415,7 +422,8 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 				}
 				var row = findRow(sb, content.xuid, content.nickname);
 				if (!row) {
-					if (!reportedMissing[key]) {
+)JS",
+    R"JS(					if (!reportedMissing[key]) {
 						reportedMissing[key] = true;
 						$.Msg("csgo-base: no row for " + key + " (rows: " + describeRows(sb) + ")");
 					}
@@ -568,10 +576,31 @@ constexpr const char* kEngineTemplate = R"JS((function () {
 	}
 
 	$.Msg("csgo-base: equipment engine installed (layout " + SWeaponManager.layout + ")");
-})();)JS";
+})();)JS"
+};
+
+namespace {
+constexpr std::size_t Length(const char* text) {
+    std::size_t size = 0;
+    while (text[size] != '\0') { ++size; }
+    return size;
+}
+
+// Compile-time guard: growing the script past the limit must fail here, not in a Windows build
+// the portable tests cannot run. MSVC stops at 16380 single-byte characters per literal.
+constexpr bool ChunksFitMsvc() {
+    for (const char* chunk : kEngineChunks) {
+        if (Length(chunk) > 16000) { return false; }
+    }
+    return true;
+}
+static_assert(ChunksFitMsvc(), "an engine chunk is close to MSVC's 16380-character string "
+                               "literal limit (C2026): split it into another chunk");
+} // namespace
 
 std::string EngineSource(const Scales& scales) {
-    std::string script = kEngineTemplate;
+    std::string script;
+    for (const char* chunk : kEngineChunks) { script += chunk; }
     script = Replace(script, "@TAG@", Number(ClampScale(scales.x)) + "x" + Number(ClampScale(scales.y)) +
                                         "x" + Number(ClampScale(scales.weapon)));
     script = Replace(script, "@HORIZ@", Number(ClampScale(scales.x)));
