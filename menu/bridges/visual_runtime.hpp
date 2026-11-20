@@ -46,6 +46,8 @@ inline void Configure() {
     s.attachments={Material(c.enemy_att),Material(c.team_att),Material(c.local_att)};s.arms=Material(c.local_arms);s.shot=Material(c.enemy_shot);
     s.texture_transparency=cfg.misc.texture_transparency.get();
     s.prop_transparency=cfg.visuals.prop_transparency.get();
+    s.world_fog=cfg.visuals.world_effects.fog.get();
+    s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.team.get(),esp.glow.team_color.get().rgba()},
         VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.local.get(),esp.glow.local_color.get().rgba()}};

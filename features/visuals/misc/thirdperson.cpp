@@ -4,6 +4,7 @@
 #include "../../../sdk/entity/player.hpp"
 #include "../../../sdk/entity/weapon.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../sdk/netvars.hpp"
 #include "../../../sdk/trace_ray.hpp"
 #include "../../../utils/log.hpp"
 #include "../../../utils/math/math.hpp"
@@ -110,10 +111,28 @@ float DesiredDistance(const Settings& settings) {
     return slider;
 }
 
+// The two netvars the transparency needs. `PropManager::GetOffset` answers 0 for a property
+// it could not find, and writing at offset 0 would overwrite the entity's vtable pointer, so
+// the pair is resolved once and the feature simply stays off if the build does not have them.
+bool ModelWritable() {
+    static const bool writable = []() {
+        const auto colour = PropManager::Get().GetOffset("DT_BaseEntity", "m_clrRender");
+        const auto mode = PropManager::Get().GetOffset("DT_BaseEntity", "m_nRenderMode");
+        if (colour <= 0 || mode <= 0) {
+            LOG_WARN("visuals misc: third person transparency disabled (m_clrRender=%td "
+                     "m_nRenderMode=%td)", colour, mode);
+            return false;
+        }
+        return true;
+    }();
+    return writable;
+}
+
 // "Transparency" / "+ with nades": the local player's own model. The alpha goes into the
 // entity's colour modulation and the render mode into kRenderTransTexture, which is the pair
 // the client reads when it decides what to blend; a negative alpha means "not ours".
 void ApplyLocalModel(CBaseEntity* model, int alpha) {
+    if (!ModelWritable()) return;
     if (!model || alpha < 0) {
         if (g_model.active && g_model.entity) {
             __try {

@@ -10,6 +10,7 @@
 #include "../../features/visuals/shot_chams.hpp"
 #include "../../features/misc/movement/movement.hpp"
 #include "../../features/visuals/misc/misc.hpp"
+#include "../../features/visuals/world_fog.hpp"
 #include "../datatypes/c_user_cmd.hpp"
 #include <d3d9.h>
 #include "../structs.hpp"
@@ -222,6 +223,7 @@ bool Setup() {
 void Restore() {
     ShotChams::Shutdown();
     VisualsMisc::Shutdown();
+    WorldFog::Restore();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();
     if (game_window && original_wndproc)

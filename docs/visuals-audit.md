@@ -106,9 +106,13 @@ same-named `Misc → Other` of `tab_misc.cpp`.
 | `Hitmarker` (world/screen/kibit, duration) | **not implemented** – same event listener plus overlay drawing |
 | `Show impacts` | **not implemented** |
 | `Out of FOV` | **not implemented** |
-| `Nightmode`, `Fullbright`, `Sunlight`, `Sky`, `Fog`, `Vignette`, `Exposure`, `Bloom`, `Local contrast`, `Color correction`, `Depth of field`, `Weather` | **not implemented.** main implements these through four different mechanisms, none of which exists in this branch yet: world-texture modulation (a hooked material colour path, `world_modulation.cpp`), `DT_EnvTonemapController` netvars for bloom/exposure, the `fog_override` / `cl_csm_*` cvar families, and `load_named_sky` for the sky box. The cvar-based half (`Fog`, `Sunlight`) is the cheapest next step and needs only the cvar layer that already exists; the colour modulation and the sky need new hooks/offsets. |
+| `Fog` | **new consumer**: `features/visuals/world_fog.hpp`, called at `FRAME_RENDER_START`. The colour from the menu is written into `fog_color` and `fog_override` is asserted to `1` (once per frame at most, and only when the cvar no longer holds the value this module wants, because the game re-applies the map's fog on every level change). The map's own density and start/end range are left alone, so the checkbox recolours the map's fog instead of replacing it. Both cvars are captured before the first write and handed back when the checkbox goes off, when there is no game running, and on unload. |
+| `Nightmode`, `Fullbright`, `Sunlight`, `Sky`, `Vignette`, `Exposure`, `Bloom`, `Local contrast`, `Color correction`, `Depth of field`, `Weather` | **not implemented.** main implements these through four different mechanisms, none of which exists in this branch yet: world-texture modulation (a hooked material colour path, `world_modulation.cpp`), `DT_EnvTonemapController` netvars for bloom/exposure, the `fog_override` / `cl_csm_*` cvar families, and `load_named_sky` for the sky box. `Fog` is done through the cvar layer (above); the rest needs either the world-texture colour
+modulation hook or the tonemap entity netvars or `load_named_sky`, none of which is part of
+this branch yet. |
 
-The two transparency sliders are the only members of these groups with a real consumer today.
+The two transparency sliders and `Fog` are the only members of these groups with a real
+consumer today.
 Everything else in the two groups is a live control with no effect, and this table is the
 honest state of it.
 

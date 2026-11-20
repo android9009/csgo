@@ -113,6 +113,25 @@ inline ConVar* Find(const char* name) {
 // True when the cvar exists and its name round-trips, i.e. the ICvar slot is right.
 inline bool Exists(const char* name) { return Find(name) != nullptr; }
 
+inline bool SetString(ConVar* var, const char* value) {
+    if (!var || !var->vtable_ || !value) return false;
+    __try {
+        const auto fn = reinterpret_cast<SetStringFn>((static_cast<void**>(var->vtable_))[14]);
+        if (!fn) return false;
+        fn(var, value);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+// The cached string of a cvar (alias-aware, like GetFloat). Never null.
+inline const char* GetString(const ConVar* var) {
+    if (!var) return "";
+    const ConVar* storage = var->parent ? var->parent : var;
+    return storage->string ? storage->string : "";
+}
+
 // A cvar captured for the session: the value to hand back on unload, plus whether the
 // capture actually happened (a missing cvar must not turn into a write of zero).
 struct SavedVar {

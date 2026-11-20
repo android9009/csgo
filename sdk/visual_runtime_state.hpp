@@ -26,6 +26,11 @@ struct Effects {
     // Visuals -> Misc: the two transparency sliders (0 = off, 100 = invisible).
     // Published as percentages; the draw hook converts them to alpha.
     float texture_transparency{},prop_transparency{};
+    // Visuals -> World: "Fog" (the colour of the map's own fog, see features/visuals/
+    // world_fog.hpp). Published as a packed rgba so the game thread never reads a
+    // half-updated colour.
+    bool world_fog{};
+    std::uint32_t world_fog_colour{0xFFFFFFFFu};
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;

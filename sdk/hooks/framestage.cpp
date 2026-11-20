@@ -7,6 +7,7 @@
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/removals/removals.hpp"
 #include "../../features/visuals/model_transparency.hpp"
+#include "../../features/visuals/world_fog.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/player.hpp"
@@ -19,6 +20,16 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
+    // Visuals -> World -> "Fog": the client reads fog_override/fog_color while it builds the
+    // frame's fog, so the override is asserted at render start. With no game running (main
+    // menu, disconnect) the cvars are handed straight back.
+    if (stage == 5) {
+        const auto effects = VisualRuntime::GetEffects();
+        __try { WorldFog::Apply(effects.world_fog, effects.world_fog_colour); }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            WorldFog::Restore();
+        }
+    }
     // Prop / texture transparency: bring the recorded models' own materials to the
     // requested alpha before the engine builds its render lists, so props are queued
     // as translucent. Values are written only when they change.
@@ -54,7 +65,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         // (and at render start, when the local weapon may have changed).
         if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore(); }
             else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
