@@ -9,6 +9,7 @@
 #include "../../features/skins/local_inventory.hpp"
 #include "../../features/visuals/shot_chams.hpp"
 #include "../../features/misc/movement/movement.hpp"
+#include "../../features/visuals/misc/effects.hpp"
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/world_fog.hpp"
 #include "../datatypes/c_user_cmd.hpp"
@@ -211,6 +212,9 @@ bool Setup() {
     // pose (rotation sliders) and the player's post-screen pass ("Remove scope" dropping the
     // engine's mask). Both are resolved from the signature catalogue at runtime.
     HooksInternal::InstallVisualMiscDetours();
+    // Visuals -> Misc -> Other: the event-driven effects (tracers, impacts, hitmarker) plug
+    // into the single game-event listener; the events themselves are subscribed in main.cpp.
+    VisualsMisc::Effects::Setup();
 
     // Chase camera cvars, at inject and not on the first third person frame: c_mindistance /
     // c_maxdistance are widened here and cam_idealdist receives the saved slider value.

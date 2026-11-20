@@ -1,5 +1,6 @@
 #pragma once
 #include "visual_preview_state.hpp"
+#include "../features/visuals/misc/fx.hpp"
 #include <array>
 #include <mutex>
 #include <atomic>
@@ -44,6 +45,10 @@ struct Effects {
         std::uint32_t spread_color1{0xFFFFFFFFu};
         std::uint32_t spread_color2{0xFFFFFFFFu};
     } screen;
+    // Visuals -> Misc -> Other: what the event-driven effects draw. The game thread publishes
+    // the settings (`VisualsFx::Settings`) and, separately, the screen-space records it
+    // projected this frame (`FxFrame` below).
+    VisualsFx::Settings fx{};
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;
@@ -75,6 +80,42 @@ struct ScreenState {
     int width{};
     int height{};
 };
+// One projected record from the game thread. Coordinates are normalized to the viewport
+// (0..1), `size` is a fraction of the screen height.
+struct ScreenLine {
+    float x1{}, y1{}, x2{}, y2{};
+    float width{1.5f};
+    std::uint32_t color{};
+};
+struct ScreenMark {
+    float x{}, y{};
+    float size{};   // half-extent, fraction of the screen height
+    float alpha{1.f};
+    std::uint32_t color1{};
+    std::uint32_t color2{};
+    int kind{};     // 0 = impact box, 1 = world hitmarker, 2 = centre hitmarker
+};
+
+// The events keep firing while the frame is built, so the list is a snapshot per frame: the
+// game thread fills a fresh one at FRAME_RENDER_START and the render thread copies it.
+struct FxFrame {
+    std::array<ScreenLine, 96> lines{};
+    int line_count{};
+    std::array<ScreenMark, 96> marks{};
+    int mark_count{};
+};
+inline std::mutex fx_mutex;
+inline FxFrame fx_frame;
+
+inline void PublishFx(const FxFrame& frame) {
+    std::lock_guard<std::mutex> lock(fx_mutex);
+    fx_frame = frame;
+}
+inline FxFrame GetFx() {
+    std::lock_guard<std::mutex> lock(fx_mutex);
+    return fx_frame;
+}
+
 inline std::mutex screen_mutex;
 inline ScreenState screen_state;
 

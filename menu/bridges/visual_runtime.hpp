@@ -55,6 +55,26 @@ inline void Configure() {
     s.screen.spread=cfg.visuals.spread_circle_type.get().first_set_bit().value_or(0)!=0;
     s.screen.spread_color1=cfg.visuals.spread_circle_color1.get().rgba();
     s.screen.spread_color2=cfg.visuals.spread_circle_color2.get().rgba();
+    // Visuals -> Misc -> Other: tracers (three categories, each with its own colour and
+    // style), impacts and the three hitmarker variants. No geometry here - the game thread
+    // owns the events and the projection; this is only "what the menu asks for".
+    for(int i=0;i<3;++i) {
+        s.fx.tracer[i]=cfg.misc.tracer_targets.get().test(i);
+        s.fx.tracer_color[i]=cfg.misc.tracer_colors[i].get().rgba();
+        s.fx.tracer_style[i]=static_cast<int>(cfg.misc.tracer_style[i].get().first_set_bit().value_or(1));
+    }
+    s.fx.impacts=cfg.misc.impacts.get();
+    s.fx.impact_color1=cfg.misc.impacts_color.get().rgba();
+    s.fx.impact_color2=cfg.misc.impacts_color2.get().rgba();
+    const std::array<int,3> hitmarker_indices{cfg_t::hitmarker_world,cfg_t::hitmarker_cross,cfg_t::hitmarker_kibit};
+    for(int i=0;i<3;++i) {
+        const int kind=hitmarker_indices[i];
+        s.fx.hitmarker[kind]=cfg.misc.hitmarker.get().test(kind);
+        s.fx.hitmarker_life[kind]=cfg.misc.hitmarker_duration[kind].get();
+    }
+    s.fx.hitmarker_color[cfg_t::hitmarker_world]=cfg.misc.hitmarker_world_color.get().rgba();
+    s.fx.hitmarker_color[cfg_t::hitmarker_cross]=cfg.misc.hitmarker_screen_color.get().rgba();
+    s.fx.hitmarker_color[cfg_t::hitmarker_kibit]=cfg.misc.hitmarker_kibit_color.get().rgba();
     s.world_fog=cfg.visuals.world_effects.fog.get();
     s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},

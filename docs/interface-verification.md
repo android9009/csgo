@@ -171,6 +171,7 @@ Same method: `VEngineClient014` -> `InterfaceReg` -> `createFn` (`mov eax, <sing
 |---|---|---|
 | 5 | `GetScreenSize(int&, int&)` | two out-pointers, forwards to the surface |
 | 8 | `GetPlayerInfo(int, player_info_t*)` | three arguments, indexes the player array |
+| 9 | `GetPlayerForUserID(int)` | `engine+0xB7490`: loops `i = 1 … [clientstate+0x388]`, calls **vfunc `+0x20`, i.e. slot 8 `GetPlayerInfo`**, into a stack `player_info`, and compares `[esp+0xa0]` (the struct's user id field) with the argument; returns the index or 0. That is the published semantics, and it also cross-checks the numbering: slot 9's body calls slot 8 |
 | 12 | `GetLocalPlayer()` | reads the client state global, calls its vfunc `+0x14`, indexes the slot array |
 | 18 / 19 | `GetViewAngles` / `SetViewAngles` | three floats through an out-pointer / an aligned copy in |
 | 20 | `GetMaxClients()` | `mov eax, [clientstate+0x388]; ret` |
@@ -234,6 +235,11 @@ Modulating the material itself gets the same picture — see
   `kClientModeViewModelFovSlot = 35` — verified. Only 24 and 35 are hooked: third
   person no longer uses `OverrideView` (it drives `CInput` instead).
 - `kEngineScreenAspectRatioSlot = 101` — verified, hooked for "Aspect ratio".
+- `IEngineClient` slot 9 (`GetPlayerForUserID`) — verified (see the table). It is what
+  turns the `userid` of `bullet_impact` / `player_hurt` into an entity, i.e. the shooter of a
+  tracer and the attacker of a hitmarker. The feature range-checks the result against
+  `GetMaxClients()` before it reaches the entity list, so a different build costs a log line
+  rather than an out-of-range read.
 - `IMaterial`/`IMaterialVar` indices in `sdk/material.hpp` — verified.
 - `IMaterialSystem` 83/84/115 — verified.
 - `IStudioRender` 33 for `ForcedMaterialOverride` — verified; 34 is the query.

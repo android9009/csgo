@@ -68,10 +68,15 @@ screen.
 | Control | Status |
 | --- | --- |
 | `Remove scope` (None / Static / Dynamic / Gradient …) | **implemented; needs a manual check.** The mask is dropped natively: a MinHook detour on the player's post-screen pass (`UpdatePostScreenEffects`, signature `update_postscreen_effects`, RVA `0x3FAEA0` in the supplied `client.dll`, unique match, plain `ret` epilogue so the thunk pops nothing) clears `m_bIsScoped` for the duration of the call and restores it immediately after — this is main's `remove_post_screen_effects` trick, and it is also why the pass is hooked rather than the mask being overdrawn. The hand-over is skipped (and the call forwarded untouched) when the object being processed is not the local player, so a mismatched `this` fails closed instead of corrupting state. The four lines are drawn by this module (`menu/overlays/screen_overlay.hpp`) with `gapPx = focalPx * tan(angle)`: Static is a fixed 6° gap, Dynamic is the weapon's live `m_fAccuracyPenalty`, both with the menu's colour, thickness (`Detail::ScopeThickness`, 5–100 % → 1.2–5 px), `Invert` and gradient fade. They vanish when the player is not scoped, and the whole overlay is fed by `VisualRuntime::PublishScreen` from `FRAMERENDER_START`, never by an entity read on the render thread. |
+| `Bullet tracers` (Local / Enemy / Teammates, each with colour and Laser/Line style) | **implemented; needs a manual check.** `bullet_impact` arrives through the shared game-event listener, the shooter is resolved with `IEngineClient::GetPlayerForUserID` (slot 9, verified in the supplied `engine.dll` — its body calls slot 8 `GetPlayerInfo` and compares the struct's user id), and the record is projected once per frame at `FRAME_RENDER_START` with the same matrix the renderer is about to use. Start point is the shooter's eye, end point is the impact — one record per impact, i.e. one per shot for everything that fires a single bullet. The three categories have their own colour and style; both styles are drawn by this module (`Laser` is the thicker line, `Line` the thin one — the engine's beam interface is not verified for this build, and pretending it is would be a lie about what the picture is made of). |
+| `Show impacts` | **implemented.** The local player's own `bullet_impact` positions become small boxes for four seconds, drawn in `impacts_color` with `impacts_color2` on the corners. |
+| `Hitmarker` (World / Screen / Kibit) | **implemented.** `player_hurt` where the attacker is the local player: `World` marks the victim's position, `Screen` and `Kibit` mark the crosshair (Kibit larger), each with its own colour and its own duration slider. An unprojectable victim drops its `World` marker instead of drawing it in the wrong place. |
 | `Penetration crosshair` | **not implemented.** It needs a penetration test (main's `penetration.cpp`, ~640 lines of surface/material/trace logic and its own offsets) to decide green vs red; a single trace hit is not the answer and was not faked. |
 | `Force crosshair` | **not implemented.** The native crosshair is a HUD element whose paint routine has to be reached (or its visibility condition patched); drawing a copy was explicitly out of scope. |
 | `Spread` | **implemented; needs a manual check.** A circle whose radius is `Detail::SpreadRadiusPixels` — the same `focalPx * tan(inaccuracy)` conversion as the dynamic scope gap, so the circle and the gap always agree — drawn by `screen_overlay.hpp` from colour 1 to colour 2 around the ring, with no circle at all below one pixel. Independent of `Remove scope`: it draws whether or not the mask is off. |
 
+`Out of FOV` stays **not implemented** (it needs a per-player off-screen direction published
+alongside the ESP frame; the ESP capture is where that belongs and it is not wired yet).
 `Force crosshair` and `Penetration crosshair` stay **not implemented**: neither was replaced by a
 placeholder. `Force crosshair` has to change the HUD's own crosshair visibility (drawing a copy
 was explicitly rejected), and `Penetration crosshair` needs a real penetration test (surface
@@ -133,8 +138,12 @@ honest state of it.
   `misc.hpp`, `movement.hpp`, `convars.hpp`, `entity.hpp`. The two new portable checks
   (`ScopeGapPixels`/`FocalPixels`/`ScopeThickness`/`ViewmodelAngle`) run inside
   `tests/visuals_misc_test.cpp`; `tests/pattern_catalog_test.cpp` now expects the two new
-  catalogue entries (103 ported signatures).
-* The MSVC project itself was not built here (no MSVC in this sandbox). New files: none – every
-  change is inside existing translation units, so `csgo_base.vcxproj` needs no edit.
+  catalogue entries (103 ported signatures). `tests/visuals_fx_test.cpp` covers the new
+  projection path end to end: `ProjectPoint`/`ProjectSegment` (including the near-plane clip of
+  a tracer that starts behind the camera), the three categories, both tracer styles, the record
+  lifetimes and the pixel→fraction conversion.
+* The MSVC project itself was not built here (no MSVC in this sandbox). New translation unit:
+  `features/visuals/misc/effects.cpp` (tracers/impacts/hitmarkers) — added to
+  `csgo_base.vcxproj` and its `.filters`; `CMakeLists.txt` globs sources and needs no edit.
 * `g_aspect_failed` / the aspect thunk from `e581d2e` are untouched: the calling-convention fix
   stays exactly as it was.

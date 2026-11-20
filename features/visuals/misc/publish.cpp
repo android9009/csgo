@@ -4,6 +4,7 @@
 // translation units with the same name in one project (MSB8027: both .objs would be
 // called misc.obj, so a stale object could be linked into the other module).
 #include "misc.hpp"
+#include "effects.hpp"
 
 namespace VisualsMisc {
 namespace {
@@ -66,6 +67,9 @@ bool RemoveScopeActive() {
 void Shutdown() {
     ResetThirdPerson();
     ResetFov();
+    // The event records (tracers, impacts, hitmarkers) have no engine state to hand back, but
+    // they do own the published frame: clear it so nothing is drawn after an unload.
+    Effects::Reset();
 }
 
 namespace Detail {

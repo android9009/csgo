@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 namespace EventListener {
+static Handler handler = nullptr;
+
 class listener_t final : public IGameEventListener2 {
 public:
     // "bullet_impact" fires on every bullet and "weapon_fire" on every shot, so logging each
@@ -14,6 +16,8 @@ public:
     void FireGameEvent(IGameEvent* event) override {
         const char* name = event ? event->GetName() : nullptr;
         if (!name) return;
+        // The feature handler runs for every arrival, before the once-per-name logging below.
+        if (handler) handler(event);
         for (const auto& seen : logged) {
             if (seen == name) return;
         }
@@ -37,10 +41,11 @@ bool Setup(std::initializer_list<const char*> event_names) {
     registered = !names.empty();
     return registered;
 }
+void SetHandler(Handler new_handler) { handler = new_handler; }
 void Destroy() {
     if (!registered || !Interfaces::GameEvent) return;
     using RemoveListener = void (__thiscall*)(void*, IGameEventListener2*);
     if (auto remove = MEM::GetVFunc<RemoveListener>(Interfaces::GameEvent, 5)) remove(Interfaces::GameEvent, &listener);
-    registered = false; names.clear();
+    registered = false; names.clear(); handler = nullptr;
 }
 }

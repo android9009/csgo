@@ -87,6 +87,10 @@ public:
         reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[5])(this, width, height);
     }
     bool GetPlayerInfo(int index, void* info) {using Fn = bool (__thiscall*)(void*,int,void*);return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[8])(this,index,info);}
+    // IVEngineClient::GetPlayerForUserID - slot 9, the neighbour of the verified GetPlayerInfo
+    // (8) in the published layout. Game events carry `userid`, not an entity index; without
+    // this the shooter of a `bullet_impact` cannot be resolved at all.
+    int GetPlayerForUserID(int user_id) {using Fn = int (__thiscall*)(void*,int);auto fn=reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[9]);return fn?fn(this,user_id):0;}
     // IEngineClient::ClientCmd_Unrestricted - slot 114 (main: execute_client_cmd). The
     // second argument is the "flag" string the game passes for restricted commands; the
     // engine accepts a null flag for the plain client-command path.

@@ -181,6 +181,9 @@
     <ClCompile Include="features\misc\buybot\buybot.cpp">
       <Filter>Features\misc\buybot</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\misc\effects.cpp">
+      <Filter>Features\visuals\misc</Filter>
+    </ClCompile>
     <ClCompile Include="features\visuals\misc\fov.cpp">
       <Filter>Features\visuals\misc</Filter>
     </ClCompile>

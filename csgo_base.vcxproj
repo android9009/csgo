@@ -175,6 +175,7 @@
     <ClCompile Include="features\misc\other\other.cpp" />
     <ClCompile Include="features\misc\other\accept.cpp" />
     <ClCompile Include="features\misc\other\console_filter.cpp" />
+    <ClCompile Include="features\visuals\misc\effects.cpp" />
     <ClCompile Include="features\visuals\misc\fov.cpp" />
     <ClCompile Include="features\visuals\misc\publish.cpp" />
     <ClCompile Include="features\visuals\misc\thirdperson.cpp" />
@@ -377,6 +378,8 @@
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp" />
     <ClInclude Include="features\misc\other\other.hpp" />
     <ClInclude Include="sdk\convars.hpp" />
+    <ClInclude Include="features\visuals\misc\effects.hpp" />
+    <ClInclude Include="features\visuals\misc\fx.hpp" />
     <ClInclude Include="features\visuals\misc\misc.hpp" />
     <ClInclude Include="features\visuals\removals\removals.hpp" />
     <ClInclude Include="features\visuals\removals\flash.hpp" />
