@@ -9,6 +9,7 @@
 #include "../../features/visuals/removals/removals.hpp"
 #include "../../features/visuals/model_transparency.hpp"
 #include "../../features/visuals/world_fog.hpp"
+#include "../../features/visuals/world_modulation.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../entity/player.hpp"
@@ -24,6 +25,15 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     // Visuals -> World -> "Fog": the client reads fog_override/fog_color while it builds the
     // frame's fog, so the override is asserted at render start. With no game running (main
     // menu, disconnect) the cvars are handed straight back.
+    // Visuals -> World: "Fullbright" rides the engine's own mat_fullbright switch, kept in step
+    // here (the tint half runs inside the GetColorModulation detour).
+    if (stage == 5) {
+        __try { WorldModulation::Frame(); }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            static bool logged = false;
+            if (!logged) { logged = true; LOG_WARN("visuals world: fullbright cvar write raised an exception"); }
+        }
+    }
     if (stage == 5) {
         const auto effects = VisualRuntime::GetEffects();
         __try { WorldFog::Apply(effects.world_fog, effects.world_fog_colour); }

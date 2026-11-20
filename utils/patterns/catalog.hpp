@@ -276,6 +276,12 @@ inline constexpr Definition kPortedCatalog[] = {
 
     // materialsystem.dll (1)
     {"get_color_modulation", "materialsystem.dll", "55 8B EC 83 EC ? 56 8B F1 8A 46", {0, 0, 0, 0}, 0, true, 0},
+    // Both "Force crosshair" spellings from `main` (offsets.cpp keeps one per supported build).
+    // In the supplied client.dll both match exactly once, at RVAs 0x544ADC and 0x6A1D20, so
+    // neither can be picked by "it matched": the feature tries them in order and logs which one
+    // it hooked. See docs/visuals-audit.md for why the cvar path below is what ships.
+    {"want_reticle_shown", "client.dll", "53 56 57 8B 3D ? ? ? ? 8B F1 85 FF", {0, 0, 0, 0}, 0, true, 0},
+    {"want_reticle_shown_alt", "client.dll", "55 8B EC 53 56 8B F1 8B 4D ? 57 E8", {0, 0, 0, 0}, 0, true, 0},
 
     // server.dll (2)
     {"draw_hitbox", "server.dll", "55 8B EC 81 EC ? ? ? ? 53 56 8B 35 ? ? ? ? 8B D9 57 8B CE", {0, 0, 0, 0}, 0, true, 0},

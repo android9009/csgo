@@ -32,6 +32,14 @@ struct Effects {
     // half-updated colour.
     bool world_fog{};
     std::uint32_t world_fog_colour{0xFFFFFFFFu};
+    // Visuals -> World: "Nightmode" (world texture modulation), "Sky" (skybox texture
+    // modulation) and "Fullbright" (the engine's own `mat_fullbright` switch). See
+    // features/visuals/world_modulation.hpp.
+    bool nightmode{};
+    std::uint32_t nightmode_colour{0xFFFFFFFFu};
+    bool sky{};
+    std::uint32_t sky_colour{0xFFFFFFFFu};
+    bool fullbright{};
     // Visuals -> Misc -> local: "Remove scope" (mode, see VisualsMisc::Detail::ScopeMode),
     // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
     // menu/overlays/screen_overlay.hpp reads these; the game thread reads the same struct to

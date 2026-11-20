@@ -10,6 +10,7 @@
 #include "../../features/visuals/shot_chams.hpp"
 #include "../../features/misc/movement/movement.hpp"
 #include "../../features/visuals/misc/effects.hpp"
+#include "../../features/visuals/world_modulation.hpp"
 #include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/world_fog.hpp"
 #include "../datatypes/c_user_cmd.hpp"
@@ -212,6 +213,9 @@ bool Setup() {
     // pose (rotation sliders) and the player's post-screen pass ("Remove scope" dropping the
     // engine's mask). Both are resolved from the signature catalogue at runtime.
     HooksInternal::InstallVisualMiscDetours();
+    // Visuals -> World: Nightmode / Sky ride the material colour path, Fullbright the engine's
+    // own mat_fullbright switch, "Force crosshair" the weapon_debug_spread_show GetInt.
+    HooksInternal::InstallWorldDetours();
     // Visuals -> Misc -> Other: the event-driven effects (tracers, impacts, hitmarker) plug
     // into the single game-event listener; the events themselves are subscribed in main.cpp.
     VisualsMisc::Effects::Setup();
@@ -233,6 +237,8 @@ bool Setup() {
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
 void Restore() {
+    HooksInternal::RemoveWorldDetours();
+    WorldModulation::Shutdown();
     HooksInternal::RemoveVisualMiscDetours();
     ShotChams::Shutdown();
     VisualsMisc::Shutdown();

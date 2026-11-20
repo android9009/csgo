@@ -79,6 +79,11 @@ inline void Configure() {
     s.fx.out_of_fov_color=cfg.visuals.out_of_fov_col.get().rgba();
     s.fx.out_of_fov_distance=cfg.visuals.out_of_fov_dst.get();
     s.fx.out_of_fov_size=cfg.visuals.out_of_fov_size.get();
+    s.nightmode=cfg.visuals.world_effects.nightmode.get();
+    s.nightmode_colour=cfg.visuals.world_effects.nightmode_color.get().rgba();
+    s.sky=cfg.visuals.world_effects.sky.get();
+    s.sky_colour=cfg.visuals.world_effects.sky_color.get().rgba();
+    s.fullbright=cfg.visuals.world_effects.fullbright.get();
     s.world_fog=cfg.visuals.world_effects.fog.get();
     s.world_fog_colour=cfg.visuals.world_effects.fog_color.get().rgba();
     s.player_glow={VisualRuntime::Highlight{esp.glow.enabled.get() && esp.glow.enemy.get(),esp.glow.enemy_color.get().rgba()},
@@ -117,6 +122,8 @@ inline void Configure() {
     misc.vm_pitch=cfg.misc.viewmodel_pitch.get();
     misc.remove_scope=s.screen.scope_mode;
     misc.spread_circle=s.screen.spread;
+    misc.force_crosshair=cfg.misc.force_crosshair.get();
+    misc.disable_landing_bob=cfg.misc.disable_landing_bob.get();
     VisualsMisc::Publish(misc);
 }
 }

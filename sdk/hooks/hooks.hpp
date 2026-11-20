@@ -62,4 +62,8 @@ namespace HooksInternal {
     // off with a log line instead of a guessed address. Installed from Hooks::Initialize.
     void InstallVisualMiscDetours();
     void RemoveVisualMiscDetours();
+    // Visuals -> World: the IMaterial::GetColorModulation detour (Nightmode / Sky tints) and the
+    // weapon_debug_spread_show GetInt detour ("Force crosshair"). Both are resolved at runtime.
+    void InstallWorldDetours();
+    void RemoveWorldDetours();
 }

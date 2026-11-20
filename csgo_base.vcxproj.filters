@@ -241,6 +241,9 @@
     <ClCompile Include="features\visuals\shot_chams.cpp">
       <Filter>Features</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\world_modulation.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="features\visuals\player_esp.cpp">
       <Filter>Features</Filter>
     </ClCompile>

@@ -295,6 +295,12 @@ int main() {
         assert(Near(Detail::TargetAspectRatio(s, 1.333f), Detail::kAspectMin * 0.01f));
     }
 
+    // "Force crosshair": only the weapons that hide their crosshair are worth forcing.
+    {
+        for (int index : {8, 9, 11, 38, 39, 40}) assert(Detail::ScopingWeapon(index));
+        for (int index : {0, 1, 7, 10, 16, 60, 41, 42, -1}) assert(!Detail::ScopingWeapon(index));
+    }
+
     // Viewmodel rotation: the menu spans +-180 degrees and a nonsense value has to be 0.
     {
         assert(Near(Detail::ViewmodelAngle(35.f), 35.f));

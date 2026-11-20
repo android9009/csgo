@@ -155,6 +155,7 @@
     <ClCompile Include="sdk\hooks\framestage.cpp" />
     <ClCompile Include="menu\preview\model_preview.cpp" />
     <ClCompile Include="features\visuals\shot_chams.cpp" />
+    <ClCompile Include="features\visuals\world_modulation.cpp" />
     <ClCompile Include="features\visuals\player_esp.cpp" />
     <ClCompile Include="features\visuals\glow.cpp" />
     <ClCompile Include="features\skins\skin_changer.cpp" />
@@ -382,6 +383,7 @@
     <ClInclude Include="features\visuals\misc\fx.hpp" />
     <ClInclude Include="features\visuals\misc\misc.hpp" />
     <ClInclude Include="features\visuals\removals\removals.hpp" />
+    <ClInclude Include="features\visuals\world_modulation.hpp" />
     <ClInclude Include="features\visuals\removals\flash.hpp" />
     <ClInclude Include="features\visuals\removals\punch.hpp" />
     <ClInclude Include="features\visuals\material_renderer.hpp" />

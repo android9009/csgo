@@ -1,9 +1,12 @@
 #include "hooks.hpp"
+#include "../convars.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../../features/visuals/misc/misc.hpp"
+#include "../../features/visuals/world_modulation.hpp"
 #include "../../context.hpp"
 #include "../../utils/detourhook.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/memory.hpp"
 #include "../../utils/patterns/patterns.hpp"
 
 namespace HooksInternal {
@@ -23,6 +26,71 @@ void* g_scope_mask_original{};
 void* g_viewmodel_original{};
 bool g_scope_mask_failed{};
 bool g_viewmodel_failed{};
+
+// Visuals -> World: the material colour path and the engine's own "show the weapon's spread"
+// switch (see ForceCrosshair below).
+Detour_Hook g_color_modulation_hook;
+void* g_color_modulation_original{};
+bool g_color_modulation_failed{};
+Detour_Hook g_spread_show_hook;
+void* g_spread_show_original{};
+void* g_spread_show_var{};
+
+// `weapon_debug_spread_show` is a ConVar subclass with its own GetInt (virtual slot 13, i.e.
+// `int __thiscall()`), which is what `main` hooks (`vmt_hooks.cpp: GET_INT_IDX = 13`). The
+// engine asks it while it draws the crosshair, so answering 3 makes the *game's own* crosshair
+// show the current spread - including on a scoped weapon that normally has no crosshair at all.
+// Nothing is drawn by this module: the picture is the game's.
+//
+// The function is detoured where it sits (not the vtable slot) because the slot is shared with
+// every other ConVar object; `ecx` is still compared against the captured one so a shared
+// implementation is harmless.
+int __fastcall WeaponDebugSpreadShowGetInt(void* ecx, void* /*edx*/) {
+    using Fn = int(__thiscall*)(void*);
+    const auto original = reinterpret_cast<Fn>(g_spread_show_original);
+    if (!original) return 0;
+    // Only for a weapon that hides its crosshair (an un-scoped sniper / AUG / SG 553) and only
+    // while it is not scoped: scoped, the game draws its own scope overlay and a reticle on top
+    // of it would be the wrong picture.
+    if (!VisualsMisc::ForceCrosshairActive()) return original(ecx);
+    CCSPlayer* local = ctx.local;
+    if (!local || !ctx.weapon) return original(ecx);
+    __try {
+        if (local->m_bIsScoped()) return original(ecx);
+        if (!VisualsMisc::Detail::ScopingWeapon(ctx.weapon->m_iItemDefinitionIndex()))
+            return original(ecx);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return original(ecx);
+    }
+    return 3;
+}
+
+// IEngineTrace... no: IMaterial::GetColorModulation (materialsystem.dll, `main`'s
+// `get_color_modulation`). Verified in the supplied materialsystem.dll: `55 8B EC 83 EC ? 56 8B
+// F1 8A 46` matches once at RVA 0xF90, the body writes the three floats through the three stack
+// pointers and the epilogue is `ret 0xC`, so the thunk declares all three.
+void __fastcall GetColorModulation(void* material, void* /*edx*/, float* r, float* g, float* b) {
+    using Fn = void(__thiscall*)(void*, float*, float*, float*);
+    const auto original = reinterpret_cast<Fn>(g_color_modulation_original);
+    if (!original) return;
+    original(material, r, g, b);
+    if (g_color_modulation_failed) return;
+    __try {
+        WorldModulation::Tint(material, r, g, b);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        g_color_modulation_failed = true;
+        LOG_ERROR("visuals world: exception in the GetColorModulation detour 0x%08lX; the world "
+                  "tint stays off", GetExceptionCode());
+    }
+}
+
+// The catalogue publishes module-relative addresses for these two, so the base has to be added.
+std::uintptr_t ModuleFunction(const char* module, const char* name) {
+    const auto rva = Patterns::Get(name);
+    if (!rva) return 0;
+    const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase(module));
+    return base ? base + rva : 0;
+}
 } // namespace
 
 // IEngineClient::GetScreenAspectRatio - vtable slot 101 (main: GET_SCREEN_ASPECT_RATIO_IDX).
@@ -143,6 +211,49 @@ void __fastcall CalcViewModelView(void* ecx, void* /*edx*/, void* owner, float* 
         LOG_ERROR("visuals misc: exception in the CalcViewModelView detour 0x%08lX; the "
                   "viewmodel rotation stays off", GetExceptionCode());
     }
+}
+
+void InstallWorldDetours() {
+    const auto color_modulation = ModuleFunction("materialsystem.dll", "get_color_modulation");
+    if (!color_modulation) {
+        LOG_WARN("visuals world: get_color_modulation did not resolve; Nightmode and Sky stay "
+                 "inactive");
+    } else if (g_color_modulation_hook.attach(reinterpret_cast<void*>(color_modulation),
+                                              reinterpret_cast<void*>(&GetColorModulation),
+                                              &g_color_modulation_original)) {
+        LOG_INFO("visuals world: colour-modulation detour attached at 0x%08lX",
+                 static_cast<unsigned long>(color_modulation));
+    } else {
+        LOG_WARN("visuals world: the colour-modulation detour could not be created");
+    }
+
+    // "Force crosshair": detour the resolved ConVar's own GetInt.
+    ConVars::ConVar* var = Interfaces::ConVar ? ConVars::Find("weapon_debug_spread_show") : nullptr;
+    if (!var) {
+        LOG_WARN("visuals world: weapon_debug_spread_show not found; \"Force crosshair\" stays "
+                 "inactive");
+        return;
+    }
+    auto** table = reinterpret_cast<void**>(var->vtable_);
+    if (!table || !table[13]) {
+        LOG_WARN("visuals world: weapon_debug_spread_show has no GetInt at slot 13; \"Force "
+                 "crosshair\" stays inactive");
+        return;
+    }
+    if (g_spread_show_hook.attach(table[13], reinterpret_cast<void*>(&WeaponDebugSpreadShowGetInt),
+                                  &g_spread_show_original)) {
+        g_spread_show_var = var;
+        LOG_INFO("visuals world: weapon_debug_spread_show GetInt detoured (GetInt=%p)",
+                 table[13]);
+    } else {
+        LOG_WARN("visuals world: the weapon_debug_spread_show detour could not be created");
+    }
+}
+
+void RemoveWorldDetours() {
+    g_color_modulation_hook.detach();
+    g_spread_show_hook.detach();
+    g_spread_show_var = nullptr;
 }
 
 void InstallVisualMiscDetours() {

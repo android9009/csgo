@@ -53,6 +53,61 @@ struct OwnedViewmodel {
     float written_z{};
 } g_vm;
 
+// "Disable landing bob". The reference build hooks `calc_view_model_bob` and leaves the body a
+// passthrough (`main:detour_hooks.cpp:19-25`), i.e. it has no implementation to port; the
+// engine's own bob amplitudes do the same job without a hook. `cl_bob_lower_amt` is the term
+// that lowers the viewmodel (what the landing dip is made of), the other two are the running
+// sway; all three exist in the supplied client.dll, and all three are captured and handed back
+// untouched when the checkbox goes off.
+struct OwnedBob {
+    bool attempted{};
+    bool active{};
+    ConVars::SavedVar lower{};
+    ConVars::SavedVar lat{};
+    ConVars::SavedVar vert{};
+    float saved_lower{};
+    float saved_lat{};
+    float saved_vert{};
+} g_bob;
+
+void RestoreLandingBob() {
+    if (!g_bob.active) return;
+    const bool ok = g_bob.lower.Restore() && g_bob.lat.Restore() && g_bob.vert.Restore();
+    LOG_INFO("visuals misc: viewmodel bob handed back (%.2f/%.2f/%.2f)%s",
+             static_cast<double>(g_bob.saved_lower), static_cast<double>(g_bob.saved_lat),
+             static_cast<double>(g_bob.saved_vert), ok ? "" : " - a cvar was already gone");
+    g_bob = OwnedBob{};
+}
+
+void ApplyLandingBob(const Settings& settings) {
+    if (!Interfaces::ConVar) return;
+    if (!g_bob.attempted) {
+        g_bob.attempted = true;
+        if (!g_bob.lower.Capture("cl_bob_lower_amt") || !g_bob.lat.Capture("cl_bobamt_lat") ||
+            !g_bob.vert.Capture("cl_bobamt_vert")) {
+            LOG_WARN("visuals misc: the viewmodel bob cvars did not resolve; \"Disable landing "
+                     "bob\" stays inactive");
+            g_bob.attempted = false;
+            g_bob.active = false;
+            return;
+        }
+        g_bob.saved_lower = g_bob.lower.value;
+        g_bob.saved_lat = g_bob.lat.value;
+        g_bob.saved_vert = g_bob.vert.value;
+    }
+    if (settings.disable_landing_bob && !g_bob.active) {
+        const bool ok = ConVars::SetFloat(g_bob.lower.var, 0.f) &&
+                        ConVars::SetFloat(g_bob.lat.var, 0.f) &&
+                        ConVars::SetFloat(g_bob.vert.var, 0.f);
+        g_bob.active = ok;
+        LOG_INFO("visuals misc: viewmodel bob zeroed (%.2f/%.2f/%.2f -> 0)", 
+                 static_cast<double>(g_bob.saved_lower), static_cast<double>(g_bob.saved_lat),
+                 static_cast<double>(g_bob.saved_vert));
+    } else if (!settings.disable_landing_bob && g_bob.active) {
+        RestoreLandingBob();
+    }
+}
+
 // Reading the player's fov/state can fault on a stale entity; the caller treats a fault as
 // "nothing to do this frame".
 struct LocalState {
@@ -241,6 +296,11 @@ void FrameStage(int stage) {
     if (stage != 5) return;
 
     ApplyViewmodelOffsets(settings);
+    __try { ApplyLandingBob(settings); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        static bool logged = false;
+        if (!logged) { logged = true; LOG_WARN("visuals misc: the viewmodel bob write raised an exception"); }
+    }
 
     CCSPlayer* local = ctx.local;
     LocalState state;
@@ -319,5 +379,6 @@ void ResetFov() {
     VisualRuntime::PublishScreen(VisualRuntime::ScreenState{});
     RestoreViewmodelOffsets();
     g_vm = OwnedViewmodel{};
+    RestoreLandingBob();
 }
 } // namespace VisualsMisc

@@ -76,9 +76,17 @@ struct Settings {
     // (0 = off, anything else = a circle; the menu only offers "gradient").
     int remove_scope{};
     bool spread_circle{};
+    // "Force crosshair": the game's own crosshair is asked for on weapons that hide it.
+    bool force_crosshair{};
+    // "Disable landing bob": the engine's own viewmodel-bob amplitudes are held at zero.
+    bool disable_landing_bob{};
 };
 
 void Publish(const Settings& settings);
+
+// True when "Force crosshair" asks the engine to show its own crosshair for a weapon that
+// normally has none (un-scoped sniper). Read by the weapon_debug_spread_show GetInt detour.
+bool ForceCrosshairActive();
 
 // True when "Remove scope" asks for the game's own scope mask to be dropped. Read by the
 // UpdatePostScreenEffects detour (sdk/hooks/viewhooks.cpp), so it is answered from the
@@ -346,6 +354,24 @@ inline float ViewmodelAngle(float value) {
     if (value < -kViewmodelAngleLimit) return -kViewmodelAngleLimit;
     if (value > kViewmodelAngleLimit) return kViewmodelAngleLimit;
     return value;
+}
+
+// "Force crosshair" only makes sense for a weapon that *has* a scope and hides its crosshair:
+// main's `is_scoping_weapon()` (`entities.hpp`) lists exactly these item definition indices -
+// AUG 8, AWP 9, G3SG1 11, SCAR-20 38, SG 553 39, SSG 08 40. Everything else already draws a
+// crosshair, so forcing one would change nothing but the call count.
+inline bool ScopingWeapon(int item_definition_index) {
+    switch (item_definition_index) {
+        case 8:   // AUG
+        case 9:   // AWP
+        case 11:  // G3SG1
+        case 38:  // SCAR-20
+        case 39:  // SG 553
+        case 40:  // SSG 08
+            return true;
+        default:
+            return false;
+    }
 }
 
 // ---------------------------------------------------------------------------------------

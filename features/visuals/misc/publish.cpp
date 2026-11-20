@@ -32,6 +32,8 @@ std::atomic<float> g_vm_yaw{0.f};
 std::atomic<float> g_vm_pitch{0.f};
 std::atomic<int> g_remove_scope{0};
 std::atomic<bool> g_spread_circle{false};
+std::atomic<bool> g_force_crosshair{false};
+std::atomic<bool> g_disable_bob{false};
 } // namespace
 
 void Publish(const Settings& settings) {
@@ -58,7 +60,11 @@ void Publish(const Settings& settings) {
     g_vm_pitch.store(settings.vm_pitch, std::memory_order_relaxed);
     g_remove_scope.store(settings.remove_scope, std::memory_order_relaxed);
     g_spread_circle.store(settings.spread_circle, std::memory_order_relaxed);
+    g_force_crosshair.store(settings.force_crosshair, std::memory_order_relaxed);
+    g_disable_bob.store(settings.disable_landing_bob, std::memory_order_relaxed);
 }
+
+bool ForceCrosshairActive() { return g_force_crosshair.load(std::memory_order_relaxed); }
 
 bool RemoveScopeActive() {
     return Detail::ScopeLines(g_remove_scope.load(std::memory_order_relaxed));
@@ -98,6 +104,8 @@ Settings Snapshot() {
     settings.vm_pitch = g_vm_pitch.load(std::memory_order_relaxed);
     settings.remove_scope = g_remove_scope.load(std::memory_order_relaxed);
     settings.spread_circle = g_spread_circle.load(std::memory_order_relaxed);
+    settings.force_crosshair = g_force_crosshair.load(std::memory_order_relaxed);
+    settings.disable_landing_bob = g_disable_bob.load(std::memory_order_relaxed);
     return settings;
 }
 } // namespace Detail
