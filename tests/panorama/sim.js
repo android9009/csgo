@@ -1,32 +1,47 @@
 // Fake Panorama, just enough for the scoreboard script: panels with ids, classes, children,
-// attributes, styles and BLoadLayoutFromString. Asserts what the script is supposed to do.
+// attributes and styles. Asserts what the script is supposed to do, including the parts
+// that only the game would show: rows matched by xuid and by nickname, a rebuilt scoreboard
+// redrawing itself, and the clear message removing a row again.
 const fs = require('fs');
 const path = require('path');
 
 const dir = process.argv[2];
-const split = fs.readFileSync(path.join(dir, 'out.txt'), 'utf8').split('/*SPLIT*/');
-const engine = split[0];
-const feed = split[1];
+const dump = fs.readFileSync(path.join(dir, 'out.txt'), 'utf8');
+function section(name) {
+    const start = dump.indexOf('/*' + name + '*/');
+    if (start < 0) throw new Error('missing section ' + name);
+    const from = start + name.length + 4;
+    const next = dump.indexOf('/*', from);
+    return dump.slice(from, next < 0 ? dump.length : next).trim();
+}
+const engine = section('ENGINE');
+const updates = section('UPDATES');
+const clear = section('CLEAR');
+const reset = section('RESET');
+
+const failures = [];
+function assert(condition, message) {
+    if (condition) console.log('  ok  ' + message);
+    else failures.push(message);
+}
 
 class Panel {
     constructor(type, id, parent, props) {
         this.type = type; this.id = id; this.parent = parent || null;
         this.children = []; this.classes = new Set(); this.style = {}; this.attrs = {};
         this.text = ''; this.visible = true; this.image = null; this.deleted = false;
-        if (props) {
-            if (props.style) this.style.css = props.style;
-            if (props.textureheight) this.style.textureheight = props.textureheight;
-        }
+        if (props && props.style) this.style.css = props.style;
         if (parent) parent.children.push(this);
     }
     IsValid() { return !this.deleted; }
-    DeleteAsync() { this.deleted = true; }
+    DeleteAsync() { this.deleted = true; if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this); }
     GetParent() { return this.parent; }
     Children() { return this.children.slice(); }
     GetChild(index) { return this.children[index] || null; }
     GetAttributeString(name, fallback) { return this.attrs[name] !== undefined ? this.attrs[name] : fallback; }
     SetImage(image) { this.image = image; }
     AddClass(name) { this.classes.add(name); }
+    RemoveAndDeleteChildren() { this.children = []; }
     MoveChildBefore(child, before) {
         const from = this.children.indexOf(child);
         if (from < 0) throw new Error('MoveChildBefore: not a child of this panel');
@@ -52,22 +67,6 @@ class Panel {
         }
         return found;
     }
-    BLoadLayoutFromString(xml) {
-        // Only the image ids matter: that is what the script switches between.
-        const ids = [...xml.matchAll(/<Image id="([a-z]+)"/g)].map((m) => m[1]);
-        if (ids.length !== 4) failures.push('slot layout must declare four size classes');
-        for (const id of ids) {
-            const image = new Panel('Image', id, this);
-            image.style.opacity = '0.01';
-        }
-        return true;
-    }
-}
-
-const failures = [];
-function assert(condition, message) {
-    if (!condition) { failures.push(message); }
-    else console.log('  ok  ' + message);
 }
 
 const hud = new Panel('Panel', 'CSGOHud');
@@ -90,72 +89,104 @@ function addRow(xuid, nickname) {
 }
 
 const messages = [];
-global.GameStateAPI = {
-    GetPlayerXuidStringFromEntIndex: (index) => ({ 3: '76561198000000003', 7: '76561198000000007' }[index] || '0'),
-    GetPlayerTeamName: (xuid) => (xuid.endsWith('3') ? 'TERRORIST' : 'CT'),
-};
-let created = [];
+let created = 0;
 global.__events = {};
 global.$ = {
     GetContextPanel: () => hud,
-    CreatePanel: (type, parent, id, props) => { const panel = new Panel(type, id, parent, props); created.push(panel); return panel; },
+    CreatePanel: (type, parent, id, props) => { created++; return new Panel(type, id, parent, props); },
     RegisterForUnhandledEvent: (name, fn) => { (global.__events[name] = global.__events[name] || []).push(fn); return fn; },
-    UnregisterForUnhandledEvent: () => {},
+    UnregisterForUnhandledEvent: (name, fn) => {
+        const list = global.__events[name] || [];
+        const at = list.indexOf(fn);
+        if (at >= 0) list.splice(at, 1);
+    },
     Msg: (...args) => messages.push(args.join(' ')),
 };
+function fire(name) { for (const fn of (global.__events[name] || []).slice()) fn(); }
 
+// ---- install ---------------------------------------------------------------------------
+eval(engine);
+assert(typeof SClient !== 'undefined', 'the engine defines SClient');
+assert(typeof SWeaponManager !== 'undefined', 'the engine defines SWeaponManager');
+assert(messages.some((m) => m.includes('equipment engine installed')), 'install is reported');
+assert(created === 0, 'nothing is drawn before an update arrives');
+assert(global.__events['OnOpenScoreboard'] && global.__events['OnOpenScoreboard'].length === 1,
+    'the scoreboard events are registered once');
+
+// A reinstall must not stack handlers.
+eval(engine);
+assert(global.__events['OnOpenScoreboard'].length === 1, 'reinstalling does not stack handlers');
+
+// ---- updates ---------------------------------------------------------------------------
 addRow('76561198000000003', 'enemy');
 addRow('76561198000000007', 'mate');
+eval(updates);
 
-eval(engine);
-assert(global.__sb, 'the engine installs itself');
-assert(messages.some((m) => m.includes('equipment engine installed')), 'install is reported');
-assert(created.length === 0, 'nothing is created before data arrives');
+const enemy = scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003');
+const mate = scoreboard.FindChildTraverse('custom-weapons-container-76561198000000007');
+assert(!!enemy && !!mate, 'both rows get a container');
 
-eval(feed);
-const enemyPanel = global.__sb.panels['x76561198000000003'];
-assert(!!enemyPanel, 'the enemy row gets a panel (keyed by xuid)');
-assert(!!global.__sb.panels['x76561198000000007'], 'the teammate row gets a panel too');
+function content(panel) { return panel.FindChild('box-content'); }
+function icons(panel) { return content(panel).children.filter((c) => c.id && c.id.startsWith('wep_')); }
+function imageOf(panel, name) { return content(panel).FindChild('wep_' + name).FindChild('img'); }
 
-const slots = enemyPanel.children.filter((c) => /^weapon-\d+$/.test(c.id));
-assert(slots.length === 25, 'twenty-five slot parents, as in the reference');
-// The slots are created back to front, so they are ordered by their index before checking.
-const shown = slots.filter((s) => s.visible)
-    .sort((a, b) => Number(a.id.split('-')[1]) - Number(b.id.split('-')[1]));
-assert(shown.length === 3, 'exactly the three carried items are visible');
-const images = shown.map((slot) => slot.children.find((c) => c.visible));
-assert(images[0] && images[0].image.endsWith('/ak47.svg'), 'the rifle uses the ak47 icon');
-assert(images[1] && images[1].image.endsWith('/knife_karambit.svg'), 'the knife uses its own icon');
-assert(images[2] && images[2].image.endsWith('/flashbang.svg'), 'the grenade uses its own icon');
-assert(images[0].style.opacity === '0.85', 'the selected weapon is drawn brighter');
-assert(images[1].style.opacity === '0.35', 'the rest are dimmed');
-assert(images[1].id === 'smaller', 'the knife uses the wide size class');
-assert(images[0].id === 'small', 'the rifle uses the default size class');
-assert(images[0].style.washColorFast === '#EAD18A61', 'the icon is washed with the team colour');
+const enemyIcons = icons(enemy);
+assert(enemyIcons.length === 3, 'three icons for three carried items');
+assert(enemy.FindChild('box-bg') && enemy.FindChild('box-border'), 'the reference background and border are drawn');
+assert(imageOf(enemy, 'ak47').image.endsWith('/ak47.svg'), 'the rifle uses its own icon');
+assert(imageOf(enemy, 'knife_karambit').image.endsWith('/knife_karambit.svg'), 'the knife uses its own icon');
+assert(imageOf(enemy, 'flashbang').image.endsWith('/flashbang.svg'), 'the grenade uses its own icon');
+// Type-based sizing: a rifle is wide, a grenade narrow, a knife in between.
+assert(imageOf(enemy, 'ak47').style.width === '52px', 'the rifle takes the wide icon width');
+assert(imageOf(enemy, 'flashbang').style.width === '16px', 'the grenade takes the narrow width');
+assert(imageOf(enemy, 'knife_karambit').style.width === '16px', 'the knife takes the narrow width');
+assert(enemyIcons[0].style.opacity === '1.0', 'the active weapon is drawn at full opacity');
+assert(enemyIcons[1].style.opacity === '0.35', 'the rest are dimmed');
+assert(enemyIcons[0].FindChild('img').scaling === 'stretch-aspect-preserve', 'icons keep their aspect ratio');
+// Order: primaries, then pistols, then everything else.
+assert(enemyIcons.map((c) => c.id).join(',') === 'wep_ak47,wep_knife_karambit,wep_flashbang',
+    'the primary is drawn before the knife and the grenade');
+const armor = content(enemy).FindChild('equip_kevlar');
+const helmet = content(enemy).FindChild('equip_helmet');
+const defuser = content(enemy).FindChild('equip_defuser');
+assert(armor && armor.image.endsWith('/kevlar.svg'), 'kevlar is drawn for the enemy');
+assert(helmet && helmet.image.endsWith('/helmet.svg'), 'the helmet is a separate image');
+assert(defuser && defuser.image.endsWith('/defuser.svg'), 'the defuse kit is drawn');
+const money = content(enemy).FindChild('money');
+assert(money && money.text === '$4321', 'the money label carries the value');
 
 const nameCell = scoreboard.FindChildrenWithClassTraverse('sb-row')[0].children[0];
-assert(nameCell.children[1] === enemyPanel, 'the panel sits in the first column, not appended');
-const flair = nameCell.FindChildTraverse('id-sb-name__commendations__friendly');
-assert(flair.style.maxWidth === '0px' && flair.style.margin === '0px', 'unused flair is hidden');
+assert(nameCell.children[1] === enemy, 'the container sits right after the nickname');
+assert(nameCell.FindChildTraverse('id-sb-name__commendations__friendly').style.maxWidth === '0px',
+    'unused flair is hidden');
+assert(messages.some((m) => m.includes('equipment attached to row')), 'the attach is reported');
 
-const armor = enemyPanel.FindChild('armor');
-const helmet = enemyPanel.FindChild('helmet');
-const money = enemyPanel.FindChild('money');
-assert(armor.visible && armor.image.endsWith('/kevlar.svg'), 'kevlar is drawn with its own icon');
-assert(helmet.visible && helmet.image.endsWith('/helmet.svg'), 'the helmet is a separate image');
-assert(money.visible && money.text === '$4321', 'the money label carries the value');
+// ---- a rebuilt scoreboard redraws from the stored state --------------------------------
+scoreboard.RemoveAndDeleteChildren();
+addRow('76561198000000003', 'enemy');
+addRow('76561198000000007', 'mate');
+fire('OnOpenScoreboard');
+const redrawn = scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003');
+assert(!!redrawn && icons(redrawn).length === 3, 'a rebuilt scoreboard is redrawn without a new message');
 
-// A second feed without the enemy hides his panel instead of leaving stale icons.
-eval(engine + '\n__sb.feed({"7":{"w":["m4a1"],"s":0,"a":1,"d":0}});');
-assert(global.__sb.panels['x76561198000000003'].visible === false, 'a player without equipment is hidden');
-assert(global.__sb.panels['x76561198000000007'].visible === true, 'the remaining player stays visible');
+// ---- clear -----------------------------------------------------------------------------
+eval(clear);
+assert(!scoreboard.FindChildTraverse('custom-weapons-container-76561198000000003'),
+    'the clear message removes that row only');
+assert(!!scoreboard.FindChildTraverse('custom-weapons-container-76561198000000007'),
+    'the other row is untouched');
 
-// Without GameStateAPI the script falls back to nickname keys, so a HUD context without the
-// API still works (the payload carries the nickname for exactly this case).
-delete global.GameStateAPI;
-addRow(null, 'enemy');
-eval(engine + '\n__sb.feed({"3":{"w":["ak47"],"s":0,"a":0,"d":0,"n":"enemy"}});');
-assert(!!global.__sb.panels['nenemy'], 'a row without m_xuid is matched by its nickname');
+// ---- rows matched by nickname (bots have no xuid) --------------------------------------
+addRow(null, 'bot_alice');
+eval('SClient.receive({type:"updateWeapons",content:{xuid:null,nickname:"bot_alice",weapons:[{path:"glock",type:1}],active:"glock",armor:0,defuser:0}});');
+assert(!!scoreboard.FindChildTraverse('custom-weapons-container-bot_alice'),
+    'a row without m_xuid is matched by its nickname');
+
+// ---- reset -----------------------------------------------------------------------------
+eval(reset);
+assert(scoreboard.FindChildrenWithClassTraverse('custom-weapons-container').length === 0,
+    'the reset removes every container');
+assert(typeof SClient === 'undefined', 'the reset drops the client so a re-enable reinstalls');
 
 if (failures.length) {
     console.error('FAIL scoreboard_sim');

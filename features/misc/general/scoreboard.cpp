@@ -10,6 +10,7 @@
 #include "../../../utils/offsets/offsets.hpp"
 #include <atomic>
 #include <cstring>
+#include <unordered_map>
 #include <string>
 #include <vector>
 #include <windows.h>
@@ -47,13 +48,51 @@ std::uint32_t g_last_send{};
 panorama::UIEngine* g_ui{};
 bool g_blocked{};
 bool g_probe_sent{};
-bool g_active_script{};
+bool g_installed{};      // the engine script is in this HUD
 bool g_reported_no_panel{};
 bool g_reported_enable{};
+bool g_reported_updates{};
 int g_no_panel_feeds{};
 bool g_um_reported{};
 int g_script_failures{};
 std::uint32_t g_last_feed{};
+std::uint32_t g_last_install{};
+
+// What was last sent per row key, so an unchanged loadout costs nothing: the reference
+// client caches exactly this and skips the message when the state is identical.
+struct Sent {
+    std::string signature;
+    std::uint64_t xuid{};
+    std::string nickname;
+};
+std::unordered_map<std::string, Sent> g_sent;
+
+// A row is identified by the steam id the scoreboard itself uses; bots have none, so their
+// nickname is the key (and the script matches rows by nickname too).
+std::string CacheKey(const Equipment& player) {
+    if (player.xuid) return std::to_string(player.xuid);
+    if (player.name[0]) return std::string("n:") + player.name;
+    return {};
+}
+
+// Everything the row shows, flattened: identical signature means nothing to send.
+std::string Signature(const Equipment& player) {
+    std::string signature;
+    for (int i = 0; i < player.weapon_count; ++i) {
+        signature += player.weapons[i];
+        signature += ':';
+        signature += std::to_string(player.weapon_types[i]);
+        signature += ';';
+    }
+    signature += '|';
+    signature += std::to_string(player.selected);
+    signature += '|';
+    signature += std::to_string(player.armor);
+    signature += player.defuser ? '1' : '0';
+    signature += '|';
+    signature += std::to_string(player.money);
+    return signature;
+}
 
 bool InsideModule(const char* module, std::uintptr_t rva) {
     const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase(module));
@@ -186,7 +225,8 @@ bool RunScriptSafe(const std::string& script, bool verbose) {
     if (g_script_failures >= 3) {
         g_blocked = true;
         g_ui = nullptr;
-        g_active_script = false;
+        g_installed = false;
+        g_sent.clear();
         LOG_ERROR("scoreboard: weapon reveal disabled for this session");
     }
     return false;
@@ -255,7 +295,12 @@ bool CollectEquipment(std::vector<Equipment>& out) {
             // The nickname is only a fallback row key, so a layout surprise costs nothing:
             // the copy is bounded and stops at the first NUL.
             PlayerInfoBuffer info{};
-            if (Interfaces::Engine->GetPlayerInfo(index, &info)) CopyNickname(equipment.name, info.raw);
+            if (Interfaces::Engine->GetPlayerInfo(index, &info)) {
+                CopyNickname(equipment.name, info.raw);
+                // xuid lives at +0x8 in player_info_t: it is the row key the scoreboard
+                // itself uses, so it is the key the reference implementation sends.
+                equipment.xuid = *reinterpret_cast<const std::uint64_t*>(info.raw + 8);
+            }
             equipment.armor = player->m_ArmorValue() > 0 ? (player->m_bHasHelmet() ? 2 : 1) : 0;
             equipment.defuser = player->m_bHasDefuser();
             if (money_offset) {
@@ -276,7 +321,9 @@ bool CollectEquipment(std::vector<Equipment>& out) {
                 const char* icon = WeaponIcon(weapon->m_iItemDefinitionIndex());
                 if (!icon) continue;
                 if (weapon == active) equipment.selected = equipment.weapon_count;
-                equipment.weapons[equipment.weapon_count++] = icon;
+                equipment.weapons[equipment.weapon_count] = icon;
+                equipment.weapon_types[equipment.weapon_count] = WeaponTypeOf(icon);
+                ++equipment.weapon_count;
             }
             if (equipment.weapon_count > 0) out.push_back(equipment);
         }
@@ -290,8 +337,11 @@ void WeaponFrame(std::uint32_t now) {
     const bool enabled = Enabled(mask, Bits::RevealWeapon) || Enabled(mask, Bits::RevealMoney);
 
     if (!enabled) {
-        if (g_active_script) RunScriptSafe(BuildResetScript(), false);
-        g_active_script = false;
+        if (g_installed) RunScriptSafe(BuildResetScript(), false);
+        g_installed = false;
+        g_sent.clear();
+        g_reported_updates = false;
+        g_last_install = 0;
         g_ui = nullptr;
         g_no_panel_feeds = 0;
         g_reported_no_panel = false;
@@ -301,7 +351,7 @@ void WeaponFrame(std::uint32_t now) {
         return;
     }
     if (g_blocked || !ctx.in_game) return;
-    if (!g_active_script && !g_reported_enable) {
+    if (!g_installed && !g_reported_enable) {
         g_reported_enable = true;
         LOG_INFO("scoreboard: reveal on - panorama=%p in_game=%d local=%p", static_cast<void*>(Interfaces::Panorama),
                  ctx.in_game ? 1 : 0, static_cast<void*>(ctx.local));
@@ -316,7 +366,6 @@ void WeaponFrame(std::uint32_t now) {
     g_last_feed = now;
 
     std::vector<Equipment> players;
-    players.reserve(16);
     if (!CollectEquipment(players)) return;
 
     Scales scales;
@@ -324,18 +373,75 @@ void WeaponFrame(std::uint32_t now) {
     scales.y = g_scale_y.load(std::memory_order_relaxed);
     scales.weapon = g_scale_weapon.load(std::memory_order_relaxed);
 
-    if (RunScriptSafe(BuildFeedScript(players, scales), !g_active_script)) {
-        if (!g_active_script)
-            LOG_INFO("scoreboard: equipment script accepted by the HUD (%zu players)",
-                     players.size());
-        g_active_script = true;
+    // The installer goes in once (and again after a HUD reload, which drops the objects it
+    // defines). Everything after that is a small message per changed player, the way the
+    // reference client works: re-injecting the whole feature every frame was wasteful and
+    // made every feed rebuild every row.
+    const std::uint32_t install_due = static_cast<std::uint32_t>(now - g_last_install);
+    if (!g_installed || install_due >= kReinstallMs) {
+        if (!RunScriptSafe(BuildEngineScript(scales), !g_installed)) return; // retried next tick
+        if (!g_installed)
+            LOG_INFO("scoreboard: equipment engine installed (%zu player(s) in view, %zu bytes)",
+                     players.size(), BuildEngineScript(scales).size());
+        g_installed = true;
+        g_last_install = now;
+        g_sent.clear(); // a reinstall forgets the DOM it knew about; resend everything once
+    }
+
+    std::string batch;
+    std::size_t changed = 0;
+    std::vector<std::string> alive;
+    alive.reserve(players.size());
+    for (const auto& player : players) {
+        const std::string key = CacheKey(player);
+        if (key.empty()) continue;
+        alive.push_back(key);
+        const std::string signature = Signature(player);
+        const auto found = g_sent.find(key);
+        if (found != g_sent.end() && found->second.signature == signature) continue;
+        Sent sent;
+        sent.signature = signature;
+        sent.xuid = player.xuid;
+        sent.nickname = player.name;
+        g_sent[key] = sent;
+        auto message = BuildUpdateScript(player, scales);
+        // A player who lost everything gets an explicit clear, exactly like the reference
+        // client does; leaving the last loadout on screen would be a lie.
+        if (message.empty()) message = BuildClearScript(player.xuid, player.name);
+        if (message.empty()) continue;
+        batch += message;
+        batch += "\n";
+        ++changed;
+    }
+
+    // Players who left the server or lost their equipment: the row would otherwise keep
+    // showing the last loadout it was told about.
+    for (auto it = g_sent.begin(); it != g_sent.end();) {
+        bool present = false;
+        for (const auto& key : alive) if (key == it->first) { present = true; break; }
+        if (present) { ++it; continue; }
+        const auto clear = BuildClearScript(it->second.xuid, it->second.nickname.c_str());
+        if (!clear.empty()) { batch += clear; batch += "\n"; }
+        it = g_sent.erase(it);
+    }
+
+    if (batch.empty()) {
         g_no_panel_feeds = 0;
+        return;
+    }
+    if (RunScriptSafe(batch, false)) {
+        g_no_panel_feeds = 0;
+        if (!g_reported_updates) {
+            g_reported_updates = true;
+            LOG_INFO("scoreboard: equipment updates flowing (%zu player(s) in the first batch)",
+                     changed);
+        }
         return;
     }
 
     // No panel yet: the game has not dispatched a UI event since the HUD loaded, so the
     // script has no context to run in. Harmless, but say it once.
-    if (!g_active_script && !g_reported_no_panel && ++g_no_panel_feeds > 20) {
+    if (!g_reported_no_panel && ++g_no_panel_feeds > 20) {
         g_reported_no_panel = true;
         LOG_WARN("scoreboard: no Panorama panel to run the equipment script in; "
                  "open the scoreboard once or re-enable the feature");

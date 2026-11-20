@@ -91,78 +91,67 @@ A map change or HUD reload invalidates the pointer; it is re-validated on every 
 
 ## The injected script
 
-Two builders, declared in `features/misc/general/general.hpp` and defined in
+The architecture is a port of **velocity** (`wubly/velocity`,
+`cs2/velocity-cs2/project/core/features/misc/impl/scoreboard_weapons.cpp`), which is the
+reference for this feature on the current client generation: inject **one** installer that
+defines a tiny message-passing client (`SClient.receive({type, content})` with registered
+handlers) and a weapon manager, then send small per-player messages afterwards instead of
+re-injecting the whole script every frame. Two builders remain, in
 `features/misc/general/scoreboard_script.cpp`:
 
-- `BuildEngineScript(scales)` — idempotent installer for the HUD context. It creates one
-  `csgo-sb-equipment-<key>` panel per scoreboard row, hides the commendation/music-kit
-  flair so the row fits, registers `OnOpenScoreboard`, `Scoreboard_UpdateEverything` and
-  `Scoreboard_UpdateJob`, and exposes `__sb.feed` / `__sb.destroy`. A layout tag
-  (`120x90x110`) makes a slider change reinstall instead of returning early.
-- `BuildFeedScript(players, scales)` — the engine plus one `__sb.feed({...})` push. Every
-  feed carries the installer, so a HUD reload re-creates the rows without any hook.
+- `BuildEngineScript(scales)` — the installer. It defines `SClient` and `SWeaponManager`,
+  registers `updateWeapons`/`clearWeapons`, registers the three CS:GO scoreboard events
+  (`OnOpenScoreboard`, `Scoreboard_UpdateEverything`, `Scoreboard_UpdateJob`) so a rebuilt
+  row redraws from the stored state, and bakes the sliders into `CFG` (icon 16 px, armour
+  17 px, helmet 22 px, money label 13 px, panel `min-width` 30 px, all scaled). A layout tag
+  is not needed for reinstalling any more: the geometry is read from `CFG` on every draw.
+  Reinstalling unregisters the previous handlers first, so nothing stacks.
+- `BuildUpdateScript(player, scales)` / `BuildClearScript(xuid, nickname)` — one message per
+  player: `SClient.receive({type:"updateWeapons",content:{xuid,nickname,weapons:[{path,type}],
+  active,armor,defuser,money}})`, and the explicit `clearWeapons` for a row that lost its
+  equipment. Both are guarded with `typeof SClient !== "undefined"`, so sending before the
+  installer is harmless.
 
-The nickname in the payload is read from `player_info_t` (+0x10) into a fixed 64-byte field
-of the `Equipment` entry - **by value**, because `player_info_t` itself lives on the stack of
-the collecting loop. An earlier version stored a pointer into it, and the payload builder
-then walked a dangling pointer: the string grew until the allocator threw, which surfaced as
-a `0xE06D7363` crash a few frames after the scoreboard script was enabled. `Quote()` is
-bounded for the same reason.
+The row itself is **CS:GO's**, not CS2's: velocity looks rows up by `player-<xuid>` / `id-<xuid>`
+panel ids, which do not exist in this client, so the gamesense Lua's approach is used —
+`FindChildrenWithClassTraverse("sb-row")`, matched by the row's own `m_xuid` (the steam id,
+now read natively from `player_info_t` +0x8) and, for bots which have no xuid, by the
+nickname label. The container is created in the `data-stat="name"` cell and moved before the
+cell's second child, because an appended panel is clipped by the row's width.
 
-Data comes from the client's own entities (`m_hMyWeapons`, `m_iItemDefinitionIndex`,
-`m_ArmorValue`, `m_bHasHelmet`, `m_bHasDefuser`) and is translated to icon names through
-a compile-time table, so nothing user-controlled ever reaches the JavaScript.
+What comes from velocity and is now part of this build:
 
-### What the injection copies from the reference Lua
-
-The layout is a port of the gamesense **"Scoreboard equipment" Lua**
-(`fakeangle/gamesense_workshop_dump`), which is the only published implementation of this
-feature for the final 2023 client. The parts that matter and that this build now matches:
-
-| Reference behaviour | Why it matters |
+| Reference behaviour | Effect |
 |---|---|
-| `GetContextPanel().FindChildTraverse("ScoreboardContainer").FindChildTraverse("Scoreboard")` (fallback `id-eom-scoreboard-container`) | the scoreboard is looked up from the HUD root, not from whatever panel the script happens to run in; the fallback covers the end-of-match scoreboard |
-| rows via `FindChildrenWithClassTraverse("sb-row")`, keyed by the row's `m_xuid` | row panels are recreated by the game, so they cannot be held; the key survives |
-| name cell found through `data-stat="name"`, anchor `GetChild(0)` | the row's column order is the client's, not this code's |
-| `parent.MoveChildBefore(panel, parent.GetChild(1))` | **appended** panels land behind the stat columns and are clipped away - this is why the row did not appear before |
-| 25 slot parents, each with four size classes (`smaller` 15px, `small` 17px, `medium` 18px, `large` 21px) | knives need the wide class, grenades the narrow one; one class for everything makes icons look wrong or misaligned |
-| `SLOT_OVERRIDE` (knives -> `smaller`), `MIN_WIDTHS`/`MAX_WIDTHS` (pistols 31px, knives 45px, grenades 9-12px, flashbang capped at 12px) | the reference's own table, scaled by the sliders |
-| team wash (`TEAM_COLORS`) and shadow (`SHADOW_COLORS`) per `GameStateAPI.GetPlayerTeamName`, opacity 0.85 selected / 0.35 rest, ±5px icon margins and the per-weapon margin fixes | what makes the icons read as part of the row |
-| armour as `kevlar.svg` plus a separate `helmet.svg`, never one combined icon | the client's icon set has no combined texture |
-| hide `id-sb-name__commendations__*` and `id-sb-name__musickit`, tighten `id-sb-skillgroup-image` | the space the icons occupy comes from flair the row does not need |
+| installer once + `SClient.receive` messages | the 13 KB script is injected once instead of every 500 ms; an unchanged loadout costs nothing |
+| native cache keyed by steam id, skip identical state | no message unless the loadout actually changed (the previous version resent everything) |
+| explicit `clearWeapons` when a player has nothing | a dead or disconnected player's icons disappear instead of going stale |
+| icon width by weapon class (`sizeFor`) | rifles 52 px, `mac10` 30 px, pistols 30–42 px, grenades 14–16 px, knife 16 px, bomb 22 px, taser 18 px |
+| `scaling = "stretch-aspect-preserve"` | icons keep their aspect ratio inside their width |
+| container with `box-bg`/`box-border`/`box-content` (rgba background, 1 px border, `fit-children`) | the icons sit in a box that reads as part of the row |
+| `RemoveAndDeleteChildren()` then rebuild | no stale children when a loadout shrinks |
+| active weapon at opacity 1.0, the rest 0.35 | the same emphasis the reference uses |
 
-Two behaviours are this build's own: the payload also carries the nickname, so a context
-where `GameStateAPI` is out of reach still matches rows (`keyed by nickname`), and the
-reveal-money label lives in the same panel.
-
-Icons are the client's own (`file://{images}/icons/equipment/<name>.svg`), the same set
-the reference Lua uses: console name without its `item_`/`weapon_` prefix.
+Everything else - the slider mapping, armour/helmet/defuser icons, the money label, the
+flair-hiding ids - is the gamesense Lua port described below.
 
 ### Slider mapping
 
 | Slider | What it scales |
 |---|---|
-| Horizontal scale | equipment panel `min-width` (30 px base) and the per-weapon minimum widths (pistols 31 px, knives 45 px, grenades 9-12 px) |
-| Vertical scale | armor / helmet / defuser icon height (17 / 22 / 17 px base) |
-| Weapon scale | the four icon size classes (15 / 17 / 18 / 21 px base) |
+| Horizontal scale | container `min-width` (30 px base) and every icon width (velocity's table) |
+| Vertical scale | armour / helmet icon height (17 / 22 px base) and the money label (13 px base) |
+| Weapon scale | weapon icon height (16 px base) |
 
-"Reveal money" uses the same row: a `Label` named `money` in the injected panel, filled
-from `m_iAccount` when a plausible value was read (`entry.m` in the payload). When the
-prop cannot be found the label simply never appears - the feature does not guess offsets.
+All three clamp to 50..200 % and round up to at least one pixel, so no setting can collapse
+a row.
 
-All three clamp to 50..200 % and round up to at least one pixel, so no setting can
-collapse a row.
+### Where the native side sends from
 
-## Testing the script without the game
-
-`tests/panorama/run.sh` compiles a dumper against the real `BuildEngineScript`/`BuildFeedScript`
-and runs the result under node against a fake Panorama panel tree (`tests/panorama/sim.js`):
-`CSGOHud > ScoreboardContainer > Scoreboard > sb-row > data-stat="name"`. It asserts that a
-feed creates the panels, that the panel lands in the first column, that the icons, size
-classes, opacities, team wash, armour, helmet and money come out right, that a player
-without equipment is hidden again, and that rows keyed only by nickname still match. This
-covers the part that has no error reporting of its own: when the injected script does
-nothing in game, nothing anywhere says why.
+`scoreboard.cpp` runs the whole thing from `FrameStage` stage 4: compare the collected
+equipment with the last state sent per steam id every `kFeedIntervalMs` (100 ms, the same
+rate the reference uses), send only what changed, send `clearWeapons` for rows that vanished,
+and re-send the installer every `kReinstallMs` (10 s) so a HUD reload recovers by itself.
 
 ## Restoring
 

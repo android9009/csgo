@@ -132,7 +132,12 @@ inline constexpr std::uint32_t kRevealIntervalMs = 1000;
 
 // The equipment script is re-fed while the scoreboard is open; each feed is a small
 // script execution, so twice a second is both plenty and cheap.
-inline constexpr std::uint32_t kFeedIntervalMs = 500;
+// How often the equipment state is compared with what the HUD was last told. The reference
+// client runs its update every five frames; 100 ms is the same rate at 64 tick.
+inline constexpr std::uint32_t kFeedIntervalMs = 100;
+// The installer is re-sent this often so a HUD reload (which drops the objects the script
+// defines) recovers on its own. The message is idempotent.
+inline constexpr std::uint32_t kReinstallMs = 10000;
 
 constexpr bool Enabled(std::uint64_t mask, int bit) {
     return bit >= 0 && bit < 64 && ((mask >> bit) & 1ull) != 0ull;
@@ -181,12 +186,17 @@ constexpr int kEquipmentSlots = 25;
 
 struct Equipment {
     int slot{};       // entity index
+    std::uint64_t xuid{}; // steam id from player_info_t; 0 for bots and unresolved slots
     int armor{};      // 0 none, 1 kevlar, 2 kevlar + helmet
     bool defuser{};
     int money{-1};    // -1 when "Reveal money" is off or the value is not readable
     int weapon_count{};
     int selected{-1}; // index into weapons, -1 when nothing is selected
     const char* weapons[kEquipmentSlots]{};
+    // Weapon class per slot, so the script can size an icon the way the reference does
+    // ("mac10" is narrower than a rifle, a grenade narrower still). Values are the ones
+    // WeaponTypeOf() documents.
+    int weapon_types[kEquipmentSlots]{};
     // Nickname, used only as a row key when GameStateAPI is out of reach from the script's
     // context. Stored by value: the engine's player_info_t lives on this function's stack,
     // so a pointer into it would dangle the moment the loop moved on.
@@ -205,12 +215,25 @@ int WeaponBaseWidth(const char* icon);
 // Size class the icon is drawn with ("smaller" for knives), or nullptr for the default.
 const char* WeaponSlotClass(const char* icon);
 
+// Weapon class of an icon, used by the injected script to pick an icon width instead of
+// stretching everything to one size: 0 knife, 1 pistol, 2 smg, 3 rifle, 4 shotgun,
+// 5 sniper, 6 machine gun, 7 bomb, 8 taser, 9 grenade, 10 defuse kit, -1 unknown.
+int WeaponTypeOf(const char* icon);
+
 // Installer for the HUD context. Idempotent per layout: calling it again with the same
 // scales does nothing, calling it with new scales destroys the previous rows first, so
 // moving a slider takes effect on the next feed.
 std::string BuildEngineScript(const Scales& scales);
 
-// Engine + one data push - the only script that runs while "Reveal weapon" is on.
+// One small message per player, the shape the reference client uses: the engine is injected
+// once, then every update is a single `SClient.receive({type:"updateWeapons", ...})` call.
+std::string BuildUpdateScript(const Equipment& player, const Scales& scales);
+
+// "This player has nothing to show" - the reference sends an explicit clear instead of
+// letting stale icons sit in the row.
+std::string BuildClearScript(std::uint64_t xuid, const char* nickname);
+
+// Engine plus one update per player; used for the first push after installing.
 std::string BuildFeedScript(const std::vector<Equipment>& players, const Scales& scales);
 
 // Removes the injected rows and unregisters the handlers.

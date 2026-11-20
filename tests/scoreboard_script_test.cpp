@@ -30,8 +30,14 @@ Equipment MakePlayer(int slot, const char* a, const char* b, int selected, int a
     equipment.defuser = defuser;
     equipment.money = money;
     equipment.selected = selected;
-    if (a) equipment.weapons[equipment.weapon_count++] = a;
-    if (b) equipment.weapons[equipment.weapon_count++] = b;
+    if (a) {
+        equipment.weapon_types[equipment.weapon_count] = WeaponTypeOf(a);
+        equipment.weapons[equipment.weapon_count++] = a;
+    }
+    if (b) {
+        equipment.weapon_types[equipment.weapon_count] = WeaponTypeOf(b);
+        equipment.weapons[equipment.weapon_count++] = b;
+    }
     return equipment;
 }
 
@@ -46,25 +52,20 @@ void TestScales() {
     // Every scale is baked into the emitted layout: the panel width, the icon height and
     // the per-weapon widths all move with the sliders, and never below one pixel.
     const std::string base = BuildEngineScript({100, 100, 100});
-    assert(Contains(base, "PANEL_WIDTH = 30"));
-    // The four size classes of the reference layout, unscaled.
-    assert(Contains(base, "textureheight=\\\"15\\\""));
-    assert(Contains(base, "textureheight=\\\"17\\\""));
-    assert(Contains(base, "textureheight=\\\"18\\\""));
-    assert(Contains(base, "textureheight=\\\"21\\\""));
-    // "p250" is a 31px pistol; at the minimum scale it must stay positive.
-    assert(Contains(base, "\"p250\":31"));
-    // Knives are the ones that need a wider class.
-    assert(Contains(base, "\"knife\":\"smaller\""));
+    assert(Contains(base, "minWidth: 30"));
+    assert(Contains(base, "iconHeight: 16"));
+    assert(Contains(base, "armorHeight: 17"));
+    assert(Contains(base, "helmetHeight: 22"));
+    assert(Contains(base, "labelSize: 13"));
 
     const std::string big = BuildEngineScript({200, 200, 200});
-    assert(Contains(big, "PANEL_WIDTH = 60"));
-    assert(Contains(big, "textureheight=\\\"42\\\"")); // 21 * 200%
-    assert(Contains(big, "\"p250\":62"));
+    assert(Contains(big, "minWidth: 60"));
+    assert(Contains(big, "iconHeight: 32"));
+    assert(Contains(big, "helmetHeight: 44"));
 
     const std::string small = BuildEngineScript({0, 0, 0});
-    assert(Contains(small, "PANEL_WIDTH = 15"));
-    assert(Contains(small, "\"p250\":16")); // 31 * 50% rounds up, never 0
+    assert(Contains(small, "minWidth: 15"));
+    assert(Contains(small, "iconHeight: 8")); // 16 * 50%, never 0
 
     // A different layout tag forces the script to reinstall instead of returning early,
     // which is how a slider move takes effect without a restart.
@@ -88,61 +89,80 @@ void TestIcons() {
     assert(WeaponBaseWidth(nullptr) == 0);
     assert(WeaponBaseWidth("not_a_weapon") == 0);
 
-    // Knives are drawn with the wider icon class, everything else with the default.
-    assert(std::strcmp(WeaponSlotClass("knife_karambit"), "smaller") == 0);
-    assert(std::strcmp(WeaponSlotClass("knife"), "smaller") == 0);
-    assert(WeaponSlotClass("ak47") == nullptr);
-    assert(WeaponSlotClass(nullptr) == nullptr);
+    // Weapon classes drive the icon width in the script.
+    assert(WeaponTypeOf("ak47") == 3);      // rifle
+    assert(WeaponTypeOf("mac10") == 2);     // smg
+    assert(WeaponTypeOf("awp") == 5);       // sniper
+    assert(WeaponTypeOf("p250") == 1);      // pistol
+    assert(WeaponTypeOf("knife_karambit") == 0);
+    assert(WeaponTypeOf("flashbang") == 9);
+    assert(WeaponTypeOf("c4") == 7);
+    assert(WeaponTypeOf("taser") == 8);
+    assert(WeaponTypeOf("not_a_weapon") == -1);
+    assert(WeaponTypeOf(nullptr) == -1);
 }
 
-void TestFeedPayload() {
+void TestMessages() {
     std::vector<Equipment> players;
-    players.push_back(MakePlayer(3, "ak47", "knife", 0, 2, true));
-    players.push_back(MakePlayer(9, nullptr, nullptr, -1, 0, false)); // no weapons: skipped
-    players.push_back(MakePlayer(0, "glock", nullptr, 0, 1, false));  // slot 0: skipped
+    Equipment armed = MakePlayer(3, "ak47", "knife", 0, 2, true);
+    std::snprintf(armed.name, sizeof(armed.name), "armed");
+    players.push_back(armed);
+    Equipment empty = MakePlayer(9, nullptr, nullptr, -1, 0, false); // no equipment: skipped
+    std::snprintf(empty.name, sizeof(empty.name), "empty");
+    players.push_back(empty);
 
-    const std::string script = BuildFeedScript(players, {100, 100, 100});
-    assert(Contains(script, "__sb.feed({"));
-    assert(Contains(script, "\"3\":{\"w\":[\"ak47\",\"knife\"],\"s\":0,\"a\":2,\"d\":1}"));
-    assert(!Contains(script, "\"9\":"));   // players without equipment are not sent
-    assert(!Contains(script, "\"0\":"));
-    assert(Count(script, "__sb.feed(") == 1);
-    // Balanced braces: the payload must not break the script's syntax.
-    assert(Count(script, "{") == Count(script, "}"));
+    // One message per player, shaped like the reference client's ("updateWeapons").
+    Equipment enemy = MakePlayer(3, "ak47", "knife", 0, 2, true);
+    enemy.xuid = 76561198000000003ull;
+    std::snprintf(enemy.name, sizeof(enemy.name), "enemy");
+    const std::string update = BuildUpdateScript(enemy, {100, 100, 100});
+    assert(Contains(update, "SClient.receive"));
+    assert(Contains(update, "type:\"updateWeapons\""));
+    assert(Contains(update, "\"xuid\":\"76561198000000003\""));
+    assert(Contains(update, "\"nickname\":\"enemy\""));
+    assert(Contains(update, "{\"path\":\"ak47\",\"type\":3}"));
+    assert(Contains(update, "\"active\":\"ak47\""));
+    assert(Contains(update, "\"armor\":2,\"defuser\":1"));
+    assert(Count(update, "{") == Count(update, "}"));
+    // The message must do nothing until the engine exists: sending it first is harmless.
+    assert(update.find("typeof SClient !== \"undefined\"") != std::string::npos);
+
+    // A player with no xuid (a bot) travels with the nickname instead; with neither there
+    // is nothing to address, so no message is built at all.
+    Equipment bot = MakePlayer(4, "glock", nullptr, 0, 0, false);
+    std::snprintf(bot.name, sizeof(bot.name), "bot_alice");
+    const std::string bot_update = BuildUpdateScript(bot, {100, 100, 100});
+    assert(Contains(bot_update, "\"xuid\":null"));
+    assert(Contains(bot_update, "\"nickname\":\"bot_alice\""));
+    Equipment anonymous;
+    anonymous.slot = 5;
+    assert(BuildUpdateScript(anonymous, {100, 100, 100}).empty());
 
     // Money is optional: only a value the game reported ends up in the payload.
     {
-        std::vector<Equipment> paid;
-        paid.push_back(MakePlayer(4, "ak47", nullptr, 0, 2, true, 6500));
-        paid.push_back(MakePlayer(5, "glock", nullptr, 0, 0, false, -1));
-        const std::string with_money = BuildFeedScript(paid, {100, 100, 100});
-        assert(Contains(with_money, "\"4\":{\"w\":[\"ak47\"],\"s\":0,\"a\":2,\"d\":1,\"m\":6500}"));
-        // -1 means "unknown", so the field is left out and the label stays hidden.
-        assert(Contains(with_money, "\"5\":{\"w\":[\"glock\"],\"s\":0,\"a\":0,\"d\":0}"));
-        assert(!Contains(with_money, "\"m\":-1"));
+        Equipment paid = MakePlayer(4, "ak47", nullptr, 0, 2, true);
+        paid.xuid = 42;
+        paid.money = 6500;
+        assert(Contains(BuildUpdateScript(paid, {100, 100, 100}), "\"money\":6500"));
+        Equipment broke = MakePlayer(4, "ak47", nullptr, 0, 2, true);
+        broke.xuid = 42;
+        assert(!Contains(BuildUpdateScript(broke, {100, 100, 100}), "\"money\""));
     }
 
-    // The nickname travels only when the engine reported one, and it is stored by value:
-    // a pointer into player_info_t would dangle as soon as the loop moved on.
-    {
-        std::vector<Equipment> named;
-        Equipment entry = MakePlayer(6, "ak47", nullptr, 0, 0, false);
-        std::snprintf(entry.name, sizeof(entry.name), "enemy");
-        named.push_back(entry);
-        const std::string with_name = BuildFeedScript(named, {100, 100, 100});
-        assert(Contains(with_name, "\"n\":\"enemy\""));
-        Equipment anonymous = MakePlayer(8, "glock", nullptr, 0, 0, false);
-        assert(anonymous.name[0] == '\0');
-        std::vector<Equipment> quiet;
-        quiet.push_back(anonymous);
-        assert(!Contains(BuildFeedScript(quiet, {100, 100, 100}), "\"n\":"));
-    }
+    // The clear message addresses the same key and removes only that row.
+    const std::string clear = BuildClearScript(76561198000000003ull, "enemy");
+    assert(Contains(clear, "type:\"clearWeapons\""));
+    assert(Contains(clear, "\"xuid\":\"76561198000000003\""));
+    assert(Count(clear, "{") == Count(clear, "}"));
+    assert(BuildClearScript(0, nullptr).empty());
 
-    // The engine is part of every feed so a HUD reload re-creates the rows.
-    assert(Contains(script, "RegisterForUnhandledEvent"));
-    assert(Contains(script, "OnOpenScoreboard"));
-    // Icon names are emitted into a JavaScript array, so every one of them has to be a
-    // plain identifier: that is what makes injection through the payload impossible.
+    // A batch is the engine followed by one message per player.
+    const std::string batch = BuildFeedScript(players, {100, 100, 100});
+    assert(Count(batch, "type:\"updateWeapons\"") == 1); // only the player with equipment
+    assert(Contains(batch, "SClient"));
+
+    // Icon names are emitted into JavaScript, so every one of them has to be a plain
+    // identifier: that is what makes injection through the payload impossible.
     for (int id = 0; id <= 600; ++id) {
         const char* name = WeaponIcon(id);
         if (!name) continue;
@@ -153,9 +173,9 @@ void TestFeedPayload() {
 
 void TestReset() {
     const std::string reset = BuildResetScript();
-    assert(Contains(reset, "__sb.destroy"));
-    assert(Contains(reset, "__sb.destroy()"));
-    assert(!Contains(reset, "feed"));  // reset must not push stale data
+    assert(Contains(reset, "SWeaponManager.clear()"));
+    assert(Contains(reset, "SClient = undefined"));
+    assert(!Contains(reset, "updateWeapons")); // reset must not push stale data
     assert(Count(reset, "{") == Count(reset, "}"));
 }
 
@@ -163,9 +183,9 @@ void TestEngineIsSelfContained() {
     const std::string script = BuildEngineScript({120, 90, 110});
     // Guard against a half-substituted template: every placeholder must be gone.
     assert(!Contains(script, "@"));
-    // The installer must be idempotent, otherwise every feed would stack handlers.
-    assert(Contains(script, "__sb.layout === \"120x90x110\""));
-    assert(Contains(script, "__sb.destroy()"));
+    // The installer must be idempotent, otherwise every reinstall would stack handlers.
+    assert(Contains(script, "__sbHandlers"));
+    assert(Contains(script, "UnregisterForUnhandledEvent"));
     // Panels are removed on destroy so disabling the feature leaves no orphan rows.
     assert(Contains(script, "DeleteAsync"));
     // Equipment icons come from the client's own icon set.
@@ -173,26 +193,27 @@ void TestEngineIsSelfContained() {
     assert(Contains(script, "kevlar"));
     // Reveal money renders through the same panel, and the label only appears when a
     // value arrived.
-    assert(Contains(script, "$\" + value"));
+    assert(Contains(script, "money.text = \"$\" + entry.money"));
     assert(Contains(script, "\"money\""));
-    // Armour is drawn the way the reference does it: kevlar plus a separate helmet image.
-    assert(Contains(script, "kevlar.svg"));
-    assert(Contains(script, "helmet.svg"));
-    assert(Contains(script, "defuser"));
+    // Armour is drawn the way the reference does it: kevlar plus a separate helmet image,
+    // both from the client's own equipment folder.
+    assert(Contains(script, "icons/equipment/\" + path + \".svg\""));
+    assert(Contains(script, "addArmorIcon(content, CFG.armorHeight, \"kevlar\""));
+    assert(Contains(script, "addArmorIcon(content, CFG.helmetHeight, \"helmet\""));
+    assert(Contains(script, "\"defuser\""));
     // The panel is moved to the first column (appended it would be clipped by the row) and
     // the row is re-created from the scoreboard's own events.
     assert(Contains(script, "MoveChildBefore"));
     assert(Contains(script, "Scoreboard_UpdateEverything"));
-    // 25 slot parents, as in the reference.
-    assert(Contains(script, "SLOT_COUNT = 25"));
-    assert(Contains(script, "weapon-\" + slot"));
+    // The row is rebuilt from the stored state when the game recreates it.
+    assert(Contains(script, "redraw"));
 }
 } // namespace
 
 int main() {
     TestScales();
     TestIcons();
-    TestFeedPayload();
+    TestMessages();
     TestReset();
     TestEngineIsSelfContained();
     return 0;
