@@ -67,25 +67,23 @@ bool DrawConfigured(void* ecx,void* context,const DrawModelState_t& state,const 
     if(!choice.enabled || choice.kind<=0)return false;
     return PreviewMaterial::Draw(choice,true,[&](){original(ecx,context,state,info,bones);});
 }
-// Prop / texture transparency. Runs only for draws the chams pass did not take,
-// so a subject with chams keeps its chams material.
-bool DrawTranslucent(void* ecx,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bones) {
-    if(!VisualRuntime::any_transparency.load(std::memory_order_relaxed) || !ctx.in_game || !Interfaces::ModelRender || !Interfaces::ModelInfo || !Interfaces::EntityList || !state.studio_hdr)return false;
-    if(Interfaces::ModelRender->IsForcedMaterialOverride())return false;
-    auto original=Hooks::GetDrawModelExecuteOriginal();if(!original)return false;
+// Prop / texture transparency: record which models are props/characters and which
+// materials they use. The modulation itself happens at FRAME_RENDER_START so the
+// engine queues those props as translucent when it builds the render lists (the
+// same effect Fatality gets from forcing RenderableInfo_t::m_nTranslucencyType).
+void NoteTransparency(const DrawModelState_t& state,const ModelRenderInfo_t& info) {
+    if(!VisualRuntime::any_transparency.load(std::memory_order_relaxed) || !ctx.in_game || !state.studio_hdr)return;
+    if(!Interfaces::EntityList || !Interfaces::MaterialSystem)return;
     auto* entity=info.entity_index>0 ? static_cast<CBaseEntity*>(Interfaces::EntityList->GetClientEntity(info.entity_index)) : nullptr;
-    if(!entity && info.renderable){
+    if(!entity && info.renderable && Interfaces::ModelInfo){
         auto* unknown=MEM::GetVFunc<void*(__thiscall*)(void*)>(info.renderable,0)(info.renderable);
         if(unknown)entity=MEM::GetVFunc<CBaseEntity*(__thiscall*)(void*)>(unknown,7)(unknown);
     }
     auto* cls=entity ? entity->GetClientClass() : nullptr;
-    if(!cls || !cls->m_pNetworkName)return false;
+    if(!cls || !cls->m_pNetworkName)return;
     const auto target=ModelTransparency::Classify(cls->m_pNetworkName);
-    if(target==ModelTransparency::Target::None)return false;
-    const auto settings=VisualRuntime::GetEffects();
-    const float percent=ModelTransparency::PercentFor(target,settings.texture_transparency,settings.prop_transparency);
-    if(ModelTransparency::AlphaFor(percent)>=1.f)return false;
-    return ModelTransparency::Draw(state.studio_hdr,percent,[&](){original(ecx,context,state,info,bones);});
+    if(target==ModelTransparency::Target::None)return;
+    ModelTransparency::Note(state.studio_hdr,target);
 }
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
@@ -99,7 +97,7 @@ void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelSt
         if (local_index > 0 && info.entity_index == local_index) return;
     }
     bool handled=false;
-    __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);if(!handled)handled=DrawTranslucent(ecx,context,state,info,bone_to_world);}
+    __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);NoteTransparency(state,info);}
     __except(LogChamsFault(GetExceptionInformation())) {
         __try {PreviewMaterial::Restore();}__except(EXCEPTION_EXECUTE_HANDLER){}
         static bool logged=false;if(!logged){logged=true;LOG_WARN("chams: model pass raised exception; restored material override");}

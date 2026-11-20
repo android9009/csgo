@@ -69,8 +69,10 @@ constexpr std::size_t kClientModeCreateMoveSlot = 24;
 constexpr std::size_t kClientModeOverrideViewSlot = 18;
 constexpr std::size_t kClientModeViewModelFovSlot = 35;
 
-// IEngineClient::ClientCmd_Unrestricted (main: execute_client_cmd). Buy bot validates the
-// slot before using it, because a wrong index would be a call into unrelated engine code.
+// IEngineClient::ClientCmd_Unrestricted (main: execute_client_cmd). Verified on the
+// supplied engine.dll: slot 114 takes two arguments (`ret 8`) and ends in Cbuf_AddText
+// with the flag from the second argument, while slot 108 is the one-argument ClientCmd
+// that also calls Cbuf_Execute. See docs/interface-verification.md.
 constexpr std::size_t kClientCmdUnrestrictedSlot = 114;
 
 class IEngineClient {
@@ -113,9 +115,8 @@ public:
         using Fn = bool (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[27])(this);
     }
-    // IVEngineClient::GetNetChannelInfo - slot 78 in the layout used by this client
-    // (ported from `main`: interfaces.hpp). Returns an INetChannelInfo; the caller is
-    // expected to validate it before use, because a wrong slot yields garbage.
+    // IVEngineClient::GetNetChannelInfo - slot 78, verified on the supplied engine.dll
+    // (`mov eax, [clientstate+0x9c]; ret`, the same shape the context code assumes).
     void* GetNetChannelInfo() {
         using Fn = void* (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[78])(this);

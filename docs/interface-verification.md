@@ -130,19 +130,53 @@ Slot 28 writes one float at `+0x24c` next to the forced-material block; it looks
 like a per-context modulation setter, but its exact meaning was not established, so
 nothing in the cheat calls it.
 
-## What still needs `engine.dll`
+## `engine.dll` — `IVEngineClient` (014) and `IVModelInfo`
 
-`client.dll` cannot answer these, and they are the reason the corresponding calls
-stay behind `Interfaces::Setup` validation or a `.text` range check:
+Same method: `VEngineClient014` -> `InterfaceReg` -> `createFn` (`mov eax, <singleton>; ret`)
+-> vtable from the `mov dword ptr [<singleton>], imm32` store in the object's init.
 
-- `IVEngineClient` slot 114 (`ClientCmd_Unrestricted`) and slot 78
-  (`GetNetChannelInfo`) — the buy bot / ping code already range-checks the callee.
-- `IVModelInfo` slots (1, 2, 3, 32) and, if it is ever needed,
-  `GetModelMaterials`.
-- `CInput` as a global object: `client.dll` loads the interface pointer from a
-  single global and calls its vfuncs through it, which confirms the "global object,
-  vtable at `+0`" model the third-person code relies on, but not the camera field
-  offsets.
+| slot | method | evidence |
+|---|---|---|
+| 5 | `GetScreenSize(int&, int&)` | two out-pointers, forwards to the surface |
+| 8 | `GetPlayerInfo(int, player_info_t*)` | three arguments, indexes the player array |
+| 12 | `GetLocalPlayer()` | reads the client state global, calls its vfunc `+0x14`, indexes the slot array |
+| 18 / 19 | `GetViewAngles` / `SetViewAngles` | three floats through an out-pointer / an aligned copy in |
+| 20 | `GetMaxClients()` | `mov eax, [clientstate+0x388]; ret` |
+| 26 | `IsInGame()` | `cmp [clientstate+0x108], 6; sete al` — signon state `Full` |
+| 27 | `IsConnected()` | `cmp [clientstate+0x108], 2; setge al` |
+| 78 | `GetNetChannelInfo()` | `mov eax, [clientstate+0x9c]; ret` |
+| 108 | `ClientCmd(const char*)` | one argument, `Cbuf_AddText` then `Cbuf_Execute` |
+| **114** | `ClientCmd_Unrestricted(const char*, const char*)` | **two arguments (`ret 8`)**, ends in `Cbuf_AddText` with the flag taken from the second argument |
+
+So `kClientCmdUnrestrictedSlot = 114` is right for this build, and the wrapper's
+`(const char*, const char*)` signature matches the callee, not just the reference
+header. The same walk confirms the `[clientstate+0x388]`/`[+0x108]`/`[+0x9c]` shape
+the context code already assumes.
+
+`IVModelInfo` could **not** be pinned this way: `VModelInfoClient004`'s create
+function hands back an object whose vtable is one "not implemented" stub repeated for
+nearly every slot (only the destructor and five high slots differ), so
+`GetStudioModel` and `GetModelMaterials` cannot be proven from this file. The
+repo's slot 32 for `GetStudioModel` is the index that already works in game, and it
+matches the published `IVModelInfo` order that also places `GetModelMaterials` at
+19; neither is used by the transparency path (model materials are resolved from the
+studio header texture names), so nothing new depends on them.
+
+Note: this `engine.dll` carries timestamp `0x64ee7e86`, while the supplied
+`client.dll` carries `0x65272025`, i.e. they are not from the same build date. The
+slot map above is self-consistent (all the classic client-state shapes agree), but
+if a future `engine.dll` is supplied, re-running the same walk is cheap.
+
+## What is still unverified
+
+- `IVModelInfo` slots (see above) — not provable from the supplied `engine.dll`.
+- `IClientMode` 37/38/44 (`FrameStageNotify`, `DispatchUserMessage`,
+  `DoPostScreenEffects`) — untouched, the repo keeps the reference numbers.
+- `CInput`: `client.dll` loads the interface pointer from one global and calls its
+  vfuncs through it, which confirms the "global object, vtable at `+0`" model the
+  third-person code relies on, but not the camera field offsets.
+- Anything inside `shaderapidx9.dll` (e.g. `CShaderAPIDx8::DrawMesh`, which is where
+  Fatality writes per-mesh alpha) — the module was not supplied.
 
 ## Consequences in the repo
 

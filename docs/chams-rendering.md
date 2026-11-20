@@ -147,14 +147,26 @@ portable tests/native builds are not a substitute for a visual in-game check.
 ## Prop / texture transparency
 
 `features/visuals/model_transparency.hpp` implements the two Visuals → Misc sliders
-that were previously dead. It does not use a material override: it walks the model's
-own materials through the studio header texture list (the texture name is the
-material name inside the `Model textures` group), writes `$alpha`, sets
-`MATERIAL_VAR_TRANSLUCENT`, calls the original `DrawModelExecute`, and restores the
-captured values. Because the draw happens between the write and the restore, no
-material state survives the frame, and chams (which do override the draw material)
-still win — the transparency pass is only tried for draws the chams pass declined.
+that were previously dead.
 
+Fatality's reference implementation (reversed2603/fatality_source dee7327) does it in
+two places: `hooks/scene_end.cpp` forces `RenderableInfo_t::m_nTranslucencyType` so the
+leaf system queues studio props into the translucent list, and
+`hooks/draw_model_execute.cpp` `shader_api_draw_mesh` writes the alpha straight into
+`MeshInstanceData_t::m_DiffuseModulation.w` inside `CShaderAPIDx8::DrawMesh`. The
+second one lives in `shaderapidx9.dll`, which the user did not supply, and the leaf
+function has no signature we can prove either, so this port keeps the *effects* and
+reaches them through the material system with verified slots only:
+
+- `DrawModelExecute` only *records* the draw: the model's studio header plus whether
+  it is a prop or a character. Materials come from the header's texture list (the
+  texture name is the material name inside the `Model textures` group).
+- At `FRAME_RENDER_START` the recorded models' materials get `$alpha` and
+  `MATERIAL_VAR_TRANSLUCENT`; `FRAME_RENDER_END` restores them. Because the engine
+  asks the material for translucency while it builds the render lists
+  (`ComputeTranslucencyType` → `IMaterial::IsTranslucent`), this places props on the
+  translucent list exactly where Fatality's leaf hook does, and `$alpha` carries the
+  amount `m_DiffuseModulation.w` would have.
 - `prop_transparency` applies to world props (phys/dynamic props, breakables, doors,
   foliage); `texture_transparency` applies to character models (`CCSPlayer`,
   `CCSRagdoll`, `CHostage`) so their own skins go see-through.
@@ -165,5 +177,5 @@ still win — the transparency pass is only tried for draws the chams pass decli
   `model_transparency_rules.hpp` holds that mapping and the classification, and is
   interface-free so `tests/model_transparency_test.cpp` can check it off-target.
 - Captured "original" alpha/flag values are kept per material so a missed restore
-  (an exception between the draw and the restore) cannot drift; the map is dropped
-  when the in-game context resets.
+  (an exception between the begin and the end) cannot drift; the map is dropped when
+  the in-game context resets.
