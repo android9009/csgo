@@ -40,6 +40,25 @@ public:
         reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[37])(this, stage);
     }
 };
+// ClientMode - the object that owns CreateMove. It is not exported through
+// CreateInterface, so it is reached the way this repository's `main` branch does it
+// (main: interfaces.cpp):
+//     client_mode = **memory::get_virtual(client, 10).add(5).cast<c_client_mode***>();
+// The client's vfunc 10 contains a `mov` whose operand (at +5) points at the pointer to
+// the object. `Interfaces::Setup` validates that the result's vtable lives inside
+// client.dll, so a build where that instruction changed leaves ClientMode null instead of
+// hooking something unrelated.
+class IClientMode {
+public:
+    // ClientModeShared::CreateMove - slot 24 (main: CREATE_MOVE_IDX = 24).
+    // bool CreateMove(float input_sample_time, CUserCmd* cmd)
+    bool CreateMove(float input_sample_time, void* cmd) {
+        using Fn = bool (__thiscall*)(void*, float, void*);
+        return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[24])(this, input_sample_time, cmd);
+    }
+};
+constexpr std::size_t kClientModeCreateMoveSlot = 24;
+
 class IEngineClient {
 public:
     void GetScreenSize(int& width, int& height) {
@@ -206,6 +225,7 @@ namespace Interfaces {
     bool Check();
 
     inline IBaseClientDll* Client = nullptr;
+    inline IClientMode* ClientMode = nullptr;
     inline IClientEntityList* EntityList = nullptr;
     inline IEngineClient* Engine = nullptr;
     inline IClientState* ClientState = nullptr;

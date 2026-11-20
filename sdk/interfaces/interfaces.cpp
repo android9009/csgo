@@ -48,8 +48,32 @@ static bool ValidGlobals(IGlobalVarsBase* candidate) {
             candidate->interval_per_tick<=.1f && candidate->maxClients>=0 && candidate->maxClients<=128;
     } __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
 }
+// The ClientMode pointer, read exactly as `main` does it: take the client's vfunc 10, read
+// the dword at +5 (the operand of the `mov` the compiler emitted), and dereference twice.
+static IClientMode* CaptureClientMode(IBaseClientDll* client) {
+    if (!client) return nullptr;
+    auto* table = *reinterpret_cast<void***>(client);
+    if (!table || !table[10]) return nullptr;
+    const auto vfunc = reinterpret_cast<std::uintptr_t>(table[10]);
+    void* operand = nullptr;
+    __try { std::memcpy(&operand, reinterpret_cast<const void*>(vfunc + 5), sizeof(operand)); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return nullptr; }
+    auto* mode = operand ? *reinterpret_cast<IClientMode**>(operand) : nullptr;
+    if (!mode) return nullptr;
+    // The result must be a real object of this client: its vtable has to live in client.dll.
+    const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+    if (!base) return nullptr;
+    auto* vt = *reinterpret_cast<void***>(mode);
+    const auto address = reinterpret_cast<std::uintptr_t>(vt);
+    if (!vt || address < base) return nullptr;
+    __try { if (!vt[kClientModeCreateMoveSlot]) return nullptr; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return nullptr; }
+    return mode;
+}
+
 bool Setup() {
     Client = Capture<IBaseClientDll>("client.dll", "VClient");
+    ClientMode = CaptureClientMode(Client);
     EntityList = Capture<IClientEntityList>("client.dll", "VClientEntityList");
     Engine = Capture<IEngineClient>("engine.dll", "VEngineClient");
     Prediction = Capture<IPrediction>("client.dll", "VClientPrediction");

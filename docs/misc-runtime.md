@@ -33,7 +33,13 @@ features/misc/
     other.cpp              façade: fan out to auto-accept and the console filter
     accept.cpp             auto-accept (EmitSound1 hook + SetLocalPlayerReady)
     console_filter.cpp     console filter (tier0 ConMsg / ConColorMsg hooks)
-  movement/                next phase (bhop, autostrafe, edge-*, ...)
+  movement/                MOVEMENT group box (id misc>movement)
+    movement.hpp           the folder's single header: Settings and every portable rule
+    movement.cpp           façade + the per-tick collection, called from CreateMove
+    autostrafe.cpp         "Air strafe" (port of main's c_movement::auto_strafe)
+    bhop.cpp               "Bhop" (port of main's c_movement::auto_jump)
+    quickstop.cpp          "Quick stop" (port of main's fast_stop/instant_stop)
+    edge.cpp               "Edge jump" / "Edge stop" (this build's own trace forecast)
   buy_bot.hpp/.cpp         next phase — single file, no folder
 
 features/visuals/removals/
@@ -177,6 +183,32 @@ which lives only in Panorama's own JS state and has no native mirror in this cli
 player muted through the scoreboard is still revealed; and the line goes to the console
 instead of the cheat's chat panel, because this build has no chat panel.
 
+## Movement
+
+The MOVEMENT group box is driven from a **`ClientMode::CreateMove` detour** - slot 24 of
+the client-mode vtable, the index this repository's `main` branch uses
+(`CREATE_MOVE_IDX = 24`). The object itself is not exported through `CreateInterface`, so
+it is reached the same way `main` reaches it: `client`'s vfunc 10, the dword at `+5`,
+dereferenced twice (`sdk/interfaces/interfaces.cpp`). The result is only accepted when its
+vtable holds a CreateMove slot and lives in `client.dll`; otherwise `ClientMode` stays null,
+one warning is logged and movement is off instead of a wrong pointer being hooked.
+
+The original is always called first, so the module corrects the game's own command instead
+of replacing the player's input.
+
+| Item | Where it comes from | What it writes |
+|---|---|---|
+| Air strafe | `main`: `c_movement::auto_strafe` | in the air only: `forwardmove = clamp(5850/speed, ±cl_forwardspeed)`, `sidemove = ±cl_sidespeed` by the sign of the angle between velocity and view, view rotated by `-diff * smooth`; "Viewangles" sends the rotated angle and restores the camera, "Easy strafe" drops the smoothing, "Jump release" takes `IN_JUMP` away while airborne |
+| Bhop | `main`: `c_movement::auto_jump` | adds or removes `IN_JUMP` so the jump is released for a tick and re-issued on landing; ladders and noclip are skipped |
+| Quick stop | `main`: `fast_stop` + `instant_stop` | on the ground for 3 ticks with no movement button: the full counter-strafe, `-speed * (cos, sin)(view - velocity yaw)`; stops once the speed is under 15 |
+| Edge jump | this build (no reference: `main`'s `edge_jump` is an empty stub) | a 24-unit probe ahead along the direction of travel plus a downward trace; a drop deeper than 16 units while moving faster than 90 adds `IN_JUMP` |
+| Edge stop | this build, same probe | at that edge, the counter-strafe so the feet stay on the floor |
+
+**Not implemented, and why:** "No fall damage" and "Instant duck". CS:GO decides fall
+damage on the server from the velocity the client reports on the landing tick, so no input
+removes it, and nothing in `main` implements either feature. Both menu items were removed
+rather than left as switches that do nothing.
+
 ## Threading and cost
 
 - Everything runs on the game thread. No engine call is made from the D3D thread.
@@ -280,6 +312,9 @@ Portable tests:
   player, null pointers), `ShouldRestore` exactly-once semantics, and the tag length.
 - `tests/removals_test.cpp` - the combo box bit order, `FromMask`, and the flash/punch
   write rules including NaN and infinity.
+- `tests/movement_test.cpp` - the yaw helpers, main's strafe wish (gain, clamping, side
+  sign, smoothing, non-finite velocity), the bhop release/force cycle and its ladder/noclip
+  guards, the counter-strafe vector and its guards, and the edge decision.
 - `tests/misc_hooks_test.cpp` - the reveal rules above (team names, all-chat exclusion,
   the per-sender 0.4 s window, the recycling table), the printed line in every shape
   (alive/dead, place known/unknown, control codes stripped, malformed input refused),
