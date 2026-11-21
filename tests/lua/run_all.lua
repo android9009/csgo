@@ -30,6 +30,12 @@ local scenarios = {
     { name = "nl / other module base",  fn = function() return nl_tests.run_other_base(harness, nl_path) end },
     { name = "nl / panic + shutdown",   fn = function() return nl_tests.run_panic(harness, nl_path) end },
     { name = "nl / missing base",       fn = function() return nl_tests.run_missing_base(harness, nl_path) end },
+    { name = "skeet / panchan groups",  fn = function() return skeet_tests.run_panchan(harness, skeet_path) end },
+    { name = "skeet / panchan rejects", fn = function() return skeet_tests.run_panchan_rejections(harness, skeet_path) end },
+    { name = "skeet / panchan base",    fn = function() return skeet_tests.run_panchan_base(harness, skeet_path) end },
+    { name = "nl / viera patches",      fn = function() return nl_tests.run_viera(harness, nl_path) end },
+    { name = "nl / viera no pattern",   fn = function() return nl_tests.run_viera_missing_pattern(harness, nl_path) end },
+    { name = "nl / viera other base",   fn = function() return nl_tests.run_viera_other_base(harness, nl_path) end },
 }
 
 local total_passed, total_failed = 0, 0

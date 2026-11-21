@@ -18,6 +18,19 @@
             исходящую задержку, и возвращается обратно только если там всё ещё
             наше значение.
 
+    Плюс раздел 9.5 — патчи из Luas/nl/viera utils.lua (группа
+    Rage -> NL Backtrack Fixes):
+
+      * Preserve valid records   (0F -> 00 у jne в скане записей)
+      * Early defensive activation (dec edi -> NOP)
+      * Skip break distance check  (два вызова -> B0 00 90 90 90)
+      * Defensive on backtrack     (disp32 у jz -> свой стаб на VirtualAlloc)
+
+    Сайты viera находятся СКАНОМ байтов по образу чита, а не по числам.
+    Не перенесены (и почему): extrapolation primary и record selection —
+    это не байтовые патчи, а подмена кода стабами на 1.4 КБ, которую нельзя
+    проверить обратным чтением.
+
     Что изменено по сравнению с оригиналом:
 
       * База модуля чита определяется как и раньше (скан приватной исполняемой
@@ -98,6 +111,10 @@ ffi.cdef[[
     int          __stdcall VirtualProtect(void* addr, unsigned int size, unsigned int new_prot, unsigned int* old_prot);
     unsigned int __stdcall VirtualQuery(const void* addr, PAW_MBI* info, unsigned int size);
     void*        __stdcall GetModuleHandleA(const char* name);
+    void*        __stdcall VirtualAlloc(void* addr, unsigned int size, unsigned int kind, unsigned int protect);
+    int          __stdcall VirtualFree(void* addr, unsigned int size, unsigned int kind);
+    int          __stdcall FlushInstructionCache(void* process, const void* addr, unsigned int size);
+    void*        __stdcall GetCurrentProcess(void);
 ]]
 
 local C             = ffi.C
@@ -107,6 +124,8 @@ local PAGE_EXECANY  = 0xF0
 local PAGE_GUARD    = 0x100
 local PAGE_NOACCESS = 0x01
 local PAGE_RWX      = 0x40
+local MEM_COMMIT_RESERVE = 0x3000
+local MEM_RELEASE   = 0x8000
 
 --[[----------------------------------------------------------------------------
     3. База модуля чита
@@ -474,8 +493,10 @@ local applied_unlag = nil
 local attempts      = 0
 local countdown     = 0
 
-local teardown_now   -- forward: нужен и меню, и событиям
+local teardown_now       -- forward: нужен и меню, и событиям
 local diagnose_sites
+local viera_restore_all  -- forward: определяется в разделе 9.5
+local viera_switch       -- forward: там же
 
 local function tick_interval()
     return tonumber(globals.tickinterval) or 0.015625
@@ -589,6 +610,13 @@ local function teardown()
 end
 
 function teardown_now(reason)
+    if viera_restore_all ~= nil then viera_restore_all() end
+    if ui ~= nil and viera_switch ~= nil then
+        for _, element in ipairs({ viera_switch.preserve, viera_switch.early,
+                                   viera_switch.break_dist, viera_switch.defensive }) do
+            pcall(function() element:set(false) end)
+        end
+    end
     if not armed_state then
         revert_writes()
         return
@@ -610,6 +638,522 @@ function diagnose_sites()
         local entry = base + (symbol.va - IDA_BASE)
         log("%-32s 0x%08X  %s", name, entry, hexdump(entry, 8))
     end
+end
+
+--[[----------------------------------------------------------------------------
+    9.5 Патчи из Luas/nl/viera utils.lua
+
+    В viera utils.lua патчи памяти — это отдельные фичи поверх бэктрака:
+
+      * Preserve valid records — байт 0x0F у jne в скане записей -> 0x00,
+        условный переход превращается в "jne $+2", т.е. запись не отбрасывается;
+      * Early defensive activation — `dec edi` (0x4F) -> NOP, счётчик тиков
+        defensive не уменьшается, режим включается на тик раньше;
+      * Skip break distance check — в двух местах вызов
+        lagrecord_within_break_distance (E8 rel32) -> B0 00 90 90 90 (mov al,0);
+      * Defensive on backtrack — в jz-переходе подменяется disp32 на свой стаб
+        (mov byte [esi+0x1A],1 ; jmp обратно), т.е. defensive включается и при
+        стрельбе по записям бэктрака.
+
+    Все сайты находятся СКАНОМ по байтам внутри модуля чита: адреса в файле
+    жёстко не зашиты, и на другой сборке патч просто не найдётся и откажется.
+
+    НЕ перенесено (осознанно, это не байтовые патчи, а подмена кода):
+      * extrapolation primary — стаб на VirtualAlloc, который сам вызывает
+        внутренние функции чита с их соглашениями вызова;
+      * record selection / aim-snap / ass-bait — рукописная замена
+        select_lagrecord пещерой ~1.4 КБ машинного кода.
+    Такое нельзя проверить обратным чтением, и на другом билде оно молча
+    ломает выбор записей — поэтому остаётся в исходном скрипте, а не здесь.
+------------------------------------------------------------------------------]]
+
+-- байт-джокер в шаблонах
+local PAT_WILD = 0xCC
+
+local function hexdump_from(bytes)
+    local out = {}
+    for _, byte in ipairs(bytes or {}) do out[#out + 1] = string.format("%02X", byte) end
+    return table.concat(out, " ")
+end
+
+local viera_patches = {}
+local viera_base = nil
+local viera_buffer, viera_buffer_base = nil, nil
+
+local function bytes_to_string(bytes, from, count)
+    local out = {}
+    for index = from, from + count - 1 do out[#out + 1] = string.char(bytes[index]) end
+    return table.concat(out)
+end
+
+-- Суммарный размер образа: подряд идущие регионы с одним AllocationBase.
+local function module_span(base)
+    local mbi = ffi.new("PAW_MBI")
+    local addr, total = base, 0
+    while true do
+        if C.VirtualQuery(ffi.cast("void*", addr), mbi, ffi.sizeof("PAW_MBI")) == 0 then break end
+        if tonumber(mbi.AllocationBase) ~= base then break end
+        local size = tonumber(mbi.RegionSize)
+        if size == nil or size == 0 then break end
+        total = total + size
+        addr = tonumber(mbi.BaseAddress) + size
+    end
+    return total
+end
+
+-- Образ чита читаем кусками по 256 КБ и склеиваем один раз: скан шаблонов
+-- идёт string.find'ом по готовому буферу, а не побайтово из Lua.
+local CHUNK = 0x40000
+local MAX_MODULE = 0x6000000          -- 96 МБ: больше образа не бывает
+
+local function module_bytes(base)
+    if viera_buffer ~= nil and viera_buffer_base == base then return viera_buffer end
+
+    local size = module_span(base)
+    if size == 0 or size > MAX_MODULE then return nil end
+
+    local pieces = {}
+    local offset = 0
+    while offset < size do
+        local length = math.min(CHUNK, size - offset)
+        local ok, piece = pcall(ffi.string, ffi.cast("const char*", base + offset), length)
+        if not ok or piece == nil or #piece ~= length then return nil end
+        pieces[#pieces + 1] = piece
+        offset = offset + length
+    end
+
+    viera_buffer, viera_buffer_base = table.concat(pieces), base
+    return viera_buffer
+end
+
+-- Буфер нужен только пока хоть один шаблон не найден: после этого держать в
+-- памяти копию образа чита незачем.
+local function release_buffer_if_done()
+    for _, patch in ipairs(viera_patches) do
+        if patch.site == nil and not patch.disabled then return end
+    end
+    viera_buffer, viera_buffer_base = nil, nil
+end
+
+-- Поиск шаблона по буферу: берём самый длинный непрерывный кусок без
+-- джокеров как "иглу" для string.find (plain), затем сверяем шаблон целиком.
+local function find_in_buffer(buffer, pattern, offset)
+    offset = offset or 0
+
+    local run_start, best_start, best_len = nil, nil, 0
+    for index = 1, #pattern do
+        if pattern[index] == PAT_WILD then
+            run_start = nil
+        else
+            if run_start == nil then run_start = index end
+            local length = index - run_start + 1
+            if length > best_len then best_start, best_len = run_start, length end
+        end
+    end
+    if best_start == nil or best_len < 3 then return nil end
+
+    local needle = bytes_to_string(pattern, best_start, best_len)
+    local skip = best_start - 1
+    local position, matches = 1, 0
+    local first = nil
+    while true do
+        local found = string.find(buffer, needle, position, true)
+        if found == nil then break end
+        local candidate = found - skip
+        if candidate >= 1 and candidate + #pattern - 1 <= #buffer then
+            local ok = true
+            for index = 1, #pattern do
+                local wanted = pattern[index]
+                if wanted ~= PAT_WILD and buffer:byte(candidate + index - 1) ~= wanted then
+                    ok = false
+                    break
+                end
+            end
+            if ok then
+                matches = matches + 1
+                if first == nil then first = candidate + offset end
+                if matches > 1 then break end
+            end
+        end
+        position = found + 1
+    end
+    if first == nil then return nil end
+    return first, matches
+end
+
+local function module_address(base, index)
+    if base == nil or index == nil then return nil end
+    return base + (index - 1)
+end
+
+-- Медленная дорога: если KnownOffsets не подошли, ищем подсказку viera
+-- (сигнатура в приватной исполняемой памяти) и берём её AllocationBase.
+local function find_exec_pattern(pattern)
+    local mbi = ffi.new("PAW_MBI")
+    local addr = 0x00010000
+    while addr < 0x7FFF0000 do
+        if C.VirtualQuery(ffi.cast("void*", addr), mbi, ffi.sizeof("PAW_MBI")) == 0 then break end
+        local size  = tonumber(mbi.RegionSize)
+        if size == nil or size == 0 then break end
+        local protect = tonumber(mbi.Protect)
+        if mbi.State == MEM_COMMIT
+           and bit.band(protect, PAGE_EXECANY) ~= 0
+           and bit.band(protect, PAGE_GUARD) == 0
+           and bit.band(protect, PAGE_NOACCESS) == 0
+           and size <= 0x4000000 then
+            local ok, buffer = pcall(ffi.string, ffi.cast("const char*", tonumber(mbi.BaseAddress)), size)
+            if ok and buffer ~= nil then
+                local index = find_in_buffer(buffer, pattern)
+                if index ~= nil then return tonumber(mbi.BaseAddress) + (index - 1) end
+            end
+        end
+        addr = tonumber(mbi.BaseAddress) + size
+    end
+    return nil
+end
+
+local function viera_module_base(force)
+    if viera_base ~= nil and not force then return viera_base end
+    viera_base = nil
+
+    local base = resolve_base()
+    if base == nil then
+        local hint = find_exec_pattern({ 0xF3, 0x0F, 0x5B, 0xCA, 0x0F, 0x5B, 0xC9, 0x0F, 0x2E, 0xCB })
+        if hint ~= nil then
+            local mbi = region_info(hint)
+            if mbi ~= nil then base = tonumber(mbi.AllocationBase) end
+        end
+    end
+
+    viera_base = base
+    if base ~= nil then viera_buffer, viera_buffer_base = nil, nil end
+    return viera_base
+end
+
+local function scan_module(pattern)
+    local base = viera_module_base()
+    if base == nil then return nil end
+    local buffer = module_bytes(base)
+    if buffer == nil then return nil end
+    local index, matches = find_in_buffer(buffer, pattern)
+    if index == nil then return nil end
+    if matches ~= nil and matches > 1 then
+        log("  (шаблон встречается %d раз, берём первое совпадение)", matches)
+    end
+    release_buffer_if_done()
+    return module_address(base, index)
+end
+
+--[[--------------------------- патч -----------------------------------------]]
+
+local VieraPatch = {}
+VieraPatch.__index = VieraPatch
+
+local function new_viera_patch(def)
+    def.applied = false
+    def.disabled = false
+    def.saved = nil
+    def.site = nil
+    viera_patches[#viera_patches + 1] = def
+    return setmetatable(def, VieraPatch)
+end
+
+function VieraPatch:payload()
+    if self.build ~= nil then return self.build(self) end
+    return self.patched
+end
+
+function VieraPatch:resolve()
+    if self.site ~= nil then return self.site end
+    local hit = scan_module(self.pattern)
+    if hit == nil then return nil end
+    self.site = hit + (self.delta or 0)
+    return self.site
+end
+
+function VieraPatch:apply()
+    if self.applied then return true end
+    if self.disabled then return false, "патч отключён после неудачной проверки" end
+
+    local site = self:resolve()
+    if site == nil then
+        return false, "шаблон не найден в модуле чита (другой билд)"
+    end
+
+    if not is_exec(site) then return false, "сайт не исполняемый" end
+
+    -- Стаб (defensive on backtrack) нужен ДО сборки payload: disp32 считается
+    -- от адреса пещеры, которой ещё нет.
+    if self.setup ~= nil then
+        local ok, why = self.setup(self, site)
+        if not ok then return false, why end
+    end
+
+    local payload = self:payload()
+    if payload == nil then
+        if self.teardown ~= nil then self.teardown(self, site) end
+        return false, "payload не собран"
+    end
+
+    local current = snapshot(site, #payload)
+    local expect = self.expect
+    for index = 1, #payload do
+        if expect ~= nil and index <= #expect and expect[index] ~= nil
+           and current[index] ~= expect[index] then
+            self.disabled = true
+            if self.teardown ~= nil then self.teardown(self, site) end
+            return false, ("байты не совпали: ждём %s, лежит %s"):format(
+                hexdump_from(expect), hexdump(site, #payload))
+        end
+    end
+    local padding = true
+    for _, byte in ipairs(current) do
+        if byte ~= 0xCC and byte ~= 0x90 then padding = false break end
+    end
+    if padding then
+        self.disabled = true
+        if self.teardown ~= nil then self.teardown(self, site) end
+        return false, "по адресу padding — похоже, другой билд"
+    end
+
+    local written, why = raw_write(site, payload)
+    if not written then
+        if self.teardown ~= nil then self.teardown(self, site) end
+        return false, tostring(why)
+    end
+
+    self.saved, self.applied, self.site = current, true, site
+    return true
+end
+
+function VieraPatch:restore()
+    if not self.applied then return true end
+    local ok = true
+    if self.saved ~= nil then
+        local written = raw_write(self.site, self.saved)
+        ok = written == true
+    end
+    if self.teardown ~= nil then self.teardown(self, self.site) end
+    self.applied, self.saved = false, nil
+    return ok
+end
+
+--[[--------------------------- сайты ----------------------------------------]]
+
+local viera_preserve_records = new_viera_patch{
+    name    = "Preserve valid records (viera)",
+    pattern = { 0xA9, 0x08, 0x08, 0x00, 0x00, 0x75, 0x0F, 0x43 },
+    delta   = 6,
+    expect  = { 0x0F },
+    patched = { 0x00 },
+}
+
+local viera_early_defensive = new_viera_patch{
+    name    = "Early defensive activation (viera)",
+    pattern = { 0x4F, 0x3B, 0x3D, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD,
+                0x0F, 0x8F, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD, 0x8B, 0x45 },
+    delta   = 0,
+    expect  = { 0x4F },
+    patched = { 0x90 },
+}
+
+local viera_break_dist_a = new_viera_patch{
+    name    = "Skip break distance A (viera)",
+    pattern = { 0x49, 0x21, 0xD9, 0x8B, 0x0C, 0x88,
+                0xE8, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD,
+                0x84, 0xC0, 0x0F, 0x84 },
+    delta   = 6,
+    expect  = { 0xE8 },
+    patched = { 0xB0, 0x00, 0x90, 0x90, 0x90 },
+}
+
+local viera_break_dist_b = new_viera_patch{
+    name    = "Skip break distance B (viera)",
+    pattern = { 0x48, 0x21, 0xD8, 0x8B, 0x0C, 0x81,
+                0xE8, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD,
+                0x84, 0xC0, 0x74 },
+    delta   = 6,
+    expect  = { 0xE8 },
+    patched = { 0xB0, 0x00, 0x90, 0x90, 0x90 },
+}
+
+-- Defensive on backtrack: jz-переход внутри гейта defensive ведёт в свой стаб.
+-- Стаб: mov byte [esi+0x1A], 1 ; jmp обратно за переход.
+local viera_defensive_bt = new_viera_patch{
+    name    = "Defensive on backtrack (viera)",
+    pattern = { 0x80, 0x3D, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD, 0x00,
+                0x0F, 0x84, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD,
+                0x83, 0x3D, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD, 0x00,
+                0x0F, 0x8E, PAT_WILD, PAT_WILD, PAT_WILD, PAT_WILD,
+                0xB3, 0x01 },
+    delta   = 9,
+    stub_size = 32,
+
+    build = function(self)
+        local site = self.site
+        if site == nil or self.stub == nil then return nil end
+        local displacement = self.stub_address - (site + 4)
+        return {
+            bit.band(displacement, 0xFF),
+            bit.band(bit.rshift(displacement, 8), 0xFF),
+            bit.band(bit.rshift(displacement, 16), 0xFF),
+            bit.band(bit.rshift(displacement, 24), 0xFF),
+        }
+    end,
+
+    setup = function(self, site)
+        local stub = C.VirtualAlloc(nil, self.stub_size, MEM_COMMIT_RESERVE, PAGE_RWX)
+        if stub == nil then return false, "VirtualAlloc не выдал память под стаб" end
+
+        local address = tonumber(ffi.cast("uintptr_t", stub))
+        local jump_target = site + 4                    -- за jz-переходом
+        local stub_bytes = { 0xC6, 0x46, 0x1A, 0x01, 0xE9 }
+
+        local displacement = jump_target - (address + 9)
+        stub_bytes[6] = bit.band(displacement, 0xFF)
+        stub_bytes[7] = bit.band(bit.rshift(displacement, 8), 0xFF)
+        stub_bytes[8] = bit.band(bit.rshift(displacement, 16), 0xFF)
+        stub_bytes[9] = bit.band(bit.rshift(displacement, 24), 0xFF)
+
+        local old = ffi.new("unsigned int[1]")
+        if C.VirtualProtect(stub, #stub_bytes, PAGE_RWX, old) == 0 then
+            C.VirtualFree(stub, 0, MEM_RELEASE)
+            return false, "VirtualProtect на стабе не сработал"
+        end
+        local pointer = ffi.cast("uint8_t*", stub)
+        for index = 1, #stub_bytes do pointer[index - 1] = stub_bytes[index] end
+        C.FlushInstructionCache(C.GetCurrentProcess(), stub, #stub_bytes)
+
+        self.stub, self.stub_address = stub, address
+        return true
+    end,
+
+    teardown = function(self)
+        if self.stub ~= nil then
+            C.VirtualFree(self.stub, 0, MEM_RELEASE)
+        end
+        self.stub, self.stub_address = nil, nil
+    end,
+}
+
+--[[--------------------------- меню -----------------------------------------]]
+
+local viera_group = ui.create("Rage", "NL Backtrack Fixes")
+
+viera_switch = {
+    preserve   = viera_group:switch("Preserve valid records", false),
+    early      = viera_group:switch("Early defensive activation", false),
+    break_dist = viera_group:switch("Skip break distance check", false),
+    defensive  = viera_group:switch("Defensive on backtrack", false),
+}
+
+viera_switch.preserve:tooltip("Не отбрасывать записи, помеченные валидными, при скане бэктрака.")
+viera_switch.early:tooltip("Defensive включается на один тик раньше: пропускается decrement счётчика.")
+viera_switch.break_dist:tooltip("Убрать вызов lagrecord_within_break_distance в двух местах выбора записи.")
+viera_switch.defensive:tooltip("Defensive включается и при стрельбе по записям бэктрака, а не только по текущей позиции.")
+
+local viera_diagnose_button = viera_group:button("Read sites", function()
+    local base = viera_module_base(true)
+    if base == nil then
+        warn("база модуля не найдена — сайты viera проверить нельзя")
+        return
+    end
+    log("модуль чита 0x%08X, образ %.2f МБ", base, module_span(base) / 1048576)
+    for _, patch in ipairs(viera_patches) do
+        local site = patch:resolve()
+        if site == nil then
+            log("  %-34s шаблон не найден", patch.name)
+        else
+            log("  %-34s 0x%08X  %s", patch.name, site, hexdump(site, 8))
+        end
+    end
+end)
+
+--[[--------------------------- состояние -----------------------------------]]
+
+local viera_state = { attempts = 0, cooldown = 0, updated = false }
+
+local function viera_wanted()
+    return ui.get(viera_switch.preserve) == true
+        or ui.get(viera_switch.early) == true
+        or ui.get(viera_switch.break_dist) == true
+        or ui.get(viera_switch.defensive) == true
+end
+
+local function viera_report(patch, ok, why)
+    if ok then
+        log("%s: включён @0x%08X", patch.name, patch.site or 0)
+    else
+        warn("%s: НЕ включён — %s", patch.name, tostring(why))
+    end
+end
+
+local function viera_update()
+    local pairs_list = {
+        { viera_switch.preserve,   viera_preserve_records },
+        { viera_switch.early,      viera_early_defensive },
+        { viera_switch.break_dist, viera_break_dist_a },
+        { viera_switch.defensive,  viera_defensive_bt },
+    }
+
+    for _, entry in ipairs(pairs_list) do
+        local element, patch = entry[1], entry[2]
+        if ui.get(element) == true then
+            if not patch.applied then
+                local ok, why = patch:apply()
+                viera_report(patch, ok, why)
+                if not ok then ui.set(element, false) end
+            end
+        elseif patch.applied then
+            patch:restore()
+            log("%s: снят, байты возвращены", patch.name)
+        end
+    end
+
+    -- Второй сайт break distance идёт парой к первому.
+    local extra = viera_break_dist_b
+    if ui.get(viera_switch.break_dist) == true then
+        if not extra.applied and viera_break_dist_a.applied then
+            local ok, why = extra:apply()
+            if not ok then warn("%s: НЕ включён — %s", extra.name, tostring(why)) end
+        end
+    elseif extra.applied then
+        extra:restore()
+    end
+
+    viera_state.updated = viera_wanted()
+end
+
+function viera_restore_all()
+    for index = #viera_patches, 1, -1 do viera_patches[index]:restore() end
+    viera_state.attempts, viera_state.cooldown = 0, 0
+end
+
+-- Модуль чита может быть ещё не замэплен в момент загрузки скрипта, поэтому
+-- включённые галочки дотягиваются по тикам (с ограничением числа попыток).
+for _, entry in ipairs({ { viera_switch.preserve }, { viera_switch.early },
+                         { viera_switch.break_dist }, { viera_switch.defensive } }) do
+    local element = entry[1]
+    element:set_callback(function()
+        viera_state.attempts, viera_state.cooldown = 0, 0
+        viera_update()
+    end, true)
+end
+
+local function viera_poll()
+    if not viera_wanted() then return end
+    if viera_preserve_records.applied
+       or viera_early_defensive.applied
+       or viera_break_dist_a.applied
+       or viera_defensive_bt.applied then
+        return
+    end
+    if viera_state.attempts >= 8 then return end
+    viera_state.cooldown = viera_state.cooldown - 1
+    if viera_state.cooldown > 0 then return end
+    viera_state.cooldown = 64
+    viera_state.attempts = viera_state.attempts + 1
+    viera_update()
 end
 
 --[[----------------------------------------------------------------------------
@@ -658,6 +1202,9 @@ events.net_update_end:set(function()
         teardown_now("паник-хоткей")
         return
     end
+
+    -- viera-патчи живут отдельными галочками и не зависят от окна бэктрака.
+    if viera_poll ~= nil then viera_poll() end
 
     if not enabled:get() then return end
 

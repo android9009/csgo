@@ -27,6 +27,11 @@ function M.reset()
     M.protect_calls, M.log_lines, M.error_lines = {}, {}, {}
     M.items, M.events, M.groups, M.event_objects = {}, {}, {}, {}
     M.state = {}
+    -- Кучи: буферы ffi.new живут по своим адресам, VirtualAlloc — по своим,
+    -- чтобы скрипт мог брать адрес буфера и писать его в патч.
+    M.heap_next, M.alloc_next, M.allocations = 0x71000000, 0x72000000, {}
+    M.references = {}
+    M.entity = { props = {}, local_player = nil, alive = true }
 end
 
 --[[--------------------------- память ---------------------------------------]]
@@ -123,7 +128,16 @@ end
 
 --[[--------------------------- kernel32 -------------------------------------]]
 
+-- Аргументы нативных функций: указатель-объект превращаем в адрес, а массивы
+-- ffi.new оставляем объектом (иначе out-параметр вида old[0] = ... получит число).
 local function normalize(value)
+    if type(value) == "table" and value.addr ~= nil and value.ctype ~= nil then
+        return value.addr
+    end
+    return value
+end
+
+local function addr_of(value)
     if type(value) == "table" and value.addr ~= nil then return value.addr end
     return value
 end
@@ -163,6 +177,29 @@ function M.install_kernel32()
         return size
     end
 
+    kernel32.VirtualAlloc = function(addr, size, kind, protect)
+        size = math.max(1, math.floor(normalize(size) or 1))
+        local base = M.alloc_next
+        M.alloc_next = M.alloc_next + math.floor((size + 0xFFF) / 0x1000) * 0x1000
+        M.add_region(base, size, protect or PAGE_EXECUTE_READWRITE, MEM_PRIVATE, false)
+        M.allocations[#M.allocations + 1] = base
+        for index = 0, size - 1 do M.mem[base + index] = 0 end
+        return base
+    end
+    kernel32.VirtualFree = function(addr)
+        addr = normalize(addr)
+        for index, region in ipairs(M.regions) do
+            if region.base == addr then
+                table.remove(M.regions, index)
+                M.freed = M.freed or {}
+                M.freed[#M.freed + 1] = addr
+                return 1
+            end
+        end
+        return 0
+    end
+    kernel32.FlushInstructionCache = function() return 1 end
+    kernel32.GetCurrentProcess = function() return 0xFFFFFFFF end
     kernel32.GetModuleHandleA = function() return nil end
     kernel32.GetProcAddress = function(_, name) return M.thunks[name] or 0 end
 
@@ -216,6 +253,32 @@ function M.ptr(ctype, addr)
     return setmetatable({ ctype = ctype, addr = addr }, Ptr)
 end
 
+-- ffi.new-массив: настоящий адрес, чтение/запись через симулированную память.
+M.Array = {}
+M.Array.__index = function(array, key)
+    if type(key) == "number" then
+        if array.elem == "float" then return M.read_f32(array.addr + key * 4) end
+        if array.elem == "uint8_t" or array.elem == "unsigned char" or array.elem == "char" then
+            return M.read_byte(array.addr + key)
+        end
+        return M.read_u32(array.addr + key * 4)
+    end
+    return nil
+end
+M.Array.__newindex = function(array, key, value)
+    if type(key) ~= "number" then return end
+    if array.elem == "float" then
+        M.write_f32(array.addr + key * 4, value)
+    elseif array.elem == "uint8_t" or array.elem == "unsigned char" or array.elem == "char" then
+        M.mem[array.addr + key] = math.floor(value) % 256
+    else
+        M.write_u32(array.addr + key * 4, value)
+    end
+end
+M.Array.__tostring = function(array)
+    return string.format("array<%s 0x%08X>", tostring(array.elem), array.addr)
+end
+
 local STRUCT_FIELDS = {
     SKEET_MBI   = { "BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type" },
     SKEET_MBI32 = { "BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Type" },
@@ -244,22 +307,40 @@ function M.make_ffi(options)
 
     ffi.cast = function(ctype, value)
         if ctype:find("%*%)") then
-            return setmetatable({ addr = normalize(value) }, Callable)
+            return setmetatable({ addr = addr_of(value) }, Callable)
         end
         if ctype == "uintptr_t" or ctype == "size_t" then
-            return normalize(value)
+            return addr_of(value)
         end
-        return M.ptr(ctype, normalize(value))
+        return M.ptr(ctype, addr_of(value))
     end
 
-    ffi.new = function(ctype)
+    ffi.new = function(ctype, initial)
         local base = ctype:gsub("%[.*$", "")
         if STRUCT_FIELDS[base] then
             local struct = {}
             for _, field in ipairs(STRUCT_FIELDS[base]) do struct[field] = 0 end
             return struct
         end
-        return { [0] = 0 }
+
+        -- Массив: свой адрес в куче, индексация идёт в M.mem, как у cdata.
+        local count = tonumber(ctype:match("%[(%d+)%]")) or 1
+        local element = (base == "uint8_t" or base == "unsigned char" or base == "char")
+            and 0 or (base == "float" and 1 or nil)
+        local size = count * 4
+        if element == 0 then size = count end
+
+        local addr = M.heap_next
+        M.heap_next = M.heap_next + math.floor((size + 0x0F) / 0x10) * 0x10
+        for index = 0, size - 1 do M.mem[addr + index] = 0 end
+
+        local array = setmetatable({ addr = addr, elem = base, width = math.floor(size / math.max(count, 1)) },
+                                   M.Array)
+        if type(initial) == "number" then array[0] = initial end
+        if type(initial) == "table" then
+            for index = 0, #initial - 1 do array[index] = initial[index + 1] end
+        end
+        return array
     end
 
     ffi.sizeof = function(ctype)
@@ -275,9 +356,17 @@ function M.make_ffi(options)
         end
     end
 
+    -- ffi.string(ptr, len) в LuaJIT читает РОВНО len байт (в том числе нули),
+    -- без len — до первого нуля. Мок повторяет оба поведения.
     ffi.string = function(pointer, count)
         local out = {}
-        for index = 0, (count or 64) - 1 do
+        if count ~= nil then
+            for index = 1, count do
+                out[index] = string.char(M.read_byte(pointer.addr + index - 1))
+            end
+            return table.concat(out)
+        end
+        for index = 0, 63 do
             local byte = M.read_byte(pointer.addr + index)
             if byte == 0 then break end
             out[#out + 1] = string.char(byte)
@@ -447,9 +536,13 @@ function M.install_globals(kind, options)
         })
     end
 
+    ui.reference = function(_, _, name) return M.references[name] end
+
     ui.get = function(item) return item.value end
     ui.set = function(item, value) item.value = value end   -- без коллбэка, как в читах
     ui.set_callback = function(item, callback) item:set_callback(callback) end
+    -- нажатие кнопки: одинаково для обоих API (в NL callback живёт в item)
+    M.press = function(item) if item.callback then item.callback() end end
 
     local client = {
         find_signature = function(_, pattern) return M.find_pattern(pattern) end,
@@ -464,6 +557,19 @@ function M.install_globals(kind, options)
         log = function(message) M.log_lines[#M.log_lines + 1] = message end,
         exec = function() end,
         userid_to_entindex = function() return 0 end,
+    }
+
+    -- Минимальный entity: только то, чем пользуются патчи (локальный игрок,
+    -- m_fFlags / m_bIsScoped). Тест кладёт значения в H.entity.props.
+    local entity = {
+        get_local_player = function() return M.entity.local_player end,
+        get_prop = function(player, prop)
+            if player == nil then return nil end
+            local value = M.entity.props[prop]
+            if type(value) == "function" then return value(player) end
+            return value
+        end,
+        is_alive = function() return M.entity.alive ~= false end,
     }
 
     local globals = {
@@ -493,6 +599,7 @@ function M.install_globals(kind, options)
     _G.ui = ui
     _G.globals = globals
     _G.vector = vector
+    _G.entity = entity
     _G.cvar = cvar
     _G.events = events
     _G.utils = utils
@@ -503,11 +610,12 @@ function M.install_globals(kind, options)
     end
 
     -- наружу: и через возвращаемое значение, и через сам модуль
-    M.cvar, M.ui, M.client, M.globals = cvar, ui, client, globals
+    M.cvar, M.ui, M.client, M.globals, M.entity = cvar, ui, client, globals, M.entity
     M.events = M.events or {}
 
     return { ffi = ffi, bit = bit_lib, ui = ui, client = client, events = events,
-             cvar = cvar, utils = utils, globals = globals, vector = vector }
+             cvar = cvar, utils = utils, globals = globals, vector = vector,
+             entity = entity }
 end
 
 function M.fire_event(name)

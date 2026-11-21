@@ -283,4 +283,213 @@ function M.run_menu_animation(H, path)
     return report
 end
 
+-- 5. Патчи panchan: airlag + ragebot improved (абсолютные сайты + эталоны)
+local PANCHAN = 0x43320000
+
+local PANCHAN_BYTES = {
+    airlag      = { addr = 0x433AC17C, bytes = { 0x74, 0x0A, 0x8B, 0x45, 0x08, 0x85 } },
+    delay_a     = { addr = 0x433ED5BD, bytes = { 0x75, 0x07 } },
+    delay_b     = { addr = 0x433ED757, bytes = { 0x0F, 0x2F, 0x15, 0x58, 0x27, 0x47, 0x43 } },
+    delay_c     = { addr = 0x4335BAA5, bytes = { 0x74, 0x64 } },
+    bt_distance = { addr = 0x433AED50, bytes = { 0x0F, 0x2F, 0x15, 0x60, 0x2B, 0x47, 0x43 } },
+    bt_gap      = { addr = 0x433AF012, bytes = { 0x83, 0xF9, 0x08 } },
+    jump        = { addr = 0x43372D89, bytes = { 0xF7, 0x40, 0x04, 0x00, 0x00, 0x02, 0x00,
+                                                 0x0F, 0x84, 0x94, 0x04, 0x00, 0x00 } },
+    samples_a   = { addr = 0x4333278D, bytes = { 0x81, 0xFF, 0x80, 0x00, 0x00, 0x00 } },
+    samples_b   = { addr = 0x4333285D, bytes = { 0x81, 0xF9, 0x80, 0x00, 0x00, 0x00 } },
+    seed_a      = { addr = 0x433326CF, bytes = { 0x0F, 0xB6, 0x88, 0x50, 0xFC, 0x46, 0x43 } },
+    seed_b      = { addr = 0x4333273E, bytes = { 0x0F, 0xB6, 0x87, 0x50, 0xFC, 0x46, 0x43 } },
+    seed_c      = { addr = 0x433327B3, bytes = { 0x0F, 0xB6, 0x91, 0x50, 0xFC, 0x46, 0x43 } },
+    seed_d      = { addr = 0x4333281F, bytes = { 0x0F, 0xB6, 0x80, 0x50, 0xFC, 0x46, 0x43 } },
+    percent     = { addr = 0x43332890, bytes = { 0x6A, 0x64 } },
+    hitbox_a    = { addr = 0x433337EA, bytes = { 0x6A, 0x13 } },
+    hitbox_b    = { addr = 0x43333C88, bytes = { 0x6A, 0x13 } },
+    mask        = { addr = 0x43333349, bytes = { 0xBE, 0xCA, 0x00, 0x00, 0x00 } },
+    dist_a      = { addr = 0x43333078, bytes = { 0x76, 0x27 } },
+    dist_b      = { addr = 0x433330A8, bytes = { 0x76, 0x0D } },
+}
+
+local function build_panchan(H)
+    H.add_region(PANCHAN, 0x200000, H.const.PAGE_EXECUTE_READ, H.const.MEM_IMAGE, false)
+    for _, entry in pairs(PANCHAN_BYTES) do
+        H.write_bytes(entry.addr, entry.bytes)
+    end
+end
+
+local function panchan_restored(H)
+    for _, entry in pairs(PANCHAN_BYTES) do
+        for index, byte in ipairs(entry.bytes) do
+            if H.read_byte(entry.addr + index - 1) ~= byte then return false, entry.addr end
+        end
+    end
+    return true
+end
+
+function M.run_panchan(H, path)
+    local report = new_report()
+    H.reset()
+    if H.natives == nil then H.natives = {} end
+    load_script(H, path, { block_loader = false })
+    build_panchan(H)
+
+    local master = H.find_item("Патчи panchan (airlag + ragebot improved)")
+    check(report, master ~= nil, "мастер-чекбокс panchan создан")
+    H.fire(master, true)
+
+    -- airlag
+    local airlag = H.find_item("panchan: Air lag")
+    H.fire(airlag, true)
+    check(report, H.read_hex(PANCHAN_BYTES.airlag.addr, 6) == "90 90 90 90 90 90",
+          "airlag: 6 байт -> NOP")
+
+    -- delay shot fix
+    local delay = H.find_item("panchan: Delay Shot Fix")
+    H.fire(delay, true)
+    check(report, H.read_hex(PANCHAN_BYTES.delay_a.addr, 2) == "EB 07", "delay: jne -> jmp")
+    check(report, H.read_hex(PANCHAN_BYTES.delay_b.addr, 7) == "0F 2F 15 6C EE 46 43",
+          "delay: константа переставлена")
+    check(report, H.read_hex(PANCHAN_BYTES.delay_c.addr, 2) == "90 90", "delay: rescan -> NOP")
+
+    -- BT fix: своя константа 512^2 + gap
+    local bt = H.find_item("panchan: BT Fix")
+    H.fire(bt, true)
+    local bt_pointer = H.read_u32(PANCHAN_BYTES.bt_distance.addr + 3)
+    check(report, bt_pointer ~= 0x43472B60 and bt_pointer >= 0x70000000,
+          "BT distance переписан на свой буфер")
+    check(report, math.abs(H.read_f32(bt_pointer) - 512 * 512) < 1,
+          "в буфере лежит 512^2")
+    check(report, H.read_hex(PANCHAN_BYTES.bt_gap.addr, 3) == "83 F9 14", "BT gap 8 -> 20")
+
+    -- jump: только со снайперкой в прицеле
+    local jump = H.find_item("panchan: Jump Scout Fix")
+    H.fire(jump, true)
+    check(report, H.read_byte(PANCHAN_BYTES.jump.addr) == 0xF7,
+          "без прицела Jump Scout не патчится")
+
+    H.entity.local_player = 1
+    H.entity.props.m_bIsScoped = 1
+    H.entity.props.m_fFlags = 257          -- на земле
+    H.fire_event("createmove")
+    check(report, H.read_hex(PANCHAN_BYTES.jump.addr, 13) == "90 90 90 90 90 90 90 90 90 90 90 90 90",
+          "в прицеле Jump Scout -> 13 NOP")
+
+    H.entity.props.m_bIsScoped = 0
+    H.fire_event("createmove")
+    check(report, H.read_byte(PANCHAN_BYTES.jump.addr) == 0xF7,
+          "прицел снят — байты Jump Scout возвращены")
+
+    -- hitscan: значения из слайдеров
+    local hitscan = H.find_item("panchan: Hitscan Fix")
+    H.fire(hitscan, true)
+    check(report, H.read_hex(PANCHAN_BYTES.samples_a.addr, 6) == "81 FF 00 02 00 00",
+          "hitscan samples A = 512")
+    check(report, H.read_hex(PANCHAN_BYTES.samples_b.addr, 6) == "81 F9 00 02 00 00",
+          "hitscan samples B = 512")
+    local seed_pointer = H.read_u32(PANCHAN_BYTES.seed_a.addr + 3)
+    check(report, seed_pointer >= 0x70000000, "seed указывает на свою таблицу")
+    check(report, H.read_byte(seed_pointer + 7) == 7, "таблица seed заполнена (i % 256)")
+    check(report, H.read_hex(PANCHAN_BYTES.percent.addr, 2) == "6A 4C", "percent cap = 76")
+    check(report, H.read_hex(PANCHAN_BYTES.hitbox_a.addr, 2) == "6A 12", "hitbox cap = 18")
+    check(report, H.read_hex(PANCHAN_BYTES.mask.addr, 5) == "BE FF 00 00 00", "mask = 255")
+    check(report, H.read_hex(PANCHAN_BYTES.dist_a.addr, 2) == "EB 27", "distance A: jbe -> jmp")
+    check(report, H.read_hex(PANCHAN_BYTES.dist_b.addr, 2) == "EB 0D", "distance B: jbe -> jmp")
+
+    -- воздух: samples = 256
+    local samples_box = H.find_item("panchan: hitscan samples")
+    H.fire(samples_box, 384)
+    H.entity.props.m_fFlags = 256          -- в воздухе
+    H.fire_event("createmove")
+    check(report, H.read_hex(PANCHAN_BYTES.samples_a.addr, 6) == "81 FF 00 01 00 00",
+          "в воздухе samples = 256")
+    H.entity.props.m_fFlags = 257
+    -- после приземления panchan держит 256 ещё 4 тика
+    for _ = 1, 5 do H.fire_event("createmove") end
+    check(report, H.read_hex(PANCHAN_BYTES.samples_a.addr, 6) == "81 FF 80 01 00 00",
+          "на земле снова слайдер (384)")
+
+    -- всё выключено: байты вернулись байт в байт
+    H.fire(master, false)
+    local restored, where = panchan_restored(H)
+    check(report, restored, string.format("выключение вернуло все сайты panchan (сбой @0x%08X)", where or 0))
+    check(report, H.log_contains("patches panchan выключены"), "выключение залогировано")
+
+    return report
+end
+
+-- 6. panchan: чужой билд — эталон не совпал, группа откатывается целиком
+function M.run_panchan_rejections(H, path)
+    local report = new_report()
+    H.reset()
+    if H.natives == nil then H.natives = {} end
+    load_script(H, path, { block_loader = false })
+    build_panchan(H)
+
+    local master = H.find_item("Патчи panchan (airlag + ragebot improved)")
+    H.fire(master, true)
+
+    -- BT fix: операнд не тот, что в panchan -> отказ, ничего не записано
+    H.write_bytes(PANCHAN_BYTES.bt_distance.addr, { 0x0F, 0x2F, 0x15, 0x11, 0x22, 0x33, 0x44 })
+    local original_disp = H.read_hex(PANCHAN_BYTES.bt_distance.addr, 7)
+    local bt = H.find_item("panchan: BT Fix")
+    H.fire(bt, true)
+    check(report, H.read_hex(PANCHAN_BYTES.bt_distance.addr, 7) == original_disp,
+          "BT distance с чужим операндом не тронут")
+    check(report, H.read_hex(PANCHAN_BYTES.bt_gap.addr, 3) == "83 F9 08",
+          "BT gap откатился вместе с группой")
+    check(report, bt.value == false, "группа выключилась после отказа")
+    check(report, H.log_contains("операнд"), "причина отказа названа")
+
+    -- delay: у среднего сайта испорчен эталон -> вся группа откатывается
+    H.write_bytes(PANCHAN_BYTES.delay_b.addr, { 0x0F, 0x2F, 0x15, 0x00, 0x00, 0x00, 0x00 })
+    local delay = H.find_item("panchan: Delay Shot Fix")
+    H.fire(delay, true)
+    check(report, H.read_hex(PANCHAN_BYTES.delay_a.addr, 2) == "75 07",
+          "первый сайт delay откатился после отказа второго")
+    check(report, delay.value == false, "delay выключился")
+
+    -- padding вместо кода
+    H.fill(PANCHAN_BYTES.airlag.addr, 6, 0xCC)
+    local airlag = H.find_item("panchan: Air lag")
+    H.fire(airlag, true)
+    check(report, H.read_hex(PANCHAN_BYTES.airlag.addr, 6) == "CC CC CC CC CC CC",
+          "padding не патчится")
+    check(report, airlag.value == false, "airlag выключился")
+    check(report, H.log_contains("padding"), "padding отклонён с объяснением")
+
+    return report
+end
+
+-- 7. panchan: переопределение базы из меню
+function M.run_panchan_base(H, path)
+    local report = new_report()
+    H.reset()
+    if H.natives == nil then H.natives = {} end
+    load_script(H, path, { block_loader = false })
+    build_panchan(H)
+
+    local master = H.find_item("Патчи panchan (airlag + ragebot improved)")
+    local base_box = H.find_item("panchan base (hex, пусто = 0x43320000)")
+    check(report, base_box ~= nil, "поле базы panchan создано")
+
+    -- сдвигаем всю картину на 0x1000 и говорим об этом скрипту
+    H.add_region(PANCHAN + 0x1000, 0x200000, H.const.PAGE_EXECUTE_READ, H.const.MEM_IMAGE, false)
+    for _, entry in pairs(PANCHAN_BYTES) do
+        H.write_bytes(entry.addr + 0x1000, entry.bytes)
+    end
+
+    H.fire(base_box, "0x43321000")
+    H.fire(master, true)
+    local airlag = H.find_item("panchan: Air lag")
+    H.fire(airlag, true)
+    check(report, H.read_hex(PANCHAN_BYTES.airlag.addr + 0x1000, 6) == "90 90 90 90 90 90",
+          "база из меню применена")
+    H.fire(master, false)
+
+    -- мусор в поле базы не меняет ничего
+    H.fire(base_box, "nonsense")
+    check(report, H.log_contains("panchan base"), "некорректная база отклонена")
+
+    return report
+end
+
 return M

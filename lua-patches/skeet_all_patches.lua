@@ -20,6 +20,15 @@
          Память не патчится: скрипт двигает размер/позицию меню в paint_ui и
          крутит иконки табов. Адреса — 12 полей в модуле чита.
 
+      5) panchan (Luas/panchan.lua) — 19 сайтов, раздел 5.5:
+         Air lag (6 байт -> NOP), Delay Shot Fix (3 сайта), BT Fix (своя
+         константа 512^2 + gap 8 -> 20), Jump Scout (13 байт -> NOP, только
+         со снайперкой в прицеле), Hitscan Fix (samples x2, seed x4 на свою
+         таблицу, percent, hitbox x2, mask, distance x2).
+         Сайты panchan заданы абсолютными VA от базы 0x43320000 (база
+         переопределяется), поэтому у каждого есть эталон байтов и проверка
+         исходного операнда: чужой билд -> отказ, группа откатывается целиком.
+
     Что сделано иначе (и почему это лучше исходников):
 
       * VirtualProtect / VirtualQuery / GetModuleHandleA / GetProcAddress
@@ -714,6 +723,550 @@ function MenuAnim:frame_internal()
 end
 
 --[[----------------------------------------------------------------------------
+    5.5 Патчи из Luas/panchan.lua  (airlag + Ragebot Improved)
+
+    panchan — отдельный скрипт, его сайты заданы абсолютными VA под конкретный
+    билд и НЕ выводятся из подписей. Поэтому все смещения отсчитываются от одной
+    базы (по умолчанию 0x43320000, можно переопределить textbox'ом), а каждый
+    сайт несёт эталонные байты: если по адресу лежит не эталон — патч
+    отказывается писать и пишет причину в консоль.
+
+    Перенесено:
+      Air lag         6 байт -> NOP @ +0x08C17C
+      Delay Shot Fix  strict branch 75 07 -> EB 07, revalidate-константа,
+                      rescan 74 64 -> 90 90
+      BT Fix          дистанция через свой float[1] (512^2) + gap 8 -> 20
+      Jump Scout Fix  13 байт -> NOP, только когда снайперка в прицеле
+      Hitscan Fix     samples (cmp imm32 x2), seed (4 x movzx на свою
+                      таблицу 512 байт), percent/hitbox (push imm8),
+                      mask (mov esi, imm32), distance (76 xx -> EB xx x2)
+------------------------------------------------------------------------------]]
+
+local PANCHAN_BASE_DEFAULT = 0x43320000
+local panchan_base = PANCHAN_BASE_DEFAULT
+
+local function le_bytes(value, count)
+    value = math.floor(tonumber(value) or 0) % 0x100000000
+    local out = {}
+    for index = 1, count or 4 do
+        out[index] = value % 0x100
+        value = math.floor(value / 0x100)
+    end
+    return out
+end
+
+local function join_bytes(first, second)
+    local out = {}
+    for _, byte in ipairs(first or {}) do out[#out + 1] = byte end
+    for _, byte in ipairs(second or {}) do out[#out + 1] = byte end
+    return out
+end
+
+local function same_bytes(a, b)
+    if a == nil or b == nil or #a ~= #b then return false end
+    for index = 1, #a do
+        if a[index] ~= b[index] then return false end
+    end
+    return true
+end
+
+local function hex_of(bytes)
+    local out = {}
+    for _, byte in ipairs(bytes or {}) do out[#out + 1] = ("%02X"):format(byte) end
+    return table.concat(out, " ")
+end
+
+--[[--------------------------- сайт -----------------------------------------]]
+
+local Site = {}
+Site.__index = Site
+
+local panchan_sites = {}
+
+local function new_site(def)
+    def.applied = false
+    def.saved   = nil
+    def.written = nil
+    panchan_sites[#panchan_sites + 1] = def
+    return setmetatable(def, Site)
+end
+
+function Site:address()
+    return panchan_base + self.offset
+end
+
+-- payload собирается КАЖДЫЙ раз: значения hitscan меняются слайдерами.
+function Site:payload()
+    if self.build ~= nil then return self.build(self.value) end
+    if self.prefix ~= nil then
+        return join_bytes(self.prefix, le_bytes(self.value or 0, self.width or 4))
+    end
+    return self.patched
+end
+
+function Site:expected()
+    if self.expect ~= nil then return self.expect end
+    if self.prefix ~= nil then return self.prefix end
+    return nil
+end
+
+function Site:check()
+    if not Win.ready then return false, "нет VirtualProtect: " .. tostring(Win.reason) end
+
+    local payload = self:payload()
+    if payload == nil then return false, "payload не собран" end
+
+    local addr = self:address()
+    local ok, why = Mem.is_executable(addr, #payload)
+    if not ok then return false, why end
+
+    local current = Mem.read(addr, #payload)
+    if same_bytes(current, payload) or same_bytes(current, self.written) then
+        return true, "уже пропатчено"
+    end
+
+    -- Эталон сверяем побайтово. Для префиксных сайтов он короче патча: там
+    -- проверяется только опкод, а операнд сверяется отдельно ниже.
+    local expect = self:expected()
+    if expect ~= nil then
+        for index = 1, #expect do
+            if current[index] ~= expect[index] then
+                return false, ("эталон не совпал: ждём %s, лежит %s"):format(
+                    hex_of(expect), Mem.hex(addr, #payload))
+            end
+        end
+    end
+
+    -- Операнд: на чужом билде по этому адресу может стоять другой опкод с тем
+    -- же префиксом — тогда константа читается из другого места, и патч врёт.
+    -- Если исходное значение операнда известно, требуем именно его (или наше
+    -- собственное, уже записанное).
+    if self.operand_original ~= nil then
+        local width = self.width or 4
+        local operand = 0
+        for index = width, 1, -1 do
+            operand = operand * 0x100 + current[#self.prefix + index]
+        end
+        if operand ~= (self.operand_original % 0x100000000) then
+            return false, ("операнд 0x%08X не совпал с исходным 0x%08X"):format(
+                operand, self.operand_original % 0x100000000)
+        end
+    end
+
+    local padding = true
+    for _, byte in ipairs(current) do
+        if byte ~= 0xCC and byte ~= 0x90 then padding = false break end
+    end
+    if padding then return false, "по адресу padding (0xCC/0x90) — похоже, другой билд" end
+
+    return true
+end
+
+function Site:apply(value)
+    if value ~= nil then self.value = value end
+
+    local payload = self:payload()
+    if payload == nil then return false, "payload не собран" end
+
+    local addr = self:address()
+    if self.applied and same_bytes(Mem.read(addr, #payload), payload) then return true end
+
+    local ok, why = self:check()
+    if not ok then return false, why end
+
+    if self.saved == nil or #self.saved ~= #payload then
+        self.saved = Mem.read(addr, #payload)
+    end
+
+    local written, write_why = Mem.write(addr, payload)
+    if not written then return false, tostring(write_why) end
+
+    self.applied, self.written = true, payload
+    return true
+end
+
+function Site:restore()
+    if not self.applied then return true end
+    if self.saved ~= nil then
+        local written, why = Mem.write(self:address(), self.saved)
+        if not written then return false, tostring(why) end
+    end
+    self.applied, self.saved, self.written = false, nil, nil
+    return true
+end
+
+--[[--------------------------- группа ---------------------------------------]]
+
+local Group = {}
+Group.__index = Group
+
+local panchan_groups = {}
+
+local function new_group(def)
+    def.sites = def.sites or {}
+    def.enabled = false
+    panchan_groups[#panchan_groups + 1] = def
+    return setmetatable(def, Group)
+end
+
+-- Все или ничего: не собралась половина — уже записанное откатывается, чтобы
+-- рейджбот не остался наполовину пропатченным.
+function Group:apply(values)
+    for index, site in ipairs(self.sites) do
+        local value = values ~= nil and site.field ~= nil and values[site.field] or nil
+        local ok, why = site:apply(value)
+        if not ok then
+            for rollback = index - 1, 1, -1 do self.sites[rollback]:restore() end
+            self.enabled = false
+            return false, ("%s: %s"):format(site.name, tostring(why))
+        end
+    end
+    self.enabled = true
+    return true
+end
+
+function Group:restore()
+    local ok = true
+    for index = #self.sites, 1, -1 do
+        local done = self.sites[index]:restore()
+        if not done then ok = false end
+    end
+    self.enabled = false
+    return ok
+end
+
+--[[--------------------------- значения -------------------------------------]]
+
+-- BT distance: своя константа вместо 0x43472B60 (512 юнитов в квадрате).
+local bt_value = ffi.new("float[1]", 512 * 512)
+bt_value[0] = 512 * 512
+local bt_address = nil
+do
+    local ok, value = pcall(function()
+        return tonumber(ffi.cast("uintptr_t", ffi.cast("void*", bt_value)))
+    end)
+    if ok then bt_address = value end
+end
+
+-- Hitscan seed: детерминированная таблица вместо 0x4346FC50.
+local seed_table = ffi.new("unsigned char[512]")
+for index = 0, 511 do seed_table[index] = index % 256 end
+local seed_address = nil
+do
+    local ok, value = pcall(function()
+        return tonumber(ffi.cast("uintptr_t", ffi.cast("void*", seed_table)))
+    end)
+    if ok then seed_address = value end
+end
+
+--[[--------------------------- сайты ----------------------------------------]]
+
+local airlag_group = new_group{
+    key   = "airlag",
+    title = "Air lag",
+    sites = {
+        new_site{ name = "Air lag", offset = 0x08C17C, patched = nops(6) },
+    },
+}
+
+local delay_group = new_group{
+    key   = "delay",
+    title = "Delay Shot Fix",
+    sites = {
+        new_site{ name = "Delay Shot strict branch", offset = 0x0CD5BD,
+                  expect = { 0x75, 0x07 }, patched = { 0xEB, 0x07 } },
+        new_site{ name = "Delay Shot revalidate", offset = 0x0CD757,
+                  expect  = { 0x0F, 0x2F, 0x15, 0x58, 0x27, 0x47, 0x43 },
+                  patched = { 0x0F, 0x2F, 0x15, 0x6C, 0xEE, 0x46, 0x43 } },
+        new_site{ name = "Delay Shot rescan", offset = 0x03BAA5,
+                  expect = { 0x74, 0x64 }, patched = { 0x90, 0x90 } },
+    },
+}
+
+local bt_group = new_group{
+    key   = "bt",
+    title = "BT Fix",
+    sites = {
+        new_site{ name = "BT distance", offset = 0x08ED50,
+                  prefix = { 0x0F, 0x2F, 0x15 }, width = 4,
+                  operand_original = 0x43472B60,
+                  field = "bt", value = bt_address },
+        new_site{ name = "BT gap", offset = 0x08F012,
+                  expect = { 0x83, 0xF9, 0x08 }, patched = { 0x83, 0xF9, 0x14 } },
+    },
+}
+
+local jump_group = new_group{
+    key   = "jump",
+    title = "Jump Scout Fix",
+    sites = {
+        new_site{ name = "Jump Scout", offset = 0x052D89,
+                  expect  = { 0xF7, 0x40, 0x04, 0x00, 0x00, 0x02, 0x00,
+                              0x0F, 0x84, 0x94, 0x04, 0x00, 0x00 },
+                  patched = nops(13) },
+    },
+}
+
+local hitscan_group = new_group{
+    key   = "hitscan",
+    title = "Hitscan Fix",
+    sites = {
+        new_site{ name = "Hitscan samples A", offset = 0x01278D,
+                  prefix = { 0x81, 0xFF }, width = 4, operand_original = 0x80,
+                  field = "samples", value = 512 },
+        new_site{ name = "Hitscan samples B", offset = 0x01285D,
+                  prefix = { 0x81, 0xF9 }, width = 4, operand_original = 0x80,
+                  field = "samples", value = 512 },
+        new_site{ name = "Hitscan seed A", offset = 0x0126CF,
+                  prefix = { 0x0F, 0xB6, 0x88 }, width = 4, operand_original = 0x4346FC50,
+                  field = "seed", value = seed_address },
+        new_site{ name = "Hitscan seed B", offset = 0x01273E,
+                  prefix = { 0x0F, 0xB6, 0x87 }, width = 4, operand_original = 0x4346FC50,
+                  field = "seed", value = seed_address },
+        new_site{ name = "Hitscan seed C", offset = 0x0127B3,
+                  prefix = { 0x0F, 0xB6, 0x91 }, width = 4, operand_original = 0x4346FC50,
+                  field = "seed", value = seed_address },
+        new_site{ name = "Hitscan seed D", offset = 0x01281F,
+                  prefix = { 0x0F, 0xB6, 0x80 }, width = 4, operand_original = 0x4346FC50,
+                  field = "seed", value = seed_address },
+        new_site{ name = "Hitscan percent cap", offset = 0x012890,
+                  prefix = { 0x6A }, width = 1, operand_original = 0x64,
+                  field = "percent", value = 76 },
+        new_site{ name = "Hitscan hitbox cap A", offset = 0x0137EA,
+                  prefix = { 0x6A }, width = 1, operand_original = 0x13,
+                  field = "hitbox", value = 18 },
+        new_site{ name = "Hitscan hitbox cap B", offset = 0x013C88,
+                  prefix = { 0x6A }, width = 1, operand_original = 0x13,
+                  field = "hitbox", value = 18 },
+        new_site{ name = "Hitscan mask", offset = 0x013349,
+                  prefix = { 0xBE }, width = 4, operand_original = 0xCA,
+                  field = "mask", value = 255 },
+        new_site{ name = "Hitscan distance A", offset = 0x013078,
+                  expect = { 0x76, 0x27 }, patched = { 0xEB, 0x27 } },
+        new_site{ name = "Hitscan distance B", offset = 0x0130A8,
+                  expect = { 0x76, 0x0D }, patched = { 0xEB, 0x0D } },
+    },
+}
+
+--[[--------------------------- меню -----------------------------------------]]
+
+local ui_panchan      = ui.new_checkbox("LUA", "Patches", "Патчи panchan (airlag + ragebot improved)")
+local ui_panchan_base = ui.new_textbox("LUA", "Patches", "panchan base (hex, пусто = 0x43320000)")
+
+local ui_panchan_group = {}
+for _, group in ipairs(panchan_groups) do
+    ui_panchan_group[group.key] = ui.new_checkbox("LUA", "Patches", "panchan: " .. group.title)
+end
+
+local ui_panchan_samples = ui.new_slider("LUA", "Patches", "panchan: hitscan samples", 16, 512, 512)
+local ui_panchan_percent = ui.new_slider("LUA", "Patches", "panchan: hitscan percent cap", 10, 100, 76)
+local ui_panchan_hitbox  = ui.new_slider("LUA", "Patches", "panchan: hitscan hitbox cap", 1, 64, 18)
+local ui_panchan_mask    = ui.new_slider("LUA", "Patches", "panchan: hitscan hitbox mask", 1, 255, 255)
+
+--[[--------------------------- состояние -----------------------------------]]
+
+local panchan_state = {
+    airborne          = false,
+    post_landing      = 0,
+    fd_reference      = nil,
+    fd_resolved       = false,
+    scoped            = false,
+}
+
+local function panchan_local_player()
+    if entity == nil or entity.get_local_player == nil then return nil end
+    local ok, player = pcall(entity.get_local_player)
+    if not ok then return nil end
+    return player
+end
+
+local function panchan_prop(player, name)
+    if entity == nil or entity.get_prop == nil or player == nil then return nil end
+    local ok, value = pcall(entity.get_prop, player, name)
+    if not ok then return nil end
+    return value
+end
+
+-- Duck peek assist — единственный способ, которым panchan понижает samples;
+-- если элемента нет (другая сборка/меню), просто не учитываем его.
+local function panchan_fakeduck()
+    if not panchan_state.fd_resolved then
+        panchan_state.fd_resolved = true
+        if ui.reference ~= nil then
+            local ok, reference = pcall(ui.reference, "RAGE", "Other", "Duck peek assist")
+            if ok then panchan_state.fd_reference = reference end
+        end
+    end
+    if panchan_state.fd_reference == nil then return false end
+    local ok, value = pcall(ui.get, panchan_state.fd_reference)
+    return ok and value == true
+end
+
+local function panchan_samples()
+    if panchan_fakeduck() then return 128 end
+    if panchan_state.airborne or panchan_state.post_landing > 0 then return 256 end
+    return ui_panchan_samples:get()
+end
+
+local function panchan_refresh_scoped()
+    local player = panchan_local_player()
+    if player == nil then
+        panchan_state.scoped = false
+        return
+    end
+    local alive = true
+    if entity ~= nil and entity.is_alive ~= nil then
+        local ok, value = pcall(entity.is_alive, player)
+        alive = ok and value == true
+    end
+    panchan_state.scoped = alive and panchan_prop(player, "m_bIsScoped") == 1
+end
+
+local function panchan_toggle(group, element, values)
+    if element ~= nil and ui.get(element) == true then
+        local ok, why = group:apply(values)
+        if not ok then
+            -- Один раз на группу: иначе консоль зальётся на каждом кадре.
+            if group.reported ~= why then
+                group.reported = why
+                log_error("panchan %s: НЕ включён — %s", group.title, tostring(why))
+            end
+            if element ~= nil then ui.set(element, false) end
+        else
+            group.reported = nil
+        end
+    else
+        group:restore()
+    end
+end
+
+local function panchan_update()
+    if ui.get(ui_panchan) ~= true then
+        for _, group in ipairs(panchan_groups) do group:restore() end
+        return
+    end
+
+    panchan_refresh_scoped()
+
+    panchan_toggle(airlag_group, ui_panchan_group.airlag)
+    panchan_toggle(delay_group,  ui_panchan_group.delay)
+    panchan_toggle(bt_group,     ui_panchan_group.bt, { bt = bt_address })
+
+    -- Jump Scout: panchan включает патч только со снайперкой в прицеле и
+    -- возвращает байты сразу, как прицел снят.
+    if ui.get(ui_panchan_group.jump) == true and panchan_state.scoped then
+        local ok, why = jump_group:apply()
+        if not ok and jump_group.reported ~= why then
+            jump_group.reported = why
+            log_error("panchan %s: НЕ включён — %s", jump_group.title, tostring(why))
+        end
+    else
+        jump_group:restore()
+    end
+
+    panchan_toggle(hitscan_group, ui_panchan_group.hitscan, {
+        samples = panchan_samples(),
+        seed    = seed_address,
+        percent = ui_panchan_percent:get(),
+        hitbox  = ui_panchan_hitbox:get(),
+        mask    = ui_panchan_mask:get(),
+    })
+end
+
+local Panchan = {}
+
+function Panchan:restore_all()
+    for _, group in ipairs(panchan_groups) do group:restore() end
+    if ui_panchan ~= nil then ui.set(ui_panchan, false) end
+end
+
+function Panchan:on_frame()
+    if ui.get(ui_panchan) == true then panchan_update() end
+end
+
+-- Диагностика: адрес сайта и байты по нему.
+function Panchan:describe()
+    log("panchan base 0x%08X, сайтов %d", panchan_base, #panchan_sites)
+    for _, site in ipairs(panchan_sites) do
+        local payload = site:payload()
+        local addr = site:address()
+        local ok, why = Mem.is_executable(addr, payload ~= nil and #payload or 1)
+        log("  %-24s 0x%08X  %s  [%s]", site.name, addr,
+            Mem.hex(addr, payload ~= nil and #payload or 1),
+            ok and "ok" or ("не годится: " .. tostring(why)))
+    end
+end
+
+--[[--------------------------- коллбэки ------------------------------------]]
+
+ui.set_callback(ui_panchan, function()
+    if ui.get(ui_panchan) == true then
+        log("patches panchan включены, база 0x%08X", panchan_base)
+        panchan_update()
+    else
+        for _, group in ipairs(panchan_groups) do group:restore() end
+        log("patches panchan выключены, байты возвращены")
+    end
+end)
+
+ui.set_callback(ui_panchan_base, function()
+    local text = ui.get(ui_panchan_base)
+    if text == nil or text == "" then
+        panchan_base = PANCHAN_BASE_DEFAULT
+        log("panchan base = 0x%08X (встроенная)", panchan_base)
+    else
+        local parsed = parse_address(text)
+        if parsed == nil then
+            log_error("panchan base: \"%s\" не похоже на адрес, остаётся 0x%08X",
+                      tostring(text), panchan_base)
+            return
+        end
+        panchan_base = parsed
+        log("panchan base = 0x%08X", panchan_base)
+    end
+    for _, group in ipairs(panchan_groups) do group:restore() end
+    if ui.get(ui_panchan) == true then panchan_update() end
+end)
+
+for _, group in ipairs(panchan_groups) do
+    local entry = group
+    local element = ui_panchan_group[entry.key]
+    if element ~= nil then
+        ui.set_callback(element, function()
+            if ui.get(element) == true and ui.get(ui_panchan) ~= true then
+                log_error("%s: сначала включите \"%s\"", entry.title, "Патчи panchan")
+                ui.set(element, false)
+                return
+            end
+            panchan_update()
+        end)
+    end
+end
+
+for _, element in ipairs({ ui_panchan_samples, ui_panchan_percent, ui_panchan_hitbox, ui_panchan_mask }) do
+    ui.set_callback(element, function() panchan_update() end)
+end
+
+-- Воздух/приземление: panchan поднимает samples до 256 в воздухе и на 4 тика
+-- после приземления, поэтому состояние считается в createmove.
+if client.set_event_callback ~= nil then
+    client.set_event_callback("createmove", function()
+        local player = panchan_local_player()
+        local flags = panchan_prop(player, "m_fFlags")
+        if flags ~= nil then
+            local on_ground = bit.band(flags, 1) == 1
+            if panchan_state.airborne and on_ground then
+                panchan_state.post_landing = 4
+            elseif panchan_state.post_landing > 0 then
+                panchan_state.post_landing = panchan_state.post_landing - 1
+            end
+            panchan_state.airborne = not on_ground
+        end
+        if ui.get(ui_panchan) == true then panchan_update() end
+    end)
+end
+
+--[[----------------------------------------------------------------------------
     6. Меню
 ------------------------------------------------------------------------------]]
 
@@ -754,6 +1307,7 @@ end
 
 local function restore_all(reason)
     for _, patch in ipairs(patches) do patch:restore() end
+    Panchan:restore_all()
     MenuAnim:disable()
     if ui_master then ui.set(ui_master, false) end
     if ui_master_anim then ui.set(ui_master_anim, false) end
@@ -813,6 +1367,7 @@ local ui_read = ui.new_button("LUA", "Patches", "Read sites (проверить 
                 patch.hint or "", ok and "ok" or ("не годится: " .. tostring(why)))
         end
     end
+    Panchan:describe()
     MenuAnim.base_text = ui_anim_base
     MenuAnim:resolve_base()
     local ok, why = MenuAnim:preflight()
@@ -874,6 +1429,9 @@ end)
 
 client.set_event_callback("paint_ui", function()
     if MenuAnim.enabled then MenuAnim:on_frame() end
+    -- panchan применяет/снимает свои группы по состоянию меню, прицела и
+    -- воздуха; запись идёт только если байты реально отличаются.
+    if ui.get(ui_panchan) == true then Panchan:on_frame() end
 end)
 
 client.set_event_callback("shutdown", function()
@@ -888,6 +1446,8 @@ client.set_event_callback("level_init", function()
             set_patch(patch, true)
         end
     end
+    -- Клиентские байты перезагружены: группы panchan тоже нужно наложить заново.
+    if ui.get(ui_panchan) == true then panchan_update() end
 end)
 
 --[[----------------------------------------------------------------------------
@@ -905,4 +1465,5 @@ end
 for _, patch in ipairs(patches) do
     log("%-32s site 0x%08X  %s", patch.name, patch.site, patch.hint or "")
 end
-log("патчи загружены: %d память + 1 анимация меню", #patches)
+log("патчи загружены: %d память + %d panchan-сайтов + 1 анимация меню",
+    #patches, #panchan_sites)
