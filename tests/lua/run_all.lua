@@ -36,6 +36,11 @@ local scenarios = {
     { name = "nl / viera patches",      fn = function() return nl_tests.run_viera(harness, nl_path) end },
     { name = "nl / viera no pattern",   fn = function() return nl_tests.run_viera_missing_pattern(harness, nl_path) end },
     { name = "nl / viera other base",   fn = function() return nl_tests.run_viera_other_base(harness, nl_path) end },
+    { name = "nl / viera extrapolation", fn = function() return nl_tests.run_viera_extrapolation(harness, nl_path) end },
+    { name = "nl / viera record select", fn = function() return nl_tests.run_viera_record_selection(harness, nl_path) end },
+    { name = "nl / viera records missing", fn = function() return nl_tests.run_viera_record_missing(harness, nl_path) end },
+    { name = "nl / persistence model hook", fn = function() return nl_tests.run_persistence_model_hook(harness, nl_path) end },
+    { name = "nl / persistence rejects",      fn = function() return nl_tests.run_persistence_rejections(harness, nl_path) end },
 }
 
 local total_passed, total_failed = 0, 0

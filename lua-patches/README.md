@@ -5,7 +5,7 @@
 | Файл | Чит | Что внутри |
 | --- | --- | --- |
 | `skeet_all_patches.lua` | Gamesense / Skeet | 3 патча из `Patches/2026-10-07_…-185*.lua` (Z_NORM, DIR_FLAGS, Skala), анимация меню из `-185-2.lua` и **все 19 сайтов из `Luas/panchan.lua`** (airlag + Ragebot Improved) — **22 патча в одном скрипте** |
-| `nl_all_patches.lua` | Neverlose | PAW Backtrack из `Patches/2026-11-02_…-127.lua` + **4 патча из `Luas/nl/viera utils.lua`** (Preserve valid records, Early defensive, Skip break distance ×2, Defensive on backtrack) — **9 сайтов в одном скрипте** |
+| `nl_all_patches.lua` | Neverlose | PAW Backtrack из `Patches/2026-11-02_…-127.lua`, **все патчи `Luas/nl/viera utils.lua`** (Preserve valid records, Early defensive, Skip break distance ×2, Defensive on backtrack, стаб Extrapolation primary, пещеры Custom record selection / fallback + animfix) и **model hook из `Luas/nl/persistence.lua`** — **12 сайтов + 4 пещеры в одном скрипте** |
 
 Ставить как обычный Lua чита: Gamesense — `%csgo%/csgo/lua/skeet_all_patches.lua`
 (или `luas/`), Neverlose — в папку скриптов NL. Оба файла независимы, вместе их
@@ -20,8 +20,8 @@
 | --- | --- | --- | --- |
 | `Luas/panchan.lua` | **да** | airlag (6×`90` @`0x433AC17C`), Ragebot Improved: delay (3 сайта), BT (дистанция + gap 8→20), Jump Scout (13×`90`), Hitscan (samples ×2, seed ×4, percent, hitbox ×2, mask, distance ×2) | **`skeet_all_patches.lua`, 19 сайтов** |
 | `Luas/nl/viera utils.lua` | **да** | Preserve valid records, Early defensive activation, Skip break distance ×2, Defensive on backtrack (стаб) | **`nl_all_patches.lua`, 5 сайтов** |
-| `Luas/nl/viera utils.lua` | да, но **не перенесено** | extrapolation primary (стаб, вызывающий внутренние функции чита) и record selection / aim-snap / ass-bait (рукописная замена `select_lagrecord` ~1.4 КБ машинного кода) | остались в оригинале: не байтовые патчи, а подмена кода, которую нельзя проверить обратным чтением |
-| `Luas/nl/persistence.lua` | **да** | 5-байтовый inline-хук (`83 EC 54` → `jmp` в свою пещеру) на функции отрисовки модели + свой хелпер `patch()`/`VirtualProtect` | **не переносится**: это внутренняя машинерия скрипта (его колбэки живут в пещере), а не отдельная фича-кнопка |
+| `Luas/nl/viera utils.lua` | **да** | `should_extrapolate` → свой стаб (`jmp` вместо `call`, стаб делает настоящий `call` и `jmp` назад); `select_lagrecord` → пещера, `GetEntityIndex` → стаб entindex, fallback-выбор записи, animfix `thirdperson_recoil` | **`nl_all_patches.lua`, разделы 9.5–9.6** |
+| `Luas/nl/persistence.lua` | **да** | model hook: 5 байт `83 EC 54 53 56` по `studiorender.dll+0x536A6` → `jmp` в пещеру 192 байта, которая подменяет цвет модели и зовёт вторую пещеру (50 байт) для копирования матриц; плюс управляющий блок на 68 байт | **`nl_all_patches.lua`, раздел 9.7** |
 | `Luas/nl/patches/2026-11-02_…-127.lua`, `Patches/2026-11-02_…-127.lua` | да | PAW Backtrack | `nl_all_patches.lua` |
 | `Patches/2026-10-07_…-185{,-1,-5}.lua` + копии в `Luas/skeet/patches/` | да | Z_NORM, DIR_FLAGS, Skala Johnson | `skeet_all_patches.lua` |
 | `Patches/2026-10-07_…-185-2.lua` | нет | анимация меню через поля меню в `paint_ui` | `skeet_all_patches.lua` (без записи в код) |
@@ -71,11 +71,33 @@
 | `Early defensive activation` | `dec edi` → `NOP`: defensive включается на тик раньше |
 | `Skip break distance check` | два вызова `lagrecord_within_break_distance` → `B0 00 90 90 90` |
 | `Defensive on backtrack` | `disp32` у `jz` → свой стаб (`mov byte [esi+0x1A],1 ; jmp назад`), стаб освобождается при снятии |
+| `Extrapolation primary` | `call should_extrapolate` → `jmp` на свой стаб: `breaklc == 0 && hittable != 0` → сразу `mov eax,1`; иначе настоящий `call` и `jmp` назад. По умолчанию **выключено** |
+| `Custom record selection` | сайт `select_lagrecord` (39 байт) → `jmp` в пещеру: выбор записи по `simulation_time`, ветки `0x527`/`0x7E2`, `animfix` `thirdperson_recoil` (пещера 3) |
+| `Custom fallback selection` | патч `fb_sig` (6 байт) → вторая пещера fallback-выбора записи + стаб `GetEntityIndex` |
+| `Model hook (persistence)` | 5 байт `83 EC 54 53 56` по `studiorender.dll+0x536A6` → пещера: подмена цвета модели `[ecx+0x240..0x24C]` и копирование матриц через вторую пещеру. По умолчанию **выключено** |
+| `studiorender RVA (hex)` | RVA функции отрисовки (по умолчанию `0x536A6`); перед установкой сверяется пролог `83 EC 54 53 56` |
 | `Read sites` (в этой группе) | печатает найденные адреса всех четырёх шаблонов viera |
 
 Сайты viera **не** заданы числами: они находятся сканом байтов по образу чита
 (`jne`-скан, `dec edi`, два вызова break distance, гейт defensive). Не нашлось —
 патч отказывается и пишет причину.
+
+Пещеры viera (раздел 9.6) собраны из тех же байтов, что в оригинале: одно
+`VirtualAlloc` на 4096 байт `PAGE_EXECUTE_READWRITE`, внутри — `cave1` (+0x000,
+главный путь), `cave3` (+0x16A, animfix), стаб entindex (+0x272), `cave2`
+(+0x290, fallback). Абсолютные адреса (`g_cmd_ctx`, `g_entindex`,
+`g_is_firing`, `g_tpr_arr`, смещение `m_flThirdpersonRecoil`, адреса возврата)
+считаются от найденных сайтов и от `utils.get_netvar_offset`, а не зашиты
+числами; при снятии байты возвращаются, пещера освобождается.
+
+Про `model hook` (раздел 9.7) — без прикрас: пещера срабатывает только тогда,
+когда управляющий блок заполнен **тем же** thread id и **тем же** указателем
+модели, с которыми оригинал вызывал отрисовку. Его draw pass — это движок
+отрисовки на 176k строк, он не переносится. Поэтому по умолчанию хук выключен,
+а блок можно заполнять самому: `NL_PERSISTENCE_MODEL:activate(model_ptr,
+call_ptr)`, `:set_color(r,g,b,a)`, `:set_capture(buffer, size)`, `:captured()`,
+`:skip_color(bool)`, `:deactivate()`. Если блок не заполнен — пещера просто
+воспроизводит оригинальный пролог и уходит назад, ничего не меняя.
 
 ## Что переделано относительно исходников
 
@@ -133,6 +155,25 @@
     перед записью, `VirtualFree` при снятии/отказе/ошибке проверки байтов;
     `FlushInstructionCache` после записи стаба.
 
+## Остаток по `Luas/nl/persistence.lua`
+
+Перенесён `model hook` — единственный патч, у которого в исходнике есть готовые
+байты и симметричное снятие (`constants[2145]` / `[2146]`). В том же файле
+лежат ещё четыре семейства хуков, которые пока **не** перенесены; они
+перечислены здесь, чтобы это не выглядело как «перенесено всё»:
+
+| Что | Где в исходнике | Что нужно, чтобы перенести |
+| --- | --- | --- |
+| `write_usercmd` (client.dll, `VClient018` +24) | `persistence.lua:74273` (сигнатура), установка `79974…79999`, стаб 32 байта | байты стаба строятся в рантайме из полей `command_offsets`, нужен разбор генератора |
+| `cl_move` (сигнатура `8A CB F2 0F 10 05 …`, вызов по `+31`) | `74038`, установка `88226…` | стаб 64 байта + таблица команд (100 записей) |
+| `prediction_get` / `prediction_globals` | `74002…74034`, установка `88774…` | два стаба (40 байт), привязка к `CGlobalVars` |
+| `rage_native_fixes` (RVA-патчи + пещера 256 байт) | `43414…47500` | свои шаблоны и `patches`-таблица; проверка по `read_i32` |
+
+Это не «машинная мелочь»: три первых хука — это подмена `CreateMove`-цепочки и
+предикта, т.е. поведение, а не косметика. Каждый требует вытащить байты стаба,
+сопоставить релокации и написать такой же тест, как для `model hook`, поэтому
+они идут отдельными шагами, а не «заодно».
+
 ## Адреса — не универсальные
 
 `0x1062A526`, `0x106E3F9C`, `0x106D67A8`, блок `0x4347xxxx` (skeet),
@@ -159,14 +200,18 @@
 включение/выключение, возврат байтов, отказы, анимация меню, паник-хоткей,
 `sv_maxunlag`, группы panchan (включая проверку операнда, откат группы и
 поведение Jump Scout по прицелу), скан шаблонов viera, стаб defensive и работа
-на другой базе модуля.
+на другой базе модуля, пещеры выбора записи и экстраполяции (байты пещер,
+релокации, возврат), а для model hook из persistence — байты обеих пещер и все
+18 релокаций, пролог, `call` в пещеру 2, управляющий блок (thread id, цвет,
+буфер костей, счётчик), идемпотентность по тикам, отказы (нет модуля, чужой
+пролог, не PE-образ, кривой RVA) и возврат байт в байт с `VirtualFree`.
 
 ```
 pip install --break-system-packages lupa
 python3 tests/lua/run.py
 ```
 
-Ожидаемый вывод — `TOTAL 117 passed, 0 failed`.
+Ожидаемый вывод — `TOTAL 255 passed, 0 failed`.
 
 Чего эти тесты **не** доказывают: что конкретный билд чита совпадает с
 адресами (это проверяет `Read sites` / `Diagnose` уже в игре) и что патч

@@ -31,6 +31,8 @@ function M.reset()
     -- чтобы скрипт мог брать адрес буфера и писать его в патч.
     M.heap_next, M.alloc_next, M.allocations = 0x71000000, 0x72000000, {}
     M.references = {}
+    M.module_handles = {}
+    M.thread_id = 0x1234
     M.entity = { props = {}, local_player = nil, alive = true }
 end
 
@@ -200,7 +202,11 @@ function M.install_kernel32()
     end
     kernel32.FlushInstructionCache = function() return 1 end
     kernel32.GetCurrentProcess = function() return 0xFFFFFFFF end
-    kernel32.GetModuleHandleA = function() return nil end
+    kernel32.GetModuleHandleA = function(name)
+        if name == nil then return nil end
+        return M.module_handles[tostring(name):lower()] or nil
+    end
+    kernel32.GetCurrentThreadId = function() return M.thread_id end
     kernel32.GetProcAddress = function(_, name) return M.thunks[name] or 0 end
 
     M.kernel32 = kernel32
@@ -213,9 +219,12 @@ local Ptr = {}
 Ptr.__index = function(pointer, key)
     if type(key) == "number" then
         local ctype = pointer.ctype
-        if ctype:find("^uint8_t%*") or ctype:find("^char%*") then
+        if ctype:find("^uint8_t%*") or ctype:find("^unsigned char%*") or ctype:find("^char%*") then
             return M.read_byte(pointer.addr + key)
-        elseif ctype:find("^int%*") then
+        elseif ctype:find("^int8_t%*") then
+            local value = M.read_byte(pointer.addr + key)
+            return value >= 0x80 and value - 0x100 or value
+        elseif ctype:find("^int32_t%*") or ctype:find("^int%*") then
             return M.read_i32(pointer.addr + key * 4)
         elseif ctype:find("^float%*") then
             return M.read_f32(pointer.addr + key * 4)
@@ -234,8 +243,13 @@ end
 Ptr.__newindex = function(pointer, key, value)
     if type(key) ~= "number" then return end
     local ctype = pointer.ctype
-    if ctype:find("^uint8_t%*") or ctype:find("^char%*") then
+    if ctype:find("^uint8_t%*") or ctype:find("^unsigned char%*") or ctype:find("^char%*")
+       or ctype:find("^int8_t%*") then
         M.mem[pointer.addr + key] = math.floor(value) % 256
+    elseif ctype:find("^int32_t%*") then
+        M.write_i32(pointer.addr + key * 4, value)
+    elseif ctype:find("^uint32_t%*") then
+        M.write_u32(pointer.addr + key * 4, value)
     elseif ctype:find("^float%*") then
         M.write_f32(pointer.addr + key * 4, value)
     else
@@ -490,6 +504,7 @@ function M.install_globals(kind, options)
             return item
         end
         function Group:hotkey(name, default) return new_item("hotkey", self.name, nil, name, false) end
+        function Group:input(name, default) return new_item("input", self.name, nil, name, default or "") end
         function Group:label(text) return new_item("label", self.name, nil, text, nil) end
 
         ui.create = function(tab, name)
@@ -563,13 +578,19 @@ function M.install_globals(kind, options)
     -- m_fFlags / m_bIsScoped). Тест кладёт значения в H.entity.props.
     local entity = {
         get_local_player = function() return M.entity.local_player end,
+        get_players = function()
+            return M.entity.players or {}
+        end,
         get_prop = function(player, prop)
             if player == nil then return nil end
             local value = M.entity.props[prop]
             if type(value) == "function" then return value(player) end
             return value
         end,
-        is_alive = function() return M.entity.alive ~= false end,
+        is_alive = function(player)
+            if type(player) == "table" and player.alive ~= nil then return player.alive end
+            return M.entity.alive ~= false
+        end,
     }
 
     local globals = {
@@ -582,6 +603,13 @@ function M.install_globals(kind, options)
 
     local utils = {
         net_channel = function() return options.net_channel or { latency = { [0] = 0.03 } } end,
+        get_netvar_offset = function(_, name)
+            if options.netvars ~= nil and options.netvars[name] ~= nil then
+                return options.netvars[name]
+            end
+            if M.netvars ~= nil then return M.netvars[name] end
+            return nil
+        end,
     }
 
     -- require: только те модули, что есть в тестовом окружении
