@@ -19,7 +19,7 @@ bool InsideModule(const char* module, std::uintptr_t address) {
 
 // Pushes one extra argument and restores ESP after the call, so a RunScript whose
 // real arity is one parameter shorter cannot unbalance the stack.
-void Invoke(void* engine, void* panel, const char* js, const char* path) {
+void Invoke(void* engine, void* panel, const char* script, const char* path) {
     void* saved = nullptr;
     __asm {
         mov saved, esp
@@ -28,7 +28,7 @@ void Invoke(void* engine, void* panel, const char* js, const char* path) {
         push 10                 // line, mirrors the values public callers pass
         push 8                  // character
         push path
-        push js
+        push script
         push panel
         mov ecx, engine         // __thiscall: this in ecx, the rest on the stack
         mov eax, g_run_script
@@ -53,9 +53,9 @@ void* ResolveRunScript(UIEngine* engine) {
     return g_run_script;
 }
 
-void RunScript(UIEngine* engine, void* panel, const char* js, const char* path) {
-    if (!engine || !panel || !js) return;
+void RunScript(UIEngine* engine, void* panel, const char* script, const char* path) {
+    if (!engine || !panel || !script) return;
     if (!g_run_script && !ResolveRunScript(engine)) return;
-    Invoke(engine, panel, js, path);
+    Invoke(engine, panel, script, path);
 }
 } // namespace panorama

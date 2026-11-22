@@ -167,10 +167,10 @@ bool Attributes(Item* item,void* schema,const Request& request) {
     }
     // Agents and medals are definitions, not paint kits.
     if(!choice.paint_kit && !EquipmentState::Find(item->definition)) return true;
-    const int ids[]={6,7,8,80,81};
+    const int def_indices[]={6,7,8,80,81};
     void* defs[5]{};
     for(int i=0;i<5;++i) {
-        defs[i]=Slot<void*(__thiscall*)(void*,int)>(schema,27)(schema,ids[i]);
+        defs[i]=Slot<void*(__thiscall*)(void*,int)>(schema,27)(schema,def_indices[i]);
         if(!defs[i]) return false;
     }
     float paint=static_cast<float>(choice.paint_kit),seed=static_cast<float>(choice.seed),wear=choice.wear;
