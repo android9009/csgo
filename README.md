@@ -27,10 +27,7 @@
 │   └── patterns/            каталог сигнатур (данные в catalog.hpp)
 ├── menu/                    меню, табы, контролы, UI-превью и адаптеры
 └── features/
-    ├── visuals/              player ESP, chams, glow, removals (flash, visual punch),
-    │                         misc/ (только Settings/геометрия для меню, логики нет)
-    ├── misc/                 только Settings-заголовки для меню, логики нет
-    │                         (см. docs/misc-runtime.md)
+    ├── visuals/              player ESP, chams, glow, removals (flash, visual punch)
     ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
     └── skins/                применение скинов и инвентарь
 ```
@@ -73,7 +70,7 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 
 - Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging, JSON-настройки и VGUI-отрисовка.
 - Player ESP: `features/visuals/player_esp.cpp`.
-- Misc: **логика удалена** (2026-11-22). Из `features/misc/` (`general/`, `other/`, `movement/`, `buybot/`) и `features/visuals/misc/` (thirdperson, fov changer, viewmodel fov, эффекты) вырезаны все `.cpp`-реализации и хуки (CreateMove, GetViewModelFOV, GetScreenAspectRatio, UpdatePostScreenEffects, CalcViewModelView) — что именно и куда, в `docs/misc-runtime.md`. **Меню, конфиги и runtime-состояния не тронуты**: табы Misc и группа MISC в Visuals рисуются как раньше, чекбоксы переключают значения конфига (F5/F6 их сохраняют/загружают), но в игре эти значения нигде не читаются. Заголовки, которые включает меню-бридж, теперь несут только `Settings` и no-op `Publish`. Remove flash и visual punch не затронуты — они живут в `features/visuals/removals/` (Removals вкладки Visuals).
+- Misc: **вырезан полностью** (2026-11-22). `features/misc/` (`general/`, `other/`, `movement/`, `buybot/`) и `features/visuals/misc/` (thirdperson, fov changer, viewmodel fov, эффекты) удалены целиком — вместе с `.cpp`, заголовками и хуками (CreateMove, GetViewModelFOV, GetScreenAspectRatio, UpdatePostScreenEffects, CalcViewModelView) — что именно, в `docs/misc-runtime.md`. **Меню и конфиги не тронуты**: табы Misc и группа MISC в Visuals рисуются как раньше, чекбоксы переключают значения конфига (F5/F6 их сохраняют/загружают), но в игре эти значения нигде не читаются — меню-бридж больше их не публикует. Геометрия scope/spread, которую рисует меню, заинлайнена в `menu/overlays/screen_overlay.hpp`. Remove flash и visual punch не затронуты — они живут в `features/visuals/removals/` (Removals вкладки Visuals). Lua-патчи (`lua-patches/`) и их тестовый харнес (`tests/lua/`) из репозитория удалены.
 - Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bhop (только переключает конфиг, логики нет), **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
 - `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
 

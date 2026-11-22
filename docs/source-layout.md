@@ -14,12 +14,9 @@ menu/
   bridges/                publish GUI settings to runtime snapshots
   overlays/               GUI-renderer drawing adapters for game overlays
 features/
-  misc/                   header-only Settings façades for the Misc tab groups
-                          (general/, other/, movement/, buybot/); the game-side logic was
-                          removed, see docs/misc-runtime.md
   visuals/                ESP data gathering, chams, glow, shot rendering and removals
-                          (the Removals combo box lives in the Visuals tab); misc/ keeps
-                          only the menu-facing Settings and the scope/fx geometry
+                          (the Removals combo box lives in the Visuals tab); the misc/
+                          module is removed entirely (docs/misc-runtime.md)
   skins/                  skin/equipment application and local-inventory logic
 sdk/
   interfaces/             interface capture (client, engine, cvar, panorama, ...)

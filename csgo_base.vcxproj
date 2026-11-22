@@ -352,14 +352,8 @@
     <ClInclude Include="menu\preview\sequence.hpp" />
     <ClInclude Include="menu\preview\framing.hpp" />
     <ClInclude Include="menu\preview\subject.hpp" />
-    <ClInclude Include="features\misc\general\general.hpp" />
-    <ClInclude Include="features\misc\buybot\buybot.hpp" />
-    <ClInclude Include="features\misc\movement\movement.hpp" />
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp" />
-    <ClInclude Include="features\misc\other\other.hpp" />
     <ClInclude Include="sdk\convars.hpp" />
-    <ClInclude Include="features\visuals\misc\fx.hpp" />
-    <ClInclude Include="features\visuals\misc\misc.hpp" />
     <ClInclude Include="features\visuals\removals\removals.hpp" />
     <ClInclude Include="features\visuals\world_modulation.hpp" />
     <ClInclude Include="features\visuals\removals\flash.hpp" />
@@ -401,7 +395,6 @@
     <ClInclude Include="menu\overlays\esp_drawing.hpp" />
     <ClInclude Include="menu\overlays\player_esp_overlay.hpp" />
     <ClInclude Include="menu\bridges\visual_runtime.hpp" />
-    <ClInclude Include="menu\bridges\misc_runtime.hpp" />
     <ClInclude Include="menu\bridges\removals.hpp" />
     <ClInclude Include="sdk\structs.hpp" />
     <ClInclude Include="sdk\trace_ray.hpp" />

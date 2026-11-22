@@ -1,6 +1,5 @@
 #pragma once
 #include "visual_preview_state.hpp"
-#include "../features/visuals/misc/fx.hpp"
 #include <array>
 #include <mutex>
 #include <atomic>
@@ -42,7 +41,7 @@ struct Effects {
     bool fullbright{};
     // Visuals -> World: "Sunlight" (cascaded-shadow rotation override).
     bool sunlight{};
-    // Visuals -> Misc -> local: "Remove scope" (mode, see VisualsMisc::Detail::ScopeMode),
+    // Visuals -> Misc -> local: "Remove scope" (mode, the 0..4 values of cfg_t::noscope),
     // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
     // menu/overlays/screen_overlay.hpp reads these; the game-side scope-mask logic has been
     // removed, so only the menu drawing consumes this block now.
@@ -55,10 +54,6 @@ struct Effects {
         std::uint32_t spread_color1{0xFFFFFFFFu};
         std::uint32_t spread_color2{0xFFFFFFFFu};
     } screen;
-    // Visuals -> Misc -> Other: what the event-driven effects draw. The game thread publishes
-    // the settings (`VisualsFx::Settings`) and, separately, the screen-space records it
-    // projected this frame (`FxFrame` below).
-    VisualsFx::Settings fx{};
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
 inline std::mutex mutex;

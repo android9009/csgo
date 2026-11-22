@@ -3,7 +3,6 @@
 #include "../config.hpp"
 #include "../../sdk/visual_runtime_state.hpp"
 #include "../../features/visuals/chams_passes.hpp"
-#include "../../features/visuals/misc/misc.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -55,30 +54,6 @@ inline void Configure() {
     s.screen.spread=cfg.visuals.spread_circle_type.get().first_set_bit().value_or(0)!=0;
     s.screen.spread_color1=cfg.visuals.spread_circle_color1.get().rgba();
     s.screen.spread_color2=cfg.visuals.spread_circle_color2.get().rgba();
-    // Visuals -> Misc -> Other: tracers (three categories, each with its own colour and
-    // style), impacts and the three hitmarker variants. No geometry here - the game thread
-    // owns the events and the projection; this is only "what the menu asks for".
-    for(int i=0;i<3;++i) {
-        s.fx.tracer[i]=cfg.misc.tracer_targets.get().test(i);
-        s.fx.tracer_color[i]=cfg.misc.tracer_colors[i].get().rgba();
-        s.fx.tracer_style[i]=static_cast<int>(cfg.misc.tracer_style[i].get().first_set_bit().value_or(1));
-    }
-    s.fx.impacts=cfg.misc.impacts.get();
-    s.fx.impact_color1=cfg.misc.impacts_color.get().rgba();
-    s.fx.impact_color2=cfg.misc.impacts_color2.get().rgba();
-    const std::array<int,3> hitmarker_indices{cfg_t::hitmarker_world,cfg_t::hitmarker_cross,cfg_t::hitmarker_kibit};
-    for(int i=0;i<3;++i) {
-        const int kind=hitmarker_indices[i];
-        s.fx.hitmarker[kind]=cfg.misc.hitmarker.get().test(kind);
-        s.fx.hitmarker_life[kind]=cfg.misc.hitmarker_duration[kind].get();
-    }
-    s.fx.hitmarker_color[cfg_t::hitmarker_world]=cfg.misc.hitmarker_world_color.get().rgba();
-    s.fx.hitmarker_color[cfg_t::hitmarker_cross]=cfg.misc.hitmarker_screen_color.get().rgba();
-    s.fx.hitmarker_color[cfg_t::hitmarker_kibit]=cfg.misc.hitmarker_kibit_color.get().rgba();
-    s.fx.out_of_fov=cfg.visuals.out_of_fov.get();
-    s.fx.out_of_fov_color=cfg.visuals.out_of_fov_col.get().rgba();
-    s.fx.out_of_fov_distance=cfg.visuals.out_of_fov_dst.get();
-    s.fx.out_of_fov_size=cfg.visuals.out_of_fov_size.get();
     s.nightmode=cfg.visuals.world_effects.nightmode.get();
     s.nightmode_colour=cfg.visuals.world_effects.nightmode_color.get().rgba();
     s.sky=cfg.visuals.world_effects.sky.get();
@@ -97,34 +72,5 @@ inline void Configure() {
     object(0,w.weapon_visuals,w.weapon_glow.get());object(1,w.grenade_visuals,w.grenade_glow.get());object(2,w.c4_visuals,w.c4_glow.get());
     for(int i=0;i<3;++i)s.esp[i]=ReadEsp(i==esp.active_profile ? static_cast<cfg_t::visuals_t::esp_player_t&>(esp) : esp.profiles[i],i);
     VisualRuntime::Publish(s);
-
-    // Visuals -> Misc (third person and the two fov controls). Same rule as everywhere
-    // else: the hooks never read GUI state, they read what this function published.
-    VisualsMisc::Settings misc;
-    misc.thirdperson=cfg.misc.thirdperson.get();
-    misc.thirdperson_dist=cfg.misc.thirdperson_dist.get();
-    misc.thirdperson_dead=cfg.misc.thirdperson_dead.get();
-    misc.thirdperson_grenade=cfg.misc.thirdperson_grenade.get();
-    misc.thirdperson_transparency=cfg.misc.transparency_in_scope.get();
-    misc.thirdperson_transparency_nade=cfg.misc.transparency_nade.get();
-    misc.fov_enabled=cfg.misc.fov_enabled.get();
-    misc.fov=cfg.misc.fov.get();
-    misc.aspect=cfg.misc.aspect.get();
-    misc.fov_scope=cfg.misc.fov_scope.get();
-    misc.force_second_zoom=cfg.misc.force_second_zoom.get();
-    misc.force_viewmodel_scope=cfg.misc.force_viewmodel_scope.get();
-    misc.vm_fov_enabled=cfg.misc.vm_fov_enabled.get();
-    misc.vm_fov=cfg.misc.vm_fov.get();
-    misc.vm_x=cfg.misc.viewmodel_x.get();
-    misc.vm_y=cfg.misc.viewmodel_y.get();
-    misc.vm_z=cfg.misc.viewmodel_z.get();
-    misc.vm_roll=cfg.misc.viewmodel_roll.get();
-    misc.vm_yaw=cfg.misc.viewmodel_yaw.get();
-    misc.vm_pitch=cfg.misc.viewmodel_pitch.get();
-    misc.remove_scope=s.screen.scope_mode;
-    misc.spread_circle=s.screen.spread;
-    misc.force_crosshair=cfg.misc.force_crosshair.get();
-    misc.disable_landing_bob=cfg.misc.disable_landing_bob.get();
-    VisualsMisc::Publish(misc);
 }
 }

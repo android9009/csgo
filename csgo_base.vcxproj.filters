@@ -20,24 +20,6 @@
     <Filter Include="Features\skins">
       <UniqueIdentifier>{6D58DD9C-96BD-4A8A-94D9-1F32F528645F}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Features\misc">
-      <UniqueIdentifier>{B41C6D2E-7A35-5C8E-9E1D-3F0A6C2B71D4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\misc\other">
-      <UniqueIdentifier>{2c5f0a41-6b7d-4a1e-9c8e-5f0b3a7d1e62}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\misc\movement">
-      <UniqueIdentifier>{6E1B2F44-9C4A-4F2B-8D51-3A7C0E12B9D4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\misc\buybot">
-      <UniqueIdentifier>{5A7D2E13-8C41-4B9F-A6E2-71D4C0B8F935}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\visuals\misc">
-      <UniqueIdentifier>{9F3C61B7-2E58-4D0A-B71C-48A5E9D2C361}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Features\misc\general">
-      <UniqueIdentifier>{C62E9F41-58B3-5D7A-A4C1-8E2D0B95F36A}</UniqueIdentifier>
-    </Filter>
     <Filter Include="SDK\Hooks">
       <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
     </Filter>
@@ -613,9 +595,6 @@
     <ClInclude Include="menu\overlays\player_esp_overlay.hpp">
       <Filter>Menu\overlays</Filter>
     </ClInclude>
-    <ClInclude Include="menu\bridges\misc_runtime.hpp">
-      <Filter>Menu\bridges</Filter>
-    </ClInclude>
     <ClInclude Include="menu\bridges\removals.hpp">
       <Filter>Menu\bridges</Filter>
     </ClInclude>
@@ -640,26 +619,11 @@
     <ClInclude Include="menu\preview\subject.hpp">
       <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="features\misc\other\other.hpp">
-      <Filter>Features\misc\other</Filter>
-    </ClInclude>
     <ClInclude Include="sdk\convars.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
-    <ClInclude Include="features\misc\buybot\buybot.hpp">
-      <Filter>Features\misc\buybot</Filter>
-    </ClInclude>
-    <ClInclude Include="features\visuals\misc\misc.hpp">
-      <Filter>Features\visuals\misc</Filter>
-    </ClInclude>
-    <ClInclude Include="features\misc\movement\movement.hpp">
-      <Filter>Features\misc\movement</Filter>
-    </ClInclude>
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp">
       <Filter>SDK</Filter>
-    </ClInclude>
-    <ClInclude Include="features\misc\general\general.hpp">
-      <Filter>Features\misc\general</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\removals\removals.hpp">
       <Filter>Features</Filter>
