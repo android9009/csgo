@@ -41,6 +41,8 @@ local scenarios = {
     { name = "nl / viera records missing", fn = function() return nl_tests.run_viera_record_missing(harness, nl_path) end },
     { name = "nl / persistence model hook", fn = function() return nl_tests.run_persistence_model_hook(harness, nl_path) end },
     { name = "nl / persistence rejects",      fn = function() return nl_tests.run_persistence_rejections(harness, nl_path) end },
+    { name = "nl / rage fixes",               fn = function() return nl_tests.run_rage_fixes(harness, nl_path) end },
+    { name = "nl / rage fixes rejects",       fn = function() return nl_tests.run_rage_fixes_rejects(harness, nl_path) end },
 }
 
 local total_passed, total_failed = 0, 0

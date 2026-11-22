@@ -852,4 +852,158 @@ function M.run_persistence_rejections(H, path)
     return report
 end
 
+-- 11. persistence: rage native fixes в neverlose.dll (пять байтовых патчей)
+
+local RAGE = {
+    builder  = 0x1000,
+    iterator = 0x2000,
+    scale075 = 0x3000,
+    scale125 = 0x4000,
+    weight   = 0x5000,
+}
+
+local RAGE_BYTES = {
+    builder  = "F3 0F 5B C0 0F 5B C0 69 C6 40 09 01 00",
+    iterator = "F3 0F 5B C0 0F 5B C0 F3 0F 10 4E 3C",
+    scale075 = "F3 0F 59 0D 58 DB 06 42 E9 95 01 00 00",
+    scale125 = "F3 0F 59 0D 5C DB 06 42 E9 D0 00 00 00",
+    weight   = "F3 0F 10 0D 54 A5 05 42 E9 C3 00 00 00",
+}
+
+local function plant_neverlose(H, base)
+    H.add_region(base, 0x100000, H.const.PAGE_EXECUTE_READ, H.const.MEM_IMAGE, false)
+    H.write_u32(base, 0x00905A4D)                 -- 'MZ'
+    H.write_u32(base + 0x3C, 0x80)
+    H.write_u32(base + 0x80, 0x4550)              -- 'PE\0\0'
+    for key, offset in pairs(RAGE) do
+        local bytes = {}
+        for token in RAGE_BYTES[key]:gmatch("%S+") do bytes[#bytes + 1] = tonumber(token, 16) end
+        H.write_bytes(base + offset, bytes)
+    end
+    H.module_handles["neverlose.dll"] = base
+    return base
+end
+
+local function rage_sites(base)
+    local out = {}
+    for key, offset in pairs(RAGE) do out[key] = base + offset end
+    return out
+end
+
+function M.run_rage_fixes(H, path)
+    local report = new_report()
+    H.reset()
+    local base = plant_neverlose(H, 0x2E000000)
+    local sites = rage_sites(base)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+
+    local switch = H.find_item("Rage native fixes (neverlose.dll)")
+    check(report, switch ~= nil, "переключатель rage fixes создан")
+    check(report, switch ~= nil and switch.value == false, "по умолчанию выключен")
+    check(report, H.read_hex(sites.builder, 13) == RAGE_BYTES.builder, "до включения байты не тронуты")
+
+    H.fire(switch, true)
+
+    check(report, H.read_hex(sites.builder, 7) == "90 90 90 90 90 90 90", "builder expiry: 7x90")
+    check(report, H.read_hex(sites.builder + 7, 6) == "69 C6 40 09 01 00", "builder expiry: хвост сохранён")
+    check(report, H.read_hex(sites.iterator, 7) == "90 90 90 90 90 90 90", "iterator expiry: 7x90")
+    check(report, H.read_hex(sites.iterator + 7, 5) == "F3 0F 10 4E 3C", "iterator expiry: хвост сохранён")
+    check(report, H.read_hex(sites.scale075, 8) == "90 90 90 90 90 90 90 90", "scale 0.75: 8x90")
+    check(report, H.read_hex(sites.scale075 + 8, 5) == "E9 95 01 00 00", "scale 0.75: jmp сохранён")
+    check(report, H.read_hex(sites.scale125, 8) == "90 90 90 90 90 90 90 90", "scale 1.25: 8x90")
+    check(report, H.read_hex(sites.weight, 8) == "90 90 90 90 90 90 90 90", "weight 1.0: 8x90")
+    check(report, H.read_hex(sites.weight + 8, 5) == "E9 C3 00 00 00", "weight 1.0: jmp сохранён")
+    check(report, H.log_contains("rage fixes: включены, сайтов 5"), "включение залогировано")
+
+    -- кнопка статуса печатает адреса всех пяти сайтов
+    local read = H.find_item("Read rage sites")
+    H.press(read)
+    check(report, H.log_contains("record builder expiry"), "Read rage sites: builder")
+    check(report, H.log_contains("layer forced weight 1.0"), "Read rage sites: weight")
+
+    -- тики не применяют патчи повторно
+    for _ = 1, 3 do H.fire_event("net_update_end") end
+    check(report, count_log(H, "rage fixes: включены") == 1, "повторного включения нет")
+
+    H.fire(switch, false)
+    check(report, H.read_hex(sites.builder, 13) == RAGE_BYTES.builder, "builder восстановлен байт в байт")
+    check(report, H.read_hex(sites.iterator, 12) == RAGE_BYTES.iterator, "iterator восстановлен")
+    check(report, H.read_hex(sites.scale075, 13) == RAGE_BYTES.scale075, "scale 0.75 восстановлен")
+    check(report, H.read_hex(sites.scale125, 13) == RAGE_BYTES.scale125, "scale 1.25 восстановлен")
+    check(report, H.read_hex(sites.weight, 13) == RAGE_BYTES.weight, "weight восстановлен")
+    check(report, H.log_contains("rage fixes: сняты"), "снятие залогировано")
+
+    -- повторное включение после снятия работает
+    H.fire(switch, true)
+    check(report, H.read_hex(sites.builder, 7) == "90 90 90 90 90 90 90", "повторное включение пишет снова")
+    H.fire(switch, false)
+
+    return report
+end
+
+function M.run_rage_fixes_rejects(H, path)
+    local report = new_report()
+
+    -- 1. модуля нет
+    H.reset()
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    local switch = H.find_item("Rage native fixes (neverlose.dll)")
+    H.fire(switch, true)
+    check(report, switch.value == false, "без модуля переключатель гаснет")
+    check(report, H.log_contains("rage fixes: НЕ включены"), "отказ залогирован")
+    for _ = 1, 3 do H.fire_event("net_update_end") end
+    check(report, count_log(H, "rage fixes: НЕ включены") == 1, "после отказа тики не спамят")
+
+    -- 2. модуль без подписи PE
+    H.reset()
+    local base = 0x2E000000
+    plant_neverlose(H, base)
+    H.write_u32(base, 0x00000000)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    switch = H.find_item("Rage native fixes (neverlose.dll)")
+    H.fire(switch, true)
+    check(report, switch.value == false, "без MZ переключатель гаснет")
+    check(report, H.log_contains("не загружен или это не PE-образ"), "причина: не PE")
+
+    -- 3. нет одного шаблона: набор применяется целиком или никак
+    H.reset()
+    base = 0x2E000000
+    plant_neverlose(H, base)
+    local sites = rage_sites(base)
+    H.fill(sites.weight, 13, 0xCC)                 -- шаблон weight стёрт
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    switch = H.find_item("Rage native fixes (neverlose.dll)")
+    H.fire(switch, true)
+    check(report, switch.value == false, "без одного шаблона переключатель гаснет")
+    check(report, H.log_contains("шаблон не найден"), "причина: шаблон не найден")
+    check(report, H.read_hex(sites.builder, 7) == "F3 0F 5B C0 0F 5B C0", "уже записанное откачено")
+
+    -- 4. шаблон встречается дважды
+    H.reset()
+    base = 0x2E000000
+    plant_neverlose(H, base)
+    sites = rage_sites(base)
+    H.write_bytes(base + 0x9000, { 0xF3, 0x0F, 0x5B, 0xC0, 0x0F, 0x5B, 0xC0, 0x69, 0xC6, 0x40, 0x09, 0x01, 0x00 })
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    switch = H.find_item("Rage native fixes (neverlose.dll)")
+    H.fire(switch, true)
+    check(report, switch.value == false, "при двух совпадениях переключатель гаснет")
+    check(report, H.log_contains("неоднозначно"), "причина: неоднозначный шаблон")
+    check(report, H.read_hex(sites.builder, 7) == "F3 0F 5B C0 0F 5B C0", "память не тронута")
+
+    -- 5. чужие байты на месте опкода (шаблон ищется по живому коду)
+    H.reset()
+    base = 0x2E000000
+    plant_neverlose(H, base)
+    sites = rage_sites(base)
+    H.write_bytes(sites.scale075, { 0xF3, 0x0F, 0x58, 0x0D })
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    switch = H.find_item("Rage native fixes (neverlose.dll)")
+    H.fire(switch, true)
+    check(report, switch.value == false, "чужой опкод не патчится")
+    check(report, H.read_hex(sites.builder, 7) == "F3 0F 5B C0 0F 5B C0", "остальные сайты не тронуты")
+
+    return report
+end
+
 return M

@@ -502,6 +502,8 @@ local viera2_restore_all -- forward: раздел 9.6
 local viera2_poll        -- forward: раздел 9.6
 local persistence_restore_all -- forward: раздел 9.7
 local persistence_poll   -- forward: раздел 9.7
+local rage_restore_all   -- forward: раздел 9.8
+local rage_poll          -- forward: раздел 9.8
 local viera_switch       -- forward: там же
 local viera2_switch      -- forward: раздел 9.6
 
@@ -620,6 +622,7 @@ function teardown_now(reason)
     if viera_restore_all ~= nil then viera_restore_all() end
     if viera2_restore_all ~= nil then viera2_restore_all() end
     if persistence_restore_all ~= nil then persistence_restore_all() end
+    if rage_restore_all ~= nil then rage_restore_all() end
     if ui ~= nil and viera_switch ~= nil then
         for _, element in ipairs({ viera_switch.preserve, viera_switch.early,
                                    viera_switch.break_dist, viera_switch.defensive }) do
@@ -2245,6 +2248,276 @@ end
 NL_PERSISTENCE_MODEL = PersistenceModel
 
 --[[----------------------------------------------------------------------------
+    9.8 Патчи persistence: rage native fixes (neverlose.dll)
+
+    В Luas/nl/persistence.lua это таблица `patches` из шести записей: каждая —
+    шаблон с джокерами и пара «оригинал → замена». Сканируется neverlose.dll,
+    то есть патчится собственная память чита, а не модуль игры. Здесь перенесены
+    пять записей с фиксированной заменой (у шестой, continuity-гейта, замена
+    строится пещерой в рантайме — она в разделе 9.10):
+
+      * record builder expiry      — F3 0F 5B C0 0F 5B C0 (cvtss2sd, два раза)
+                                     → 7x90: убирает пересчёт срока записи;
+      * record iterator expiry     — те же 7 байт перед F3 0F 10 4E 3C;
+      * layer scale 0.75 / 1.25    — F3 0F 59 0D <disp32> (mulss xmm1,[..])
+                                     → 8x90: множитель слоя анимации не читается;
+      * layer forced weight 1.0    — F3 0F 10 0D <disp32> (movss xmm1,[..])
+                                     → 8x90: вес слоя не читается (остаётся 1.0).
+
+    Оригинал берёт ПЕРВОЕ совпадение и не проверяет, что байты по адресу —
+    именно ожидаемые. Здесь перед записью сверяются `original`, после записи
+    байты читаются обратно, при расхождении возвращается снапшот. Набор
+    применяется целиком или никак: один неподошедший шаблон откатывает уже
+    записанные. У F3 0F 59 0D / F3 0F 10 0D сверяются только байты опкода:
+    disp32 — абсолютный адрес константы в neverlose.dll, он свой на каждой
+    сборке, поэтому от него зависит только поиск.
+------------------------------------------------------------------------------]]
+
+local RAGE_MODULE = "neverlose.dll"
+
+local function rage_pattern(text)
+    local out = {}
+    for token in text:gmatch("%S+") do
+        if token == "?" or token == "??" then
+            out[#out + 1] = PAT_WILD
+        else
+            out[#out + 1] = tonumber(token, 16) or PAT_WILD
+        end
+    end
+    return out
+end
+
+local function rage_bytes(text)
+    local out = {}
+    for byte in text:gmatch("%x%x") do out[#out + 1] = tonumber(byte, 16) end
+    return out
+end
+
+local function rage_nops(count)
+    local out = {}
+    for index = 1, count do out[index] = 0x90 end
+    return out
+end
+
+-- Те же шесть записей, что `patches[1..6]` в persistence, в исходном порядке.
+local rage_patches = {
+    {
+        name = "record builder expiry",
+        pattern = "F3 0F 5B C0 0F 5B C0 69 C6 40 09 01 00",
+        original = rage_bytes("F3 0F 5B C0 0F 5B C0"),
+        replacement = rage_nops(7),
+    },
+    {
+        name = "record iterator expiry",
+        pattern = "F3 0F 5B C0 0F 5B C0 F3 0F 10 4E 3C",
+        original = rage_bytes("F3 0F 5B C0 0F 5B C0"),
+        replacement = rage_nops(7),
+    },
+    {
+        name = "layer scale 0.75",
+        pattern = "F3 0F 59 0D ? ? ? ? E9 95 01 00 00",
+        original = rage_bytes("F3 0F 59 0D"),
+        replacement = rage_nops(8),
+    },
+    {
+        name = "layer scale 1.25",
+        pattern = "F3 0F 59 0D ? ? ? ? E9 D0 00 00 00",
+        original = rage_bytes("F3 0F 59 0D"),
+        replacement = rage_nops(8),
+    },
+    {
+        name = "layer forced weight 1.0",
+        pattern = "F3 0F 10 0D ? ? ? ? E9 C3 00 00 00",
+        original = rage_bytes("F3 0F 10 0D"),
+        replacement = rage_nops(8),
+    },
+}
+
+for _, patch in ipairs(rage_patches) do
+    patch.parsed = rage_pattern(patch.pattern)
+    patch.length = #patch.replacement
+    patch.address, patch.applied, patch.error = nil, false, nil
+end
+
+local rage_state = { base = nil, applied = false, failed = false }
+
+local function rage_base()
+    if rage_state.base ~= nil then return rage_state.base end
+
+    local handle = C.GetModuleHandleA(RAGE_MODULE)
+    if handle == nil then return nil end
+    local base = tonumber(ffi.cast("uintptr_t", handle))
+    if base == nil or base == 0 then return nil end
+
+    if vread_u32(base) ~= 0x00905A4D then return nil end            -- 'MZ'
+    local pe_offset = vread_u32(base + 0x3C)
+    if pe_offset == nil or pe_offset < 64 or pe_offset > 4096 then return nil end
+    if vread_u32(base + pe_offset) ~= 0x4550 then return nil end    -- 'PE'
+
+    rage_state.base = base
+    return base
+end
+
+local function rage_locate(patch)
+    local base = rage_base()
+    if base == nil then return nil, "модуль " .. RAGE_MODULE .. " не загружен или это не PE-образ" end
+
+    local buffer = module_bytes(base)
+    if buffer == nil then return nil, "образ " .. RAGE_MODULE .. " не читается" end
+
+    local index, count = find_in_buffer(buffer, patch.parsed)
+    if index == nil then return nil, "шаблон не найден" end
+    if count > 1 then return nil, ("шаблон встречается минимум %d раз — неоднозначно"):format(count) end
+
+    local address = module_address(base, index)
+    if not executable_bytes(address, patch.length) then
+        return nil, ("адрес 0x%08X не исполняемый"):format(address)
+    end
+    return address
+end
+
+local function rage_apply(patch)
+    if patch.applied then return true end
+
+    local address, why = rage_locate(patch)
+    if address == nil then
+        patch.address, patch.error = nil, why
+        return false, why
+    end
+    patch.address = address
+
+    local current = {}
+    for index = 1, patch.length do
+        local byte = vread_u8(address + index - 1)
+        if byte == nil then
+            patch.error = "не читаются байты по адресу"
+            return false, patch.error
+        end
+        current[index] = byte
+    end
+
+    local already = true
+    local fresh = true
+    for index = 1, patch.length do
+        if current[index] ~= patch.replacement[index] then already = false end
+        if index <= #patch.original and current[index] ~= patch.original[index] then fresh = false end
+    end
+    if already then
+        patch.applied, patch.error = true, nil
+        return true
+    end
+    if not fresh then
+        patch.error = ("байты по адресу не совпали (%s)"):format(hexdump(address, patch.length))
+        return false, patch.error
+    end
+
+    local saved = snapshot(address, patch.length)
+    if not raw_write(address, patch.replacement) then
+        patch.error = "не удалось записать"
+        return false, patch.error
+    end
+    vflush(address, patch.length)
+
+    for index = 1, patch.length do
+        if vread_u8(address + index - 1) ~= patch.replacement[index] then
+            raw_write(address, saved)
+            vflush(address, patch.length)
+            patch.error = "обратное чтение не совпало — запись откачена"
+            return false, patch.error
+        end
+    end
+
+    patch.saved, patch.applied, patch.error = saved, true, nil
+    return true
+end
+
+local function rage_restore(patch)
+    if not patch.applied then return true end
+    local ok = true
+    if patch.saved ~= nil and patch.address ~= nil then
+        ok = raw_write(patch.address, patch.saved) == true
+        vflush(patch.address, patch.length)
+        patch.saved = nil
+    end
+    patch.applied = false
+    return ok
+end
+
+local function rage_restore_all()
+    local ok = true
+    for _, patch in ipairs(rage_patches) do
+        if not rage_restore(patch) then ok = false end
+    end
+    rage_state.applied = false
+    return ok
+end
+
+--[[--------------------------- меню -----------------------------------------]]
+
+local rage_group = ui.create("Rage", "NL Rage Fixes")
+
+local rage_switch = rage_group:switch("Rage native fixes (neverlose.dll)", false)
+rage_switch:tooltip("Пять байтовых патчей из Luas/nl/persistence.lua (rage native fixes): " ..
+                    "срок жизни записей бэктрака, множители слоёв анимации 0.75/1.25 и " ..
+                    "принудительный вес слоя 1.0. Патчится neverlose.dll, шаблоны с джокерами, " ..
+                    "каждый сайт сверяется с ожидаемыми байтами до и после записи.")
+
+local rage_read = rage_group:button("Read rage sites", function()
+    local base = rage_base()
+    if base == nil then
+        warn("rage fixes: %s не загружен (или это не PE-образ)", RAGE_MODULE)
+        return
+    end
+    log("rage fixes: база %s 0x%08X", RAGE_MODULE, base)
+    for index, patch in ipairs(rage_patches) do
+        local address, why = rage_locate(patch)
+        if address == nil then
+            log("  %d. %-25s — %s", index, patch.name, tostring(why))
+        else
+            log("  %d. %-25s — 0x%08X, байты: %s", index, patch.name, address,
+                hexdump(address, patch.length))
+        end
+    end
+end)
+
+local function rage_update()
+    if ui.get(rage_switch) == true then
+        if rage_state.applied then return true end
+        local applied = {}
+        for _, patch in ipairs(rage_patches) do
+            local ok, why = rage_apply(patch)
+            if not ok then
+                for _, done in ipairs(applied) do rage_restore(done) end
+                rage_state.applied, rage_state.failed = false, true
+                warn("rage fixes: НЕ включены — %s (%s)", patch.name, tostring(why))
+                ui.set(rage_switch, false)
+                return false
+            end
+            applied[#applied + 1] = patch
+        end
+        rage_state.applied = true
+        log("rage fixes: включены, сайтов %d", #applied)
+        return true
+    end
+    if rage_state.applied then
+        rage_restore_all()
+        log("rage fixes: сняты, байты возвращены")
+    end
+    return true
+end
+
+local function rage_poll()
+    if ui.get(rage_switch) ~= true then return end
+    if rage_state.applied or rage_state.failed then return end
+    rage_update()
+end
+
+rage_switch:set_callback(function()
+    if ui.get(rage_switch) == true then rage_state.failed = false end
+    rage_update()
+end, true)
+
+--[[----------------------------------------------------------------------------
     10. Коллбэки меню
 ------------------------------------------------------------------------------]]
 
@@ -2295,6 +2568,7 @@ events.net_update_end:set(function()
     if viera_poll ~= nil then viera_poll() end
     if viera2_poll ~= nil then viera2_poll() end
     if persistence_poll ~= nil then persistence_poll() end
+    if rage_poll ~= nil then rage_poll() end
 
     if not enabled:get() then return end
 
