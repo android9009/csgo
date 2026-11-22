@@ -223,34 +223,34 @@
     <ClCompile Include="sdk\netvars.cpp">
       <Filter>SDK</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\adapters\adapter_dx9.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\adapters\adapter_dx9.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\adapters</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\buffers\cmd_buffer.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\cmd_buffer.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\buffers</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\buffers\ib_dx9.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\ib_dx9.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\buffers</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\buffers\vb_dx9.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\vb_dx9.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\buffers</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\layer.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\layer.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\renderer.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\renderer.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\types\animated_texture.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\animated_texture.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\types</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\types\font.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\font.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\types</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\types\shader.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\shader.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\types</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\deps\renderer\src\types\texture.cpp">
+    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\texture.cpp">
       <Filter>SDK\Third Party\Fatality\Renderer\src\types</Filter>
     </ClCompile>
     <ClCompile Include="menu\bridge.cpp">
@@ -272,163 +272,163 @@
     <ClCompile Include="menu\menu.cpp">
       <Filter>Menu</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\anim.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\anim.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\container.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\container.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\control.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\control.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\action_item.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\action_item.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\button.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\button.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\checkbox.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\checkbox.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\child_tab.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\child_tab.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\color_picker.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\color_picker.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\combo_box.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\combo_box.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\combo_box_agent.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\combo_box_agent.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\control_container.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\control_container.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\group.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\group.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\hotkey.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hotkey.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\hotkey_view.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hotkey_view.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\hsv_slider.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hsv_slider.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\label.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\label.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\layout.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\layout.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\list.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\list.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\loading.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\loading.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\notification_control.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\notification_control.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\public_software_item.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\public_software_item.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\search_result.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\search_result.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\selectable.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\selectable_game.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_game.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\selectable_inv.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_inv.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\selectable_script.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_script.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\settings.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\settings.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\slider.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\slider.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\spacer.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\spacer.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\tab.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\tab.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\tabs_layout.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\tabs_layout.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\text_input.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\text_input.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\toggle_button.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\toggle_button.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\widget.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\widget.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\controls\window.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\controls\window.cpp">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\gui.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\gui.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\helpers.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\helpers.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\input.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\input.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\notify_system.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\notify_system.cpp">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\about_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\about_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\action_list_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\action_list_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\color_picker_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\color_picker_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\combo_box_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\combo_box_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\configs_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\configs_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\dialog_box.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\dialog_box.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\hotkey_overview_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\hotkey_overview_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\hotkey_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\hotkey_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\message_box.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\message_box.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\notifications_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\notifications_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\public_software_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\public_software_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\search_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\search_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\fatality\src\gui\popups\settings_popup.cpp">
+    <ClCompile Include="sdk\third_party\gui\src\gui\popups\settings_popup.cpp">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClCompile>
     <ClCompile Include="sdk\third_party\minhook\buffer.c">
@@ -574,13 +574,13 @@
     <ClInclude Include="menu\preview\bridge.hpp">
       <Filter>Menu\preview</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\equipment_paints.hpp">
+    <ClInclude Include="sdk\third_party\gui\equipment_paints.hpp">
       <Filter>SDK\Third Party\Fatality</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\skin_names.hpp">
+    <ClInclude Include="sdk\third_party\gui\skin_names.hpp">
       <Filter>SDK\Third Party\Fatality</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\medal_catalog.hpp">
+    <ClInclude Include="sdk\third_party\gui\medal_catalog.hpp">
       <Filter>SDK\Third Party\Fatality</Filter>
     </ClInclude>
     <ClInclude Include="menu\controls\skin_options_popup.hpp">
@@ -634,7 +634,7 @@
     <ClInclude Include="features\visuals\removals\punch.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\material_renderer.hpp">
+    <ClInclude Include="features\visuals\chams_renderer.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\chams_entities.hpp">
@@ -655,10 +655,10 @@
     <ClInclude Include="features\visuals\chams_passes.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\fatality_material_definitions.hpp">
+    <ClInclude Include="features\visuals\chams_materials.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\fatality_material_factory.hpp">
+    <ClInclude Include="features\visuals\chams_material_factory.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_preview_state.hpp">
@@ -697,82 +697,82 @@
     <ClInclude Include="menu\config.hpp">
       <Filter>Menu</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\lib\image.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\lib\image.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\lib</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\lib\rectpack.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\lib\rectpack.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\lib</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\lib\truetype.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\lib\truetype.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\lib</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\adapter.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\adapter.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\adapters\adapter_dx11.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\adapters\adapter_dx11.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\adapters</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\adapters\adapter_dx9.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\adapters\adapter_dx9.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\adapters</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffer.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffer.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffers\cmd_buffer.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffers\cmd_buffer.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\buffers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffers\ib_dx11.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffers\ib_dx11.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\buffers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffers\ib_dx9.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffers\ib_dx9.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\buffers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffers\vb_dx11.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffers\vb_dx11.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\buffers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\buffers\vb_dx9.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\buffers\vb_dx9.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\buffers</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\layer.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\layer.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\macros.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\macros.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\managed.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\managed.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\misc.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\misc.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\renderer.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\renderer.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\animated_texture.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\animated_texture.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\animator.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\animator.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\color.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\color.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\command.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\command.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\font.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\font.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\pos.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\pos.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\shader.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\shader.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\texture.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\texture.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\deps\renderer\include\ren\types\vertex.h">
+    <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\vertex.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
     <ClInclude Include="menu\controls\macros.h">
@@ -784,301 +784,301 @@
     <ClInclude Include="menu\menu.hpp">
       <Filter>Menu</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\cursor.h">
+    <ClInclude Include="sdk\third_party\gui\resources\cursor.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\hotkey_icons.h">
+    <ClInclude Include="sdk\third_party\gui\resources\hotkey_icons.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_add.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_add.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_allow_insecure.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_allow_insecure.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_autoload.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_autoload.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_bug.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_bug.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_clear.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_clear.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_close.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_close.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_cloud.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_cloud.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_cloud_upd.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_cloud_upd.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_configs.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_configs.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_copy.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_copy.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_delete.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_delete.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_down.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_down.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_export.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_export.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_file.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_file.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_import.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_import.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_info.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_info.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_keys.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_keys.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_legit.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_legit.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_load.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_load.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_misc.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_misc.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_paste.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_paste.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_rage.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_rage.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_refresh.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_refresh.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_save.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_save.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_scripts.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_scripts.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_search.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_search.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_settings.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_settings.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_skins.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_skins.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_up.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_up.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\icon_visuals.h">
+    <ClInclude Include="sdk\third_party\gui\resources\icon_visuals.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\josefin_sans.h">
+    <ClInclude Include="sdk\third_party\gui\resources\josefin_sans.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\weapon_icons.h">
+    <ClInclude Include="sdk\third_party\gui\resources\weapon_icons.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\josefin_sans_bold.h">
+    <ClInclude Include="sdk\third_party\gui\resources\josefin_sans_bold.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\loading.h">
+    <ClInclude Include="sdk\third_party\gui\resources\loading.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\logo_head.h">
+    <ClInclude Include="sdk\third_party\gui\resources\logo_head.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\logo_stripes.h">
+    <ClInclude Include="sdk\third_party\gui\resources\logo_stripes.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\resources\smallest_pixel.h">
+    <ClInclude Include="sdk\third_party\gui\resources\smallest_pixel.h">
       <Filter>SDK\Third Party\Fatality\Resources</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\anim.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\anim.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\container.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\container.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\control.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\control.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\action_item.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\action_item.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\button.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\button.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\checkbox.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\checkbox.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\child_tab.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\child_tab.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\color_picker.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\color_picker.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\combo_box.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\combo_box.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\combo_box_agent.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\combo_box_agent.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\control_container.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\control_container.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\group.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\group.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\hotkey.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\hotkey.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\hotkey_view.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\hotkey_view.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\hsv_slider.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\hsv_slider.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\image.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\image.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\label.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\label.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\layout.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\layout.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\list.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\list.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\loading.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\loading.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\notification_control.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\notification_control.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\popup.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\public_software_item.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\public_software_item.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\search_result.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\search_result.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\selectable.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\selectable.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\selectable_inv.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\selectable_inv.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\selectable_script.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\selectable_script.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\settings.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\settings.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\slider.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\slider.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\spacer.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\spacer.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\tab.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\tab.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\tabs_layout.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\tabs_layout.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\text_input.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\text_input.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\toggle_button.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\toggle_button.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\widget.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\widget.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\controls\window.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\controls\window.h">
       <Filter>SDK\Third Party\Fatality\gui\controls</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\debug.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\debug.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\gui.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\gui.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\helpers.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\helpers.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\marquee.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\marquee.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\hotkeys.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\hotkeys.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\input.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\input.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\misc.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\misc.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\notify_system.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\notify_system.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\about_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\about_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\action_list_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\action_list_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\color_picker_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\color_picker_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\combo_box_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\combo_box_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\configs_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\configs_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\dialog_box.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\dialog_box.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\hotkey_overview_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\hotkey_overview_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\hotkey_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\hotkey_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\message_box.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\message_box.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\notifications_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\notifications_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\public_software_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\public_software_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\search_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\search_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\popups\settings_popup.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\popups\settings_popup.h">
       <Filter>SDK\Third Party\Fatality\gui\popups</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\traits.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\traits.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\third_party\fatality\src\gui\values.h">
+    <ClInclude Include="sdk\third_party\gui\src\gui\values.h">
       <Filter>SDK\Third Party\Fatality\gui</Filter>
     </ClInclude>
     <ClInclude Include="sdk\third_party\json\adl_serializer.h">

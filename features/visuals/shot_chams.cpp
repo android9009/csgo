@@ -1,6 +1,6 @@
 #include "shot_chams.hpp"
 #include "../../sdk/visual_runtime_state.hpp"
-#include "material_renderer.hpp"
+#include "chams_renderer.hpp"
 #include "chams_entities.hpp"
 #include "../../sdk/hooks/hooks.hpp"
 #include "../../context.hpp"

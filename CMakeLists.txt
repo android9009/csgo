@@ -44,31 +44,31 @@ target_link_libraries(csgo_base PRIVATE d3d9 user32 gdi32 shell32 imm32 dwmapi w
 set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:Debug>,csgo_debug,csgo_release>" SUFFIX ".dll")
 
 # The original GUI and DX9 renderer are built as a C++20 library.
-  file(GLOB_RECURSE FATALITY_GUI_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/src/gui/*.cpp")
-  set(FATALITY_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/deps/renderer")
-  set(FATALITY_RENDERER_SOURCES
-    ${FATALITY_RENDERER_DIR}/src/adapters/adapter_dx9.cpp
-    ${FATALITY_RENDERER_DIR}/src/buffers/cmd_buffer.cpp
-    ${FATALITY_RENDERER_DIR}/src/buffers/ib_dx9.cpp
-    ${FATALITY_RENDERER_DIR}/src/buffers/vb_dx9.cpp
-    ${FATALITY_RENDERER_DIR}/src/layer.cpp
-    ${FATALITY_RENDERER_DIR}/src/renderer.cpp
-    ${FATALITY_RENDERER_DIR}/src/types/animated_texture.cpp
-    ${FATALITY_RENDERER_DIR}/src/types/font.cpp
-    ${FATALITY_RENDERER_DIR}/src/types/shader.cpp
-    ${FATALITY_RENDERER_DIR}/src/types/texture.cpp)
-  file(GLOB FATALITY_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
-  add_library(fatality_port_check STATIC ${FATALITY_EXTRA_SOURCES} ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
-  set_target_properties(fatality_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
-  target_include_directories(fatality_port_check PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality"
-    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/fatality/src"
-    "${FATALITY_RENDERER_DIR}/include")
-  target_compile_definitions(fatality_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
-  target_compile_options(fatality_port_check PRIVATE /utf-8)
-  target_link_libraries(fatality_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
-  target_link_libraries(csgo_base PRIVATE fatality_port_check d3dcompiler)
+  file(GLOB_RECURSE GUI_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/gui/src/gui/*.cpp")
+  set(GUI_RENDERER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/gui/deps/renderer")
+  set(GUI_RENDERER_SOURCES
+    ${GUI_RENDERER_DIR}/src/adapters/adapter_dx9.cpp
+    ${GUI_RENDERER_DIR}/src/buffers/cmd_buffer.cpp
+    ${GUI_RENDERER_DIR}/src/buffers/ib_dx9.cpp
+    ${GUI_RENDERER_DIR}/src/buffers/vb_dx9.cpp
+    ${GUI_RENDERER_DIR}/src/layer.cpp
+    ${GUI_RENDERER_DIR}/src/renderer.cpp
+    ${GUI_RENDERER_DIR}/src/types/animated_texture.cpp
+    ${GUI_RENDERER_DIR}/src/types/font.cpp
+    ${GUI_RENDERER_DIR}/src/types/shader.cpp
+    ${GUI_RENDERER_DIR}/src/types/texture.cpp)
+  file(GLOB GUI_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
+  add_library(gui_port_check STATIC ${GUI_EXTRA_SOURCES} ${GUI_SOURCES} ${GUI_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
+  set_target_properties(gui_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  target_include_directories(gui_port_check PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/gui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/gui/src"
+    "${GUI_RENDERER_DIR}/include")
+  target_compile_definitions(gui_port_check PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(gui_port_check PRIVATE /utf-8)
+  target_link_libraries(gui_port_check PRIVATE d3d9 d3dcompiler gdi32 user32)
+  target_link_libraries(csgo_base PRIVATE gui_port_check d3dcompiler)
 
 # Standalone x86 injector. The DLL and executable are produced in the same configuration directory.
 add_executable(injector WIN32 injector/main.cpp injector/status.hpp)

@@ -1,6 +1,6 @@
 #include "tabs.hpp"
 #include "../config.hpp"
-#include "../controls/macros.h"
+#include "../controls/macros.hpp"
 #include <ren/renderer.h>
 #include <algorithm>
 #include <utility>

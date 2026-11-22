@@ -3,7 +3,7 @@
 #include "../interfaces/interfaces.hpp"
 #include "../entity/entity.hpp"
 #include "../visual_runtime_state.hpp"
-#include "../../features/visuals/material_renderer.hpp"
+#include "../../features/visuals/chams_renderer.hpp"
 #include "../../features/visuals/chams_entities.hpp"
 #include "../../features/visuals/shot_chams.hpp"
 #include "../../features/visuals/model_transparency.hpp"

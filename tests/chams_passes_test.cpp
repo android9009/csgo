@@ -1,5 +1,5 @@
 #include "features/visuals/chams_passes.hpp"
-#include "features/visuals/airflow_material_definitions.hpp"
+#include "features/visuals/chams_materials.hpp"
 #include <cassert>
 #include <cmath>
 #include <string_view>
@@ -46,18 +46,18 @@ int main(){
     assert(ChamsPasses::UsesSecondary(ChamsPasses::GlowKind) && ChamsPasses::UsesSecondary(ChamsPasses::Metallic));
     assert(!ChamsPasses::UsesSecondary(2) && !ChamsPasses::UsesSecondary(ChamsPasses::Shaded));
     using sv=std::string_view;
-    for(int i=0;i<AirflowMaterialDefinition::Count;++i){
-        assert(AirflowMaterialDefinition::Shader(i));
-        const char* vmt=AirflowMaterialDefinition::VMT(i);
-        assert(sv(AirflowMaterialDefinition::Shader(i))==
-            (i==AirflowMaterialDefinition::Flat ? "UnlitGeneric" : "VertexLitGeneric"));
-        const char* body=AirflowMaterialDefinition::Parameters(vmt);assert(body);
+    for(int i=0;i<ChamsMaterial::Count;++i){
+        assert(ChamsMaterial::Shader(i));
+        const char* vmt=ChamsMaterial::VMT(i);
+        assert(sv(ChamsMaterial::Shader(i))==
+            (i==ChamsMaterial::Flat ? "UnlitGeneric" : "VertexLitGeneric"));
+        const char* body=ChamsMaterial::Parameters(vmt);assert(body);
         assert(sv(body).find("Generic")==sv::npos);
-        assert(AirflowMaterialDefinition::Name(i));
+        assert(ChamsMaterial::Name(i));
     }
-    assert(sv(AirflowMaterialDefinition::VMT(AirflowMaterialDefinition::Flat)).find("UnlitGeneric")!=sv::npos);
-    assert(sv(AirflowMaterialDefinition::VMT(AirflowMaterialDefinition::Glow)).find("cube_white")!=sv::npos);
-    assert(sv(AirflowMaterialDefinition::VMT(AirflowMaterialDefinition::World)).find("money")!=sv::npos);
-    assert(!AirflowMaterialDefinition::Parameters("not a VMT"));
+    assert(sv(ChamsMaterial::VMT(ChamsMaterial::Flat)).find("UnlitGeneric")!=sv::npos);
+    assert(sv(ChamsMaterial::VMT(ChamsMaterial::Glow)).find("cube_white")!=sv::npos);
+    assert(sv(ChamsMaterial::VMT(ChamsMaterial::World)).find("money")!=sv::npos);
+    assert(!ChamsMaterial::Parameters("not a VMT"));
     assert(ChamsPasses::Selection(3)==0 && ChamsPasses::Selection(4)==0 && ChamsPasses::Selection(11)==0);
 }

@@ -3,9 +3,9 @@
 // ported verbatim for the new base. The index order and menu labels match the old
 // project's list: Textured, Shaded, Flat, Metallic, Glow, Bubble, Custom Sprite,
 // Fade Up. Creation goes through the same KeyValues::FromString path as before
-// (see fatality_material_factory.hpp); only the recipes and the colouring logic
+// (see chams_material_factory.hpp); only the recipes and the colouring logic
 // changed (render-view modulation instead of the material's own modulation).
-namespace AirflowMaterialDefinition {
+namespace ChamsMaterial {
 enum Index { Soft = 0, Shaded, Flat, Shiny, Glow, Bubble, World, FadeUp, Count };
 
 inline constexpr const char* Name(int index) {

@@ -153,7 +153,7 @@ open question and are now settled:
 | 22 | local `LightDesc_t` array | copies an array of light descriptors |
 | 28 | single-float context setter | `movss [this+0x24c], xmm0` |
 
-So `features/visuals/material_renderer.hpp` calling slot 33 with
+So `features/visuals/chams_renderer.hpp` calling slot 33 with
 `(material, 0, -1)` is correct on this build: type 0 takes the replace path, and
 `-1` means "every submodel". Passing `(nullptr, 0, -1)` at the end of a pass
 restores the engine's own material, exactly as `Restore()` assumes.

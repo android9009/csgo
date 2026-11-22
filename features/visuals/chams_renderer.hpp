@@ -4,15 +4,15 @@
 #include "../../sdk/visual_preview_state.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/memory.hpp"
-#include "fatality_material_factory.hpp"
+#include "chams_material_factory.hpp"
 #include "chams_passes.hpp"
 
 namespace PreviewMaterial {
-// The old "airflow" project's runtime material set, one instance per recipe.
-inline IMaterial* cache[AirflowMaterialDefinition::Count]{};
-inline bool tried[AirflowMaterialDefinition::Count]{};
+// Chams runtime material set, one instance per recipe (see chams_materials.hpp).
+inline IMaterial* cache[ChamsMaterial::Count]{};
+inline bool tried[ChamsMaterial::Count]{};
 struct Variables {IMaterialVar* env{};IMaterialVar* phong{};IMaterialVar* fresnel_range{};};
-inline Variables variables[AirflowMaterialDefinition::Count]{};
+inline Variables variables[ChamsMaterial::Count]{};
 inline IMaterialVar* Find(IMaterial* m,const char* name){bool found=false;auto* v=m->FindVar(name,&found,false);return found ? v : nullptr;}
 inline void Set(IMaterialVar* v,const std::array<float,3>& c){if(v)v->SetVecValue(c[0],c[1],c[2]);}
 inline IMaterial* active{};
@@ -23,35 +23,35 @@ inline bool view_saved{},studio_override{};
 // type 3 pushes onto the engine's 4-deep override stack (docs/interface-verification.md).
 inline void OverrideStudio(){if(Interfaces::StudioRender){MEM::GetVFunc<void(__thiscall*)(void*,IMaterial*,int,int)>(Interfaces::StudioRender,33)(Interfaces::StudioRender,active,0,-1);studio_override=true;}}
 template<typename Fn> inline Fn ViewSlot(int slot){return MEM::GetVFunc<Fn>(Interfaces::RenderView,slot);}
-// cham_material bit index -> airflow recipe index (see airflow_material_definitions.hpp).
+// cham_material bit index -> recipe index (see chams_materials.hpp).
 inline int IndexForKind(int kind){
     switch(kind){
-        case 1:return AirflowMaterialDefinition::Soft;
-        case 2:return AirflowMaterialDefinition::Flat;
-        case 5:return AirflowMaterialDefinition::FadeUp;
-        case 6:return AirflowMaterialDefinition::Bubble;
-        case ChamsPasses::GlowKind:return AirflowMaterialDefinition::Glow;
-        case 8:return AirflowMaterialDefinition::World;
-        case ChamsPasses::Shaded:return AirflowMaterialDefinition::Shaded;
-        case ChamsPasses::Metallic:return AirflowMaterialDefinition::Shiny;
+        case 1:return ChamsMaterial::Soft;
+        case 2:return ChamsMaterial::Flat;
+        case 5:return ChamsMaterial::FadeUp;
+        case 6:return ChamsMaterial::Bubble;
+        case ChamsPasses::GlowKind:return ChamsMaterial::Glow;
+        case 8:return ChamsMaterial::World;
+        case ChamsPasses::Shaded:return ChamsMaterial::Shaded;
+        case ChamsPasses::Metallic:return ChamsMaterial::Shiny;
         default:return -1;
     }
 }
 inline IMaterial* Resolve(int index) {
-    if(index<0 || index>=AirflowMaterialDefinition::Count || !Interfaces::MaterialSystem)return nullptr;
+    if(index<0 || index>=ChamsMaterial::Count || !Interfaces::MaterialSystem)return nullptr;
     if(tried[index])return cache[index];
     tried[index]=true;
     // Never silently substitute a debug material for a missing chams shader.
-    cache[index]=FatalityMaterialFactory::CreateVMT(AirflowMaterialDefinition::Name(index),
-        AirflowMaterialDefinition::Shader(index),AirflowMaterialDefinition::VMT(index));
-    if(!cache[index])LOG_WARN("Fatality chams unavailable recipe=%d; original model retained",index);
+    cache[index]=ChamsMaterialFactory::CreateVMT(ChamsMaterial::Name(index),
+        ChamsMaterial::Shader(index),ChamsMaterial::VMT(index));
+    if(!cache[index])LOG_WARN("chams material unavailable recipe=%d; original model retained",index);
     else{
         auto& v=variables[index];
         v.env=Find(cache[index],"$envmaptint");
         v.phong=Find(cache[index],"$phongtint");
         v.fresnel_range=Find(cache[index],"$envmapfresnelminmaxexp");
         // Fade Up shows only the fresnel rim: kill the diffuse permanently.
-        if(index==AirflowMaterialDefinition::FadeUp)cache[index]->ColorModulate(0.f,0.f,0.f);
+        if(index==ChamsMaterial::FadeUp)cache[index]->ColorModulate(0.f,0.f,0.f);
     }
     return cache[index];
 }
@@ -78,7 +78,7 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
     material->SetMaterialVarFlag(MATERIAL_VAR_NOFOG,true);
     material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);
     material->SetMaterialVarFlag(MATERIAL_VAR_WIREFRAME,false);
-    const bool glow=index==AirflowMaterialDefinition::Glow;
+    const bool glow=index==ChamsMaterial::Glow;
     // The glow overlay is drawn in the secondary (glow) colour; every other
     // recipe is drawn in the primary colour.
     const std::uint32_t color=glow ? secondary : rgba;

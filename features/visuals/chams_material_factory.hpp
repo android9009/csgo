@@ -1,11 +1,11 @@
 #pragma once
-#include "airflow_material_definitions.hpp"
+#include "chams_materials.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
 #include <cstdint>
 #include <cstring>
-namespace FatalityMaterialFactory {
+namespace ChamsMaterialFactory {
 // FromString calling convention follows Osiris csgo-end-of-life's
 // Helpers/KeyValuesFactory.h (MIT, see third_party/licenses/Osiris-inventory.txt).
 inline void* Parse(const char* name,const char* value) {
@@ -31,10 +31,10 @@ inline void* Parse(const char* name,const char* value) {
 // Create a runtime material from a full VMT buffer (the old "airflow" creation
 // path). This is KeyValues::FromString(shader, flat key/value pairs), NOT
 // LoadFromBuffer(resourceName, full VMT): the body must be the flat parameter
-// list, which is exactly what AirflowMaterialDefinition::Parameters extracts.
+// list, which is exactly what ChamsMaterial::Parameters extracts.
 inline IMaterial* CreateVMT(const char* name,const char* shader,const char* vmt) {
     if(!Interfaces::MaterialSystem)return nullptr;
-    const char* body=AirflowMaterialDefinition::Parameters(vmt);
+    const char* body=ChamsMaterial::Parameters(vmt);
     if(!shader || !body)return nullptr;
     auto* kv=Parse(shader,body);
     if(!kv){LOG_WARN("chams material parser unavailable: %s",name);return nullptr;}

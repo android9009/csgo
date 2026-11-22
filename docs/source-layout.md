@@ -26,18 +26,18 @@ sdk/
 ```
 
 `features/visuals/preview_material.hpp` was a misleading name: it renders both
-live-game chams and previews. It is now `features/visuals/material_renderer.hpp`;
+live-game chams and previews. It is now `features/visuals/chams_renderer.hpp`;
 its implementation and namespace have not changed. It belongs to game rendering,
 not the UI-only model-preview implementation.
 
 `menu/preview/model_preview.cpp` remains C++17 in the DLL target. The menu/tab
-integration remains C++20 in `fatality_port_check`. CMake explicitly separates
+integration remains C++20 in `gui_port_check`. CMake explicitly separates
 these sources to avoid duplicate compilation/linking after moving out of the
 previous third-party directory. The Visual Studio project and filters mirror the
 new physical paths.
 
 Third-party Fatality GUI controls, DX9 renderer, resources and upstream reference
-files remain in `sdk/third_party/fatality/`: moving application integration does not
+files remain in `sdk/third_party/gui/`: moving application integration does not
 turn vendored dependencies into application-owned code. `reference_main.cpp` is
 an archived upstream reference, is not compiled, and is intentionally unchanged.
 

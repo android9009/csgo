@@ -2,8 +2,8 @@
 #include "../controls/skin_options_popup.hpp"
 
 #include "../config.hpp"
-#include "../../sdk/third_party/fatality/src/gui/controls/combo_box_agent.h"
-#include "../controls/macros.h"
+#include "../../sdk/third_party/gui/src/gui/controls/combo_box_agent.h"
+#include "../controls/macros.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/skin_icon_file.hpp"
 #include "../../sdk/skin_catalog.hpp"
@@ -14,8 +14,8 @@
 #include "../../features/skins/equipment_state.hpp"
 #include "../preview/bridge.hpp"
 #include "../preview/catalog.hpp"
-#include "../../sdk/third_party/fatality/skin_names.hpp"
-#include "../../sdk/third_party/fatality/equipment_paints.hpp"
+#include "../../sdk/third_party/gui/skin_names.hpp"
+#include "../../sdk/third_party/gui/equipment_paints.hpp"
 #include "../../utils/log.hpp"
 #include <algorithm>
 #include <array>
@@ -262,7 +262,7 @@ namespace menu::group
     };
     const std::vector<EquipmentItem> medal_items{
         {"Default", ""},
-#include "../../sdk/third_party/fatality/medal_catalog.hpp"
+#include "../../sdk/third_party/gui/medal_catalog.hpp"
     };
     const std::vector<EquipmentItem> default_item{{"Default", ""}};
     std::vector<EquipmentItem> make_agents(bool ct) {

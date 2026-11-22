@@ -60,7 +60,7 @@ jobs:
             build/Release/injector.exe
           if-no-files-found: error
 
-  fatality-port-check:
+  gui-port-check:
     # Compile the GUI library independently in addition to the DLL build.
     runs-on: windows-2022
     continue-on-error: true
@@ -71,7 +71,7 @@ jobs:
       - name: Compile staged GUI and DX9 renderer
         shell: pwsh
         run: |
-          cmake --build build --config Release --target fatality_port_check 2>&1 | Tee-Object -FilePath gui-build.log
+          cmake --build build --config Release --target gui_port_check 2>&1 | Tee-Object -FilePath gui-build.log
           $code = $LASTEXITCODE
           $warnings = @(Get-Content gui-build.log | Select-String 'warning C\d+')
           Write-Output "::notice::Staged GUI warning lines: $($warnings.Count) ($(($warnings | Select-Object -Unique).Count) unique)"

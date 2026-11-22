@@ -1,8 +1,8 @@
 #include <gui/popups/action_list_popup.h>
 
 #include "../config.hpp"
-#include "../../sdk/third_party/fatality/src/gui/helpers.h"
-#include "../controls/macros.h"
+#include "../../sdk/third_party/gui/src/gui/helpers.h"
+#include "../controls/macros.hpp"
 #include "tabs.hpp"
 
 using namespace evo::gui;
