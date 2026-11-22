@@ -221,7 +221,7 @@
     <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\shader.h" />
     <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\texture.h" />
     <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\vertex.h" />
-    <ClInclude Include="menu\controls\macros.h" />
+    <ClInclude Include="menu\controls\macros.hpp" />
     <ClInclude Include="menu\tabs\tabs.hpp" />
     <ClInclude Include="menu\menu.hpp" />
     <ClInclude Include="sdk\third_party\gui\resources\cursor.h" />
@@ -337,8 +337,7 @@
     <ClInclude Include="sdk\datatypes\datatypes.hpp" />
     <ClInclude Include="sdk\entity\entity.hpp" />
     <ClInclude Include="sdk\entity\player.hpp" />
-    <ClInclude Include="sdk\entity\player_resource.hpp" />
-    <ClInclude Include="sdk\entity\weapon.hpp" />
+        <ClInclude Include="sdk\entity\weapon.hpp" />
     <ClInclude Include="sdk\glow.hpp" />
     <ClInclude Include="sdk\interfaces\interfaces.hpp" />
     <ClInclude Include="sdk\panorama\panorama.hpp" />

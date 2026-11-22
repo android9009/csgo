@@ -514,9 +514,6 @@
     <ClInclude Include="sdk\entity\player.hpp">
       <Filter>SDK\entity</Filter>
     </ClInclude>
-    <ClInclude Include="sdk\entity\player_resource.hpp">
-      <Filter>SDK\entity</Filter>
-    </ClInclude>
     <ClInclude Include="sdk\entity\weapon.hpp">
       <Filter>SDK\entity</Filter>
     </ClInclude>
@@ -775,7 +772,7 @@
     <ClInclude Include="sdk\third_party\gui\deps\renderer\include\ren\types\vertex.h">
       <Filter>SDK\Third Party\Fatality\Renderer\include\ren\types</Filter>
     </ClInclude>
-    <ClInclude Include="menu\controls\macros.h">
+    <ClInclude Include="menu\controls\macros.hpp">
       <Filter>Menu\controls</Filter>
     </ClInclude>
     <ClInclude Include="menu\tabs\tabs.hpp">
