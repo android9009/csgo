@@ -3,9 +3,6 @@
 #include "../visual_runtime_state.hpp"
 #include "../../features/skins/skin_changer.hpp"
 #include "../../features/skins/local_inventory.hpp"
-#include "../../features/misc/misc.hpp"
-#include "../../features/visuals/misc/effects.hpp"
-#include "../../features/visuals/misc/misc.hpp"
 #include "../../features/visuals/removals/removals.hpp"
 #include "../../features/visuals/model_transparency.hpp"
 #include "../../features/visuals/world_fog.hpp"
@@ -76,9 +73,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         // (and at render start, when the local weapon may have changed).
         if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore();
-                // Tracers/impacts/hitmarkers belong to a match: leaving it drops them.
-                VisualsMisc::Effects::Reset(); }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore(); }
             else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
@@ -90,18 +85,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             if (ctx.local) ctx.eye_pos = ctx.local->GetEyePosition();
             }
             // TODO: features/visuals (glow/chams state), features/rage (lagcomp) entry points go here
-            // Radar, clan tag and flash removal act on the entity list, so they run
-            // after the context refresh above, still inside this SEH frame.
-            Misc::FrameStage(stage);
             Removals::FrameStage(stage);
-            // Visuals -> Misc: the fov changer writes the player's own fov fields and the
-            // third person camera writes CInput, both at FRAME_RENDER_START - before the
-            // engine builds the view for this frame.
-            VisualsMisc::FrameStage(stage);
-            if (stage == 5) VisualsMisc::ApplyThirdPerson();
-            // Visuals -> Misc -> Other: the event-driven effects project their live records
-            // once per frame, with the matrix the renderer is about to use.
-            if (stage == 5) VisualsMisc::Effects::Frame();
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }

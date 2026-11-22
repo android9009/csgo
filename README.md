@@ -28,8 +28,9 @@
 ├── menu/                    меню, табы, контролы, UI-превью и адаптеры
 └── features/
     ├── visuals/              player ESP, chams, glow, removals (flash, visual punch),
-    │                         misc/ (thirdperson, fov changer, viewmodel fov)
-    ├── misc/                 папка на вкладку, файл на логику (см. docs/misc-runtime.md)
+    │                         misc/ (только Settings/геометрия для меню, логики нет)
+    ├── misc/                 только Settings-заголовки для меню, логики нет
+    │                         (см. docs/misc-runtime.md)
     ├── rage/                 ragebot/antiaim интерфейсы-точки расширения
     └── skins/                применение скинов и инвентарь
 ```
@@ -39,7 +40,7 @@
 - **SDK** ничего не знает о функциях чита. Интерфейсы получаются по `CreateInterface`, RecvTables индексируются один раз, свойства сущностей читаются через `NETVAR`.
 - **Patterns → offsets → interfaces → netvars → hooks** — порядок загрузки в `main.cpp`. Результаты сканирования live-процесса важнее fallback-констант.
 - **`ctx`** — общее состояние для хуков/функций (вместо разрозненных глобальных переменных).
-- **`features/`** — независимые модули. `CreateMove` вызывает movement/rage entry points; `PaintTraverse` — visuals/menu. Добавление функции не требует менять SDK или центральный контекст, если ей не нужно новое состояние.
+- **`features/`** — независимые модули. `FrameStageNotify` вызывает entry points visuals/removals; `PaintTraverse` — visuals/menu. Добавление функции не требует менять SDK или центральный контекст, если ей не нужно новое состояние.
 - **Ошибки сигнатур** журналируются. Нет найденной optional-сигнатуры — её поле остаётся нулевым; известные поля могут использовать snapshot fallback. Для другого билда fallback нужно перепроверить.
 
 ## Что взято как ориентир
@@ -72,8 +73,8 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 
 - Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging, JSON-настройки и VGUI-отрисовка.
 - Player ESP: `features/visuals/player_esp.cpp`.
-- Misc: `features/misc/` — папка на группу меню (`general/`, `other/`, `movement/`, `buybot/`), в папке **один `.hpp` на всю папку** и по `.cpp` на каждую логику. Работают radar-reveal, clan tag, reveal enemy chat в формате самой игры (`DispatchUserMessage` + `SayText2`), ping spike (хуки `SendDatagram`/`ProcessPacket`, порт из `main`); в группе OTHER — auto-accept (`EmitSound1` + `SetLocalPlayerReady`) и console filter (экспорты `tier0!ConMsg`/`ConColorMsg`); remove flash и visual punch живут в `features/visuals/removals/`, потому что их чекбоксы — в Removals вкладки Visuals. Scoreboard (ranks/re-weapon/re-money и panorama-скрипт) удалён целиком. В MOVEMENT работают air strafe, bhop и quick stop (порты из `main`), edge jump и edge stop (свой трейс-прогноз) — всё через хук `ClientMode::CreateMove` (слот 24); «No fall damage» и «Instant duck» убраны из меню, потому что клиентских способов их сделать нет. BUY BOT — реальная закупка: одна строка `buy X; buy Y; ...` в порядке `main` (primary → pistol → armor → остальное) через `IEngineClient::ClientCmd_Unrestricted` (слот 114), окно покупки — `m_bFreezePeriod` из `c_game_rules` (байт `+0x20`, сигнатура `game_rules` из `main`), до трёх попыток за раунд. Во вкладке Visuals группа MISC теперь тоже с логикой: thirdperson (камера в `ClientMode::OverrideView`, слот 18, трейс как в `main`, своя модель скрывается в `DrawModelExecute`), fov changer (поля `m_iDefaultFOV`/`m_iFOV`/`m_iFOVStart` на `FRAME_RENDER_START`) и viewmodel fov (хук `GetViewModelFOV`, слот 35). Точка входа — `FrameStageNotify` (и `CreateMove` для движения и buy bot), границы охвата и список нереализованного — `docs/misc-runtime.md`.
-- Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bunnyhop, **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
+- Misc: **логика удалена** (2026-11-22). Из `features/misc/` (`general/`, `other/`, `movement/`, `buybot/`) и `features/visuals/misc/` (thirdperson, fov changer, viewmodel fov, эффекты) вырезаны все `.cpp`-реализации и хуки (CreateMove, GetViewModelFOV, GetScreenAspectRatio, UpdatePostScreenEffects, CalcViewModelView) — что именно и куда, в `docs/misc-runtime.md`. **Меню, конфиги и runtime-состояния не тронуты**: табы Misc и группа MISC в Visuals рисуются как раньше, чекбоксы переключают значения конфига (F5/F6 их сохраняют/загружают), но в игре эти значения нигде не читаются. Заголовки, которые включает меню-бридж, теперь несут только `Settings` и no-op `Publish`. Remove flash и visual punch не затронуты — они живут в `features/visuals/removals/` (Removals вкладки Visuals).
+- Меню открывается **Insert**; **F1** включает ESP, **F2** — подписи, **F3** — bhop (только переключает конфиг, логики нет), **F5/F6** — сохранить/загрузить конфиг; **End** выгружает DLL.
 - `ragebot.cpp`, `antiaim.cpp`, `glow.cpp`, `world.cpp` сейчас являются намеренными точками расширения, а не готовой реализацией этих функций.
 
 Новая фича обычно состоит из `<feature>.h/.cpp` в подходящей папке и одного вызова из `sdk/hooks/client.cpp` или `sdk/hooks/paint.cpp`. Netvar-поля объявляйте рядом с соответствующим SDK-классом; runtime-адреса получайте через `offsets::Get()` / `Patterns::Get()`, а не хардкодьте в feature-коде.

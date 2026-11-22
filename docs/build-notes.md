@@ -1,5 +1,10 @@
 # Build notes (MSVC x86, `/std:c++20`)
 
+> **2026-11-22 note:** the misc logic the examples below refer to
+> (`features/misc/buybot/buybot.cpp`, `features/misc/general/ping.cpp`, …) has been
+> removed; the notes are kept as toolchain/MSBuild history. The `misc.obj` collision note
+> no longer applies — there is only one `misc` translation unit left in the project.
+
 Constraints that are not style preferences but hard requirements of the toolchain or of
 MSBuild. Everything below was hit by a real `Release|Win32` build of `csgo_base`.
 

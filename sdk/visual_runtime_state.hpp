@@ -44,8 +44,8 @@ struct Effects {
     bool sunlight{};
     // Visuals -> Misc -> local: "Remove scope" (mode, see VisualsMisc::Detail::ScopeMode),
     // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
-    // menu/overlays/screen_overlay.hpp reads these; the game thread reads the same struct to
-    // decide whether to drop the engine's own scope mask.
+    // menu/overlays/screen_overlay.hpp reads these; the game-side scope-mask logic has been
+    // removed, so only the menu drawing consumes this block now.
     struct Screen {
         int scope_mode{};
         std::uint32_t scope_line_color{0xFF000000u}; // 0xRRGGBBAA, black by default

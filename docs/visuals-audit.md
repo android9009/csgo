@@ -1,5 +1,11 @@
 # Visuals/Misc audit, November 2026
 
+> **2026-11-22 note: the misc logic described below has been removed** (the `.cpp`
+> implementations, the CreateMove / GetViewModelFOV / GetScreenAspectRatio hooks and the
+> UpdatePostScreenEffects / CalcViewModelView detours are gone). The menu, the config and
+> the publish path stay, so the "menu → config → publish" half of every row below is still
+> accurate; the "consumer in the game" half is not — see `docs/misc-runtime.md`.
+
 Scope: every control of `Visuals → Misc` (`visuals>misc>local`, `visuals>misc>other`,
 `visuals>world`) and of `Misc → Movement → Air strafe`, with the path
 `menu → config → publish → consumer in the game` written out for each one.

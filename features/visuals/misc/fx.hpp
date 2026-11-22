@@ -1,11 +1,12 @@
 #pragma once
 // Visuals -> Misc -> Other: "Bullet tracers", "Show impacts" and "Hitmarker".
 //
-// The three features share one pipeline and this header holds its portable half:
+// The game-thread half of the pipeline (the event records and the per-frame
+// projection, formerly features/visuals/misc/effects.cpp) has been removed: the
+// menu keeps the controls and the overlay keeps drawing whatever arrives in
+// `VisualRuntime::fx_frame`, which now simply stays empty. This header keeps
+// the shared data model and the screen-space geometry the overlay is built on:
 //
-//   game thread (features/visuals/misc/effects.cpp)
-//     game event (bullet_impact / player_hurt)  ->  world-space records
-//     every FRAME_RENDER_START                  ->  project the live records, publish them
 //   render thread (menu/overlays/fx_overlay.hpp)
 //     draw the published screen-space records
 //

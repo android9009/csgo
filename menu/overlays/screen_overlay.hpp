@@ -2,16 +2,15 @@
 // Visuals -> Misc: the two screen-space elements the module owns - the four "Remove scope"
 // lines and the "Spread" circle.
 //
-// Why they are drawn here: the engine's scope overlay (the black mask and its own crosshair)
-// is what "Remove scope" drops (the UpdatePostScreenEffects detour in
-// sdk/hooks/viewhooks.cpp). With the mask gone the four lines are the whole scope picture, so
-// they have to exist; they are geometry this module computes from the live weapon inaccuracy
-// and the fov, not a copy of something the game draws.
+// The game-side "Remove scope" detour (UpdatePostScreenEffects) has been removed along with
+// the rest of the misc logic, so these lines are plain menu drawing now: they are geometry
+// this module computes from the weapon inaccuracy and the fov, not a replacement for
+// anything the game no longer suppresses.
 //
 // The maths lives in VisualsMisc::Detail (portable, tested on the host); this file only turns
-// its output into lines. The live game values arrive through VisualRuntime: `screen_state`
-// from the game thread (scoped / inaccuracy / fov) and `settings.screen` from the menu thread
-// (mode, colour, thickness, invert, spread colours).
+// its output into lines. The values arrive through VisualRuntime: `screen_state` (scoped /
+// inaccuracy / fov) and `settings.screen` from the menu thread (mode, colour, thickness,
+// invert, spread colours).
 #include <memory>
 
 #include "esp_drawing.hpp"

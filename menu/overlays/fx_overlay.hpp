@@ -2,9 +2,9 @@
 // Visuals -> Misc -> Other: the screen half of "Bullet tracers", "Show impacts", "Hitmarker"
 // and "Out of FOV".
 //
-// The game thread has already projected everything (features/visuals/misc/effects.cpp); this
-// file only draws what arrived in `VisualRuntime::fx_frame`. Coordinates are normalized to the
-// viewport, the same convention the ESP boxes use.
+// The game-thread half of the pipeline has been removed, so `VisualRuntime::fx_frame`
+// stays empty; this file only draws whatever arrives there. Coordinates are normalized to
+// the viewport, the same convention the ESP boxes use.
 #include <algorithm>
 #include <cmath>
 #include <memory>

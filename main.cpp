@@ -14,13 +14,11 @@
 #include "utils/displacement.hpp"
 #include "utils/math.hpp"
 #include "utils/render.hpp"
-#include "utils/event_listener.hpp"
 #include "utils/log.hpp"
 #include "utils/memory.hpp"
 #include "sdk/hooks/hooks.hpp"
 #include "menu/preview/model_preview.hpp"
 #include "features/skins/skin_changer.hpp"
-#include "features/misc/misc.hpp"
 
 namespace {
 HANDLE status_mapping{};
@@ -113,10 +111,7 @@ void Shutdown() {
     Hooks::Restore();
     __try { SkinChanger::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("skins: exception while restoring weapons at shutdown"); }
-    __try { Misc::Shutdown(); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception while restoring the clan tag at shutdown"); }
     ModelPreview::Shutdown();
-    EventListener::Destroy();
     PropManager::Get().Destroy();
 }
 DWORD InitializeAndRun(HMODULE self) {
@@ -140,8 +135,6 @@ DWORD InitializeAndRun(HMODULE self) {
         if (!Math::Setup()) { LOG_ERROR("math setup failed"); warnings += "Math setup failed; "; }
         current_stage = "Font creation";
         Render::CreateFonts();
-        current_stage = "Event listener setup";
-        EventListener::Setup({"bullet_impact", "round_start", "player_hurt", "weapon_fire", "player_death"});
         current_stage = "Hook setup";
         if (!Hooks::Setup()) { Shutdown(); Publish(PastavarStatus::Failed, "Hook setup failed: game window, WndProc or EndScene hook unavailable"); return 6; }
         LOG_INFO("CS:GO base initialized");
