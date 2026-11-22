@@ -12,22 +12,28 @@
 //                          8 fire_event  9 fire_event_client_side
 
 // IGameEvent (main structs.hpp c_game_event). Only the getters the misc features use.
+// The getters are const, but the vtable read and the `this` the engine expects are
+// non-const, so both go through one const_cast (an implicit const-strip would not
+// compile, and a raw reinterpret_cast on the qualifier is implementation-defined).
 class IGameEvent {
 public:
     const char* GetName() const {
         using Fn = const char* (__thiscall*)(void*);
-        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[1]);
-        return fn ? fn(this) : nullptr;
+        auto self = const_cast<IGameEvent*>(this);
+        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(self))[1]);
+        return fn ? fn(self) : nullptr;
     }
     int GetInt(const char* key, int def = 0) const {
         using Fn = int (__thiscall*)(void*, const char*, int);
-        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[6]);
-        return fn ? fn(this, key, def) : def;
+        auto self = const_cast<IGameEvent*>(this);
+        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(self))[6]);
+        return fn ? fn(self, key, def) : def;
     }
     const char* GetString(const char* key, const char* def = "") const {
         using Fn = const char* (__thiscall*)(void*, const char*, const char*);
-        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[9]);
-        return fn ? fn(this, key, def) : def;
+        auto self = const_cast<IGameEvent*>(this);
+        auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(self))[9]);
+        return fn ? fn(self, key, def) : def;
     }
 };
 

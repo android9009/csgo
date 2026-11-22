@@ -84,7 +84,9 @@ void AutoStrafe(const Tick& tick, State& state) {
         return;
     }
 
-    const auto diff = Math::normalize_yaw(state.base_view_angle.y - RAD2DEG(std::atan2f(velocity.y, velocity.x)));
+    // `main` writes std::atan2f; std::atan2 picks the float overload on MSVC and is the
+    // standard spelling, so it is used here instead.
+    const auto diff = Math::normalize_yaw(state.base_view_angle.y - RAD2DEG(std::atan2(velocity.y, velocity.x)));
 
     tick.cmd->forwardmove = std::clamp((5850.f / speed), -forward_speed, forward_speed);
     tick.cmd->sidemove = (diff > 0.f) ? -side_speed : side_speed;

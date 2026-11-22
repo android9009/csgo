@@ -3,7 +3,7 @@
 #include "../../../utils/detourhook.hpp"
 #include "../../../utils/log.hpp"
 #include "../../../utils/memory.hpp"
-#include "../../../utils/patterns/catalog.hpp"
+#include "../../../utils/patterns/patterns.hpp"
 #include <atomic>
 #include <cstdint>
 #include <intrin.h>

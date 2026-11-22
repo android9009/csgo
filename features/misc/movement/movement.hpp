@@ -45,7 +45,7 @@ struct State {
     int ground_ticks = 0;
 
     // auto strafe
-    Vector base_view_angle{};   // the running strafe reference (yaw only is used)
+    QAngle base_view_angle{};   // the running strafe reference (yaw only is used)
 
     // air-strafe jump gate (our menu's "Jump release" items; `main` has no such gate)
     bool jump_was_held = false;
@@ -56,7 +56,7 @@ struct State {
         last_jumped = should_fake = false;
         complete_fast_stop = false;
         ground_ticks = 0;
-        base_view_angle = Vector{};
+        base_view_angle = QAngle{};
         jump_was_held = jump_pressed_in_air = jump_released_in_air = false;
     }
 };

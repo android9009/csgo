@@ -22,7 +22,7 @@ struct EdgeProbe {
 // `main` c_movement::edge_jump is an empty stub, so there is no reference to port: this is
 // this build's own forecast. A short trace along the direction of travel answers the one
 // question both items need - "is the ground under my feet ending right here?"
-EdgeProbe Probe(const Tick& tick) {
+EdgeProbe Probe(const Misc::Movement::Tick& tick) {
     EdgeProbe probe;
     probe.speed = tick.velocity.Length2D();
     if (!Interfaces::EngineTrace || probe.speed <= 1.f) return probe;
