@@ -31,10 +31,6 @@ set(THIRDPARTY_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/sdk/third_party/minhook/hde/hde32.c
 )
 
-# Vendored code is compiled as-is: silence the /W4 warnings it produces (199x C4244 in the
-# fatality renderer alone) without modifying the vendor sources.
-set_source_files_properties(${THIRDPARTY_SOURCES} PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4018;/wd4389;/wd4211;/wd4201;/wd4310")
-
 add_library(csgo_base SHARED ${BASE_SOURCES} ${THIRDPARTY_SOURCES})
 target_include_directories(csgo_base PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -63,7 +59,6 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:
     ${FATALITY_RENDERER_DIR}/src/types/shader.cpp
     ${FATALITY_RENDERER_DIR}/src/types/texture.cpp)
   file(GLOB FATALITY_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
-  set_source_files_properties(${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4018;/wd4389;/wd4211;/wd4201;/wd4310")
   add_library(fatality_port_check STATIC ${FATALITY_EXTRA_SOURCES} ${FATALITY_GUI_SOURCES} ${FATALITY_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
   set_target_properties(fatality_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   target_include_directories(fatality_port_check PRIVATE
