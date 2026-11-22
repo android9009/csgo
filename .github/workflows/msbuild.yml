@@ -35,7 +35,12 @@ jobs:
           }
           Write-Output ("::notice::WARNLIST " + (($warnings | Select-Object -Unique) -join " ||| "))
           if ($code -ne 0) {
-            Get-Content compile.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            Get-Content compile.log | Select-String '(: error |fatal error|error LNK|CMake Error|FAILED)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            $tail = @(Get-Content compile.log)[-40..-1] -join " ||| "
+            for ($k = 0; $k -lt $tail.Length; $k += 2800) {
+              $part = $tail.Substring($k, [Math]::Min(2800, $tail.Length - $k))
+              Write-Output ("::notice::TAIL" + $k + "|" + $part)
+            }
           }
           exit $code
 
@@ -79,7 +84,12 @@ jobs:
           }
           Write-Output ("::notice::WARNLIST " + (($warnings | Select-Object -Unique) -join " ||| "))
           if ($code -ne 0) {
-            Get-Content gui-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            Get-Content gui-build.log | Select-String '(: error |fatal error|error LNK|CMake Error|FAILED)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            $tail = @(Get-Content gui-build.log)[-40..-1] -join " ||| "
+            for ($k = 0; $k -lt $tail.Length; $k += 2800) {
+              $part = $tail.Substring($k, [Math]::Min(2800, $tail.Length - $k))
+              Write-Output ("::notice::TAIL" + $k + "|" + $part)
+            }
           }
           exit $code
 
