@@ -1,21 +1,36 @@
 #pragma once
 #include "../../sdk/visual_preview_state.hpp"
 #include <array>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 namespace ChamsPasses {
 struct Pass {int kind{};std::uint32_t primary{},secondary{};bool ignore_z{};};
 struct Plan {std::array<Pass,4> passes{};int count{};};
-// Keep saved Flat / Legacy numeric values compatible with existing configs.
-inline constexpr int Shaded=9,Metallic=10,KindCount=11;
-inline int Selection(int kind){return kind==2 || kind==7 || kind==Shaded || kind==Metallic ? kind : 0;}
-// Skeet prepare_material kinds 2 / 3 use Secondary alpha for highlight
-// exponent / Fresnel response, not for diffuse opacity.
-inline int ShadedExponent(std::uint32_t color){return (std::max)(1,255-static_cast<int>(color>>24));}
-inline float MetallicFresnel(std::uint32_t color){return 1.f-float(color>>24)/255.f;}
-inline bool Composite(int kind){return kind==7;}
+// Material selection = the cham_material bitset index (menu/config.hpp). The
+// supported set is the old "airflow" project's eight materials:
+//   1 Textured, 2 Flat, 5 Fade Up, 6 Bubble, 7 Glow, 8 Custom Sprite,
+//   9 Shaded, 10 Metallic. Everything else (3, 4 and unknown) maps to off.
+inline constexpr int Shaded=9,Metallic=10,GlowKind=7,KindCount=11;
+inline int Selection(int kind){
+    switch(kind){
+        case 1:case 2:case 5:case 6:case GlowKind:case 8:case Shaded:case Metallic:return kind;
+        default:return 0;
+    }
+}
+// Only these two materials consume the secondary (effect) colour: Metallic
+// uses it as the phong tint, Glow as the additive rim colour.
+inline bool UsesSecondary(int kind){return kind==GlowKind || kind==Metallic;}
+inline bool Composite(int kind){return kind==GlowKind;}
 inline bool FreshSnapshot(float captured,float now){return std::isfinite(captured) && std::isfinite(now) && now>=captured && now-captured<=.25f;}
 inline float GhostFade(float age){return !std::isfinite(age) || age<0.f || age>=1.f ? 0.f : std::clamp((1.f-age)/.4f,0.f,1.f);}
 inline float Alpha(std::uint32_t c){return float((c>>24)&255)/255.f;}
+// Old project: fill_amount = clamp(glow_fill/100 - 0.15, 0, 1). Here the
+// secondary colour's alpha (0..1) is the fill amount.
+inline float GlowFill(std::uint32_t color){
+    const float a=Alpha(color);
+    return a<=.15f ? 0.f : ((std::min)(a-.15f,1.f));
+}
 inline std::array<float,3> Tint(std::uint32_t c,bool intensity=false){
     const float a=intensity ? Alpha(c) : 1.f;
     return {float((c>>16)&255)/255.f*a,float((c>>8)&255)/255.f*a,float(c&255)/255.f*a};

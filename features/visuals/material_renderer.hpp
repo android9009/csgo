@@ -3,20 +3,19 @@
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/visual_preview_state.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/memory.hpp"
 #include "fatality_material_factory.hpp"
 #include "chams_passes.hpp"
 
 namespace PreviewMaterial {
-// Fatality-derived materials with a shared, explicitly planned pass sequence.
-inline IMaterial* cache[ChamsPasses::KindCount]{};
-inline bool tried[ChamsPasses::KindCount]{};
-struct Variables {IMaterialVar* env{};IMaterialVar* fresnel{};IMaterialVar* fresnel_range{};IMaterialVar* phong{};IMaterialVar* exponent{};};
-inline Variables variables[ChamsPasses::KindCount]{};
+// The old "airflow" project's runtime material set, one instance per recipe.
+inline IMaterial* cache[AirflowMaterialDefinition::Count]{};
+inline bool tried[AirflowMaterialDefinition::Count]{};
+struct Variables {IMaterialVar* env{};IMaterialVar* phong{};IMaterialVar* fresnel_range{};};
+inline Variables variables[AirflowMaterialDefinition::Count]{};
 inline IMaterialVar* Find(IMaterial* m,const char* name){bool found=false;auto* v=m->FindVar(name,&found,false);return found ? v : nullptr;}
 inline void Set(IMaterialVar* v,const std::array<float,3>& c){if(v)v->SetVecValue(c[0],c[1],c[2]);}
 inline IMaterial* active{};
-inline float old_r{},old_g{},old_b{},old_a{};
-inline bool old_z{},old_wire{},old_additive{};
 inline float old_view_color[3]{1.f,1.f,1.f},old_blend{1.f};
 inline bool view_saved{},studio_override{};
 // IStudioRender slot 33 = ForcedMaterialOverride(material, type, overrides). Verified on the
@@ -24,38 +23,43 @@ inline bool view_saved{},studio_override{};
 // type 3 pushes onto the engine's 4-deep override stack (docs/interface-verification.md).
 inline void OverrideStudio(){if(Interfaces::StudioRender){MEM::GetVFunc<void(__thiscall*)(void*,IMaterial*,int,int)>(Interfaces::StudioRender,33)(Interfaces::StudioRender,active,0,-1);studio_override=true;}}
 template<typename Fn> inline Fn ViewSlot(int slot){return MEM::GetVFunc<Fn>(Interfaces::RenderView,slot);}
-inline IMaterial* Resolve(int kind) {
-    if(!ChamsPasses::Selection(kind) || !Interfaces::MaterialSystem)return nullptr;
-    if(tried[kind])return cache[kind];
-    tried[kind]=true;
-    const bool borrowed=kind==7;
-    auto* material=borrowed ? Interfaces::MaterialSystem->FindMaterial("dev/glow_armsrace","Model textures",false) : FatalityMaterialFactory::Create(kind);
-    // Never silently substitute a debug material for a missing chams shader.
-    if(!material || material->IsErrorMaterial()){
-        LOG_WARN("Fatality chams unavailable kind=%d; original model retained",kind);return nullptr;
+// cham_material bit index -> airflow recipe index (see airflow_material_definitions.hpp).
+inline int IndexForKind(int kind){
+    switch(kind){
+        case 1:return AirflowMaterialDefinition::Soft;
+        case 2:return AirflowMaterialDefinition::Flat;
+        case 5:return AirflowMaterialDefinition::FadeUp;
+        case 6:return AirflowMaterialDefinition::Bubble;
+        case ChamsPasses::GlowKind:return AirflowMaterialDefinition::Glow;
+        case 8:return AirflowMaterialDefinition::World;
+        case ChamsPasses::Shaded:return AirflowMaterialDefinition::Shaded;
+        case ChamsPasses::Metallic:return AirflowMaterialDefinition::Shiny;
+        default:return -1;
     }
-    if(borrowed)material->IncrementReferenceCount();
-    auto& v=variables[kind];
-    if(kind==7 || kind==ChamsPasses::Metallic)v.env=Find(material,"$envmaptint");
-    if(kind==7){v.fresnel=Find(material,"$envmapfresnel");v.fresnel_range=Find(material,"$envmapfresnelminmaxexp");}
-    if(kind==ChamsPasses::Shaded){v.phong=Find(material,"$phongtint");v.exponent=Find(material,"$phongexponent");}
-    if(kind==ChamsPasses::Metallic)v.fresnel=Find(material,"$envmapfresnel");
-    if(kind==7 && !v.env)LOG_WARN("chams kind=%d has no envmap tint",kind);
-    cache[kind]=material;
-    LOG_INFO("Fatality chams resolved kind=%d material=%s wireframe=%d",kind,material->GetName(),material->GetMaterialVarFlag(MATERIAL_VAR_WIREFRAME));
-    return material;
+}
+inline IMaterial* Resolve(int index) {
+    if(index<0 || index>=AirflowMaterialDefinition::Count || !Interfaces::MaterialSystem)return nullptr;
+    if(tried[index])return cache[index];
+    tried[index]=true;
+    // Never silently substitute a debug material for a missing chams shader.
+    cache[index]=FatalityMaterialFactory::CreateVMT(AirflowMaterialDefinition::Name(index),
+        AirflowMaterialDefinition::Shader(index),AirflowMaterialDefinition::VMT(index));
+    if(!cache[index])LOG_WARN("Fatality chams unavailable recipe=%d; original model retained",index);
+    else{
+        auto& v=variables[index];
+        v.env=Find(cache[index],"$envmaptint");
+        v.phong=Find(cache[index],"$phongtint");
+        v.fresnel_range=Find(cache[index],"$envmapfresnelminmaxexp");
+        // Fade Up shows only the fresnel rim: kill the diffuse permanently.
+        if(index==AirflowMaterialDefinition::FadeUp)cache[index]->ColorModulate(0.f,0.f,0.f);
+    }
+    return cache[index];
 }
 inline void Restore() {
     if(!active && !view_saved && !studio_override)return;
     if(studio_override && Interfaces::StudioRender){MEM::GetVFunc<void(__thiscall*)(void*,IMaterial*,int,int)>(Interfaces::StudioRender,33)(Interfaces::StudioRender,nullptr,0,-1);studio_override=false;}
-    auto* material=active;active=nullptr;
+    active=nullptr;
     if(Interfaces::ModelRender)Interfaces::ModelRender->ForcedMaterialOverride(nullptr);
-    if(material){
-        material->ColorModulate(old_r,old_g,old_b);material->AlphaModulate(old_a);
-        material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,old_z);
-        material->SetMaterialVarFlag(MATERIAL_VAR_WIREFRAME,old_wire);
-        material->SetMaterialVarFlag(MATERIAL_VAR_ADDITIVE,old_additive);
-    }
     if(view_saved && Interfaces::RenderView){
         view_saved=false;
         ViewSlot<void(__thiscall*)(void*,const float*)>(6)(Interfaces::RenderView,old_view_color);
@@ -64,45 +68,37 @@ inline void Restore() {
 }
 inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t secondary=0xffffffff) {
     Restore();
-    auto* material=Resolve(kind);
+    const int index=IndexForKind(kind);
+    auto* material=Resolve(index);
     if(!material || !Interfaces::ModelRender)return false;
-    old_r=old_g=old_b=1.f;
-    material->GetColorModulation(&old_r,&old_g,&old_b);
-    old_a=material->GetAlphaModulation();old_z=material->GetMaterialVarFlag(MATERIAL_VAR_IGNOREZ);
-    old_wire=material->GetMaterialVarFlag(MATERIAL_VAR_WIREFRAME);
-    old_additive=material->GetMaterialVarFlag(MATERIAL_VAR_ADDITIVE);
-    active=material;
-    // Fatality resets render-view modulation before setting material colors.
+    // Airflow pass state: translucent + nofog + per-pass ignore-Z on the material;
+    // the colour comes from the render view's modulation/blend, not from the
+    // material's own ColorModulate/AlphaModulate (that was the broken part).
+    material->SetMaterialVarFlag(MATERIAL_VAR_TRANSLUCENT,true);
+    material->SetMaterialVarFlag(MATERIAL_VAR_NOFOG,true);
+    material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);
+    material->SetMaterialVarFlag(MATERIAL_VAR_WIREFRAME,false);
+    const bool glow=index==AirflowMaterialDefinition::Glow;
+    // The glow overlay is drawn in the secondary (glow) colour; every other
+    // recipe is drawn in the primary colour.
+    const std::uint32_t color=glow ? secondary : rgba;
+    auto& v=variables[index];
+    // Recipes with an envmap are tinted by the draw colour (airflow sets
+    // $envmaptint to the main colour on every pass).
+    if(v.env)Set(v.env,ChamsPasses::Tint(color));
+    if(glow && v.fresnel_range){
+        const auto fill=ChamsPasses::GlowFill(color);
+        v.fresnel_range->SetVecValue(0.f,1.f,5.f-5.f*fill);
+    }
+    if(v.phong)Set(v.phong,ChamsPasses::Tint(secondary));
     if(Interfaces::RenderView){
         ViewSlot<void(__thiscall*)(void*,float*)>(7)(Interfaces::RenderView,old_view_color);
         old_blend=ViewSlot<float(__thiscall*)(void*)>(5)(Interfaces::RenderView);view_saved=true;
-        constexpr float white[3]{1.f,1.f,1.f};
-        ViewSlot<void(__thiscall*)(void*,const float*)>(6)(Interfaces::RenderView,white);
-        ViewSlot<void(__thiscall*)(void*,float)>(4)(Interfaces::RenderView,1.f);
+        const auto rgb=ChamsPasses::Tint(color);
+        ViewSlot<void(__thiscall*)(void*,const float*)>(6)(Interfaces::RenderView,rgb.data());
+        ViewSlot<void(__thiscall*)(void*,float)>(4)(Interfaces::RenderView,ChamsPasses::Alpha(color));
     }
-    const auto primary=ChamsPasses::Tint(rgba),effect=ChamsPasses::Tint(secondary,true);
-    material->ColorModulate(primary[0],primary[1],primary[2]);
-    // Preserve the picker alpha continuously, including the last five percent.
-    const float alpha=ChamsPasses::Alpha(rgba);
-    auto& v=variables[kind];
-    if(kind==7){
-        // Only reflected Fresnel light is additive; no diffuse white veil.
-        material->ColorModulate(0.f,0.f,0.f);
-        Set(v.env,effect);
-        material->SetMaterialVarFlag(MATERIAL_VAR_ADDITIVE,true);
-        if(v.fresnel)v.fresnel->SetValue(1);
-        Set(v.fresnel_range,{0.f,1.f,2.f});
-    }
-    if(kind==ChamsPasses::Shaded){
-        Set(v.phong,ChamsPasses::Tint(secondary));
-        if(v.exponent)v.exponent->SetValue(ChamsPasses::ShadedExponent(secondary));
-    }else if(kind==ChamsPasses::Metallic){
-        Set(v.env,ChamsPasses::Tint(secondary));
-        if(v.fresnel)v.fresnel->SetValue(ChamsPasses::MetallicFresnel(secondary));
-    }
-    material->AlphaModulate(alpha);
-    material->SetMaterialVarFlag(MATERIAL_VAR_IGNOREZ,ignore_z);
-    material->SetMaterialVarFlag(MATERIAL_VAR_WIREFRAME,false);
+    active=material;
     Interfaces::ModelRender->ForcedMaterialOverride(material);
     return true;
 }

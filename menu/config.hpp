@@ -324,15 +324,17 @@ struct cfg_t {
 		esp_flag_max,
 	};
 
+	// Bit indices = the old "airflow" project's material list; values must not
+	// move (saved configs store the set bit). 3/4 are dead legacy slots.
 	enum cham_material {
 		cham_none,
-		cham_normal,
+		cham_textured,
 		cham_flat,
 		cham_rim_glow,
 		cham_contour,
-		cham_flow,
-		cham_acrylic,
-		cham_legacy,
+		cham_fade_up,
+		cham_bubble,
+		cham_glow,
 		cham_sprite,
 		cham_shaded,
 		cham_metallic,

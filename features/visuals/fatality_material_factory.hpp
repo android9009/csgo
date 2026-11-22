@@ -1,6 +1,5 @@
 #pragma once
-#include "fatality_material_definitions.hpp"
-#include "chams_passes.hpp"
+#include "airflow_material_definitions.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
@@ -29,24 +28,23 @@ inline void* Parse(const char* name,const char* value) {
 #endif
     return result;
 }
-inline IMaterial* Create(int kind) {
+// Create a runtime material from a full VMT buffer (the old "airflow" creation
+// path). This is KeyValues::FromString(shader, flat key/value pairs), NOT
+// LoadFromBuffer(resourceName, full VMT): the body must be the flat parameter
+// list, which is exactly what AirflowMaterialDefinition::Parameters extracts.
+inline IMaterial* CreateVMT(const char* name,const char* shader,const char* vmt) {
     if(!Interfaces::MaterialSystem)return nullptr;
-    const char* name=nullptr;const char* definition=nullptr;
-    switch(kind){
-        case 2:name="pastavar/chams_v3_flat";definition=FatalityMaterialDefinition::flat;break;
-        case ChamsPasses::Shaded:name="pastavar/chams_shaded_v3";definition=FatalityMaterialDefinition::shaded;break;
-        case ChamsPasses::Metallic:name="pastavar/chams_metallic_v3";definition=FatalityMaterialDefinition::metallic;break;
-        default:return nullptr;
-    }
-    // This is KeyValues::FromString(shader, flat key/value pairs), NOT
-    // LoadFromBuffer(resourceName, full VMT). Passing a full VMT here nests
-    // all shader parameters under a child and makes the root the file name.
-    const char* shader=FatalityMaterialDefinition::Shader(kind);
-    const char* body=FatalityMaterialDefinition::Parameters(definition);if(!shader || !body)return nullptr;
+    const char* body=AirflowMaterialDefinition::Parameters(vmt);
+    if(!shader || !body)return nullptr;
     auto* kv=Parse(shader,body);
-    if(!kv){LOG_WARN("Fatality material parser unavailable: kind=%d",kind);return nullptr;}
+    if(!kv){LOG_WARN("chams material parser unavailable: %s",name);return nullptr;}
     auto* material=Interfaces::MaterialSystem->CreateMaterial(name,kv);
-    if(material && !material->IsErrorMaterial())LOG_INFO("chams created kind=%d shader=%s",kind,material->GetShaderName());
+    if(!material || material->IsErrorMaterial()){
+        LOG_WARN("chams material creation failed: %s (shader %s)",name,shader);
+        return nullptr;
+    }
+    material->IncrementReferenceCount();
+    LOG_INFO("chams material created: %s (shader %s)",name,material->GetShaderName());
     return material;
 }
 }
