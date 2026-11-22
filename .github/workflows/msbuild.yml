@@ -97,7 +97,6 @@ jobs:
           $warnings = @(Get-Content vs-build.log | Select-String 'warning C\d+')
           Write-Output "::notice::Visual Studio compiler warning lines: $($warnings.Count) ($(($warnings | Select-Object -Unique).Count) unique)"
           $warnings | Select-Object -Unique | Set-Content -Path vs-warnings.txt -Encoding utf8
-          if (($warnings | Select-Object -Unique).Count -gt 10) { echo "needs_export=true" >> "$GITHUB_OUTPUT" }
           $warnings | Select-Object -Unique | ForEach-Object {
             if ($_.Line -match '^(.+?)\((\d+),(\d+)\):\s*(warning C\d+:.*)$') {
               $rel = $matches[1].Replace('D:\a\csgo\csgo\','').Replace('\','/')
@@ -129,7 +128,6 @@ jobs:
           }
 
       - name: Upload unique warning list
-        if: steps.sln-release.outputs.needs_export == 'true' || (github.event_name == 'workflow_dispatch' && inputs.warn_export)
         uses: actions/upload-artifact@v4
         with:
           name: sln-warnings
@@ -137,14 +135,14 @@ jobs:
           if-no-files-found: error
 
   warn-export:
-    # One slice of 10 file-located warnings per job (annotation cap per job).
+    # Annotation caps: ~10 located warnings / ~4KB per job. Each slice emits one
+    # notice carrying up to 30 raw warning lines; collect them via the API.
     needs: visual-studio-solution
-    if: needs.visual-studio-solution.outputs.needs_export == 'true' || (github.event_name == 'workflow_dispatch' && inputs.warn_export)
     runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
-        i: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
+        i: [0,1,2,3,4,5,6,7,8,9]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -155,16 +153,9 @@ jobs:
           SLICE: ${{ matrix.i }}
         run: |
           $lines = @(Get-Content sln-warnings/vs-warnings.txt)
-          $slice = $lines | Select-Object -Skip ([int]$env:SLICE * 10) -First 10
-          if ($slice.Count -eq 0) { exit 0 }
-          Write-Output "::notice::slice $env:SLICE of $([Math]::Ceiling($lines.Count / 10.0)) ($($lines.Count) total, $($slice.Count) here)"
-          $slice | ForEach-Object {
-            if ($_ -match '^(.+?)\((\d+),(\d+)\):\s*(warning C\d+:.*)$') {
-              $rel = $matches[1].Replace('D:\a\csgo\csgo\','').Replace('\','/')
-              $msg = ($matches[4] -replace ' \[.*\]$','')
-              Write-Output "::warning file=$rel,line=$($matches[2]),col=$($matches[3])::$msg"
-            } else { Write-Output "::warning::$_" }
-          }
+          $chunk = $lines | Select-Object -Skip ([int]$env:SLICE * 30) -First 30
+          if ($chunk.Count -eq 0) { exit 0 }
+          Write-Output ("::notice::SLICE" + $env:SLICE + "|" + ($chunk -join " ||| "))
 
   debug-build:
     runs-on: windows-2022
