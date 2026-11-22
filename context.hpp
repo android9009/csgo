@@ -1,6 +1,7 @@
 #pragma once
 // Глобальный контекст — по образцу Havoc HAVOCCTX (base/context.hpp) + Fatality globals.
 // Один объект на весь чит, обновляется в хуках. Никаких разбросанных глобалок.
+#include <atomic>
 #include "utils/math/vector.hpp"
 #include "utils/math/qangle.hpp"
 #include "utils/math/matrix.hpp"
@@ -21,7 +22,9 @@ struct cheat_ctx_t {
 
     // state
     bool in_game = false;
-    bool unload = false;
+    // Set by WndProc on game shutdown messages; consumed by the main thread
+    // (main.cpp) which performs the hook restore and DLL self-unload.
+    std::atomic<bool> unload{false};
     bool send_packet = true;
     bool in_createmove = false;
     int tickbase = 0;

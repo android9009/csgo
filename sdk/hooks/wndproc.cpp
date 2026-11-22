@@ -23,8 +23,10 @@ static bool ForwardGuiInput(UINT message, WPARAM wparam, LPARAM lparam, bool ope
 
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     // Never let GUI input handling consume the game's shutdown messages.
-    // Avoid waiting or unloading here: WndProc can be executing inside a hook.
+    // Only flag the shutdown here: WndProc can be executing inside a hook, so
+    // the actual hook restore and DLL self-unload run in the main thread (main.cpp).
     if (message == WM_CLOSE || message == WM_DESTROY || message == WM_NCDESTROY || message == WM_QUERYENDSESSION || message == WM_ENDSESSION) {
+        ctx.unload = true;
         if (auto original = Hooks::GetOriginalWndProc()) return CallWindowProcA(original, window, message, wparam, lparam);
         return DefWindowProcA(window, message, wparam, lparam);
     }
