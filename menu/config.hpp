@@ -48,15 +48,10 @@ namespace group {
 	void visuals_models_enemy( std::shared_ptr<layout>& e );
 	void visuals_models_team( std::shared_ptr<layout>& e );
 	void visuals_misc_local( std::shared_ptr<layout>& e );
-	void visuals_misc_general( std::shared_ptr<layout>& e );
-	void visuals_misc_beams( std::shared_ptr<layout>& e );
 
 	void misc_general( std::shared_ptr<layout>& e );
 	void misc_movement( std::shared_ptr<layout>& e );
 	void misc_buybot( std::shared_ptr<layout>& e );
-
-	void lua_general( std::shared_ptr<layout>& e );
-	void lua_stub( std::shared_ptr<layout>& e );
 
 	void skins_weapons( std::shared_ptr<layout>& e );
 	void skins_options( std::shared_ptr<layout>& e );

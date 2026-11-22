@@ -238,7 +238,7 @@ namespace menu::group
 		area->is_visible = false;
 		area->make_not_clip();
 		area->add(make_groupbox(XOR("visuals>misc>local"), XOR("LOCAL"), group_sz, visuals_misc_local));
-		area->add(make_groupbox(XOR("visuals>misc>various"), XOR("OTHER"), group_sz, visuals_misc_various));
+		area->add(make_groupbox(XOR("visuals>misc>other"), XOR("OTHER"), group_sz, visuals_misc_other));
 		area->add(make_groupbox(XOR("visuals>misc>world"), XOR("WORLD"), group_sz, visuals_misc_world));
 
 		e->add(area);
@@ -759,7 +759,7 @@ namespace menu::group
 		//VIRTUALIZER_TIGER_WHITE_END;
 	}
 
-	void visuals_misc_various(std::shared_ptr<layout> &e)
+	void visuals_misc_other(std::shared_ptr<layout> &e)
 	{
 		ADD("Texture transparency", "visuals>misc>other>texture transparency", slider<float>, 0.f, 100.f, cfg.misc.texture_transparency, "%.0f%%");
 		ADD("Prop transparency", "visuals>misc>other>prop transparency", slider<float>, 0.f, 100.f, cfg.visuals.prop_transparency, "%.0f%%");

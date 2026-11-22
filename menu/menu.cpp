@@ -326,7 +326,7 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                             e->add(menu::tools::make_stacked_groupboxes(GUI_HASH("misc>movement,extra"), group_sz, {
                                 make_groupbox("misc>movement", "MOVEMENT", half, menu::group::misc_movement),
                                 make_groupbox("misc>movement>extra", "MOVEMENT EXTRA", half, menu::group::misc_movement_extra)}));
-                            e->add(make_groupbox("misc>buy bot", "BUY BOT", group_sz, menu::group::misc_buybot));
+                            e->add(make_groupbox("misc>buybot", "BUY BOT", group_sz, menu::group::misc_buybot));
                         }));
                         e->add(make_tab_area(GUI_HASH("scripts_container"), false, [](const std::shared_ptr<layout>&) {}));
                         e->add(make_tab_area(GUI_HASH("skins_container"), false, s_horizontal, [&](const std::shared_ptr<layout>& e) {
