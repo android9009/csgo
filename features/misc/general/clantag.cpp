@@ -17,7 +17,7 @@ SetClanTagFn ResolveSetClanTag() {
     static SetClanTagFn fn = nullptr;
     if (!fn) {
         const auto offset = offsets::Get("dwSetClanTag");
-        const auto base = MEM::GetModuleBase("client.dll");
+        const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
         if (offset && base) fn = reinterpret_cast<SetClanTagFn>(base + offset);
     }
     return fn;

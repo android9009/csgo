@@ -117,6 +117,12 @@ void Shutdown() {
     ModelPreview::Shutdown();
     PropManager::Get().Destroy();
 }
+// SEH must live in a function without C++ objects: InitializeAndRun has a try/catch and a
+// std::string, where a __try would be C2712/C2713.
+void InitMiscRuntimeSeh() {
+    __try { Misc::Init(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception during init 0x%08lX", GetExceptionCode()); }
+}
 DWORD InitializeAndRun(HMODULE self) {
     try {
         std::string warnings;
@@ -143,8 +149,7 @@ DWORD InitializeAndRun(HMODULE self) {
         // The Misc tab runtime: game-event listener + ping-spike network detours. Features
         // stay off until the menu bridge publishes the loaded config.
         current_stage = "Misc runtime";
-        __try { Misc::Init(); }
-        __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception during init 0x%08lX", GetExceptionCode()); }
+        InitMiscRuntimeSeh();
         LOG_INFO("CS:GO base initialized");
         current_stage = "Running";
         Publish(PastavarStatus::Ready, warnings.empty() ? "" : warnings.c_str());

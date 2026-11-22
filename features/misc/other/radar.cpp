@@ -44,7 +44,9 @@ bool __fastcall IsHlTV(void* ecx, void* edx) {
     const auto original = g_hook.get_original<IsHlTVFn>();
     if (Detail::Radar()) {
         const auto target = ShowRadarReturnAddr();
-        if (target && static_cast<std::uintptr_t>(_ReturnAddress()) == target)
+        // _ReturnAddress() is a void* on x86 MSVC and an integer on x64; routing through a
+        // pointer covers both spellings (a direct cast to uintptr_t fails on one of them).
+        if (target && reinterpret_cast<std::uintptr_t>(reinterpret_cast<void*>(_ReturnAddress())) == target)
             return true;
     }
     return original ? original(ecx, edx) : false;

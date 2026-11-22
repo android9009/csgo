@@ -135,7 +135,6 @@ void LogPlayerDeath(const IGameEvent* event) {
     const int victim_id = event->GetInt("userid");
     const int attacker_id = event->GetInt("attacker");
     const char* weapon = event->GetString("weapon");
-    const bool headshot = event->GetInt("headshot") != 0;
 
     if (IsLocalUser(victim_id) && LogNaded() && IsExplosive(weapon)) {
         const int a_idx = IndexOf(attacker_id);

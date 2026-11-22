@@ -1,7 +1,6 @@
 #include "general.hpp"
 #include "../../../context.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
-#include "../../../sdk/third_party/gui/src/gui/values.h"
 #include "../../../utils/detourhook.hpp"
 #include "../../../utils/log.hpp"
 #include "../../../utils/memory.hpp"

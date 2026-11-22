@@ -142,7 +142,7 @@ void CreateMove(CUserCmd* cmd) {
     tick.ground_ticks = g_state.ground_ticks;
 
     // The running strafe reference starts from the view the engine handed us this tick.
-    QAngle view;
+    QAngle view{};
     if (Interfaces::Engine) Interfaces::Engine->GetViewAngles(view);
     g_state.base_view_angle = view;
 
