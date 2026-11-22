@@ -127,35 +127,115 @@ jobs:
             if (!(Test-Path $file)) { throw "Missing $file" }
           }
 
-      - name: Upload unique warning list
-        uses: actions/upload-artifact@v4
-        with:
-          name: sln-warnings
-          path: vs-warnings.txt
-          if-no-files-found: error
-
-  warn-export:
-    # Annotation caps: ~10 located warnings / ~4KB per job. Each slice emits one
-    # notice carrying up to 30 raw warning lines; collect them via the API.
-    needs: visual-studio-solution
-    runs-on: windows-2022
-    strategy:
-      fail-fast: false
-      matrix:
-        i: [0,1,2,3,4,5,6,7,8,9]
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: sln-warnings
-      - name: Emit slice ${{ matrix.i }}
+      - name: Export warnings chunk 0
         shell: pwsh
-        env:
-          SLICE: ${{ matrix.i }}
         run: |
-          $lines = @(Get-Content sln-warnings/vs-warnings.txt)
-          $chunk = $lines | Select-Object -Skip ([int]$env:SLICE * 30) -First 30
-          if ($chunk.Count -eq 0) { exit 0 }
-          Write-Output ("::notice::SLICE" + $env:SLICE + "|" + ($chunk -join " ||| "))
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 0 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE0|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE0|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 1
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 30 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE1|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE1|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 2
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 60 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE2|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE2|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 3
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 90 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE3|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE3|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 4
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 120 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE4|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE4|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 5
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 150 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE5|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE5|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 6
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 180 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE6|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE6|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 7
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 210 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE7|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE7|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 8
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 240 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE8|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE8|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 9
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 270 -First 30)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE9|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE9|ERR " + $_.Exception.Message)
+          }
 
   debug-build:
     runs-on: windows-2022
