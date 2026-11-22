@@ -23,6 +23,7 @@
 | `Luas/nl/viera utils.lua` | **да** | `should_extrapolate` → свой стаб (`jmp` вместо `call`, стаб делает настоящий `call` и `jmp` назад); `select_lagrecord` → пещера, `GetEntityIndex` → стаб entindex, fallback-выбор записи, animfix `thirdperson_recoil` | **`nl_all_patches.lua`, разделы 9.5–9.6** |
 | `Luas/nl/persistence.lua` | **да** | model hook: 5 байт `83 EC 54 53 56` по `studiorender.dll+0x536A6` → `jmp` в пещеру 192 байта, которая подменяет цвет модели и зовёт вторую пещеру (50 байт) для копирования матриц; плюс управляющий блок на 68 байт | **`nl_all_patches.lua`, раздел 9.7** |
 | `Luas/nl/persistence.lua` | **да** | rage native fixes: 5 патчей в `neverlose.dll` (срок жизни записей ×2, множители слоя 0.75/1.25, принудительный вес слоя 1.0) | **`nl_all_patches.lua`, раздел 9.8** |
+| `Luas/nl/persistence.lua` | **да** | хуки `cl_move` (engine.dll: только disp32 вызова → пещера 64 Б) и `write_usercmd` (vtable `VClient018`+24 → пещера 32 Б) | **`nl_all_patches.lua`, раздел 9.9** |
 | `Luas/nl/patches/2026-11-02_…-127.lua`, `Patches/2026-11-02_…-127.lua` | да | PAW Backtrack | `nl_all_patches.lua` |
 | `Patches/2026-10-07_…-185{,-1,-5}.lua` + копии в `Luas/skeet/patches/` | да | Z_NORM, DIR_FLAGS, Skala Johnson | `skeet_all_patches.lua` |
 | `Patches/2026-10-07_…-185-2.lua` | нет | анимация меню через поля меню в `paint_ui` | `skeet_all_patches.lua` (без записи в код) |
@@ -90,6 +91,27 @@
 неё (disp32 у `F3 0F 59 0D`/`F3 0F 10 0D` свой на каждой сборке, поэтому
 сверяется только опкод). Неоднозначный шаблон (два совпадения) — отказ, а не
 «патчим первое, что нашли».
+
+#### Группа `Rage → NL Hooks (persistence)` (раздел 9.9)
+
+| Элемент | Действие |
+| --- | --- |
+| `cl_move hook (engine.dll)` | в шаблоне `8A CB F2 0F 10 05 … F3 0F 10 45 FC E8` на `+31` стоит `call rel32`; переписывается **только disp32** (`E8` остаётся), вызов уходит в пещеру 64 Б: `sub esp,4 / movss [esp],xmm0 / pushfd / pushad / mov eax,колбэк / call eax / test eax,eax / jne ret / jmp настоящая цель / ret` |
+| `cl_move callback (hex)` | адрес нативного колбэка; без него хук не ставится |
+| `write_usercmd hook (VClient018+24)` | хук vtable-слота 24 интерфейса `VClient018`: пещера 32 Б (`push ebp / mov ebp,esp / mov ecx,[ebp+8] / mov edx,[ebp+0C] / push [ebp+10] / mov eax,колбэк / call eax / add esp,4 / pop ebp / ret`) записывается в слот |
+| `write_usercmd callback (hex)` | адрес нативного колбэка; без него хук не ставится |
+
+Байты пещер совпадают с `emit_cl_move_stub` / `emit_write_stub` из
+`persistence.lua`, включая `rel8 = 5` у ветки «колбэк всё сделал» и `rel32` на
+настоящую цель `cl_move`. Перед установкой проверяются: PE-подпись модуля,
+единственность шаблона, исполняемость места вызова, `E8` на месте вызова,
+читаемость слота vtable и его непустота; после записи — обратное чтение,
+при снятии возвращаются disp32 и слот, пещеры освобождаются.
+
+Честное ограничение: в оригинале колбэк — это `bind_function` от Lua-функции,
+то есть нативный код, который создаёт только рантайм persistence. Поэтому
+колбэк задаётся адресом, а не «включается галочкой»: без адреса хук честно
+отказывается и пишет причину.
 
 Сайты viera **не** заданы числами: они находятся сканом байтов по образу чита
 (`jne`-скан, `dec edi`, два вызова break distance, гейт defensive). Не нашлось —
@@ -170,15 +192,13 @@ call_ptr)`, `:set_color(r,g,b,a)`, `:set_capture(buffer, size)`, `:captured()`,
 
 ## Остаток по `Luas/nl/persistence.lua`
 
-Перенесены `model hook` (раздел 9.7) и пять байтовых патчей `rage native
-fixes` (раздел 9.8). В том же файле остались хуки, которые в оригинале
-привязаны к его же рантайму; они перечислены здесь, чтобы это не выглядело
-как «перенесено всё»:
+Перенесены `model hook` (раздел 9.7), пять байтовых патчей `rage native fixes`
+(раздел 9.8), хуки `cl_move` и `write_usercmd` (раздел 9.9). В том же файле
+остались две вещи; они перечислены здесь, чтобы это не выглядело как
+«перенесено всё»:
 
 | Что | Где в исходнике | Что нужно, чтобы перенести |
 | --- | --- | --- |
-| `write_usercmd` (vtable `VClient018` +24) | `persistence.lua:74273` (сигнатура), установка `79974…79999`, стаб 32 байта (`emit_write_stub`) | стаб вызывает нативный колбэк, который создаёт только рантайм persistence (`bind_function` → код) |
-| `cl_move` (engine.dll, `call` по сигнатуре `+31`) | `74038`, установка `88226…` | стаб 64 байта (`emit_cl_move_stub`), тоже зовёт нативный колбэк |
 | `prediction_*` (vtable `VClientPrediction001` +3/+8/+19) | `74002…74034`, установка `88774…` | стаб 40 байт, сверяет адрес возврата и зовёт нативный колбэк |
 | continuity-гейт (`replacement` строится пещерой 256 байт) | `43414…46040` | пещера из `append_bytes`, float-константы на +48/+64 |
 
@@ -224,7 +244,7 @@ pip install --break-system-packages lupa
 python3 tests/lua/run.py
 ```
 
-Ожидаемый вывод — `TOTAL 291 passed, 0 failed`.
+Ожидаемый вывод — `TOTAL 333 passed, 0 failed`.
 
 Чего эти тесты **не** доказывают: что конкретный билд чита совпадает с
 адресами (это проверяет `Read sites` / `Diagnose` уже в игре) и что патч

@@ -43,6 +43,8 @@ local scenarios = {
     { name = "nl / persistence rejects",      fn = function() return nl_tests.run_persistence_rejections(harness, nl_path) end },
     { name = "nl / rage fixes",               fn = function() return nl_tests.run_rage_fixes(harness, nl_path) end },
     { name = "nl / rage fixes rejects",       fn = function() return nl_tests.run_rage_fixes_rejects(harness, nl_path) end },
+    { name = "nl / persistence hooks",         fn = function() return nl_tests.run_persistence_hooks(harness, nl_path) end },
+    { name = "nl / persistence hooks rejects", fn = function() return nl_tests.run_persistence_hooks_rejects(harness, nl_path) end },
 }
 
 local total_passed, total_failed = 0, 0

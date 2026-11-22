@@ -32,6 +32,7 @@ function M.reset()
     M.heap_next, M.alloc_next, M.allocations = 0x71000000, 0x72000000, {}
     M.references = {}
     M.module_handles = {}
+    M.interfaces = {}
     M.thread_id = 0x1234
     M.entity = { props = {}, local_player = nil, alive = true }
 end
@@ -603,6 +604,10 @@ function M.install_globals(kind, options)
 
     local utils = {
         net_channel = function() return options.net_channel or { latency = { [0] = 0.03 } } end,
+        create_interface = function(module, name)
+            if M.interfaces == nil then return nil end
+            return M.interfaces[name] or nil
+        end,
         get_netvar_offset = function(_, name)
             if options.netvars ~= nil and options.netvars[name] ~= nil then
                 return options.netvars[name]

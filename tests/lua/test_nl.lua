@@ -1006,4 +1006,169 @@ function M.run_rage_fixes_rejects(H, path)
     return report
 end
 
+-- 12. persistence: хуки cl_move (engine.dll) и write_usercmd (vtable)
+
+local CL_MOVE_SIG = "8A CB F2 0F 10 05 ? ? ? ? DD 5D F0 F2 0F 58 45 F0 " ..
+                    "F2 0F 11 05 ? ? ? ? F3 0F 10 45 FC E8 ? ? ? ?"
+
+local function plant_engine(H, base, offset, target)
+    H.add_region(base, 0x200000, H.const.PAGE_EXECUTE_READ, H.const.MEM_IMAGE, false)
+    H.write_u32(base, 0x00905A4D)
+    H.write_u32(base + 0x3C, 0x80)
+    H.write_u32(base + 0x80, 0x4550)
+    H.module_handles["engine.dll"] = base
+
+    local site = base + offset
+    local bytes = {}
+    for token in CL_MOVE_SIG:gmatch("%S+") do
+        if token == "?" then bytes[#bytes + 1] = 0x90 else bytes[#bytes + 1] = tonumber(token, 16) end
+    end
+    H.write_bytes(site, bytes)
+    -- disp32 у call — на настоящую цель
+    H.write_i32(site + 32, target - (site + 36))
+    return site
+end
+
+local function plant_client_vtable(H, address, table, original)
+    H.add_region(address, 0x1000, H.const.PAGE_READWRITE, H.const.MEM_PRIVATE, false)
+    H.add_region(table, 0x1000, H.const.PAGE_READWRITE, H.const.MEM_PRIVATE, false)
+    H.write_u32(address, table)                       -- интерфейс -> vtable
+    H.write_u32(table + 24 * 4, original)             -- слот 24
+    H.interfaces["VClient018"] = address
+    return table + 24 * 4
+end
+
+function M.run_persistence_hooks(H, path)
+    local report = new_report()
+    H.reset()
+    local engine_base = 0x2F000000
+    local target = engine_base + 0x9000
+    local site = plant_engine(H, engine_base, 0x8000, target)
+    local vtable_entry = plant_client_vtable(H, 0x2B100000, 0x2B200000, 0x2B300000)
+
+    load_script(H, path, { sv_maxunlag = 0.2 })
+
+    local cl_switch = H.find_item("cl_move hook (engine.dll)")
+    local cl_callback = H.find_item("cl_move callback (hex)")
+    local wu_switch = H.find_item("write_usercmd hook (VClient018+24)")
+    local wu_callback = H.find_item("write_usercmd callback (hex)")
+    check(report, cl_switch ~= nil and wu_switch ~= nil, "хуки попадают в меню")
+    check(report, cl_callback ~= nil and wu_callback ~= nil, "поля колбэков созданы")
+    check(report, cl_switch.value == false and wu_switch.value == false, "по умолчанию выключены")
+
+    -- без адреса колбэка не включается и ничего не пишет
+    H.fire(cl_switch, true)
+    check(report, cl_switch.value == false, "cl_move без колбэка гаснет")
+    check(report, H.log_contains("cl_move hook: НЕ включён — не задан адрес колбэка"), "причина названа")
+    check(report, H.read_i32(site + 32) == target - (site + 36), "disp32 вызова не тронут")
+    check(report, live_allocations(H) == 0, "пещера не выделена")
+
+    -- адрес задан: пещера собирается байт в байт
+    H.fire(cl_callback, "0x2A000000")
+    H.fire(cl_switch, true)
+    check(report, H.read_byte(site + 31) == 0xE8, "сам E8 не переписывается")
+    check(report, H.read_i32(site + 32) ~= target - (site + 36), "disp32 ушёл в пещеру")
+    local cave = site + 36 + H.read_i32(site + 32)   -- E8 на +31, инструкция кончается на +36
+    check(report, cave >= 0x72000000, "пещера в своём регионе")
+    check(report, H.read_hex(cave, 11) == "83 EC 04 F3 0F 11 04 24 9C 60 B8", "cl_move: пролог пещеры")
+    check(report, H.read_u32(cave + 11) == 0x2A000000, "cl_move: адрес колбэка в пещере")
+    check(report, H.read_hex(cave + 15, 7) == "FF D0 85 C0 75 05 E9", "cl_move: call / test / jne / jmp")
+    check(report, H.read_i32(cave + 22) == target - (cave + 26), "cl_move: jmp на настоящую цель")
+    check(report, H.read_byte(cave + 26) == 0xC3, "cl_move: ret в конце")
+    check(report, H.read_byte(cave + 27) == 0xCC, "cl_move: хвост залит CC")
+    check(report, H.region_of(cave).protect == H.const.PAGE_EXECUTE_READWRITE, "пещера RWX")
+
+    -- write_usercmd: хук vtable
+    H.fire(wu_callback, "0x2A001000")
+    H.fire(wu_switch, true)
+    local wcave = H.read_u32(vtable_entry)
+    check(report, wcave ~= 0x2B300000, "vtable[24] переписан")
+    check(report, wcave >= 0x72000000, "в vtable стоит пещера")
+    check(report, H.read_hex(wcave, 13) == "55 8B EC 8B 4D 08 8B 55 0C FF 75 10 B8", "write: пролог обёртки")
+    check(report, H.read_u32(wcave + 13) == 0x2A001000, "write: адрес колбэка")
+    check(report, H.read_hex(wcave + 17, 7) == "FF D0 83 C4 04 5D C3", "write: call / add esp / ret")
+    check(report, H.read_byte(wcave + 24) == 0xCC, "write: хвост залит CC")
+
+    -- тики не переустанавливают
+    for _ = 1, 3 do H.fire_event("net_update_end") end
+    check(report, live_allocations(H) == 2, "две пещеры, не больше")
+
+    -- снятие возвращает байты и память
+    H.fire(cl_switch, false)
+    check(report, H.read_i32(site + 32) == target - (site + 36), "cl_move: disp32 возвращён")
+    check(report, H.region_of(cave) == nil, "cl_move: пещера освобождена")
+
+    H.fire(wu_switch, false)
+    check(report, H.read_u32(vtable_entry) == 0x2B300000, "write: vtable[24] возвращён")
+    check(report, H.region_of(wcave) == nil, "write: пещера освобождена")
+
+    -- повторное включение работает
+    H.fire(cl_switch, true)
+    check(report, H.read_byte(site + 31) == 0xE8, "cl_move ставится снова")
+    H.fire(cl_switch, false)
+
+    return report
+end
+
+function M.run_persistence_hooks_rejects(H, path)
+    local report = new_report()
+
+    -- 1. engine.dll нет
+    H.reset()
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    local cl_switch = H.find_item("cl_move hook (engine.dll)")
+    H.fire(H.find_item("cl_move callback (hex)"), "0x2A000000")
+    H.fire(cl_switch, true)
+    check(report, cl_switch.value == false, "без engine.dll хук гаснет")
+    check(report, H.log_contains("engine.dll не загружен"), "причина названа")
+    check(report, live_allocations(H) == 0, "пещера не выделена")
+
+    -- 2. шаблона cl_move нет (E8 входит в шаблон, поэтому стёртый вызов = нет сигнатуры)
+    H.reset()
+    local engine_base = 0x2F000000
+    local site = plant_engine(H, engine_base, 0x8000, engine_base + 0x9000)
+    H.fill(site, 0x40, 0xCC)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    cl_switch = H.find_item("cl_move hook (engine.dll)")
+    H.fire(H.find_item("cl_move callback (hex)"), "0x2A000000")
+    H.fire(cl_switch, true)
+    check(report, cl_switch.value == false, "без шаблона хук не включается")
+    check(report, H.log_contains("шаблон cl_move не найден"), "причина: нет шаблона")
+
+    -- 3. интерфейса нет
+    H.reset()
+    plant_engine(H, engine_base, 0x8000, engine_base + 0x9000)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    local wu_switch = H.find_item("write_usercmd hook (VClient018+24)")
+    H.fire(H.find_item("write_usercmd callback (hex)"), "0x2A001000")
+    H.fire(wu_switch, true)
+    check(report, wu_switch.value == false, "без интерфейса хук гаснет")
+    check(report, H.log_contains("VClient018 не найден"), "причина: нет интерфейса")
+    check(report, live_allocations(H) == 0, "пещера не выделена")
+
+    -- 4. пустой слот vtable
+    H.reset()
+    plant_engine(H, engine_base, 0x8000, engine_base + 0x9000)
+    local entry = plant_client_vtable(H, 0x2B100000, 0x2B200000, 0)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    wu_switch = H.find_item("write_usercmd hook (VClient018+24)")
+    H.fire(H.find_item("write_usercmd callback (hex)"), "0x2A001000")
+    H.fire(wu_switch, true)
+    check(report, wu_switch.value == false, "пустой слот не патчится")
+    check(report, H.log_contains("vtable[24] пуст"), "причина: пустой слот")
+    check(report, H.read_u32(entry) == 0, "слот остался пустым")
+
+    -- 5. мусор в поле колбэка
+    H.reset()
+    plant_engine(H, engine_base, 0x8000, engine_base + 0x9000)
+    load_script(H, path, { sv_maxunlag = 0.2 })
+    cl_switch = H.find_item("cl_move hook (engine.dll)")
+    H.fire(H.find_item("cl_move callback (hex)"), "не адрес")
+    H.fire(cl_switch, true)
+    check(report, cl_switch.value == false, "мусорный адрес не принимается")
+    check(report, H.log_contains("не задан адрес колбэка"), "причина: адрес не разобран")
+
+    return report
+end
+
 return M
