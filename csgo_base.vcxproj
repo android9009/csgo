@@ -179,11 +179,11 @@
     <ClCompile Include="sdk\interfaces\interfaces.cpp" />
     <ClCompile Include="sdk\panorama\panorama.cpp" />
     <ClCompile Include="sdk\netvars.cpp" />
-    <ClCompile Include="sdk\third_party\minhook\buffer.c" />
-    <ClCompile Include="sdk\third_party\minhook\hde\hde32.c" />
+    <ClCompile Include="sdk\third_party\minhook\buffer.c"<AdditionalOptions>/wd4244 /wd4018 /wd4389 /wd4211 /wd4201 /wd4310 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+    <ClCompile Include="sdk\third_party\minhook\hde\hde32.c"<AdditionalOptions>/wd4244 /wd4018 /wd4389 /wd4211 /wd4201 /wd4310 %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <ClCompile Include="sdk\third_party\minhook\hde\hde64.c"><ExcludedFromBuild>true</ExcludedFromBuild><AdditionalOptions>/wd4244 /wd4018 /wd4389 /wd4211 /wd4201 /wd4310 %(AdditionalOptions)</AdditionalOptions></ClCompile>
-    <ClCompile Include="sdk\third_party\minhook\hook.c" />
-    <ClCompile Include="sdk\third_party\minhook\trampoline.c" />
+    <ClCompile Include="sdk\third_party\minhook\hook.c"<AdditionalOptions>/wd4244 /wd4018 /wd4389 /wd4211 /wd4201 /wd4310 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+    <ClCompile Include="sdk\third_party\minhook\trampoline.c"<AdditionalOptions>/wd4244 /wd4018 /wd4389 /wd4211 /wd4201 /wd4310 %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <ClCompile Include="utils\config.cpp" />
     <ClCompile Include="utils\displacement.cpp" />
     <ClCompile Include="utils\event_listener.cpp" />
