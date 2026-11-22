@@ -19,6 +19,9 @@ jobs:
         run: |
           cmake --build build --config Release 2>&1 | Tee-Object -FilePath compile.log
           $code = $LASTEXITCODE
+          $warnings = @(Get-Content compile.log | Select-String 'warning C\d+')
+          Write-Output "::notice::CMake Release warning lines: $($warnings.Count) ($(($warnings | Select-Object -Unique).Count) unique)"
+          $warnings | Select-Object -Unique | ForEach-Object { Write-Output "::warning::$_" }
           if ($code -ne 0) {
             Get-Content compile.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
@@ -49,7 +52,17 @@ jobs:
       - name: Configure staged Win32 GUI
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
       - name: Compile staged GUI and DX9 renderer
-        run: cmake --build build --config Release --target fatality_port_check
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --target fatality_port_check 2>&1 | Tee-Object -FilePath gui-build.log
+          $code = $LASTEXITCODE
+          $warnings = @(Get-Content gui-build.log | Select-String 'warning C\d+')
+          Write-Output "::notice::Staged GUI warning lines: $($warnings.Count) ($(($warnings | Select-Object -Unique).Count) unique)"
+          $warnings | Select-Object -Unique | ForEach-Object { Write-Output "::warning::$_" }
+          if ($code -ne 0) {
+            Get-Content gui-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+          }
+          exit $code
 
   visual-studio-solution:
     runs-on: windows-2022
@@ -61,10 +74,9 @@ jobs:
         run: |
           msbuild csgo_base.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=Win32 /verbosity:minimal 2>&1 | Tee-Object -FilePath vs-build.log
           $code = $LASTEXITCODE
-          $warnings = @(Get-Content vs-build.log | Select-String ': warning C\d+')
-          Write-Output "::notice::Visual Studio compiler warning lines: $($warnings.Count)"
-          $warnings | Select-Object -Unique | Select-Object -First 20 | ForEach-Object { Write-Output "::notice::$_" }
-          $warnings | Select-String 'warning C(4100|4189|4505)' | Select-Object -Unique | Select-Object -First 80 | ForEach-Object { Write-Output "::notice::$_" }
+          $warnings = @(Get-Content vs-build.log | Select-String 'warning C\d+')
+          Write-Output "::notice::Visual Studio compiler warning lines: $($warnings.Count) ($(($warnings | Select-Object -Unique).Count) unique)"
+          $warnings | Select-Object -Unique | ForEach-Object { Write-Output "::warning::$_" }
           if ($code -ne 0) {
             Get-Content vs-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
