@@ -30,6 +30,7 @@ static VMT_Hook device_d3d9_hook;
 static VMT_Hook device_ex_hook;
 static VMT_Hook reset_hook, reset_d3d9_hook, reset_ex_hook;
 static VMT_Hook client_hook;
+static VMT_Hook client_mode_hook;
 static VMT_Hook view_render_hook;
 static VMT_Hook model_render_hook;
 static WNDPROC original_wndproc = nullptr;
@@ -63,6 +64,7 @@ ResetFn GetResetOriginalFor(void* device) {
     return nullptr;
 }
 FrameStageNotifyFn GetFrameStageNotifyOriginal() { return client_hook.get_original<FrameStageNotifyFn>(); }
+CreateMoveFn GetCreateMoveOriginal() { return client_mode_hook.get_original<CreateMoveFn>(); }
 SceneEndFn GetSceneEndOriginal() { return view_render_hook.get_original<SceneEndFn>(); }
 DrawModelExecuteFn GetDrawModelExecuteOriginal() { return model_render_hook.get_original<DrawModelExecuteFn>(); }
 static void* CreateDummyDevice(bool ex) {
@@ -171,6 +173,13 @@ bool Setup() {
         LOG_WARN("Panel is null; PaintTraverse not hooked");
     if (Interfaces::Client)
         client_hook.attach(Interfaces::Client, 37, reinterpret_cast<void*>(&HooksInternal::FrameStageNotify));
+    // Movement needs the command itself, so this is the one hook that runs after the
+    // client applies input. Slot 24 is the index `main` uses for this vtable.
+    if (Interfaces::ClientMode)
+        client_mode_hook.attach(Interfaces::ClientMode, kClientModeCreateMoveSlot,
+                                reinterpret_cast<void*>(&HooksInternal::CreateMove));
+    else
+        LOG_WARN("ClientMode is null; movement and auto buy stay off (the pattern for this client changed)");
     if (Interfaces::RenderView)
         view_render_hook.attach(Interfaces::RenderView, 9, reinterpret_cast<void*>(&HooksInternal::SceneEnd));
     if (Interfaces::ModelRender)
@@ -200,7 +209,7 @@ void Restore() {
         SetWindowLongPtrA(game_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(original_wndproc));
     original_wndproc = nullptr; game_window = nullptr;
     model_render_hook.detach(); view_render_hook.detach();
-    client_hook.detach();
+    client_mode_hook.detach(); client_hook.detach();
     reset_ex_hook.detach(); reset_d3d9_hook.detach(); reset_hook.detach();
     device_ex_hook.detach(); device_d3d9_hook.detach(); device_hook.detach();
     cursor_hook.detach(); panel_hook.detach();

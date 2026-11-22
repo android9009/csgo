@@ -20,6 +20,21 @@
     <Filter Include="Features\skins">
       <UniqueIdentifier>{6D58DD9C-96BD-4A8A-94D9-1F32F528645F}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Features\misc">
+      <UniqueIdentifier>{B41C6D2E-7A35-5C8E-9E1D-3F0A6C2B71D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\misc\general">
+      <UniqueIdentifier>{C62E9F41-58B3-5D7A-A4C1-8E2D0B95F36A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\misc\movement">
+      <UniqueIdentifier>{6E1B2F44-9C4A-4F2B-8D51-3A7C0E12B9D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\misc\buybot">
+      <UniqueIdentifier>{5A7D2E13-8C41-4B9F-A6E2-71D4C0B8F935}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Features\misc\other">
+      <UniqueIdentifier>{2c5f0a41-6b7d-4a1e-9c8e-5f0b3a7d1e62}</UniqueIdentifier>
+    </Filter>
     <Filter Include="SDK\Hooks">
       <UniqueIdentifier>{847E19FD-63E2-5781-A154-076D95E4E994}</UniqueIdentifier>
     </Filter>
@@ -156,6 +171,60 @@
     </ClCompile>
     <ClCompile Include="features\visuals\removals\punch.cpp">
       <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\misc.cpp">
+      <Filter>Features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\events\misc_events.cpp">
+      <Filter>Features\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\general.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\clantag.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\ping.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\event_logs.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\general\hitsound.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\buybot\buybot.cpp">
+      <Filter>Features\misc\buybot</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\movement.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\bhop.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\autostrafe.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\quickstop.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\edge.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\movement\extras.cpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\other.cpp">
+      <Filter>Features\misc\other</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\radar.cpp">
+      <Filter>Features\misc\other</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\sv_pure.cpp">
+      <Filter>Features\misc\other</Filter>
+    </ClCompile>
+    <ClCompile Include="features\misc\other\autoaccept.cpp">
+      <Filter>Features\misc\other</Filter>
     </ClCompile>
     <ClCompile Include="features\skins\skin_changer.cpp">
       <Filter>Features\skins</Filter>
@@ -565,6 +634,24 @@
     <ClInclude Include="features\skins\skin_state.hpp">
       <Filter>Features\skins</Filter>
     </ClInclude>
+    <ClInclude Include="features\misc\misc.hpp">
+      <Filter>Features\misc</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\events\misc_events.hpp">
+      <Filter>Features\misc</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\general\general.hpp">
+      <Filter>Features\misc\general</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\buybot\buybot.hpp">
+      <Filter>Features\misc\buybot</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\movement\movement.hpp">
+      <Filter>Features\misc\movement</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\other\other.hpp">
+      <Filter>Features\misc\other</Filter>
+    </ClInclude>
     <ClInclude Include="menu\preview\model_preview.hpp">
       <Filter>Menu\preview</Filter>
     </ClInclude>
@@ -598,6 +685,9 @@
     <ClInclude Include="menu\bridges\visual_runtime.hpp">
       <Filter>Menu\bridges</Filter>
     </ClInclude>
+    <ClInclude Include="menu\bridges\misc_runtime.hpp">
+      <Filter>Menu\bridges</Filter>
+    </ClInclude>
     <ClInclude Include="menu\preview\catalog.hpp">
       <Filter>Menu\preview</Filter>
     </ClInclude>
@@ -620,6 +710,9 @@
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp">
+      <Filter>SDK</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk\datatypes\game_event.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\removals\removals.hpp">

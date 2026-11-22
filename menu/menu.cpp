@@ -75,6 +75,7 @@
 #include "menu.hpp"
 #include "tabs/tabs.hpp"
 #include "bridges/visual_runtime.hpp"
+#include "bridges/misc_runtime.hpp"
 #include "bridges/removals.hpp"
 #include "overlays/player_esp_overlay.hpp"
 #include "overlays/screen_overlay.hpp"
@@ -447,6 +448,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
     VisualSettings::Configure();
+    MiscSettings::Configure();
     RemovalsSettings::Configure();
     draw.begin_frame();
     PlayerEspOverlay::Render();

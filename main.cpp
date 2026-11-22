@@ -19,6 +19,7 @@
 #include "sdk/hooks/hooks.hpp"
 #include "menu/preview/model_preview.hpp"
 #include "features/skins/skin_changer.hpp"
+#include "features/misc/misc.hpp"
 
 namespace {
 HANDLE status_mapping{};
@@ -111,6 +112,8 @@ void Shutdown() {
     Hooks::Restore();
     __try { SkinChanger::Shutdown(); }
     __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("skins: exception while restoring weapons at shutdown"); }
+    __try { Misc::Shutdown(); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception while restoring the clan tag at shutdown"); }
     ModelPreview::Shutdown();
     PropManager::Get().Destroy();
 }
@@ -137,6 +140,11 @@ DWORD InitializeAndRun(HMODULE self) {
         Render::CreateFonts();
         current_stage = "Hook setup";
         if (!Hooks::Setup()) { Shutdown(); Publish(PastavarStatus::Failed, "Hook setup failed: game window, WndProc or EndScene hook unavailable"); return 6; }
+        // The Misc tab runtime: game-event listener + ping-spike network detours. Features
+        // stay off until the menu bridge publishes the loaded config.
+        current_stage = "Misc runtime";
+        __try { Misc::Init(); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { LOG_ERROR("misc: exception during init 0x%08lX", GetExceptionCode()); }
         LOG_INFO("CS:GO base initialized");
         current_stage = "Running";
         Publish(PastavarStatus::Ready, warnings.empty() ? "" : warnings.c_str());

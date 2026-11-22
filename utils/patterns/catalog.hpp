@@ -313,5 +313,16 @@ inline constexpr Definition kReferenceCatalog[] = {
     // above under the same name.
     {"send_datagram", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 18", {0, 0, 0, 0}, 0, true, 0},
     {"send_datagram_alt", "engine.dll", "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 57 8B F9 89 7C 24 14", {0, 0, 0, 0}, 0, true, 0},
+    // Misc "Radar" (force engine radar): the bytes right after the radar's
+    // IEngineClient::IsHLTV() call site, ported from this repository's `main` branch
+    // (`offsets.cpp`, two build candidates). The hook compares _ReturnAddress() against the
+    // match, so the match itself IS the return address.
+    {"return_addr_show_radar", "client.dll", "84 C0 75 ? 8B CB E8 ? ? ? ? 84 C0 75 ? 83 BF", {0, 0, 0, 0}, 0, true, 0},
+    {"return_addr_show_radar_alt", "client.dll", "84 C0 0F 85 ? ? ? ? 8B CB E8 ? ? ? ? 84 C0 0F 85 ? ? ? ? 83 BF", {0, 0, 0, 0}, 0, true, 0},
+    // Misc "Bypass SV Pure": CNetChan::SendNetMsg in engine.dll (`main` offsets.cpp, two
+    // build candidates); the feature drops type-14 (SV_PUREREADY) messages on the local
+    // channel. It tries them in order and stays off if neither matches.
+    {"send_net_msg", "engine.dll", "55 8B EC 56 8B F1 8B 86 ? ? ? ? 85 C0 74 ? 48 83 F8 ? 77 ? 83 BE ? ? ? ? ? 8D 8E ? ? ? ? 74 ? 32 C0 84 C0 EB ? E8 ? ? ? ? 84 C0 EB ? 83 BE ? ? ? ? ? 0F 94 C0 84 C0 74 ? B0 ? 5E 5D C2 ? ? 53", {0, 0, 0, 0}, 0, true, 0},
+    {"send_net_msg_alt", "engine.dll", "55 8B EC 83 EC 08 56 8B F1 8B 4D 04", {0, 0, 0, 0}, 0, true, 0},
 };
 } // namespace Patterns
