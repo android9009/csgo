@@ -132,7 +132,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 0 -First 30)
+            $chunk = @($lines | Select-Object -Skip 0 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE0|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE0|ERR " + $_.Exception.Message)
@@ -143,7 +143,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 30 -First 30)
+            $chunk = @($lines | Select-Object -Skip 15 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE1|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE1|ERR " + $_.Exception.Message)
@@ -154,7 +154,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 60 -First 30)
+            $chunk = @($lines | Select-Object -Skip 30 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE2|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE2|ERR " + $_.Exception.Message)
@@ -165,7 +165,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 90 -First 30)
+            $chunk = @($lines | Select-Object -Skip 45 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE3|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE3|ERR " + $_.Exception.Message)
@@ -176,7 +176,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 120 -First 30)
+            $chunk = @($lines | Select-Object -Skip 60 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE4|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE4|ERR " + $_.Exception.Message)
@@ -187,7 +187,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 150 -First 30)
+            $chunk = @($lines | Select-Object -Skip 75 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE5|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE5|ERR " + $_.Exception.Message)
@@ -198,7 +198,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 180 -First 30)
+            $chunk = @($lines | Select-Object -Skip 90 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE6|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE6|ERR " + $_.Exception.Message)
@@ -209,7 +209,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 210 -First 30)
+            $chunk = @($lines | Select-Object -Skip 105 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE7|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE7|ERR " + $_.Exception.Message)
@@ -220,7 +220,7 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 240 -First 30)
+            $chunk = @($lines | Select-Object -Skip 120 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE8|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE8|ERR " + $_.Exception.Message)
@@ -231,10 +231,98 @@ jobs:
         run: |
           try {
             $lines = @(Get-Content vs-warnings.txt)
-            $chunk = @($lines | Select-Object -Skip 270 -First 30)
+            $chunk = @($lines | Select-Object -Skip 135 -First 15)
             if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE9|" + ($chunk -join " ||| ")) }
           } catch {
             Write-Output ("::notice::SLICE9|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 10
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 150 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE10|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE10|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 11
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 165 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE11|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE11|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 12
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 180 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE12|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE12|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 13
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 195 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE13|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE13|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 14
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 210 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE14|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE14|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 15
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 225 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE15|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE15|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 16
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 240 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE16|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE16|ERR " + $_.Exception.Message)
+          }
+
+      - name: Export warnings chunk 17
+        shell: pwsh
+        run: |
+          try {
+            $lines = @(Get-Content vs-warnings.txt)
+            $chunk = @($lines | Select-Object -Skip 255 -First 15)
+            if ($chunk.Count -gt 0) { Write-Output ("::notice::SLICE17|" + ($chunk -join " ||| ")) }
+          } catch {
+            Write-Output ("::notice::SLICE17|ERR " + $_.Exception.Message)
           }
 
   debug-build:
