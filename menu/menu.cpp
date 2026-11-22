@@ -166,14 +166,12 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                // draw.create_layer( 37 );
                // draw.create_layer( 38 );
 
-                draw.adapter->on_vertex_shader_compilation_error = [ ]( const char* err ) {
+                draw.adapter->on_vertex_shader_compilation_error = [ ]( const char* ) {
                     // print_to_console( sdk::color::attention( ), XOR_STR( "Failed to compile vertex shader:\n" ) );
-                    // print_to_console( err );
                     };
 
-                draw.adapter->on_fragment_shader_compilation_error = [ ]( const char* err ) {
+                draw.adapter->on_fragment_shader_compilation_error = [ ]( const char* ) {
                     // print_to_console( sdk::color::attention( ), XOR_STR( "Failed to compile fragment shader:\n" ) );
-                    // print_to_console( err );
                     };
 
                 // buf = std::make_shared<layer>( draw.adapter->alloc_vb( ), draw.adapter->alloc_ib( ) );

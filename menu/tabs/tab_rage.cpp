@@ -274,7 +274,7 @@ namespace menu::group
 		ADD_INLINE("Delay shot", delay);
 	}
 
-	void rage_antiaim_custom(std::shared_ptr<layout>& e) { }
+	void rage_antiaim_custom(std::shared_ptr<layout>&) { }
 
 	void rage_aimbot_weapon(std::shared_ptr<layout>& e, uint32_t grp, const std::string& id) {
 		auto hitboxes = MAKE_RUNTIME(id + "hitboxes", combo_box, cfg.weapon_config.hitboxes[grp], vec2{}, vec2{80.f, 20.f});
@@ -286,7 +286,7 @@ namespace menu::group
 			MAKE_RUNTIME(id + "hitboxes>legs", selectable, "Legs", cfg_t::hitboxes_legs),
 			MAKE_RUNTIME(id + "hitboxes>feet", selectable, "Feet", cfg_t::hitboxes_feet)});
 		auto hitbox_settings = MAKE_RUNTIME(id + "hitboxes>settings", settings, nullptr);
-		{ auto e = hitbox_settings; ADD_RUNTIME("Ignore limbs in moving", id + "hitboxes>ignore limbs", checkbox, cfg.weapon_config.ignore_limbs[grp]); }
+		hitbox_settings->add(make_control(XOR("Ignore limbs in moving"), MAKE_RUNTIME(id + "hitboxes>ignore limbs", checkbox, cfg.weapon_config.ignore_limbs[grp])));
 		ADD_INLINE("Hitboxes", hitboxes, hitbox_settings);
 
 		auto multipoint = MAKE_RUNTIME(id + "multipoint", combo_box, cfg.weapon_config.pointscales[grp], vec2{}, vec2{80.f, 20.f});
@@ -298,19 +298,19 @@ namespace menu::group
 			MAKE_RUNTIME(id + "multipoint>legs", selectable, "Legs", cfg_t::hitboxes_legs),
 			MAKE_RUNTIME(id + "multipoint>feet", selectable, "Feet", cfg_t::hitboxes_feet)});
 		auto mp_settings = MAKE_RUNTIME(id + "multipoint>settings", settings, nullptr);
-		{ auto e = mp_settings;
-			ADD_RUNTIME("Head scale", id + "multipoint>head scale", slider<float>, -1.f, 100.f, cfg.weapon_config.head_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}));
-			ADD_RUNTIME("Body scale", id + "multipoint>body scale", slider<float>, -1.f, 100.f, cfg.weapon_config.body_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}));
-			ADD_RUNTIME("Prefer center points", id + "multipoint>center", checkbox, cfg.weapon_config.center_multipoint[grp]); }
+		mp_settings->add(make_control(XOR("Head scale"), MAKE_RUNTIME(id + "multipoint>head scale", slider<float>, -1.f, 100.f, cfg.weapon_config.head_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}))));
+		mp_settings->add(make_control(XOR("Body scale"), MAKE_RUNTIME(id + "multipoint>body scale", slider<float>, -1.f, 100.f, cfg.weapon_config.body_scale[grp], (ssa<float>{ssv<float>{0.f, "%.0f%%"}, ssv<float>{-1.f, "Auto"}}))));
+		mp_settings->add(make_control(XOR("Prefer center points"), MAKE_RUNTIME(id + "multipoint>center", checkbox, cfg.weapon_config.center_multipoint[grp])));
 		ADD_INLINE("Multipoint", multipoint, mp_settings);
 
 		auto hc_settings = MAKE_RUNTIME(id + "hit chance>settings", settings, nullptr);
-		{ auto e = hc_settings;
+		{
 			auto force = MAKE_RUNTIME(id + "hit chance>force", checkbox, cfg.weapon_config.force_shot[grp]);
-			e->add(make_control("Force shot", force));
+			hc_settings->add(make_control("Force shot", force));
 			auto minimum = make_control("Minimum hitchance", MAKE_RUNTIME(id + "hit chance>minimum", slider<float>, 0.f, 100.f, cfg.weapon_config.minimum_hitchance[grp], "%.0f%%"));
-			add_dependent_row(e, force, minimum, *cfg.weapon_config.force_shot[grp]);
-			ADD_RUNTIME("Double tap hitchance", id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%"); }
+			add_dependent_row(hc_settings, force, minimum, *cfg.weapon_config.force_shot[grp]);
+			hc_settings->add(make_control(XOR("Double tap hitchance"), MAKE_RUNTIME(id + "hit chance>double tap", slider<float>, 0.f, 100.f, cfg.weapon_config.doubletap_hitchance[grp], "%.0f%%")));
+		}
 		ADD_INLINE("Hitchance", MAKE_RUNTIME(id + "hit chance", slider<float>, 0.f, 100.f, cfg.weapon_config.hitchance[grp], "%.0f%%", 1.f, vec2{80.f, 14.f}), hc_settings);
 		ADD_RUNTIME("Min damage", id + "min damage", slider<float>, 0.f, 125.f, cfg.weapon_config.mindmg[grp], (ssa<float>{ssv<float>{101.f, "HP + %.0f"}, ssv<float>{0.f, "%.0f hp"}}), 1.f, vec2{80.f, 14.f});
 
@@ -321,12 +321,13 @@ namespace menu::group
 			auto mode = MAKE_RUNTIME(key, combo_box, mode_value, vec2{}, vec2{80.f, 20.f});
 			mode->add({MAKE_RUNTIME(key + ">off", selectable, "Off", 0), MAKE_RUNTIME(key + ">prefer", selectable, "Prefer", 1), MAKE_RUNTIME(key + ">force", selectable, "Force", 2)});
 			auto gear = MAKE_RUNTIME(key + ">settings", settings, nullptr);
-			{ auto e = gear;
+			{
 				auto disablers = MAKE_RUNTIME(key + ">disablers", combo_box, disabled);
 				disablers->allow_multiple = true;
 				disablers->add({MAKE_RUNTIME(key + ">shot", selectable, "Target shot", 0), MAKE_RUNTIME(key + ">resolved", selectable, "Target resolved", 1), MAKE_RUNTIME(key + ">safe", selectable, "Target safe point", 2), MAKE_RUNTIME(key + ">damage", selectable, "Low damage", 3)});
-				e->add(make_control("Disablers", disablers));
-				ADD_RUNTIME("Force on peek", key + ">peek", checkbox, peek); }
+				gear->add(make_control("Disablers", disablers));
+				gear->add(make_control(XOR("Force on peek"), MAKE_RUNTIME(key + ">peek", checkbox, peek)));
+			}
 			e->add(make_inlined(hash(key + ">row"), [&](std::shared_ptr<layout>& row) {
 				row->add(std::make_shared<label>(control_id{hash(key + ">label")}, name)); row->add(mode); row->add(gear);
 			}));
@@ -339,7 +340,6 @@ namespace menu::group
 
 		auto autostop_settings = MAKE_RUNTIME(id + "autostop>settings", settings, nullptr);
 		{
-			auto e = autostop_settings;
 			auto mode = MAKE_RUNTIME(id + "autostop>mode", combo_box, cfg.weapon_config.autostop_mode[grp]);
 			mode->allow_multiple = true;
 			mode->add({
@@ -348,7 +348,12 @@ namespace menu::group
 				MAKE_RUNTIME(id + "autostop>duck", selectable, "Duck", cfg_t::autostop_duck),
 				MAKE_RUNTIME(id + "autostop>air", selectable, "In air", cfg_t::autostop_air),
 				MAKE_RUNTIME(id + "autostop>land", selectable, "On land", cfg_t::autostop_land)});
-			ADD_INLINE("Mode", mode);
+			autostop_settings->add(make_inlined(GUI_HASH("Mode_content"), [&](std::shared_ptr<layout>& row) {
+				const std::vector<std::shared_ptr<evo::gui::control>> _{ mode };
+				row->add(std::make_shared<label>(control_id{hash(XOR("Mode")) + _.size()}, XOR("Mode")));
+				for (const auto& item : _)
+					row->add(item);
+			}));
 		}
 		ADD_INLINE("Autostop", MAKE_RUNTIME(id + "autostop", checkbox, cfg.weapon_config.autostop[grp]), autostop_settings);
 	}

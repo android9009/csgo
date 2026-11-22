@@ -339,8 +339,8 @@ namespace menu::group
             const float width = (r.width() - 12.f) / 3.f;
             bool budget = true;
             for (int i = 0; i < 5; ++i) {
-                const auto pos = r.tl() + vec2{static_cast<float>(i % 3) * (width + 6.f), static_cast<float>(i / 3) * 54.f};
-                const rect card{pos, pos + vec2{width, 50.f}};
+                const auto card_pos = r.tl() + vec2{static_cast<float>(i % 3) * (width + 6.f), static_cast<float>(i / 3) * 54.f};
+                const rect card{card_pos, card_pos + vec2{width, 50.f}};
                 layer->add_rect_filled_rounded(card, equipment_screen == entries[i] ? colors.bg_block_light : colors.bg_bottom, 2.f);
                 const std::string empty;
                 const auto& selected = entries[i] == Equipment::Knife ? equipped_knife[team] : entries[i] == Equipment::Gloves ? equipped_gloves[team] : entries[i] == Equipment::Music ? equipped_music[team] : entries[i] == Equipment::Medal ? equipped_medal[team] : empty;
@@ -471,9 +471,9 @@ namespace menu::group
                     FatalityPreviewBridge::agent[team].store(agent_choice, std::memory_order_relaxed);
                     EquipmentState::Agent(team_ct,index==0 ? std::string{} : PreviewCatalog::GetAgent(team_ct,index).model);
                     load_catalog();
-                    const auto id=inventory_metadata.items.find(PreviewCatalog::GetAgent(team_ct,index).icon);
-                    EquipmentState::InventorySelection(team_ct,0,index==0 || id==inventory_metadata.items.end()?0:id->second);
-                    if(index && id==inventory_metadata.items.end()) LOG_WARN("local inventory: schema ID missing for agent %s",PreviewCatalog::GetAgent(team_ct,index).icon);
+                    const auto item_id=inventory_metadata.items.find(PreviewCatalog::GetAgent(team_ct,index).icon);
+                    EquipmentState::InventorySelection(team_ct,0,index==0 || item_id==inventory_metadata.items.end()?0:item_id->second);
+                    if(index && item_id==inventory_metadata.items.end()) LOG_WARN("local inventory: schema ID missing for agent %s",PreviewCatalog::GetAgent(team_ct,index).icon);
                     pending.stickers = agent_patches[team][agent_choice];
                     return;
                 }
@@ -505,9 +505,9 @@ namespace menu::group
                     (music?equipped_music[team]:equipped_medal[team])=items[index].icon;
                     load_catalog();
                     const auto& ids=music?inventory_metadata.music:inventory_metadata.items;
-                    const auto id=ids.find(items[index].icon);
-                    EquipmentState::InventorySelection(team_ct,music?2:1,index==0 || id==ids.end()?0:id->second);
-                    if(index && id==ids.end()) LOG_WARN("local inventory: schema ID missing for %s",items[index].icon);
+                    const auto item_id=ids.find(items[index].icon);
+                    EquipmentState::InventorySelection(team_ct,music?2:1,index==0 || item_id==ids.end()?0:item_id->second);
+                    if(index && item_id==ids.end()) LOG_WARN("local inventory: schema ID missing for %s",items[index].icon);
                 }
                 equipment_screen = Equipment::None;
                 equipment_scroll = 0.f;
@@ -583,9 +583,9 @@ namespace menu::group
             if (key == VK_RETURN || key == VK_ESCAPE) { stop_name_input(); return; }
             auto& target = editing_search ? search_query : pending.custom_name;
             if (key == VK_BACK && !target.empty()) {
-                size_t pos = target.size() - 1;
-                while (pos > 0 && (static_cast<unsigned char>(target[pos]) & 0xc0) == 0x80) --pos;
-                target.erase(pos);
+                size_t pos_idx = target.size() - 1;
+                while (pos_idx > 0 && (static_cast<unsigned char>(target[pos_idx]) & 0xc0) == 0x80) --pos_idx;
+                target.erase(pos_idx);
                 if (editing_search) skin_scroll = equipment_scroll = 0.f;
                 else if (selected_weapon.internal) commit_weapon();
             }
@@ -661,8 +661,8 @@ namespace menu::group
                 for(int category=1;category<=2;++category) {
                     const auto& ids=category==2?inventory_metadata.music:inventory_metadata.items;
                     const auto& path=category==2?equipped_music[team]:equipped_medal[team];
-                    const auto id=ids.find(path);
-                    EquipmentState::InventorySelection(team_ct,category,id==ids.end()?0:id->second);
+                    const auto item_id=ids.find(path);
+                    EquipmentState::InventorySelection(team_ct,category,item_id==ids.end()?0:item_id->second);
                 }
             }
             selected_weapon=old_weapon;pending=old_pending;team_ct=old_team;
@@ -685,14 +685,14 @@ namespace menu::group
             }
             const int definition = SkinState::Definition(selected_weapon.internal);
             if (pending.paint.empty()) { SkinState::Remove(team_ct, definition); return; }
-            const auto id = schema_metadata.paint_ids.find(pending.paint);
-            if (id == schema_metadata.paint_ids.end() || !definition) {
+            const auto paint_id = schema_metadata.paint_ids.find(pending.paint);
+            if (paint_id == schema_metadata.paint_ids.end() || !definition) {
                 SkinState::Remove(team_ct, definition);
                 LOG_WARN("skins: missing paint kit ID or weapon definition for %s / %s", selected_weapon.internal, pending.paint.c_str());
                 return;
             }
             SkinState::Choice choice{};
-            choice.paint_kit = id->second; choice.seed = pending.seed; choice.wear = pending.wear;
+            choice.paint_kit = paint_id->second; choice.seed = pending.seed; choice.wear = pending.wear;
             choice.stattrak = pending.souvenir || pending.stattrak_mode == 2 ? -1 : pending.stattrak_mode == 1 ? pending.stattrak_count : -2;
             choice.souvenir = pending.souvenir;
             std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
@@ -789,10 +789,10 @@ namespace menu::group
             return result;
         }
         void render_toolbar(std::shared_ptr<evo::ren::layer>& layer,const rect& r) {
-            const rect sort{r.tl()+vec2{0.f,34.f},r.tl()+vec2{100.f,62.f}};
+            const rect sort_btn{r.tl()+vec2{0.f,34.f},r.tl()+vec2{100.f,62.f}};
             const rect search{r.tl()+vec2{106.f,34.f},r.tl()+vec2{size.x-40.f,62.f}};
-            layer->add_rect_filled_rounded(sort,colors.bg_bottom,3.f);
-            layer->add_text(sort.center(),std::string(filter_labels[filter_index])+"  v",colors.text,text_params::with_vh(align_center,align_center));
+            layer->add_rect_filled_rounded(sort_btn,colors.bg_bottom,3.f);
+            layer->add_text(sort_btn.center(),std::string(filter_labels[filter_index])+"  v",colors.text,text_params::with_vh(align_center,align_center));
             layer->add_rect_filled_rounded(search,colors.bg_bottom,3.f);
             layer->add_text(search.tl()+vec2{8.f,14.f},search_query.empty() ? (editing_search ? "|" : "Search...") : search_query+(editing_search ? "|" : ""),colors.text_dark,text_params::with_v(align_center));
             const auto center=r.tl()+vec2{size.x-17.f,48.f};
@@ -899,9 +899,9 @@ namespace menu::group
                 std::string label = items[i].label;
                 if (layer->font->get_text_size(label).x > cell_width - 10.f) {
                     while (!label.empty() && layer->font->get_text_size(label + "...").x > cell_width - 10.f) {
-                        auto pos = label.size() - 1;
-                        while (pos && (static_cast<unsigned char>(label[pos]) & 0xc0) == 0x80) --pos;
-                        label.erase(pos);
+                        auto pos_idx = label.size() - 1;
+                        while (pos_idx && (static_cast<unsigned char>(label[pos_idx]) & 0xc0) == 0x80) --pos_idx;
+                        label.erase(pos_idx);
                     }
                     label += "...";
                 }
@@ -1137,7 +1137,7 @@ namespace menu::group
 		const auto agent_ct = MAKE("skins>agents>agent ct", combo_box_agent, cfg.visuals.model_ct, vec2{ 300.f, 460.f });
 		agent_ct->legacy_mode = true;
 
-		for (int i{}; i < player_model.size(); ++i)
+		for (size_t i{}; i < player_model.size(); ++i)
 		{
 			auto &m = player_model[i];
 			agent_t->add(MAKE_RUNTIME(XOR( "skins>agents>agent t>" ) + m, selectable, m, i));
@@ -1149,7 +1149,7 @@ namespace menu::group
 		const auto facemask_ct = MAKE("skins>agents>facemask ct", combo_box_agent, cfg.visuals.mask_ct, vec2{ 140.f, 300.f });
 		facemask_ct->legacy_mode = true;
 
-		for (int i{}; i < player_mask.size(); ++i)
+		for (size_t i{}; i < player_mask.size(); ++i)
 		{
 			auto &m = player_mask[i];
 			facemask_t->add(MAKE_RUNTIME(XOR( "skins>agents>facemask t>" ) + m, selectable, m, i));

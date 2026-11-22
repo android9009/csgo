@@ -16,8 +16,8 @@
 #define ADD_INLINE(l, ...) e->add(make_inlined(GUI_HASH(l "_content"), [&](std::shared_ptr<layout>& e) { \
 	const std::vector<std::shared_ptr<evo::gui::control>> _ { __VA_ARGS__ };                                                           \
 	e->add(std::make_shared<label>(control_id{hash(XOR(l)) + _.size()}, XOR(l)));                                                                                 \
-	for (const auto& c : _)                                                                                                  \
-		e->add(c);																										     \
+	for (const auto& item : _)                                                                                                  \
+		e->add(item);																										     \
 }))
 
 #define ADD_LINE(l, f, ...)                                                                                            \
@@ -26,6 +26,6 @@
 						{                                                                                              \
 							const std::vector<std::shared_ptr<evo::gui::control>> _{__VA_ARGS__};                                \
 							e->add(f);                                                                                 \
-							for (const auto &c : _)                                                                    \
-								e->add(c);                                                                             \
+							for (const auto &item : _)                                                                    \
+								e->add(item);                                                                             \
 						}))
