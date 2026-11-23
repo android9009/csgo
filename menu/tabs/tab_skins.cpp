@@ -141,6 +141,30 @@ namespace menu::group
     const char* filter_rarity[] = {"", "", "", "common", "uncommon", "rare", "mythical", "legendary", "ancient", "immortal", "?"};
     bool catalog_loaded{};
     bool show_all_paints{}, show_all_weapons{};
+    std::string equipped_knife[2], equipped_gloves[2], equipped_music[2], equipped_medal[2];
+    // The game's standard music kit (Valve's "CS:GO" kit) is the music
+    // screen's "Default": it is what CS:GO plays out of the box. Resolve it
+    // from the installed schema: kit name -> id, then the image entry for
+    // that id.
+    struct DefaultMusic { std::string icon; int id{}; };
+    DefaultMusic default_music{};
+    bool default_music_resolved{};
+    void resolve_default_music() {
+        if (default_music_resolved) return;
+        default_music_resolved = true;
+        if (inventory_metadata.music.empty()) return;
+        int kit = 0;
+        const auto by_name = inventory_metadata.music.find("CS:GO");
+        if (by_name != inventory_metadata.music.end()) kit = by_name->second;
+        if (kit <= 0)
+            for (const auto& entry : inventory_metadata.music)
+                if (entry.second == 1) { kit = 1; break; }
+        if (kit <= 0) return;
+        default_music.id = kit;
+        for (const auto& entry : inventory_metadata.music)
+            if (entry.second == kit && entry.first.size() > 4 && entry.first.compare(entry.first.size() - 4, 4, ".png") == 0) { default_music.icon = entry.first; break; }
+        if (default_music.icon.empty()) default_music.icon = "resource/flash/econ/music_kits/valve_02.png";
+    }
     bool load_catalog() {
         if (catalog_loaded) return true;
         if (!Interfaces::BaseFileSystem) return false;
@@ -153,6 +177,11 @@ namespace menu::group
         catalog = SkinCatalog::Parse(schema);
         schema_metadata = SkinSchema::Parse(schema);
         inventory_metadata = SkinSchema::ParseInventory(schema);
+        resolve_default_music();
+        // Music starts on the game's standard kit (the "Default" row), not
+        // "no kit": that is what CS:GO plays out of the box.
+        for (int team = 0; team < 2; ++team)
+            if (equipped_music[team].empty() && !default_music.icon.empty()) equipped_music[team] = default_music.icon;
         catalog_loaded = !catalog.empty();
         LOG_INFO("skin menu: catalogue loaded for %zu weapons, %zu paint kit IDs", catalog.size(), schema_metadata.paint_ids.size());
         return catalog_loaded;
@@ -169,7 +198,6 @@ namespace menu::group
     }
     enum class Equipment { None, Agent, Gloves, Knife, Medal, Music };
     Equipment equipment_screen = Equipment::None;
-    std::string equipped_knife[2], equipped_gloves[2], equipped_music[2], equipped_medal[2];
     struct EquipmentItem { const char* label; const char* icon; };
     const std::vector<EquipmentItem> knife_items = {
         {"Default", ""}, {"Bayonet", "weapon_bayonet"}, {"Classic Knife", "weapon_knife_css"},
@@ -249,7 +277,6 @@ namespace menu::group
         {"Sullivan King, Lock Me Up", "resource/flash/econ/music_kits/sullivanking_01.png"},
         {"Perfect World, 花脸 Hua Lian (Painted Face)", "resource/flash/econ/music_kits/perfectworld_01.png"},
         {"Denzel Curry, ULTIMATE", "resource/flash/econ/music_kits/denzelcurry_01.png"},
-        {"Valve, CS:GO", "resource/flash/econ/music_kits/valve_01.png"},
         {"DRYDEN, Feel The Power", "resource/flash/econ/music_kits/dryden_01.png"},
         {"ISOxo, inhuman", "resource/flash/econ/music_kits/isoxo_01.png"},
         {"KILL SCRIPT, All Night", "resource/flash/econ/music_kits/killscript_01.png"},
@@ -261,7 +288,7 @@ namespace menu::group
         {"Daniel Sadowski, Dead Shot", "resource/flash/econ/music_kits/danielsadowski_05.png"},
     };
     const std::vector<EquipmentItem> medal_items{
-        {"Default", ""},
+        {"None", ""},
 #include "../../sdk/third_party/gui/medal_catalog.hpp"
     };
     const std::vector<EquipmentItem> default_item{{"Default", ""}};
@@ -552,12 +579,23 @@ namespace menu::group
                 if (equipment_screen == Equipment::Gloves) { equipped_gloves[team] = items[index].icon; EquipmentState::Select(team_ct,true,items[index].icon); }
                 if (equipment_screen == Equipment::Music || equipment_screen == Equipment::Medal) {
                     const bool music=equipment_screen==Equipment::Music;
-                    (music?equipped_music[team]:equipped_medal[team])=items[index].icon;
+                    std::string icon=items[index].icon;
                     load_catalog();
-                    const auto& ids=music?inventory_metadata.music:inventory_metadata.items;
-                    const auto item_id=ids.find(items[index].icon);
-                    EquipmentState::InventorySelection(team_ct,music?2:1,index==0 || item_id==ids.end()?0:item_id->second);
-                    if(index && item_id==ids.end()) LOG_WARN("local inventory: schema ID missing for %s",items[index].icon);
+                    int selection_id=0;
+                    if(music && index==0) {
+                        // Music's "Default" equips the game's standard kit
+                        // (Valve "CS:GO"), not "no kit". Medals' first row
+                        // ("None") stays 0 = no medal.
+                        resolve_default_music();
+                        icon=default_music.icon;selection_id=default_music.id;
+                    } else {
+                        const auto& ids=music?inventory_metadata.music:inventory_metadata.items;
+                        const auto item_id=ids.find(icon);
+                        selection_id=item_id==ids.end()?0:item_id->second;
+                    }
+                    if(music)equipped_music[team]=icon;else equipped_medal[team]=icon;
+                    EquipmentState::InventorySelection(team_ct,music?2:1,selection_id);
+                    if(index && selection_id==0) LOG_WARN("local inventory: schema ID missing for %s",icon.c_str());
                 }
                 equipment_screen = Equipment::None;
                 equipment_scroll = 0.f;
@@ -749,12 +787,18 @@ namespace menu::group
             std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
             if (!SkinState::Set(team_ct, definition, choice)) LOG_WARN("skins: invalid choice for %s", selected_weapon.internal);
         }
+        // Element color pickers were requested to be removed from the
+        // options popup. The detection below and the preview recolor path
+        // stay in place but inert; flip this to restore the rows.
+        static constexpr bool paint_color_pickers = false;
         // Paint kits whose model parts can be recolored. Skins that declare a
         // "customization" block in items_game.txt are discovered from the
         // schema; this fallback covers installs whose file has no such block.
+        // Names match the schema spellings (AWP Lightning Strike is
+        // "am_lightning_awp" in items_game.txt, not "lightning_strike").
         struct PaintableRule { const char* weapon; const char* paint_part; };
         static constexpr PaintableRule paintable_rules[] = {
-            {"weapon_awp", "lightning_strike"},
+            {"awp", "lightning"},
         };
         struct PaintColorInfo {
             bool paintable{};
@@ -798,10 +842,21 @@ namespace menu::group
             if (agent_editor || equipment_weapon || !selected_weapon.internal || pending.paint.empty()) return info;
             const auto custom = schema_metadata.customization.find(pending.paint);
             bool known = custom != schema_metadata.customization.end() && !custom->second.empty();
-            if (!known)
+            if (!known) {
+                // Tolerant match: schema names differ per install, so compare
+                // letter-only lowercase forms ("am_lightning_awp" contains
+                // "lightning", "weapon_awp" contains "awp").
+                const auto folded = [](const std::string& text) {
+                    std::string out;
+                    for (const auto ch : text) if (std::isalpha(static_cast<unsigned char>(ch)))
+                        out += static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                    return out;
+                };
+                const auto internal = folded(selected_weapon.internal);
+                const auto paint = folded(pending.paint);
                 for (const auto& rule : paintable_rules)
-                    if (std::string(selected_weapon.internal).find(rule.weapon) != std::string::npos &&
-                        pending.paint.find(rule.paint_part) != std::string::npos) { known = true; break; }
+                    if (internal.find(folded(rule.weapon)) != std::string::npos && paint.find(folded(rule.paint_part)) != std::string::npos) { known = true; break; }
+            }
             if (!known) return info;
             info.paintable = true;
             if (custom != schema_metadata.customization.end() && !custom->second.empty()) {
@@ -838,22 +893,28 @@ namespace menu::group
             FatalityPreviewBridge::editor_seed.store(pending.seed, std::memory_order_relaxed);
             FatalityPreviewBridge::editor_wear.store(pending.wear, std::memory_order_relaxed);
             FatalityPreviewBridge::preview_weapon.store(true, std::memory_order_relaxed);
-            const auto info = paint_color_info();
-            if (!info.paintable) {
-                if (FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed) != 0)
-                    FatalityPreviewBridge::paint_color_count.store(0, std::memory_order_relaxed);
+            if (paint_color_pickers) {
+                const auto info = paint_color_info();
+                if (!info.paintable) {
+                    if (FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed) != 0)
+                        FatalityPreviewBridge::paint_color_count.store(0, std::memory_order_relaxed);
+                    last_published_color_count = 0;
+                    return;
+                }
+                FatalityPreviewBridge::paint_color_count.store(info.elements, std::memory_order_relaxed);
+                for (int i = 0; i < info.elements && i < 8; ++i)
+                    FatalityPreviewBridge::paint_colors[i].store(info.colors[i], std::memory_order_relaxed);
+                bool changed = last_published_color_count != info.elements;
+                for (int i = 0; !changed && i < info.elements; ++i) changed = last_published_colors[i] != info.colors[i];
+                if (changed) {
+                    last_published_color_count = info.elements;
+                    for (int i = 0; i < info.elements; ++i) last_published_colors[i] = info.colors[i];
+                    FatalityPreviewBridge::paint_color_version.fetch_add(1, std::memory_order_relaxed);
+                }
+            } else if (FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed) != 0) {
+                // Pickers are off: keep the preview recolor path inactive.
+                FatalityPreviewBridge::paint_color_count.store(0, std::memory_order_relaxed);
                 last_published_color_count = 0;
-                return;
-            }
-            FatalityPreviewBridge::paint_color_count.store(info.elements, std::memory_order_relaxed);
-            for (int i = 0; i < info.elements && i < 8; ++i)
-                FatalityPreviewBridge::paint_colors[i].store(info.colors[i], std::memory_order_relaxed);
-            bool changed = last_published_color_count != info.elements;
-            for (int i = 0; !changed && i < info.elements; ++i) changed = last_published_colors[i] != info.colors[i];
-            if (changed) {
-                last_published_color_count = info.elements;
-                for (int i = 0; i < info.elements; ++i) last_published_colors[i] = info.colors[i];
-                FatalityPreviewBridge::paint_color_version.fetch_add(1, std::memory_order_relaxed);
             }
         }
         void open_catalog_settings() {
@@ -887,7 +948,6 @@ namespace menu::group
                 return grid.team_ct==ct && grid.agent_editor==agent &&
                     (agent?grid.agent_choice==agent_id:weapon==(grid.selected_weapon.internal?grid.selected_weapon.internal:""));
             };
-            const auto color_info = paint_color_info();
             auto panel=std::make_shared<SkinOptions::Panel>(control_id{next_id},
                 area_abs().tr()+vec2{-(agent?92.f:gloves?286.f:304.f),66.f},pending,agent,gloves,sticker_count(),
                 [self,matches](const SkinChoice& choice) {
@@ -899,14 +959,7 @@ namespace menu::group
                 [self,matches](int slot,std::shared_ptr<evo::ren::layer>& layer,const rect& box) {
                     if(auto grid=self.lock();grid && matches(*grid)) {bool budget=true;grid->draw_decal(layer,grid->pending.stickers[slot],box,budget);}
                 },
-                agent||gloves?0:color_info.elements,color_info.labels,color_info.colors,
-                [self,matches](int element,std::uint32_t packed) {
-                    if(auto grid=self.lock();grid && matches(*grid) && element>=0 && element<8) {
-                        const auto key=std::string(grid->selected_weapon.internal?grid->selected_weapon.internal:"")+"/"+grid->pending.paint;
-                        grid->paint_colors[key][element]=packed;
-                        grid->publish_paint_preview();
-                    }
-                });
+                paint_color_pickers && !agent && !gloves ? paint_color_info().elements : 0);
             native_options=panel;panel->open();
         }
         void load_catalog_for_picker() {load_catalog();}
@@ -1072,7 +1125,11 @@ namespace menu::group
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
                 if (equipment_screen == Equipment::Knife && viewport.contains(input.cursor()) && cell.contains(input.cursor()))
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(items[i].icon[0] ? items[i].icon : (team_ct ? "weapon_knife" : "weapon_knife_t")), std::memory_order_relaxed);
-                draw_equipment_icon(layer, equipment_screen, items[i].icon, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget, equipment_screen == Equipment::Knife ? selected_paint(items[i].icon) : std::string{});
+                // Music's "Default" row shows the standard kit's cover, not the
+                // empty-slot glyph.
+                std::string icon_path = items[i].icon;
+                if (equipment_screen == Equipment::Music && i == 0) { resolve_default_music(); icon_path = default_music.icon; }
+                draw_equipment_icon(layer, equipment_screen, icon_path, team_ct, vec2{x + cell_width * .5f, y + 27.f}, vec2{cell_width - 10.f, 48.f}, budget, equipment_screen == Equipment::Knife ? selected_paint(items[i].icon) : std::string{});
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
                 std::string label = items[i].label;
                 if (layer->font->get_text_size(label).x > cell_width - 10.f) {

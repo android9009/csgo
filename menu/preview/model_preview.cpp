@@ -397,7 +397,7 @@ void ResolveTintMaterials(int index, void* owner) {
     }
 }
 
-void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true) {
+void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true, int weapon_index = -1) {
     const bool fit_agent = !weapon_only && FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
     Vector agent_min{-18.f, -18.f, 0.f}, agent_max{18.f, 18.f, 80.f};
     if (!weapon_only && Interfaces::ModelInfo) {
@@ -447,13 +447,40 @@ void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true) {
     view.height = weapon_only ? (wide_weapon ? 128 : height) : height;
     Vector center{}; float radius = 32.f;
     if (weapon_only) {
-        phase = "weapon bounding sphere";
-        if (!static_cast<MergedModel*>(model)->BoundingSphere(center, radius) || !std::isfinite(radius) || radius < 1.f || radius > 200.f ||
-            !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
-        view.fov = 50.f;
         view.aspect_ratio = static_cast<float>(view.width) / view.height;
-        const float distance = wide_weapon ? (std::max)(70.f, radius * 9.f) : (std::max)(24.f, radius * 2.7f);
-        view.origin = Vector{-distance, 0.f, 0.f};
+        Vector lo{}, hi{}; bool have_bounds = false;
+        if (weapon_index >= 0 && weapon_index < static_cast<int>(PreviewCatalog::WeaponCount()) && Interfaces::ModelInfo) {
+            const int model_index = Interfaces::ModelInfo->GetModelIndex(PreviewCatalog::weapons[weapon_index].model);
+            auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
+            auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
+            if (hdr) {
+                const auto a = hdr->bb_min, b = hdr->bb_max;
+                if (std::isfinite(a.x) && std::isfinite(a.y) && std::isfinite(a.z) &&
+                    std::isfinite(b.x) && std::isfinite(b.y) && std::isfinite(b.z) &&
+                    b.x > a.x && b.y > a.y && b.z > a.z &&
+                    b.x - a.x < 300.f && b.y - a.y < 300.f && b.z - a.z < 300.f) { lo = a; hi = b; have_bounds = true; }
+            }
+        }
+        if (have_bounds) {
+            // Same framing family as the agent display: aim at the bounding
+            // box center and sit far enough back that the full model fits
+            // through a 360-degree turntable rotation. The narrow FOV keeps
+            // perspective stable, so the long barrel does not stretch toward
+            // and away from the camera while it turns (the old 50-degree
+            // sphere framing made the weapon fly around and jitter).
+            center = Vector{(lo.x + hi.x) * .5f, (lo.y + hi.y) * .5f, (lo.z + hi.z) * .5f};
+            const float half_x = (hi.x - lo.x) * .5f, half_y = (hi.y - lo.y) * .5f, half_z = (hi.z - lo.z) * .5f;
+            view.fov = 12.f;
+            const float distance = PreviewFraming::TurntableDistance(half_x, half_y, half_z, view.aspect_ratio, 12.f, .9f);
+            view.origin = Vector{-distance, 0.f, 0.f};
+        } else {
+            phase = "weapon bounding sphere";
+            if (!static_cast<MergedModel*>(model)->BoundingSphere(center, radius) || !std::isfinite(radius) || radius < 1.f || radius > 200.f ||
+                !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
+            view.fov = 50.f;
+            const float distance = wide_weapon ? (std::max)(70.f, radius * 9.f) : (std::max)(24.f, radius * 2.7f);
+            view.origin = Vector{-distance, 0.f, 0.f};
+        }
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
     } else {
         // Keep the model root on a fixed turntable axis. Asymmetric studio
@@ -592,6 +619,19 @@ void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true) {
 }
 
 bool redraw_preview=true;
+// The display weapon is merged cheat-side, so the engine never poses it.
+// Pin the sequence and frame time the same way the agent preview does: with
+// the zero-initialized animation state left alone the model pose drifts
+// between draws and the display flies around and jitters.
+void PinStaticPose(void* merged_model) {
+    if (!merged_model) return;
+    const auto root = reinterpret_cast<std::uintptr_t>(merged_model) + 4;
+    *reinterpret_cast<int*>(root + 0x54) = 0;
+    *reinterpret_cast<float*>(root + 0x60) = 20.f;
+    *reinterpret_cast<bool*>(root + 0x675) = false;
+    *reinterpret_cast<float*>(root + 0x67c) = 20.f;
+    if (bones) reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(merged_model));
+}
 // SKINS tab weapon display: the selected weapon (skin + paint kit element
 // colors) rendered into the main preview viewport instead of the agent.
 void PaintWeaponDisplay() {
@@ -611,6 +651,7 @@ void PaintWeaponDisplay() {
         reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(ptr));
         phase = "set display weapon model";
         static_cast<MergedModel*>(ptr)->SetMDL(path);
+        PinStaticPose(ptr);
         editor_models[index] = ptr;
     }
     phase = "copy display weapon materials";
@@ -642,7 +683,7 @@ void PaintWeaponDisplay() {
         }
     }
     phase = "draw display weapon";
-    DrawTarget(render_texture, true, false);
+    DrawTarget(render_texture, true, false, index);
     if (color_count > 0 && !tint_failed) { phase = "restore paint tints"; RestoreTints(); }
     drawn = model; drawn_yaw = yaw; drawn_version = version; drawn_paint = paint; drawn_seed = seed; drawn_wear = wear;
 }
@@ -818,6 +859,7 @@ void* UpdateWeaponMaterials(int index) {
         reinterpret_cast<ClearFn>(base + 0x1acc80)(reinterpret_cast<unsigned char*>(preview) + 4, false);
     }
     preview->SetMDL(PreviewCatalog::weapons[index].model, owner, nullptr);
+    PinStaticPose(preview); // re-merge resets the pose; keep the display static
     const int old = FatalityPreviewBridge::editor_material_status.exchange(status, std::memory_order_relaxed);
     if (old != status) LOG_INFO("weapon preview: experimental live material status=%d paint=%d", status, paint);
     // Cache the generated material pointers (engine-stable) for the tints.
@@ -873,13 +915,14 @@ void PaintWeaponImpl() {
         reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(ptr));
         phase = "set weapon model";
         static_cast<MergedModel*>(ptr)->SetMDL(path);
+        PinStaticPose(ptr);
         editor_models[index] = ptr;
         LOG_INFO("weapon preview: model loaded %s (default material only)", path);
     }
     phase = "copy live weapon materials (experimental)";
     UpdateWeaponMaterials(index);
     model = editor_models[index];
-    DrawTarget(editor_target, true);
+    DrawTarget(editor_target, true, true, index);
 }
 
 }
