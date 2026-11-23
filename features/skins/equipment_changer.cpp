@@ -56,8 +56,8 @@ void MoveFar(void* e){
  const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
  if(!rel || !base)return;
  __try {
-  const float far[3]={16384.f,16384.f,16384.f};
-  reinterpret_cast<void(__thiscall*)(void*,const float*)>(base+rel)(e,far);
+  const float parked[3]={16384.f,16384.f,16384.f};
+  reinterpret_cast<void(__thiscall*)(void*,const float*)>(base+rel)(e,parked);
  }
  __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
