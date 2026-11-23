@@ -30,6 +30,7 @@ void Publish(const Settings& settings) {
     g_clantag.store(settings.clantag);
     g_ping_spike.store(settings.ping_spike);
     g_ping_ms.store(settings.ping_spike_ms);
+    Detail::ChatRevealPublish(settings.reveal_enemy_chat);
 }
 
 namespace Detail {
@@ -50,6 +51,7 @@ float PingMs() { return g_ping_ms.load(); }
 void OnRoundStart() {
     Detail::PingReset();
     Detail::LogRoundStart();
+    Detail::ChatRevealOnRoundStart();
 }
 
 void OnPlayerHurt(const IGameEvent* event) {
@@ -64,11 +66,15 @@ void OnPlayerDeath(const IGameEvent* event) {
 
 void OnItemPurchase(const IGameEvent* event) { Detail::LogItemPurchase(event); }
 
+void OnPlayerSay(const IGameEvent* event) { Detail::ChatRevealOnPlayerSay(event); }
+
 void FrameStage(int stage) {
     Detail::ClantagFrameStage(stage);
+    Detail::ChatRevealFrameStage(stage);
 }
 
 void Shutdown() {
     Detail::PingReset();
+    Detail::ChatRevealShutdown();
 }
 } // namespace Misc::General

@@ -28,6 +28,8 @@ public:
             General::OnPlayerDeath(event);
         } else if (!std::strcmp(name, "item_purchase")) {
             General::OnItemPurchase(event);
+        } else if (!std::strcmp(name, "player_say")) {
+            General::OnPlayerSay(event);
         }
     }
     bool IsEnabled() override { return true; }

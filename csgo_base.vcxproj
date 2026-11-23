@@ -171,6 +171,7 @@
     <ClCompile Include="features\misc\general\ping.cpp" />
     <ClCompile Include="features\misc\general\event_logs.cpp" />
     <ClCompile Include="features\misc\general\hitsound.cpp" />
+    <ClCompile Include="features\misc\general\chat_reveal.cpp" />
     <ClCompile Include="features\misc\buybot\buybot.cpp" />
     <ClCompile Include="features\misc\movement\movement.cpp" />
     <ClCompile Include="features\misc\movement\bhop.cpp" />
@@ -405,6 +406,7 @@
     <ClInclude Include="features\misc\misc.hpp" />
     <ClInclude Include="features\misc\events\misc_events.hpp" />
     <ClInclude Include="features\misc\general\general.hpp" />
+    <ClInclude Include="features\misc\general\chat_reveal.hpp" />
     <ClInclude Include="features\misc\buybot\buybot.hpp" />
     <ClInclude Include="features\misc\movement\movement.hpp" />
     <ClInclude Include="features\misc\other\other.hpp" />

@@ -3,6 +3,7 @@
 // One header for the folder, one translation unit per feature. The event entry points below
 // are called from the global game-event listener (features/misc/events).
 #include "../../../sdk/datatypes/game_event.hpp"
+#include "chat_reveal.hpp" // ChatToast (the reveal lines the menu pumps into toasts)
 
 namespace Misc::General {
 struct Settings {
@@ -25,6 +26,9 @@ struct Settings {
     // Ping spike (ping.cpp)
     bool ping_spike{};
     float ping_spike_ms{}; // "Amount" slider (cfg.aim.ping_spike_amt)
+
+    // Enemy team chat reveal (chat_reveal.cpp)
+    bool reveal_enemy_chat{};
 };
 
 void Publish(const Settings& settings);
@@ -36,6 +40,7 @@ void OnRoundStart();
 void OnPlayerHurt(const IGameEvent* event);
 void OnPlayerDeath(const IGameEvent* event);
 void OnItemPurchase(const IGameEvent* event);
+void OnPlayerSay(const IGameEvent* event); // -> chat reveal
 
 namespace Detail {
 // Published setting accessors, defined in general.cpp next to the atomics they read.
@@ -62,5 +67,11 @@ void LogItemPurchase(const IGameEvent* event);      // event_logs.cpp
 void HitSoundOnHurt(const IGameEvent* event);       // hitsound.cpp
 void HitSoundOnDeath(const IGameEvent* event);      // hitsound.cpp
 void ClantagFrameStage(int stage);                  // clantag.cpp
+void ChatRevealPublish(bool enabled);               // chat_reveal.cpp
+void ChatRevealOnPlayerSay(const IGameEvent* event); // chat_reveal.cpp
+void ChatRevealOnRoundStart();                       // chat_reveal.cpp
+void ChatRevealFrameStage(int stage);                // chat_reveal.cpp
+void ChatRevealShutdown();                           // chat_reveal.cpp
+void DrainChatToasts(std::vector<ChatToast>& out);   // chat_reveal.cpp
 } // namespace Detail
 } // namespace Misc::General

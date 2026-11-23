@@ -193,6 +193,9 @@
     <ClCompile Include="features\misc\general\hitsound.cpp">
       <Filter>Features\misc\general</Filter>
     </ClCompile>
+    <ClCompile Include="features\misc\general\chat_reveal.cpp">
+      <Filter>Features\misc\general</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\buybot\buybot.cpp">
       <Filter>Features\misc\buybot</Filter>
     </ClCompile>
@@ -641,6 +644,9 @@
       <Filter>Features\misc</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\general\general.hpp">
+      <Filter>Features\misc\general</Filter>
+    </ClInclude>
+    <ClInclude Include="features\misc\general\chat_reveal.hpp">
       <Filter>Features\misc\general</Filter>
     </ClInclude>
     <ClInclude Include="features\misc\buybot\buybot.hpp">

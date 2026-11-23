@@ -9,6 +9,8 @@
 // The single-select combo boxes store their choice as one bit at the cfg_t index, so the
 // selected value is first_set_bit() (0 when "None" / the bitset is empty).
 #include <cstdint>
+#include <memory>
+#include <vector>
 #include "../config.hpp"
 #include "../../features/misc/buybot/buybot.hpp"
 #include "../../features/misc/general/general.hpp"
@@ -55,7 +57,17 @@ inline void Configure() {
         g.clantag = cfg.misc.clantag.get();
         g.ping_spike = cfg.misc.ping_spike_enabled.get();
         g.ping_spike_ms = cfg.aim.ping_spike_amt.get();
+        g.reveal_enemy_chat = cfg.misc.reveal_enemy_chat.get();
         Misc::General::Publish(g);
+        // Enemy team chat reveal: hand the lines the game thread queued over to
+        // the in-game toast system (gui::notify renders them once the
+        // notifications popup is up; adding to the list is always safe).
+        {
+            std::vector<Misc::General::ChatToast> toasts;
+            Misc::General::Detail::DrainChatToasts(toasts);
+            for (auto& toast : toasts)
+                notify.add(std::make_shared<notification>(toast.header, toast.text));
+        }
     }
 
     // OTHER
