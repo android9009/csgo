@@ -292,29 +292,32 @@ namespace menu::group
         if (screen == Equipment::Gloves) return ct ? "ct_gloves" : "t_gloves";
         return nullptr;
     }
-    void draw_symbol(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, vec2 center) {
+    // Vector fallback icons. The per-skin PNGs are decoded from the installed game
+    // files, and not every installation carries them (the flash tree changed after
+    // May 2017), so agent/gloves/knife always fall back to a drawn glyph; medals and
+    // music intentionally have no icon at all (label-only tiles and lists).
+    void draw_equipment_symbol(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, vec2 center) {
         if (screen == Equipment::Agent) {
-            layer->add_circle(center + vec2{0.f, -7.f}, 6.f, colors.text_dark, 24, 1.f, 2.f);
-            layer->add_line(center + vec2{-12.f, 14.f}, center + vec2{-8.f, 3.f}, colors.text_dark, 3.f);
-            layer->add_line(center + vec2{-8.f, 3.f}, center + vec2{8.f, 3.f}, colors.text_dark, 3.f);
-            layer->add_line(center + vec2{8.f, 3.f}, center + vec2{12.f, 14.f}, colors.text_dark, 3.f);
-        } else if (screen == Equipment::Music) {
-            layer->add_circle(center, 11.f, colors.text_dark, 24, 1.f, 2.f);
-            layer->add_circle(center, 3.f, colors.text_dark, 24, 1.f, 2.f);
-        } else if (screen == Equipment::Medal) {
-            layer->add_circle(center, 11.f, colors.text_dark, 24, 1.f, 2.f);
-            layer->add_circle(center, 4.f, colors.text_dark, 24, 1.f, 2.f);
+            // Head + shoulders bust.
+            layer->add_circle_filled(center + vec2{0.f, -6.f}, 4.5f, colors.text_dark);
+            layer->add_triangle_filled(center + vec2{-9.f, 11.f}, center + vec2{9.f, 11.f}, center + vec2{0.f, 2.f}, colors.text_dark);
         } else if (screen == Equipment::Knife) {
-            layer->add_line(center + vec2{-8.f, 8.f}, center + vec2{6.f, -6.f}, colors.text_dark, 2.f);
-            layer->add_line(center + vec2{6.f, -6.f}, center + vec2{9.f, -9.f}, colors.text_dark, 3.f);
-            layer->add_line(center + vec2{-10.f, 10.f}, center + vec2{-6.f, 6.f}, colors.text_dark, 3.f);
+            // Diagonal blade + handle.
+            layer->add_triangle_filled(center + vec2{-6.f, 6.f}, center + vec2{9.f, -9.f}, center + vec2{5.f, -5.f}, colors.text_dark);
+            layer->add_line(center + vec2{-7.f, 7.f}, center + vec2{-12.f, 12.f}, colors.text_dark, 3.f);
         } else if (screen == Equipment::Gloves) {
-            layer->add_rect_filled_rounded(rect{center + vec2{-7.f, -5.f}, center + vec2{7.f, 9.f}}, colors.text_dark, 3.f);
-            layer->add_line(center + vec2{-7.f, 0.f}, center + vec2{-10.f, -4.f}, colors.text_dark, 2.f);
+            // Palm, four fingers, thumb, cuff.
+            layer->add_rect_filled_rounded(rect{center + vec2{-6.f, -4.f}, center + vec2{6.f, 6.f}}, colors.text_dark, 2.5f);
+            for (int i = 0; i < 4; ++i)
+                layer->add_rect_filled_rounded(rect{center + vec2{-5.5f + i * 3.f, -10.f}, center + vec2{-3.5f + i * 3.f, -4.f}}, colors.text_dark, 1.f);
+            layer->add_line(center + vec2{-6.f, 0.f}, center + vec2{-9.5f, -4.f}, colors.text_dark, 2.f);
+            layer->add_rect_filled(rect{center + vec2{-6.f, 7.f}, center + vec2{6.f, 10.f}}, colors.text_dark);
         }
     }
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
                              bool ct, vec2 center, vec2 bounds, bool& budget, const std::string& paint = {}) {
+        // Medals and music render no icon by design.
+        if (screen == Equipment::Medal || screen == Equipment::Music) return;
         const auto name = equipment_icon(screen, selected, ct);
         auto paint_texture = [&](std::shared_ptr<texture> icon) {
             if (!icon || !icon->obj) return false;
@@ -328,20 +331,19 @@ namespace menu::group
             return true;
         };
         bool drawn = false;
-        if (name || ((screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) && !selected.empty())) {
+        if (name || (screen == Equipment::Agent && !selected.empty())) {
             const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
-            auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, paint, budget);
+            auto icon = screen == Equipment::Agent ? get_asset_icon(path, budget) : get_weapon_icon(name, paint, budget);
             drawn = paint_texture(icon);
-            // Not every installation carries the per-skin generated images (glove
-            // finishes in particular); fall back to the game's own per-class base
-            // icons (shipped since the 2013 inventory), then to the vector symbol,
-            // so an equipment tile never renders empty.
+            // If this installation has no generated/per-item image, use the game's
+            // own per-class base icon (ct_gloves/t_gloves/weapon_knife) when it is
+            // present, and only then fall through to the vector glyph.
             if (!drawn && screen == Equipment::Gloves)
                 drawn = paint_texture(get_asset_icon(std::string("resource/flash/econ/weapons/base_weapons/") + (ct ? "ct_gloves.png" : "t_gloves.png"), budget));
             else if (!drawn && screen == Equipment::Knife)
                 drawn = paint_texture(get_asset_icon("resource/flash/econ/weapons/base_weapons/weapon_knife.png", budget));
         }
-        if (!drawn) draw_symbol(layer, screen, center);
+        if (!drawn) draw_equipment_symbol(layer, screen, center);
     }
     class equipment_tiles final : public control {
     public:
@@ -354,6 +356,19 @@ namespace menu::group
             const auto r = area_abs();
             const bool ct = FatalityPreviewBridge::skins_team_ct.load(std::memory_order_relaxed);
             const int team = ct ? 0 : 1;
+            // One-time: which of the equipment icon sources this installation actually
+            // has. A "MISSING" here means the tile shows the vector fallback instead.
+            static bool icon_diag_done = false;
+            if (!icon_diag_done) {
+                icon_diag_done = true;
+                const auto& ag = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
+                const auto agent_path = std::string("resource/flash/econ/characters/") + ag.icon + ".png";
+                const auto base = "resource/flash/econ/weapons/base_weapons/";
+                LOG_INFO("equipment icons: agent(%s)=%s ct_gloves=%s weapon_knife=%s",
+                         ag.icon, icon_exists(agent_path) ? "ok" : "MISSING",
+                         icon_exists(std::string(base) + "ct_gloves.png") ? "ok" : "MISSING",
+                         icon_exists(std::string(base) + "weapon_knife.png") ? "ok" : "MISSING");
+            }
             const Equipment entries[] = {Equipment::Agent, Equipment::Gloves, Equipment::Knife, Equipment::Medal, Equipment::Music};
             const float width = (r.width() - 12.f) / 3.f;
             bool budget = true;
