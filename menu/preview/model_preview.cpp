@@ -273,54 +273,6 @@ bool InClientModule(std::uintptr_t p) {
     auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
     return p >= base && p < base + nt->OptionalHeader.SizeOfImage;
 }
-// Set the tint uniform of one model material. The saved value is the shader
-// default (we are the only writer), restored by RestoreTints.
-void TintMaterial(void* material, const char* expect_name, float r, float g, float b) {
-    if (!material) return;
-    auto** table = *reinterpret_cast<void***>(material);
-    if (!table) return;
-    for (const int slot : {mat_name, mat_param_index, mat_param_name, mat_set_vector3, mat_set_vector4, mat_default_param})
-        if (!InClientModule(reinterpret_cast<std::uintptr_t>(table[slot]))) { tint_failed = true; return; }
-    using NameFn = const char*(__thiscall*)(void*);
-    if (expect_name) {
-        const char* name = reinterpret_cast<NameFn>(table[mat_name])(material);
-        if (!name || std::strcmp(name, expect_name) != 0) { tint_failed = true; return; }
-    }
-    using IndexFn = int(__thiscall*)(void*, const char*);
-    using PNameFn = const char*(__thiscall*)(void*, int);
-    using DefaultFn = void(__thiscall*)(void*, int, float*);
-    using SetV3Fn = void(__thiscall*)(void*, const char*, const Vector&);
-    using SetV4Fn = void(__thiscall*)(void*, const char*, const Vector&, float);
-    for (const char* pname : {"color", "rgb"}) {
-        const int idx = reinterpret_cast<IndexFn>(table[mat_param_index])(material, pname);
-        if (idx < 0 || idx > 32) continue;
-        const char* actual = reinterpret_cast<PNameFn>(table[mat_param_name])(material, idx);
-        if (!actual || std::strcmp(actual, pname) != 0) continue;
-        TintState* entry = nullptr;
-        for (auto& state : tint_state)
-            if (state.material == material && state.param == idx) { entry = &state; break; }
-        if (!entry) {
-            if (tint_state.size() >= 16) break;
-            tint_state.push_back(TintState{});
-            entry = &tint_state.back();
-            entry->material = material;
-            entry->param = idx;
-            entry->vec4 = std::strcmp(pname, "color") == 0;
-            float def[4]{};
-            reinterpret_cast<DefaultFn>(table[mat_default_param])(material, idx, def);
-            if (def[0] == 0.f && def[1] == 0.f && def[2] == 0.f && def[3] == 0.f)
-                def[0] = def[1] = def[2] = def[3] = 1.f;
-            entry->value[0] = def[0]; entry->value[1] = def[1];
-            entry->value[2] = def[2]; entry->value[3] = def[3];
-        }
-        if (entry->vec4)
-            reinterpret_cast<SetV4Fn>(table[mat_set_vector4])(material, pname, Vector{r, g, b}, 1.f);
-        else
-            reinterpret_cast<SetV3Fn>(table[mat_set_vector3])(material, pname, Vector{r, g, b});
-        return;
-    }
-    if (!tint_skipped_logged) { tint_skipped_logged = true; LOG_WARN("preview recolor: material without tintable uniform; element skipped"); }
-}
 void RestoreTints() {
     using SetV3Fn = void(__thiscall*)(void*, const char*, const Vector&);
     using SetV4Fn = void(__thiscall*)(void*, const char*, const Vector&, float);
@@ -336,67 +288,15 @@ void RestoreTints() {
     }
     tint_state.clear();
 }
-// Resolves the IMaterials the tints modify for the drawn weapon model: the
-// live weapon's generated materials (what actually renders when the preview
-// copies them) if available, otherwise the model's base materials.
+// Paint-kit element tint storage. The portrait weapon display that recoloring
+// served is gone, but the wide editor strip still caches the live weapon's
+// generated materials here and shutdown clears these buffers, so the storage
+// stays even though nothing recolors from it anymore.
 struct PendingTint { void* material{}; std::string expect_name; };
 std::array<PendingTint, 8> pending_tints{};
 int pending_tint_count{};
-// Engine-stable copies of the live weapon's generated materials, kept per
-// weapon so the element tints survive UpdateWeaponMaterials' 500 ms throttle.
 struct OwnerMaterialCache { void* materials[16]{}; int count{}; int paint{}; };
 OwnerMaterialCache owner_material_cache[sizeof(PreviewCatalog::weapons) / sizeof(*PreviewCatalog::weapons)]{};
-void ResolveTintMaterials(int index, void* owner) {
-    pending_tints = {};
-    pending_tint_count = 0;
-    const int count = FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed);
-    if (count <= 0 || count > 8) return;
-    void* material_source[16]{};
-    int source_count = 0;
-    if (owner) {
-        auto* owner_bytes = static_cast<unsigned char*>(owner);
-        const int material_count = *reinterpret_cast<int*>(owner_bytes + 0x10);
-        auto** materials = *reinterpret_cast<void***>(owner_bytes + 4);
-        if (material_count > 0 && material_count <= 16 && materials) {
-            for (int i = 0; i < material_count; ++i)
-                if (materials[i]) material_source[source_count++] = materials[i];
-        }
-    }
-    if (!source_count) {
-        const auto& cache = owner_material_cache[index];
-        if (cache.count > 0 && cache.paint == FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed)) {
-            for (int i = 0; i < cache.count; ++i) material_source[source_count++] = cache.materials[i];
-        }
-    }
-    if (source_count) {
-        for (int i = 0; i < count && pending_tint_count < 8; ++i) {
-            void* material = i < source_count ? material_source[i] : nullptr;
-            if (!material) continue;
-            auto** table = *reinterpret_cast<void***>(material);
-            if (!table || !InClientModule(reinterpret_cast<std::uintptr_t>(table[mat_name]))) continue;
-            pending_tints[pending_tint_count++] = {material, std::string{}};
-        }
-        return;
-    }
-    if (!Interfaces::ModelInfo) return;
-    const int model_index = Interfaces::ModelInfo->GetModelIndex(PreviewCatalog::weapons[index].model);
-    auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
-    auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
-    auto* ms = Interfaces::MaterialSystem;
-    if (!hdr || hdr->textures <= 0 || !ms) return;
-    using FindFn = void*(__thiscall*)(void*, const char*, const char*, bool, int);
-    for (int i = 0; i < count && i < hdr->textures && pending_tint_count < 8; ++i) {
-        const auto* tex = hdr->texture(i);
-        if (!tex || !tex->name[0]) continue;
-        auto name = std::string(tex->name);
-        while (name.rfind("materials/", 0) == 0) name.erase(0, 10);
-        // The CS:GO client resolves model materials in the "vertexlit" format.
-        auto* material = Slot<FindFn>(ms, 91)(ms, name.c_str(), "vertexlit", false, 0);
-        if (!material) continue;
-        pending_tints[pending_tint_count++] = {material, name};
-    }
-}
-
 void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true, int weapon_index = -1) {
     const bool fit_agent = !weapon_only && FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
     Vector agent_min{-18.f, -18.f, 0.f}, agent_max{18.f, 18.f, 80.f};
@@ -639,68 +539,13 @@ void PinStaticPose(void* merged_model) {
     *reinterpret_cast<float*>(root + 0x67c) = 20.f;
     if (bones) reinterpret_cast<SetupAttachmentBonesFn>(bones)(static_cast<MergedModel*>(merged_model));
 }
-// SKINS tab weapon display: the selected weapon (skin + paint kit element
-// colors) rendered into the main preview viewport instead of the agent.
-void PaintWeaponDisplay() {
-    const int index = FatalityPreviewBridge::editor_weapon.load(std::memory_order_relaxed);
-    if (index < 0 || static_cast<size_t>(index) >= PreviewCatalog::WeaponCount() || editor_missing[index]) {
-        FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
-        return;
-    }
-    if (!editor_models[index]) {
-        const auto path = PreviewCatalog::weapons[index].model;
-        if (!ModelExists(path)) { editor_missing[index] = true; LOG_WARN("weapon preview: missing %s", path); FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release); return; }
-        phase = "allocate display weapon";
-        void* ptr = Slot<void*(__thiscall*)(void*, size_t)>(Interfaces::MemAlloc, 1)(Interfaces::MemAlloc, 0x75c);
-        if (!ptr) { editor_failed = true; return; }
-        std::memset(ptr, 0, 0x75c);
-        phase = "construct display weapon";
-        reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(ptr));
-        phase = "set display weapon model";
-        static_cast<MergedModel*>(ptr)->SetMDL(path);
-        PinStaticPose(ptr);
-        editor_models[index] = ptr;
-    }
-    phase = "copy display weapon materials";
-    void* owner = UpdateWeaponMaterials(index);
-    model = editor_models[index];
-    static void* drawn{};
-    static float drawn_yaw{};
-    static int drawn_version{}, drawn_paint{}, drawn_seed{}, drawn_wear{};
-    const float yaw = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
-    const int version = FatalityPreviewBridge::paint_color_version.load(std::memory_order_relaxed);
-    const int paint = FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed);
-    const int seed = FatalityPreviewBridge::editor_seed.load(std::memory_order_relaxed);
-    const int wear = static_cast<int>(FatalityPreviewBridge::editor_wear.load(std::memory_order_relaxed) * 1000.f);
-    if (!redraw_preview && drawn == model && drawn_yaw == yaw && drawn_version == version &&
-        drawn_paint == paint && drawn_seed == seed && drawn_wear == wear &&
-        FatalityPreviewBridge::texture.load(std::memory_order_acquire))
-        return;
-    const int color_count = FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed);
-    if (color_count > 0 && !tint_failed) {
-        phase = "resolve paint tint materials";
-        ResolveTintMaterials(index, owner);
-        phase = "apply paint tints";
-        for (int i = 0; i < pending_tint_count && i < 8 && i < color_count; ++i) {
-            const auto packed = FatalityPreviewBridge::paint_colors[i].load(std::memory_order_relaxed);
-            TintMaterial(pending_tints[i].material,
-                pending_tints[i].expect_name.empty() ? nullptr : pending_tints[i].expect_name.c_str(),
-                ((packed >> 16) & 255) / 255.f, ((packed >> 8) & 255) / 255.f, (packed & 255) / 255.f);
-            if (tint_failed) break;
-        }
-    }
-    phase = "draw display weapon";
-    DrawTarget(render_texture, true, false, index);
-    if (color_count > 0 && !tint_failed) { phase = "restore paint tints"; RestoreTints(); }
-    drawn = model; drawn_yaw = yaw; drawn_version = version; drawn_paint = paint; drawn_seed = seed; drawn_wear = wear;
-}
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
     const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
-    if (skins && FatalityPreviewBridge::preview_weapon.load(std::memory_order_relaxed)) {
-        PaintWeaponDisplay();
-        return;
-    }
+    // The SKINS-tab preview always shows the agent. The weapon portrait display
+    // was removed: rendering the selected weapon into the main viewport read as
+    // a separate "weapon preview" and the user wants the agent in it at all
+    // times. The wide editor strip (its own texture) is unaffected.
     bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
     std::string local_path;
     if (!skins) {

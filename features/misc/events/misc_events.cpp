@@ -2,6 +2,7 @@
 #include "../../../context.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
 #include "../../../utils/log.hpp"
+#include "../../../utils/memory.hpp"
 #include "../general/general.hpp"
 #include "../movement/movement.hpp"
 #include "../buybot/buybot.hpp"
@@ -12,12 +13,25 @@ namespace {
 // The engine checks GetEventDebugID() against EVENT_DEBUG_ID_INIT (42) before
 // dispatching every fired event. Any other value makes it print
 // "GameEventListener2 callback in list that should NOT be - <event>!" for all
-// events (the console spam on every skin selection) and, worse, it never calls
-// FireGameEvent at all - the event-driven features below were dead while this
-// was anything but 42.
+// events and, worse, it never calls FireGameEvent at all.
 constexpr int kEventDebugIdInit = 42;
 
-class MiscEventListener : public IGameEventListeners2 {
+// The per-event (local) listener interface. Layout must match the engine's
+// IGameEventListener2: 0 destructor, 1 FireGameEvent, 2 GetEventDebugID. There
+// is no IsEnabled - that only exists on the global IGameEventListeners2.
+class LocalGameEventListener {
+public:
+    virtual ~LocalGameEventListener() = default;
+    virtual void FireGameEvent(IGameEvent* event) = 0;
+    virtual int GetEventDebugID() = 0;
+};
+
+// Registered PER-EVENT (not globally). A global listener sits in the engine's
+// global list, which is probed on every single fired event; when the debug id
+// was wrong that flooded the console with "should NOT be" for every shot and
+// impact. Listening only for the few events below keeps this out of that list
+// entirely, so the engine checks this listener only when one of them fires.
+class MiscEventListener : public LocalGameEventListener {
 public:
     void FireGameEvent(IGameEvent* event) override {
         // The handlers are display/log state; a bad event read must not take
@@ -42,8 +56,12 @@ public:
             }
         } __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
-    bool IsEnabled() override { return true; }
-    int GetEventDebugId() override { return kEventDebugIdInit; }
+    int GetEventDebugID() override { return kEventDebugIdInit; }
+};
+
+// The only events the misc features consume.
+constexpr const char* kEvents[] = {
+    "round_start", "player_hurt", "player_death", "item_purchase", "player_say",
 };
 
 MiscEventListener* g_listener = nullptr;
@@ -54,24 +72,34 @@ bool Init() {
         LOG_WARN("misc events: IGameEventManager2 not resolved; event-driven features off");
         return false;
     }
-    g_listener = new MiscEventListener();
-    __try {
-        if (Interfaces::GameEvent->AddListenerGlobal(g_listener, false)) {
-            LOG_INFO("misc events: global game-event listener registered");
-            return true;
-        }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        LOG_WARN("misc events: AddListenerGlobal raised an exception");
+    auto add = MEM::GetVFunc<bool (__thiscall*)(void*, LocalGameEventListener*, const char*, bool)>(Interfaces::GameEvent, 3);
+    if (!add) {
+        LOG_WARN("misc events: AddListener vfunc not resolved");
+        return false;
     }
-    delete g_listener;
-    g_listener = nullptr;
-    return false;
+    g_listener = new MiscEventListener();
+    bool any = false;
+    __try {
+        for (const char* event : kEvents)
+            if (add(Interfaces::GameEvent, g_listener, event, false)) any = true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (!any) {
+        LOG_WARN("misc events: per-event game-event listener registration failed");
+        delete g_listener;
+        g_listener = nullptr;
+        return false;
+    }
+    LOG_INFO("misc events: per-event game-event listener registered");
+    return true;
 }
 
 void Shutdown() {
     if (g_listener && Interfaces::GameEvent) {
-        __try { Interfaces::GameEvent->RemoveListener(g_listener); }
-        __except (EXCEPTION_EXECUTE_HANDLER) {}
+        auto remove = MEM::GetVFunc<void (__thiscall*)(void*, LocalGameEventListener*)>(Interfaces::GameEvent, 5);
+        if (remove) {
+            __try { remove(Interfaces::GameEvent, g_listener); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {}
+        }
     }
     delete g_listener;
     g_listener = nullptr;
