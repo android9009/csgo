@@ -3,6 +3,8 @@
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/memory.hpp"
+#include "../../utils/patterns/patterns.hpp"
 #include <windows.h>
 #include <map>
 #include <set>
@@ -13,7 +15,7 @@ template<class T>T& At(void* e,std::ptrdiff_t o){return *reinterpret_cast<T*>(st
 template<class T>T Slot(void* e,int i){return reinterpret_cast<T>((*reinterpret_cast<void***>(e))[i]);}
 struct Vars {
  std::ptrdiff_t team{},health{},model{},body{},weapons{},wearables{},viewmodel{},viewweapon{},worldmodel{};
- std::ptrdiff_t def{},high{},account{},quality{},paint{},seed{},wear{},stat{},name{};
+ std::ptrdiff_t def{},high{},idlow{},account{},quality{},paint{},seed{},wear{},stat{},name{};
 };
 Vars Resolve(){
  auto& p=PropManager::Get(); Vars v;
@@ -23,7 +25,8 @@ Vars Resolve(){
  v.viewmodel=p.GetOffset("DT_BasePlayer","m_hViewModel[0]");
  v.viewweapon=p.GetOffset("DT_BaseViewModel","m_hWeapon");v.worldmodel=p.GetOffset("DT_BaseCombatWeapon","m_hWeaponWorldModel");
  const auto t="DT_BaseAttributableItem";
- v.def=p.GetOffset(t,"m_iItemDefinitionIndex");v.high=p.GetOffset(t,"m_iItemIDHigh");v.account=p.GetOffset(t,"m_iAccountID");
+ v.def=p.GetOffset(t,"m_iItemDefinitionIndex");v.high=p.GetOffset(t,"m_iItemIDHigh");v.idlow=p.GetOffset(t,"m_iItemIDLow");
+ v.account=p.GetOffset(t,"m_iAccountID");
  v.quality=p.GetOffset(t,"m_iEntityQuality");v.paint=p.GetOffset(t,"m_nFallbackPaintKit");v.seed=p.GetOffset(t,"m_nFallbackSeed");
  v.wear=p.GetOffset(t,"m_flFallbackWear");v.stat=p.GetOffset(t,"m_nFallbackStatTrak");v.name=p.GetOffset(t,"m_szCustomName");return v;
 }
@@ -41,6 +44,23 @@ void* Networkable(void* entity,const char* required=nullptr){
  return net;
 }
 void Notify(void* e){if(auto* n=Networkable(e)){Slot<void(__thiscall*)(void*,int)>(n,6)(n,0);Slot<void(__thiscall*)(void*,int)>(n,7)(n,0);}}
+// A client-created wearable otherwise sits at the world origin; park it where the game
+// can never draw or collide with it (the original `main` make_glove does the same).
+// SetAbsOrigin is a non-virtual client function: the legacy-catalogue signature is
+// relative=true, so the published value is a client.dll offset and is rebased on
+// client.dll. The call is guarded: on a build where the signature misses, the wearable
+// simply stays put.
+void MoveFar(void* e){
+ if(!e)return;
+ const auto rel=Patterns::Get("set_abs_origin");
+ const auto base=reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
+ if(!rel || !base)return;
+ __try {
+  const float far[3]={16384.f,16384.f,16384.f};
+  reinterpret_cast<void(__thiscall*)(void*,const float*)>(base+rel)(e,far);
+ }
+ __except (EXCEPTION_EXECUTE_HANDLER) {}
+}
 void SetModel(void* e,int index,const Vars& v){
  if(e && index>0 && At<int>(e,v.model)!=index)Slot<void(__thiscall*)(void*,int)>(e,75)(e,index);
 }
@@ -71,11 +91,23 @@ void Restore(std::uint32_t h,const Vars& v){
 }
 void Apply(std::uint32_t h,void* e,const EquipmentState::Selection& c,int model,std::uint32_t account,const Vars& v){
  auto& original=Capture(h,e,v);const bool changed=original.revision!=c.revision || At<short>(e,v.def)!=c.definition;
- At<short>(e,v.def)=static_cast<short>(c.definition);At<int>(e,v.high)=-1;At<int>(e,v.account)=static_cast<int>(account);
+ At<short>(e,v.def)=static_cast<short>(c.definition);At<int>(e,v.high)=-1;if(Offset(v.idlow))At<int>(e,v.idlow)=-1;
+ At<int>(e,v.account)=static_cast<int>(account);
  At<int>(e,v.quality)=EquipmentState::Knife(c.definition)?3:4;At<int>(e,v.paint)=c.finish.paint_kit;At<int>(e,v.seed)=c.finish.seed;
  At<float>(e,v.wear)=(std::max)(.000001f,c.finish.wear);At<int>(e,v.stat)=c.finish.stattrak==-2?original.stat:c.finish.stattrak;
- std::memcpy(&At<char>(e,v.name),c.finish.name.data(),32);SetModel(e,model,v);
- if(changed){Notify(e);original.revision=c.revision;LOG_INFO("equipment: applied definition=%d paint=%d",c.definition,c.finish.paint_kit);}
+ std::memcpy(&At<char>(e,v.name),c.finish.name.data(),32);
+ if(changed){
+  // The model's cached material set still reflects the previous paint (or nothing: the
+  // frames after a wearable is created), so the fresh paint kit would not be visible
+  // until some unrelated model swap. Dropping to model -1 releases the studio header
+  // and its materials; restoring the index re-runs the game's own model setup against
+  // the just-written paint fields - the build-stable equivalent of the material-vector
+  // clears the original force_update_skin performs by hand.
+  Slot<void(__thiscall*)(void*,int)>(e,75)(e,-1);
+  SetModel(e,model,v);
+  Notify(e);original.revision=c.revision;
+  LOG_INFO("equipment: applied definition=%d paint=%d",c.definition,c.finish.paint_kit);
+ }else{SetModel(e,model,v);}
 }
 void OverrideModel(std::uint32_t handle,int index,const Vars& v,std::set<std::uint32_t>& touched){
  auto* e=Entity(handle);if(!e || index<=0)return;touched.insert(handle);
@@ -117,6 +149,7 @@ void Gloves(void* local,const EquipmentState::Selection& c,std::uint32_t account
   const auto new_handle=static_cast<std::uint32_t>(entry)|(static_cast<std::uint32_t>(serial)<<16);
   glove=Entity(new_handle);if(!Networkable(glove,"CEconWearable"))return;
   previous_wearable=handle;created_glove=handle=new_handle;
+  MoveFar(glove);
   LOG_INFO("equipment: created experimental wearable handle=%u",new_handle);
  }
  if(!Networkable(glove,"CEconWearable"))return;

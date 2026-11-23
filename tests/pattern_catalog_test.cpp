@@ -116,12 +116,12 @@ int main() {
     // Catalogue integrity.
     assert(std::size(Patterns::kLegacySnapshotCatalog) == 58);
     assert(std::size(Patterns::kPortedCatalog) == 105);
-    assert(std::size(Patterns::kReferenceCatalog) == 3);
+    assert(std::size(Patterns::kReferenceCatalog) == 7);
     std::set<std::string_view> names;
     Validate(Patterns::kLegacySnapshotCatalog, names);
     Validate(Patterns::kPortedCatalog, names);
     Validate(Patterns::kReferenceCatalog, names);
-    assert(names.size() == 58 + 105 + 3);
+    assert(names.size() == 58 + 105 + 7);
     // Every ported name is reachable through offsets::Get() as well.
     assert(names.count("setup_bones") == 1);
     assert(names.count("update_animstate") == 1);

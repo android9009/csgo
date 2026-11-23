@@ -304,25 +304,44 @@ namespace menu::group
         } else if (screen == Equipment::Medal) {
             layer->add_circle(center, 11.f, colors.text_dark, 24, 1.f, 2.f);
             layer->add_circle(center, 4.f, colors.text_dark, 24, 1.f, 2.f);
+        } else if (screen == Equipment::Knife) {
+            layer->add_line(center + vec2{-8.f, 8.f}, center + vec2{6.f, -6.f}, colors.text_dark, 2.f);
+            layer->add_line(center + vec2{6.f, -6.f}, center + vec2{9.f, -9.f}, colors.text_dark, 3.f);
+            layer->add_line(center + vec2{-10.f, 10.f}, center + vec2{-6.f, 6.f}, colors.text_dark, 3.f);
+        } else if (screen == Equipment::Gloves) {
+            layer->add_rect_filled_rounded(rect{center + vec2{-7.f, -5.f}, center + vec2{7.f, 9.f}}, colors.text_dark, 3.f);
+            layer->add_line(center + vec2{-7.f, 0.f}, center + vec2{-10.f, -4.f}, colors.text_dark, 2.f);
         }
     }
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
                              bool ct, vec2 center, vec2 bounds, bool& budget, const std::string& paint = {}) {
         const auto name = equipment_icon(screen, selected, ct);
+        auto paint_texture = [&](std::shared_ptr<texture> icon) {
+            if (!icon || !icon->obj) return false;
+            const auto native = icon->get_size();
+            if (native.x <= 0.f || native.y <= 0.f) return false;
+            const auto scale = (std::min)(bounds.x / native.x, bounds.y / native.y);
+            const auto size = native * scale;
+            layer->g.texture = icon->obj;
+            layer->add_rect_filled(rect{center - size * .5f, center + size * .5f}, color::white());
+            layer->g.texture = {};
+            return true;
+        };
+        bool drawn = false;
         if (name || ((screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) && !selected.empty())) {
             const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
             auto icon = (screen == Equipment::Music || screen == Equipment::Agent || screen == Equipment::Medal) ? get_asset_icon(path, budget) : get_weapon_icon(name, paint, budget);
-            if (icon && icon->obj) {
-                const auto native = icon->get_size();
-                if (native.x > 0.f && native.y > 0.f) {
-                    const auto scale = (std::min)(bounds.x / native.x, bounds.y / native.y);
-                    const auto size = native * scale;
-                    layer->g.texture = icon->obj;
-                    layer->add_rect_filled(rect{center - size * .5f, center + size * .5f}, color::white());
-                    layer->g.texture = {};
-                }
-            }
-        } else if (screen != Equipment::Music && screen != Equipment::Medal) draw_symbol(layer, screen, center);
+            drawn = paint_texture(icon);
+            // Not every installation carries the per-skin generated images (glove
+            // finishes in particular); fall back to the game's own per-class base
+            // icons (shipped since the 2013 inventory), then to the vector symbol,
+            // so an equipment tile never renders empty.
+            if (!drawn && screen == Equipment::Gloves)
+                drawn = paint_texture(get_asset_icon(std::string("resource/flash/econ/weapons/base_weapons/") + (ct ? "ct_gloves.png" : "t_gloves.png"), budget));
+            else if (!drawn && screen == Equipment::Knife)
+                drawn = paint_texture(get_asset_icon("resource/flash/econ/weapons/base_weapons/weapon_knife.png", budget));
+        }
+        if (!drawn) draw_symbol(layer, screen, center);
     }
     class equipment_tiles final : public control {
     public:

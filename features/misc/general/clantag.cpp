@@ -2,7 +2,7 @@
 #include "../../../context.hpp"
 #include "../../../sdk/interfaces/interfaces.hpp"
 #include "../../../utils/memory.hpp"
-#include "../../../utils/offsets/offsets.hpp"
+#include "../../../utils/patterns/patterns.hpp"
 #include "../../../utils/log.hpp"
 #include <string>
 
@@ -11,14 +11,23 @@ namespace {
 using SetClanTagFn = void(__fastcall*)(const char*, const char*);
 const char* const kDefaultTag = " airflow "; // `main` c_clantag::tag_desc default
 
-// `main` c_clantag::set_clan_tag: the game's SetClanTag(name, tag) at a pinned client.dll
-// offset. The tag is rewritten roughly twice a second so teammates see it animate.
+// `main` c_clantag::set_clan_tag: the game's SetClanTag(name, tag), resolved through the
+// legacy-catalogue signature "53 56 57 8B DA 8B F9 FF 15" (same bytes `main` scanned).
+// That signature lives in engine.dll; the catalogue entry is relative=true, so the
+// published value is an engine.dll offset and must be rebased on engine.dll - adding it
+// to any other module base jumps into unowned memory and faults.
 SetClanTagFn ResolveSetClanTag() {
     static SetClanTagFn fn = nullptr;
+    static bool warned = false;
     if (!fn) {
-        const auto offset = offsets::Get("dwSetClanTag");
-        const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("client.dll"));
-        if (offset && base) fn = reinterpret_cast<SetClanTagFn>(base + offset);
+        const auto rel = Patterns::Get("dwSetClanTag");
+        const auto base = reinterpret_cast<std::uintptr_t>(MEM::GetModuleBase("engine.dll"));
+        if (rel && base) {
+            fn = reinterpret_cast<SetClanTagFn>(base + rel);
+        } else if (!warned) {
+            warned = true;
+            LOG_WARN("clantag: SetClanTag signature not matched in engine.dll; clantag stays off");
+        }
     }
     return fn;
 }
