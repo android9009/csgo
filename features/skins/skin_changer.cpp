@@ -6,6 +6,7 @@
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "../../sdk/netvars.hpp"
 #include "../../utils/offsets/offsets.hpp"
+#include "../../utils/memory.hpp"
 #include "../../utils/log.hpp"
 #include <windows.h>
 #include <cstdint>
@@ -17,6 +18,7 @@ namespace SkinChanger {
 namespace {
 struct Netvars {
     std::ptrdiff_t owner_low{}, owner_high{}, weapons{}, team{}, def{}, item_high{}, account{}, quality{}, paint{}, seed{}, wear{}, stat{}, name{};
+    std::ptrdiff_t active{}, model{}, viewmodel{}, viewweapon{};
 };
 struct Original {
     void* entity{}; int definition{};
@@ -31,6 +33,7 @@ SkinRefresh::Gate selection_changes;
 bool logged_missing{};
 DWORD last_update{};
 bool update_pending{};
+bool full_update_in_progress{};
 template <typename T> T& At(void* p, std::ptrdiff_t offset) { return *reinterpret_cast<T*>(reinterpret_cast<std::uintptr_t>(p) + offset); }
 Netvars Resolve() {
     auto& n = PropManager::Get(); Netvars v{};
@@ -48,6 +51,12 @@ Netvars Resolve() {
     v.wear = n.GetOffset(table,"m_flFallbackWear");
     v.stat = n.GetOffset(table,"m_nFallbackStatTrak");
     v.name = n.GetOffset(table,"m_szCustomName");
+    v.active = n.GetOffset("DT_BaseCombatCharacter","m_hActiveWeapon");
+    if (!v.active) v.active = offsets::netvars::m_hActiveWeapon;
+    v.model = n.GetOffset("DT_BaseEntity","m_nModelIndex");
+    if (!v.model) v.model = offsets::netvars::m_nModelIndex;
+    v.viewmodel = n.GetOffset("DT_BasePlayer","m_hViewModel[0]");
+    v.viewweapon = n.GetOffset("DT_BaseViewModel","m_hWeapon");
     return v;
 }
 bool Valid(const Netvars& n) {
@@ -87,18 +96,147 @@ void Apply(void* e, const Netvars& n, const Original& original, const SkinState:
     std::memcpy(&At<char>(e,n.name), c.name.data(), c.name.size());
 }
 void RequestRefresh() { update_pending = true; }
-void FlushRefresh() {
-    if (!update_pending || !Interfaces::ClientState) return;
+// Custom-material cache invalidation - the legacy reference's force_update_skin.
+// A full update rebuilds every weapon from server data: the ORIGINAL paint kit,
+// and the engine marks the custom materials as initialized for it. Apply() then
+// re-writes the fake kit into the netvars, but the item system is never told
+// about that (raw memory writes trigger no OnDataChanged), so the weapon would
+// render unscaled until an unrelated event (weapon pickup, another update)
+// happens to re-run the engine's material pass - the flaky "skin only shows up
+// when I pick the weapon up" behaviour and the mismatched-material console
+// errors around weapon switches. Clearing the cached material lists and the
+// "initialized" latch makes the engine rebuild them from the fake kit.
+struct MaterialCache {
+    std::ptrdiff_t item{};
+    bool resolved{};
+    bool valid{};
+    // CWeaponCSBase / C_EconItemView layout of the pinned legacy client (the
+    // same offsets the reference implementation writes).
+    static constexpr std::ptrdiff_t Latch = 0x32DD;          // m_bCustomMaterialInitialized
+    static constexpr std::ptrdiff_t WeaponMaterials = 0x9DC; // m_CustomMaterials
+    static constexpr std::ptrdiff_t ItemMaterials = 0x14;    // m_Item.m_CustomMaterials
+    static constexpr std::ptrdiff_t ItemProcessors = 0x220;  // m_Item.m_VisualsDataProcessors
+};
+MaterialCache material_cache{};
+bool material_invalidation_off{};
+struct UtlVec { std::uint32_t data; std::int32_t alloc; std::int32_t count; };
+void ClearMaterialVec(UtlVec* v) {
+    if (!v || v->count < 0 || v->count > 4096 || v->alloc < 0 || v->alloc > 65536) return;
+    auto** entries = reinterpret_cast<void**>(v->data);
+    for (int i = 0; i < v->count; ++i) entries[i] = nullptr;
+    // Pointers are dropped without unref: a few leaked processor objects are
+    // cheaper than calling into arbitrary engine vtables.
+    v->count = 0;
+}
+void InvalidateCustomMaterials(void* weapon, const Netvars& n) {
+    if (!weapon || material_invalidation_off) return;
+    if (!material_cache.resolved) {
+        material_cache.resolved = true;
+        material_cache.item = PropManager::Get().GetOffset("DT_BaseAttributableItem", "m_Item");
+        material_cache.valid = material_cache.item > 0x40 && material_cache.item < 0x10000;
+        if (!material_cache.valid) {
+            material_invalidation_off = true;
+            LOG_WARN("skins: m_Item netvar missing; custom-material invalidation disabled");
+        }
+    }
+    if (!material_cache.valid) return;
+    __try {
+        // Class guard: these offsets are CWeaponCSBase layout, never write them
+        // into a handle that does not resolve to a weapon class.
+        auto* net = static_cast<unsigned char*>(weapon) + 8;
+        auto* cls = reinterpret_cast<ClientClass*(__thiscall*)(void*)>(MEM::GetVFunc<void*>(net, 2))(net);
+        if (!cls || !cls->m_pNetworkName || std::strncmp(cls->m_pNetworkName, "CWeapon", 7) != 0) return;
+        const auto base = reinterpret_cast<std::uintptr_t>(weapon);
+        // Latch: "materials initialized for the current kit". True while no kit
+        // is set (nothing to build); false forces a rebuild from the kit that
+        // Apply() wrote.
+        *reinterpret_cast<bool*>(base + MaterialCache::Latch) = At<int>(weapon, n.paint) <= 0;
+        ClearMaterialVec(reinterpret_cast<UtlVec*>(base + MaterialCache::WeaponMaterials));
+        auto* item = static_cast<unsigned char*>(weapon) + material_cache.item;
+        ClearMaterialVec(reinterpret_cast<UtlVec*>(item + MaterialCache::ItemMaterials));
+        ClearMaterialVec(reinterpret_cast<UtlVec*>(item + MaterialCache::ItemProcessors));
+        // Re-run the networkable's update callbacks, exactly as the reference's
+        // force_update_skin does (c_networkable: slot 7 = post_update(0),
+        // slot 5 = data_changed(0)), so the entity re-syncs after the material
+        // cache was dropped.
+        using NotifyFn = void (__thiscall*)(void*, int);
+        if (auto post = MEM::GetVFunc<NotifyFn>(net, 7)) post(net, 0);
+        if (auto data = MEM::GetVFunc<NotifyFn>(net, 5)) data(net, 0);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        material_invalidation_off = true;
+        LOG_WARN("skins: custom-material invalidation raised an exception; disabled");
+    }
+}
+// Full-update state machine (the legacy reference's dance):
+//   request  : clientstate delta ticks := -1 (none in flight, 1s throttle)
+//   in flight: delta ticks stay -1 until the server's full data is processed
+//              and the entities are rebuilt
+//   complete : delta ticks go positive again; invalidate the custom-material
+//              cache so the engine re-derives it from the netvars Apply wrote
+DWORD full_update_started{};
+void RunRefresh(const Netvars& n, void* local) {
+    const auto delta = offsets::Get("clientstate_delta_ticks");
+    if (!Interfaces::ClientState || !delta || delta > 0x2000) return;
+    int ticks = 0;
+    __try { ticks = At<int>(Interfaces::ClientState, static_cast<std::ptrdiff_t>(delta)); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return; }
+    if (full_update_in_progress) {
+        // The full data never arrives (round trip can stretch; never stall the
+        // pipeline forever either).
+        if (ticks > 0 || GetTickCount() - full_update_started > 3000) {
+            full_update_in_progress = false;
+            if (ticks <= 0) { LOG_WARN("skins: full update timed out; continuing"); return; }
+            LOG_INFO("skins: full update complete; invalidating custom materials");
+            // Re-read the current weapon list: the full update has just rebuilt
+            // every weapon's state, so invalidate the material cache on all of
+            // them (not just the selected ones) from the freshest handles.
+            if (local && n.weapons > 0 && n.weapons < 0x10000)
+                for (int i = 0; i < 64; ++i) {
+                    std::uint32_t h = 0;
+                    __try { h = At<std::uint32_t>(local, n.weapons + static_cast<std::ptrdiff_t>(i) * 4); }
+                    __except (EXCEPTION_EXECUTE_HANDLER) { h = 0u; }
+                    if (h == 0xffffffffu || h == 0u) continue;
+                    InvalidateCustomMaterials(Interfaces::EntityList->GetClientEntityFromHandle(h), n);
+                }
+        }
+        return;
+    }
+    if (!update_pending) return;
     const auto now = GetTickCount();
     if (last_update && now - last_update < 1000) return;
-    const auto delta = offsets::Get("clientstate_delta_ticks");
-    if (!delta || delta > 0x2000) { LOG_WARN("skins: full update offset unavailable"); update_pending=false; return; }
-    // Same client-state full update mechanism used by Fatality's skinchanger.
-    At<int>(Interfaces::ClientState, static_cast<std::ptrdiff_t>(delta)) = -1;
-    last_update = now; update_pending = false;
+    __try { At<int>(Interfaces::ClientState, static_cast<std::ptrdiff_t>(delta)) = -1; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return; }
+    last_update = now; full_update_started = now;
+    update_pending = false; full_update_in_progress = true;
     LOG_INFO("skins: requested client full update");
 }
+// Desync diagnostics (e.g. a knife model showing on the SSG): sample the carried
+// weapon's definition/model and the view model's model once per second, logging
+// only on change so the cheat log captures the exact moment and last known state
+// around a desync. Kept in its own POD-only function because the __try below must
+// not share scope with the set/map locals of FrameStage (MSVC C2712).
+void LogDesyncSample(const Netvars& n, void* local) {
+    static std::uint32_t last_sample{};
+    static int last_def = -1, last_model = -1, last_vm = -1;
+    if (GetTickCount() - last_sample <= 1000) return;
+    last_sample = GetTickCount();
+    int def = -1, model = -1, vm = -1;
+    __try {
+        if (n.active > 0 && n.active < 0x10000) {
+            auto* weapon = Interfaces::EntityList->GetClientEntityFromHandle(At<std::uint32_t>(local, n.active));
+            if (weapon) { def = At<short>(weapon, n.def); if (n.model > 0) model = At<int>(weapon, n.model); }
+        }
+        if (n.viewmodel > 0 && n.viewmodel < 0x10000) {
+            auto* viewmodel = Interfaces::EntityList->GetClientEntityFromHandle(At<std::uint32_t>(local, n.viewmodel));
+            if (viewmodel && n.model > 0) vm = At<int>(viewmodel, n.model);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (def != last_def || model != last_model || vm != last_vm) {
+        LOG_INFO("skins: carried weapon def=%d model=%d viewmodel model=%d (was def=%d model=%d vm=%d)", def, model, vm, last_def, last_model, last_vm);
+        last_def = def; last_model = model; last_vm = vm;
+    }
 }
+} // namespace
 void FrameStage() {
     if (!Interfaces::Engine || !Interfaces::EntityList || !PropManager::Get().IsReady() ||
         !Interfaces::Engine->IsInGame() || !Interfaces::Engine->IsConnected()) { Reset(); return; }
@@ -106,7 +244,6 @@ void FrameStage() {
     const auto skin_revision=SkinState::Revision();
     const auto equipment_revision=EquipmentState::Revision();
     if(selection_changes.Observe(skin_revision,equipment_revision)) RequestRefresh();
-    if (originals.empty() && SkinState::Empty()) { FlushRefresh(); return; }
     const auto n = Resolve();
     if (!Valid(n)) {
         if (!logged_missing) { LOG_WARN("skins: required weapon/player netvars unavailable; application disabled"); logged_missing = true; }
@@ -116,13 +253,16 @@ void FrameStage() {
     auto* local = Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer());
     if (!local) { Reset(); return; }
     const int team = At<int>(local, n.team);
-    if (team != 2 && team != 3) return;
+    if (team != 2 && team != 3) { RunRefresh(n, local); return; }
+    std::uint32_t handles[64]{};
+    const auto* handles_src = reinterpret_cast<const std::uint32_t*>(reinterpret_cast<std::uintptr_t>(local) + n.weapons);
+    for (int i=0; i<64; ++i) handles[i] = handles_src[i];
+    if (originals.empty() && SkinState::Empty()) { RunRefresh(n, local); return; }
     std::uint32_t account{};
     std::uint64_t local_owner{};
     if (!LocalAccount(account,local_owner)) return;
     const bool allow_foreign=SkinState::AllowWeaponSkins();
     const bool owner_available=n.owner_low>0 && n.owner_low<0x10000 && n.owner_high>0 && n.owner_high<0x10000;
-    const auto* handles = reinterpret_cast<const std::uint32_t*>(reinterpret_cast<std::uintptr_t>(local) + n.weapons);
     std::set<std::uint32_t> held;
     for (int i=0; i<64; ++i) {
         const auto h = handles[i];
@@ -158,13 +298,15 @@ void FrameStage() {
         }
         it = originals.erase(it);
     }
-    FlushRefresh();
+    LogDesyncSample(n, local);
+    RunRefresh(n, local);
 }
-void Reset() { EquipmentChanger::Reset(); originals.clear(); update_pending = false; last_update = 0; }
+void Reset() { EquipmentChanger::Reset(); originals.clear(); update_pending = false; last_update = 0; full_update_in_progress = false; }
 void Shutdown() {
     if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Engine->IsInGame() && PropManager::Get().IsReady()) {
         const auto n = Resolve();
         if (Valid(n)) {
+            auto* local = Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer());
             bool restored = false;
             for (const auto& entry : originals) {
                 auto* entity = Interfaces::EntityList->GetClientEntityFromHandle(entry.first);
@@ -172,7 +314,7 @@ void Shutdown() {
                     Restore(entity,n,entry.second); restored = true;
                 }
             }
-            if (restored) { last_update = 0; RequestRefresh(); FlushRefresh(); }
+            if (restored) { last_update = 0; RequestRefresh(); RunRefresh(n, local); }
         }
     }
     EquipmentChanger::Shutdown();

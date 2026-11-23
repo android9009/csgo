@@ -70,10 +70,8 @@ int Model(const char* path){
  static std::set<std::string> warned;if(warned.insert(path).second)LOG_WARN("equipment: model is not precached: %s",path);
  return -1;
 }
-struct Saved {void* entity{};short def{};int model{},high{},account{},quality{},paint{},seed{},stat{};float wear{};char name[32]{};std::uint64_t revision{};};
+struct Saved {void* entity{};short def{};int model{},high{},account{},quality{},paint{},seed{},stat{};float wear{};char name[32]{};};
 std::map<std::uint32_t,Saved> saved;
-struct SavedModel{void* entity{};int index{};};
-std::map<std::uint32_t,SavedModel> models;
 void* player{};int original_agent{},applied_agent{},original_body{};bool body_changed{};
 std::uint32_t created_glove{},previous_wearable{};std::uint32_t serial_counter{1};
 
@@ -85,38 +83,32 @@ Saved& Capture(std::uint32_t h,void* e,const Vars& v){
 }
 void Restore(std::uint32_t h,const Vars& v){
  auto it=saved.find(h);if(it==saved.end())return;const auto s=it->second;auto* e=Entity(h);
- if(e==s.entity){At<short>(e,v.def)=s.def;At<int>(e,v.high)=s.high;At<int>(e,v.account)=s.account;At<int>(e,v.quality)=s.quality;
- At<int>(e,v.paint)=s.paint;At<int>(e,v.seed)=s.seed;At<int>(e,v.stat)=s.stat;At<float>(e,v.wear)=s.wear;std::memcpy(&At<char>(e,v.name),s.name,32);SetModel(e,s.model,v);Notify(e);}
+ // The pointer check alone is not enough: after a full update the entity pool can
+ // hand the same address to a different weapon. Only restore onto an entity that
+ // still looks like the one captured (same def, or still a knife for a knife that
+ // had a custom def applied).
+ if(e==s.entity && (At<short>(e,v.def)==s.def || EquipmentState::Knife(At<short>(e,v.def)))){
+  At<short>(e,v.def)=s.def;At<int>(e,v.high)=s.high;At<int>(e,v.account)=s.account;At<int>(e,v.quality)=s.quality;
+  At<int>(e,v.paint)=s.paint;At<int>(e,v.seed)=s.seed;At<int>(e,v.stat)=s.stat;At<float>(e,v.wear)=s.wear;std::memcpy(&At<char>(e,v.name),s.name,32);SetModel(e,s.model,v);Notify(e);}
  saved.erase(it);
 }
 void Apply(std::uint32_t h,void* e,const EquipmentState::Selection& c,int model,std::uint32_t account,const Vars& v){
- auto& original=Capture(h,e,v);const bool changed=original.revision!=c.revision || At<short>(e,v.def)!=c.definition;
- At<short>(e,v.def)=static_cast<short>(c.definition);At<int>(e,v.high)=-1;if(Offset(v.idlow))At<int>(e,v.idlow)=-1;
+ auto& original=Capture(h,e,v);
+ At<int>(e,v.high)=-1;if(Offset(v.idlow))At<int>(e,v.idlow)=-1;
  At<int>(e,v.account)=static_cast<int>(account);
  At<int>(e,v.quality)=EquipmentState::Knife(c.definition)?3:4;At<int>(e,v.paint)=c.finish.paint_kit;At<int>(e,v.seed)=c.finish.seed;
  At<float>(e,v.wear)=(std::max)(.000001f,c.finish.wear);At<int>(e,v.stat)=c.finish.stattrak==-2?original.stat:c.finish.stattrak;
  std::memcpy(&At<char>(e,v.name),c.finish.name.data(),32);
- if(changed){
-  // The model's cached material set still reflects the previous paint (or nothing: the
-  // frames after a wearable is created), so the fresh paint kit would not be visible
-  // until some unrelated model swap. Dropping to model -1 releases the studio header
-  // and its materials; restoring the index re-runs the game's own model setup against
-  // the just-written paint fields - the build-stable equivalent of the material-vector
-  // clears the original force_update_skin performs by hand.
-  Slot<void(__thiscall*)(void*,int)>(e,75)(e,-1);
+ // The def and the model move together, and only when the def actually changes
+ // (reference behaviour): the engine re-derives everything else, and the skin
+ // material rebuild after a full update is the skin changer's job. Swapping the
+ // model through -1 on a carried weapon churns the game's own view-model setup.
+ if(At<short>(e,v.def)!=static_cast<short>(c.definition)){
+  At<short>(e,v.def)=static_cast<short>(c.definition);
   SetModel(e,model,v);
-  Notify(e);original.revision=c.revision;
-  LOG_INFO("equipment: applied definition=%d paint=%d",c.definition,c.finish.paint_kit);
+  Notify(e);
+  LOG_INFO("equipment: applied definition=%d paint=%d model=%d",c.definition,c.finish.paint_kit,model);
  }else{SetModel(e,model,v);}
-}
-void OverrideModel(std::uint32_t handle,int index,const Vars& v,std::set<std::uint32_t>& touched){
- auto* e=Entity(handle);if(!e || index<=0)return;touched.insert(handle);
- auto it=models.find(handle);if(it==models.end() || it->second.entity!=e)models[handle]={e,At<int>(e,v.model)};
- SetModel(e,index,v);
-}
-void RestoreModels(const Vars& v,const std::set<std::uint32_t>& keep){
- for(auto it=models.begin();it!=models.end();){if(keep.count(it->first)){++it;continue;}
- auto* e=Entity(it->first);if(e==it->second.entity)SetModel(e,it->second.index,v);it=models.erase(it);}
 }
 void RemoveCreated(void* local,const Vars& v){
  if(!created_glove)return;auto* glove=Entity(created_glove);
@@ -168,28 +160,32 @@ void FrameStage(){
    if(!original_agent || current!=applied_agent)original_agent=current;SetModel(local,index,v);applied_agent=index;}
  }else if(original_agent){SetModel(local,original_agent,v);original_agent=applied_agent=0;}
  const auto account=Account();if(!account)return;
- std::set<std::uint32_t> held,touched;
+ std::set<std::uint32_t> held;
  if(Offset(v.weapons))for(int i=0;i<64;++i){
   const auto h=At<std::uint32_t>(local,v.weapons+static_cast<std::ptrdiff_t>(i)*4);auto* e=Entity(h);if(!e || !EquipmentState::Knife(At<short>(e,v.def)))continue;
   if(!choice.knife.definition){Restore(h,v);continue;}const auto* item=EquipmentState::Find(choice.knife.definition);if(!item)continue;
   const int view=Model(item->view),world=Model(item->world);if(view<=0 || world<=0)continue;
   held.insert(h);Apply(h,e,choice.knife,view,account,v);
-  if(Offset(v.worldmodel))OverrideModel(At<std::uint32_t>(e,v.worldmodel),world,v,touched);
+  // The world model and the carried view model follow the weapon. SetModel is
+  // a no-op while the values already match, so each is one write after a
+  // (re)creation and silent otherwise. While the knife is not carried the view
+  // model belongs to another weapon and the engine owns it - a stale-restore
+  // map is how models leak across weapons.
+  if(Offset(v.worldmodel)){auto* wm=Entity(At<std::uint32_t>(e,v.worldmodel));if(wm)SetModel(wm,world,v);}
   if(Offset(v.viewmodel) && Offset(v.viewweapon)){const auto vmh=At<std::uint32_t>(local,v.viewmodel);auto* vm=Entity(vmh);
-   if(vm && At<std::uint32_t>(vm,v.viewweapon)==h)OverrideModel(vmh,view,v,touched);}
+   if(vm && At<std::uint32_t>(vm,v.viewweapon)==h)SetModel(vm,view,v);}
  }
  Gloves(local,choice.gloves,account,v,held);
  for(auto it=saved.begin();it!=saved.end();){auto h=it->first;++it;if(!held.count(h))Restore(h,v);}
- RestoreModels(v,touched);
 }
-void Reset(){saved.clear();models.clear();player=nullptr;original_agent=applied_agent=original_body=0;body_changed=false;created_glove=previous_wearable=0;}
+void Reset(){saved.clear();player=nullptr;original_agent=applied_agent=original_body=0;body_changed=false;created_glove=previous_wearable=0;}
 void Shutdown(){
  if(Interfaces::Engine && Interfaces::Engine->IsInGame() && Interfaces::EntityList && PropManager::Get().IsReady()){
  const auto v=Resolve();if(Valid(v)){
  auto* local=Interfaces::EntityList->GetClientEntity(Interfaces::Engine->GetLocalPlayer());
  if(local==player){if(original_agent)SetModel(local,original_agent,v);if(body_changed && Offset(v.body))At<int>(local,v.body)=original_body;}
- RemoveCreated(local==player?local:nullptr,v);
- while(!saved.empty())Restore(saved.begin()->first,v);RestoreModels(v,{});}}
+  RemoveCreated(local==player?local:nullptr,v);
+  while(!saved.empty())Restore(saved.begin()->first,v);}}
  Reset();
 }
 }

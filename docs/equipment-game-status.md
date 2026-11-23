@@ -52,6 +52,16 @@ restoration update.
 `tests/skin_refresh_test.cpp` simulates 10,000 unchanged commits per category and
 asserts that only real edits/default transitions generate a revision event.
 
+After a full update completes (delta ticks go positive again), `SkinChanger`
+invalidates the per-weapon custom-material cache (the legacy reference's
+`force_update_skin`): the "materials initialized" latch and the weapon/item
+material lists are cleared so the engine re-derives the materials from the
+fallback attributes the netvar enforcement just wrote. Without this the rebuilt
+entities keep the latch set for the server-side (original) kit and the selected
+skin only becomes visible when an unrelated event happens to re-run the engine's
+material pass. The offsets are for the pinned legacy client; the whole pass is
+exception-guarded and disables itself with a warning on any failure.
+
 ## Movement UI note
 
 `No fall damage` is positioned immediately after Bhop in Movement. It is currently

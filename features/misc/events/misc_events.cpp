@@ -9,31 +9,41 @@
 
 namespace Misc::Events {
 namespace {
-constexpr int kDebugId = 0xC0DE;
+// The engine checks GetEventDebugID() against EVENT_DEBUG_ID_INIT (42) before
+// dispatching every fired event. Any other value makes it print
+// "GameEventListener2 callback in list that should NOT be - <event>!" for all
+// events (the console spam on every skin selection) and, worse, it never calls
+// FireGameEvent at all - the event-driven features below were dead while this
+// was anything but 42.
+constexpr int kEventDebugIdInit = 42;
 
 class MiscEventListener : public IGameEventListeners2 {
 public:
     void FireGameEvent(IGameEvent* event) override {
-        if (!event) return;
-        const char* name = event->GetName();
-        if (!name) return;
+        // The handlers are display/log state; a bad event read must not take
+        // the game down from inside the engine's dispatch.
+        __try {
+            if (!event) return;
+            const char* name = event->GetName();
+            if (!name) return;
 
-        if (!std::strcmp(name, "round_start")) {
-            Buybot::OnRoundStart();
-            Movement::Reset();
-            General::OnRoundStart();
-        } else if (!std::strcmp(name, "player_hurt")) {
-            General::OnPlayerHurt(event);
-        } else if (!std::strcmp(name, "player_death")) {
-            General::OnPlayerDeath(event);
-        } else if (!std::strcmp(name, "item_purchase")) {
-            General::OnItemPurchase(event);
-        } else if (!std::strcmp(name, "player_say")) {
-            General::OnPlayerSay(event);
-        }
+            if (!std::strcmp(name, "round_start")) {
+                Buybot::OnRoundStart();
+                Movement::Reset();
+                General::OnRoundStart();
+            } else if (!std::strcmp(name, "player_hurt")) {
+                General::OnPlayerHurt(event);
+            } else if (!std::strcmp(name, "player_death")) {
+                General::OnPlayerDeath(event);
+            } else if (!std::strcmp(name, "item_purchase")) {
+                General::OnItemPurchase(event);
+            } else if (!std::strcmp(name, "player_say")) {
+                General::OnPlayerSay(event);
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
     bool IsEnabled() override { return true; }
-    int GetEventDebugId() override { return kDebugId; }
+    int GetEventDebugId() override { return kEventDebugIdInit; }
 };
 
 MiscEventListener* g_listener = nullptr;
