@@ -292,10 +292,10 @@ namespace menu::group
         if (screen == Equipment::Gloves) return ct ? "ct_gloves" : "t_gloves";
         return nullptr;
     }
-    // Vector fallback icons. The per-skin PNGs are decoded from the installed game
+    // Vector fallback icons. The per-item PNGs are decoded from the installed game
     // files, and not every installation carries them (the flash tree changed after
-    // May 2017), so agent/gloves/knife always fall back to a drawn glyph; medals and
-    // music intentionally have no icon at all (label-only tiles and lists).
+    // May 2017), so every equipment slot falls back to a drawn glyph when the image
+    // is absent: agent bust, knife, glove, medal coin, music note.
     void draw_equipment_symbol(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, vec2 center) {
         if (screen == Equipment::Agent) {
             // Head + shoulders bust.
@@ -312,12 +312,20 @@ namespace menu::group
                 layer->add_rect_filled_rounded(rect{center + vec2{-5.5f + i * 3.f, -10.f}, center + vec2{-3.5f + i * 3.f, -4.f}}, colors.text_dark, 1.f);
             layer->add_line(center + vec2{-6.f, 0.f}, center + vec2{-9.5f, -4.f}, colors.text_dark, 2.f);
             layer->add_rect_filled(rect{center + vec2{-6.f, 7.f}, center + vec2{6.f, 10.f}}, colors.text_dark);
+        } else if (screen == Equipment::Medal) {
+            // Round coin with two ribbon tails.
+            layer->add_line(center + vec2{-2.f, 1.f}, center + vec2{-5.f, 9.f}, colors.text_dark, 2.f);
+            layer->add_line(center + vec2{2.f, 1.f}, center + vec2{5.f, 9.f}, colors.text_dark, 2.f);
+            layer->add_circle_filled(center + vec2{0.f, -3.f}, 4.5f, colors.text_dark);
+        } else if (screen == Equipment::Music) {
+            // Eighth note: head, stem, flag.
+            layer->add_line(center + vec2{1.5f, 4.f}, center + vec2{1.5f, -7.f}, colors.text_dark, 1.5f);
+            layer->add_circle_filled(center + vec2{-1.f, 4.5f}, 2.75f, colors.text_dark);
+            layer->add_triangle_filled(center + vec2{1.5f, -7.f}, center + vec2{6.f, -4.5f}, center + vec2{1.5f, -2.f}, colors.text_dark);
         }
     }
     void draw_equipment_icon(std::shared_ptr<evo::ren::layer>& layer, Equipment screen, const std::string& selected,
                              bool ct, vec2 center, vec2 bounds, bool& budget, const std::string& paint = {}) {
-        // Medals and music render no icon by design.
-        if (screen == Equipment::Medal || screen == Equipment::Music) return;
         const auto name = equipment_icon(screen, selected, ct);
         auto paint_texture = [&](std::shared_ptr<texture> icon) {
             if (!icon || !icon->obj) return false;
@@ -331,9 +339,15 @@ namespace menu::group
             return true;
         };
         bool drawn = false;
-        if (name || (screen == Equipment::Agent && !selected.empty())) {
-            const auto path = screen == Equipment::Agent ? "resource/flash/econ/characters/" + selected + ".png" : selected;
-            auto icon = screen == Equipment::Agent ? get_asset_icon(path, budget) : get_weapon_icon(name, paint, budget);
+        if (screen == Equipment::Agent && !selected.empty()) {
+            drawn = paint_texture(get_asset_icon("resource/flash/econ/characters/" + selected + ".png", budget));
+        } else if (screen == Equipment::Music || screen == Equipment::Medal) {
+            // The selection stores the cover icon's full game path (music kits in
+            // flash/econ/music_kits, medals in flash/econ/status_icons). The
+            // Default entry (empty) just shows the vector glyph.
+            if (!selected.empty()) drawn = paint_texture(get_asset_icon(selected, budget));
+        } else if (name) {
+            auto icon = get_weapon_icon(name, paint, budget);
             drawn = paint_texture(icon);
             // If this installation has no generated/per-item image, use the game's
             // own per-class base icon (ct_gloves/t_gloves/weapon_knife) when it is
