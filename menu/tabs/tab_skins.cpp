@@ -370,8 +370,7 @@ namespace menu::group
             drawn = paint_texture(get_asset_icon("resource/flash/econ/characters/" + selected + ".png", budget));
         } else if (screen == Equipment::Music || screen == Equipment::Medal) {
             // The selection stores the cover icon's full game path (music kits in
-            // flash/econ/music_kits, medals in flash/econ/status_icons). The
-            // Default entry (empty) just shows the vector glyph.
+            // flash/econ/music_kits, medals in flash/econ/status_icons).
             if (!selected.empty()) drawn = paint_texture(get_asset_icon(selected, budget));
         } else if (name) {
             auto icon = get_weapon_icon(name, paint, budget);
@@ -384,7 +383,15 @@ namespace menu::group
             else if (!drawn && screen == Equipment::Knife)
                 drawn = paint_texture(get_asset_icon("resource/flash/econ/weapons/base_weapons/weapon_knife.png", budget));
         }
-        if (!drawn) draw_equipment_symbol(layer, screen, center);
+        if (!drawn) {
+            // The "None" medal entry is intentionally empty (no medal equipped)
+            // and music relies on the real kit cover (the Default row already
+            // carries the standard kit's image), so neither falls back to the
+            // drawn placeholder when there is no image to draw.
+            const bool intentional_blank = screen == Equipment::Music ||
+                                           (screen == Equipment::Medal && selected.empty());
+            if (!intentional_blank) draw_equipment_symbol(layer, screen, center);
+        }
     }
     class equipment_tiles final : public control {
     public:

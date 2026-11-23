@@ -477,8 +477,15 @@ void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true, int wea
             phase = "weapon bounding sphere";
             if (!static_cast<MergedModel*>(model)->BoundingSphere(center, radius) || !std::isfinite(radius) || radius < 1.f || radius > 200.f ||
                 !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
-            view.fov = 50.f;
-            const float distance = wide_weapon ? (std::max)(70.f, radius * 9.f) : (std::max)(24.f, radius * 2.7f);
+            // The weapon is not in the precache (no studio-header bounds), so
+            // fall back to its bounding sphere but keep the SAME turntable
+            // framing family as the box path: narrow FOV and a distance that
+            // covers the full 360-degree rotation about the sphere center. The
+            // old wide-FOV sphere framing let the long barrel sweep toward and
+            // away from the camera as it turned, which read as the weapon
+            // sliding around the frame instead of spinning in place.
+            view.fov = 12.f;
+            const float distance = PreviewFraming::TurntableDistance(radius, radius, radius, view.aspect_ratio, 12.f, .9f);
             view.origin = Vector{-distance, 0.f, 0.f};
         }
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
