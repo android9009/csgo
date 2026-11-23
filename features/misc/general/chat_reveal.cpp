@@ -134,9 +134,12 @@ using DispatchUserMessageFn = bool (__thiscall*)(void*, int, std::int32_t, int, 
 
 // IBaseClientDLL::DispatchUserMessage hook: stamp the player whenever a VISIBLE
 // (chat==true) SayText2 goes by. The original is always called, last, so the
-// HUD receives every message no matter what this does.
-bool __thiscall DispatchUserMessage(void* self, int msg_type, std::int32_t flags, int size,
-                                    const void* msg) {
+// HUD receives every message no matter what this does. Free functions cannot
+// carry __thiscall (C3865), so the definition uses the repo's vtable-replacement
+// idiom - the same __fastcall (this, edx, args...) shape as DrawModelExecute,
+// which hooks a this+4 slot in this build.
+bool __fastcall DispatchUserMessage(void* self, void* /*edx*/, int msg_type, std::int32_t flags,
+                                    int size, const void* msg) {
     if (msg_type == kSayText2MsgType && g_enabled.load(std::memory_order_relaxed)) {
         int ent_idx = 0;
         bool chat = false;
@@ -274,10 +277,11 @@ void DrainChatToasts(std::vector<ChatToast>& out) {
 }
 
 void ChatRevealShutdown() {
-    __try {
-        g_hook.detach();
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-    }
+    // The auto-accept teardown pattern, no SEH: VMT_Hook::detach is a plain
+    // VirtualProtect restore, which reports a failed region through its return
+    // value instead of faulting. (An __try here would be C2712 - this function
+    // owns a lock_guard.)
+    g_hook.detach();
     g_attach_tried = false;
     g_pending.clear();
     const std::lock_guard lock(g_toast_mutex);
