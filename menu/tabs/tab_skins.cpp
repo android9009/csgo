@@ -605,7 +605,7 @@ namespace menu::group
                 equipment_scroll = std::clamp(equipment_scroll - delta * 55.f, 0.f, max_scroll);
             } else if (selected_weapon.internal) {
                 const float rows = static_cast<float>((filtered_paints().size() + 4) / 5);
-                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 72.f));
+                const float max_scroll = (std::max)(0.f, rows * 78.f - (size.y - 74.f));
                 skin_scroll = std::clamp(skin_scroll - delta * 55.f, 0.f, max_scroll);
             } else {
                 const float viewport_height = (std::max)(0.f, size.y - 55.f);
@@ -817,11 +817,11 @@ namespace menu::group
             if (p.y >= 0.f && p.y < 28.f && p.x >= size.x - 35.f) { close_skins(); return; }
             if (toolbar_click(p)) return;
             stop_name_input();
-            if (p.y < 72.f || p.y >= size.y || p.x < 0.f) return;
-            const float width = (size.x - 24.f) / 5.f;
-            const int col = static_cast<int>(p.x / (width + 6.f));
-            const int row = static_cast<int>((p.y - 72.f + skin_scroll) / 78.f);
-            if (col < 0 || col >= 5 || row < 0 || p.x - static_cast<float>(col) * (width + 6.f) >= width) return;
+            if (p.y < 72.f || p.y >= size.y || p.x < 2.f) return;
+            const float width = (size.x - 28.f) / 5.f;
+            const int col = static_cast<int>((p.x - 2.f) / (width + 6.f));
+            const int row = static_cast<int>((p.y - 74.f + skin_scroll) / 78.f);
+            if (col < 0 || col >= 5 || row < 0 || p.x - 2.f - static_cast<float>(col) * (width + 6.f) >= width) return;
             const auto visible = filtered_paints();
             const size_t index = static_cast<size_t>(row * 5 + col);
             if (index < visible.size()) { pending.paint = visible[index]; commit_weapon(); }
@@ -978,13 +978,16 @@ namespace menu::group
             FatalityPreviewBridge::weapon_editor_visible.store(false,std::memory_order_relaxed);
             bool budget = true;
             render_toolbar(layer,r);
-            const float width = (r.width() - 24.f) / 5.f;
+            // 2px inset from the clip edges: a selected cell's outline sitting
+            // exactly on the scissor border rasterizes with its top/left edge
+            // eaten, so keep the whole grid inside the viewport.
+            const float width = (r.width() - 28.f) / 5.f;
             const rect viewport{r.tl()+vec2{0.f,72.f},r.br()};
             const auto clip = layer->g.clip_rect; layer->override_clip_rect(viewport);
             const auto visible = filtered_paints();
             for (size_t i = 0; i < visible.size(); ++i) {
-                const float x = r.mins.x + static_cast<float>(i % 5) * (width + 6.f);
-                const float y = r.mins.y + 72.f + static_cast<float>(i / 5) * 78.f - skin_scroll;
+                const float x = r.mins.x + 2.f + static_cast<float>(i % 5) * (width + 6.f);
+                const float y = r.mins.y + 74.f + static_cast<float>(i / 5) * 78.f - skin_scroll;
                 const rect cell{vec2{x,y},vec2{x+width,y+72.f}};
                 if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 4.f);
