@@ -438,9 +438,12 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
         // Which device the GUI is bound to, and whether it is a D3D9Ex device:
         // the CS:GO main menu and in-game can present on different devices, and a
         // stale binding is the classic "input captured, nothing drawn" cause.
+        // __uuidof: the IID symbol itself lives in d3d9.lib, which this project
+        // does not link (all D3D calls go through the game's device vtable);
+        // the uuid is taken from the interface declaration instead.
         bool is_ex = false;
         IDirect3DDevice9Ex* ex_probe = nullptr;
-        if (SUCCEEDED(device->QueryInterface(IID_IDirect3DDevice9Ex, reinterpret_cast<void**>(&ex_probe)))) {
+        if (SUCCEEDED(device->QueryInterface(__uuidof(IDirect3DDevice9Ex), reinterpret_cast<void**>(&ex_probe)))) {
             is_ex = true;
             ex_probe->Release();
         }
