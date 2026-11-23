@@ -381,10 +381,10 @@ namespace menu::group
                 const auto& agent = PreviewCatalog::GetAgent(ct, static_cast<size_t>(FatalityPreviewBridge::agent[team].load(std::memory_order_relaxed)));
                 if (entries[i] == Equipment::Knife && card.contains(input.cursor()) && equipment_screen == Equipment::None)
                     FatalityPreviewBridge::weapon.store(PreviewCatalog::WeaponIndex(selected.empty() ? (ct ? "weapon_knife" : "weapon_knife_t") : selected.c_str()), std::memory_order_relaxed);
-                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget, entries[i] == Equipment::Knife ? selected_equipment_paint(selected.c_str(), ct) : std::string{});
+                draw_equipment_icon(layer, entries[i], entries[i] == Equipment::Agent ? std::string(agent.icon) : selected, ct, card_pos + vec2{width * .5f, 18.f}, vec2{width - 6.f, 30.f}, budget, entries[i] == Equipment::Knife ? selected_equipment_paint(selected.c_str(), ct) : std::string{});
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
-                layer->add_text(pos + vec2{width * .5f, 40.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
-                layer->add_rect_filled(rect{pos + vec2{3.f, 47.f}, pos + vec2{width - 3.f, 49.f}}, colors.outline);
+                layer->add_text(card_pos + vec2{width * .5f, 40.f}, equipment_title(entries[i]), colors.text, text_params::with_vh(align_center, align_center));
+                layer->add_rect_filled(rect{card_pos + vec2{3.f, 47.f}, card_pos + vec2{width - 3.f, 49.f}}, colors.outline);
             }
         }
         void on_mouse_down(char key) override {
