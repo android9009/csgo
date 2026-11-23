@@ -17,11 +17,13 @@
 #include "../../utils/detourhook.hpp"
 #include <windows.h>
 #include <d3d9.h>
+#include <array>
 #include <cmath>
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <unordered_map>
+#include <vector>
 
 namespace ModelPreview {
 namespace {
@@ -107,12 +109,16 @@ void __fastcall ObserveStudioDraw(void* self,void*,void* result,const StudioInfo
 }
 
 
+void RestoreTints();
+void* UpdateWeaponMaterials(int index);
+
 // Restore only state whose corresponding push/bind completed successfully.
 // A second engine exception is contained; preview stays disabled afterwards.
 void RestoreAfterFault() {
     __try {
         capture_view=nullptr;capture_geometry=nullptr;
         PreviewMaterial::Restore();
+        RestoreTints(); // element tints are scoped to one preview draw
         if(active.local_lights && Interfaces::StudioRender)
             Slot<void(__thiscall*)(void*,int,void*)>(Interfaces::StudioRender,22)(Interfaces::StudioRender,0,nullptr);
         if (editor_allocation_begun && Interfaces::MaterialSystem)
@@ -250,7 +256,148 @@ bool InitializeModel(bool ct, int agent_index, const char* agent) {
     return true;
 }
 
-void DrawTarget(void* target, bool weapon_only) {
+// --- Paint kit element recoloring -------------------------------------------
+// IMaterial vtable slots in classic Source order. The runtime name checks in
+// TintMaterial verify this layout against the running client before any
+// parameter call; a mismatch disables the recolor path instead of guessing.
+constexpr int mat_name = 23, mat_param_index = 49, mat_param_name = 50,
+              mat_set_vector3 = 60, mat_set_vector4 = 61, mat_default_param = 63;
+struct TintState { void* material{}; int param{}; bool vec4{}; float value[4]{}; };
+std::vector<TintState> tint_state;
+bool tint_failed{};
+bool tint_skipped_logged{};
+bool InClientModule(std::uintptr_t p) {
+    const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleA("client.dll"));
+    if (!base) return false;
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    return p >= base && p < base + nt->OptionalHeader.SizeOfImage;
+}
+// Set the tint uniform of one model material. The saved value is the shader
+// default (we are the only writer), restored by RestoreTints.
+void TintMaterial(void* material, const char* expect_name, float r, float g, float b) {
+    if (!material) return;
+    auto** table = *reinterpret_cast<void***>(material);
+    if (!table) return;
+    for (const int slot : {mat_name, mat_param_index, mat_param_name, mat_set_vector3, mat_set_vector4, mat_default_param})
+        if (!InClientModule(reinterpret_cast<std::uintptr_t>(table[slot]))) { tint_failed = true; return; }
+    using NameFn = const char*(__thiscall*)(void*);
+    if (expect_name) {
+        const char* name = reinterpret_cast<NameFn>(table[mat_name])(material);
+        if (!name || std::strcmp(name, expect_name) != 0) { tint_failed = true; return; }
+    }
+    using IndexFn = int(__thiscall*)(void*, const char*);
+    using PNameFn = const char*(__thiscall*)(void*, int);
+    using DefaultFn = void(__thiscall*)(void*, int, float*);
+    using SetV3Fn = void(__thiscall*)(void*, const char*, const Vector&);
+    using SetV4Fn = void(__thiscall*)(void*, const char*, const Vector&, float);
+    for (const char* pname : {"color", "rgb"}) {
+        const int idx = reinterpret_cast<IndexFn>(table[mat_param_index])(material, pname);
+        if (idx < 0 || idx > 32) continue;
+        const char* actual = reinterpret_cast<PNameFn>(table[mat_param_name])(material, idx);
+        if (!actual || std::strcmp(actual, pname) != 0) continue;
+        TintState* entry = nullptr;
+        for (auto& state : tint_state)
+            if (state.material == material && state.param == idx) { entry = &state; break; }
+        if (!entry) {
+            if (tint_state.size() >= 16) break;
+            tint_state.push_back(TintState{});
+            entry = &tint_state.back();
+            entry->material = material;
+            entry->param = idx;
+            entry->vec4 = std::strcmp(pname, "color") == 0;
+            float def[4]{};
+            reinterpret_cast<DefaultFn>(table[mat_default_param])(material, idx, def);
+            if (def[0] == 0.f && def[1] == 0.f && def[2] == 0.f && def[3] == 0.f)
+                def[0] = def[1] = def[2] = def[3] = 1.f;
+            entry->value[0] = def[0]; entry->value[1] = def[1];
+            entry->value[2] = def[2]; entry->value[3] = def[3];
+        }
+        if (entry->vec4)
+            reinterpret_cast<SetV4Fn>(table[mat_set_vector4])(material, pname, Vector{r, g, b}, 1.f);
+        else
+            reinterpret_cast<SetV3Fn>(table[mat_set_vector3])(material, pname, Vector{r, g, b});
+        return;
+    }
+    if (!tint_skipped_logged) { tint_skipped_logged = true; LOG_WARN("preview recolor: material without tintable uniform; element skipped"); }
+}
+void RestoreTints() {
+    using SetV3Fn = void(__thiscall*)(void*, const char*, const Vector&);
+    using SetV4Fn = void(__thiscall*)(void*, const char*, const Vector&, float);
+    for (const auto& entry : tint_state) {
+        auto** table = *reinterpret_cast<void***>(entry.material);
+        if (!table) continue;
+        if (entry.vec4)
+            reinterpret_cast<SetV4Fn>(table[mat_set_vector4])(entry.material, "color",
+                Vector{entry.value[0], entry.value[1], entry.value[2]}, entry.value[3]);
+        else
+            reinterpret_cast<SetV3Fn>(table[mat_set_vector3])(entry.material, "rgb",
+                Vector{entry.value[0], entry.value[1], entry.value[2]});
+    }
+    tint_state.clear();
+}
+// Resolves the IMaterials the tints modify for the drawn weapon model: the
+// live weapon's generated materials (what actually renders when the preview
+// copies them) if available, otherwise the model's base materials.
+struct PendingTint { void* material{}; std::string expect_name; };
+std::array<PendingTint, 8> pending_tints{};
+int pending_tint_count{};
+// Engine-stable copies of the live weapon's generated materials, kept per
+// weapon so the element tints survive UpdateWeaponMaterials' 500 ms throttle.
+struct OwnerMaterialCache { void* materials[16]{}; int count{}; int paint{}; };
+OwnerMaterialCache owner_material_cache[sizeof(PreviewCatalog::weapons) / sizeof(*PreviewCatalog::weapons)]{};
+void ResolveTintMaterials(int index, void* owner) {
+    pending_tints = {};
+    pending_tint_count = 0;
+    const int count = FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed);
+    if (count <= 0 || count > 8) return;
+    void* material_source[16]{};
+    int source_count = 0;
+    if (owner) {
+        auto* owner_bytes = static_cast<unsigned char*>(owner);
+        const int material_count = *reinterpret_cast<int*>(owner_bytes + 0x10);
+        auto** materials = *reinterpret_cast<void***>(owner_bytes + 4);
+        if (material_count > 0 && material_count <= 16 && materials) {
+            for (int i = 0; i < material_count; ++i)
+                if (materials[i]) material_source[source_count++] = materials[i];
+        }
+    }
+    if (!source_count) {
+        const auto& cache = owner_material_cache[index];
+        if (cache.count > 0 && cache.paint == FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed)) {
+            for (int i = 0; i < cache.count; ++i) material_source[source_count++] = cache.materials[i];
+        }
+    }
+    if (source_count) {
+        for (int i = 0; i < count && pending_tint_count < 8; ++i) {
+            void* material = i < source_count ? material_source[i] : nullptr;
+            if (!material) continue;
+            auto** table = *reinterpret_cast<void***>(material);
+            if (!table || !InClientModule(reinterpret_cast<std::uintptr_t>(table[mat_name]))) continue;
+            pending_tints[pending_tint_count++] = {material, std::string{}};
+        }
+        return;
+    }
+    if (!Interfaces::ModelInfo) return;
+    const int model_index = Interfaces::ModelInfo->GetModelIndex(PreviewCatalog::weapons[index].model);
+    auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
+    auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
+    auto* ms = Interfaces::MaterialSystem;
+    if (!hdr || hdr->textures <= 0 || !ms) return;
+    using FindFn = void*(__thiscall*)(void*, const char*, const char*, bool, int);
+    for (int i = 0; i < count && i < hdr->textures && pending_tint_count < 8; ++i) {
+        const auto* tex = hdr->texture(i);
+        if (!tex || !tex->name[0]) continue;
+        auto name = std::string(tex->name);
+        while (name.rfind("materials/", 0) == 0) name.erase(0, 10);
+        // The CS:GO client resolves model materials in the "vertexlit" format.
+        auto* material = Slot<FindFn>(ms, 91)(ms, name.c_str(), "vertexlit", false, 0);
+        if (!material) continue;
+        pending_tints[pending_tint_count++] = {material, name};
+    }
+}
+
+void DrawTarget(void* target, bool weapon_only, bool wide_weapon = true) {
     const bool fit_agent = !weapon_only && FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
     Vector agent_min{-18.f, -18.f, 0.f}, agent_max{18.f, 18.f, 80.f};
     if (!weapon_only && Interfaces::ModelInfo) {
@@ -294,13 +441,19 @@ void DrawTarget(void* target, bool weapon_only) {
     phase = "set rendering parameter";
     context->SetIntRenderingParameter(10, 0);
     ViewSetup view{};
-    view.width = weapon_only ? 452 : width; view.height = weapon_only ? 128 : height;
+    // wide_weapon = the dormant 452x128 editor strip; portrait = the SKINS
+    // tab's 235x370 PREVIEW viewport, where the weapon fills the width.
+    view.width = weapon_only ? (wide_weapon ? 452 : width) : width;
+    view.height = weapon_only ? (wide_weapon ? 128 : height) : height;
     Vector center{}; float radius = 32.f;
     if (weapon_only) {
         phase = "weapon bounding sphere";
         if (!static_cast<MergedModel*>(model)->BoundingSphere(center, radius) || !std::isfinite(radius) || radius < 1.f || radius > 200.f ||
             !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z)) { center = {}; radius = 32.f; }
-        view.fov = 50.f; view.origin = Vector{-(std::max)(70.f, radius * 9.f), 0.f, 0.f};
+        view.fov = 50.f;
+        view.aspect_ratio = static_cast<float>(view.width) / view.height;
+        const float distance = wide_weapon ? (std::max)(70.f, radius * 9.f) : (std::max)(24.f, radius * 2.7f);
+        view.origin = Vector{-distance, 0.f, 0.f};
         view.angles = QAngle{0.f, 0.f, 0.f}; view.near_z = 1.f; view.far_z = 4000.f;
     } else {
         // Keep the model root on a fixed turntable axis. Asymmetric studio
@@ -359,16 +512,18 @@ void DrawTarget(void* target, bool weapon_only) {
         active.local_lights=true;
     }
     constexpr float to_rad = 0.01745329252f;
-    const float yaw = (weapon_only ? FatalityPreviewBridge::editor_yaw.load(std::memory_order_relaxed) : FatalityPreviewBridge::yaw.load(std::memory_order_relaxed)) * to_rad;
-    const float pitch = (weapon_only ? FatalityPreviewBridge::editor_pitch.load(std::memory_order_relaxed) : 0.f) * to_rad;
-    const float roll = (weapon_only ? FatalityPreviewBridge::editor_roll.load(std::memory_order_relaxed) : 0.f) * to_rad;
+    const bool editor_cam = weapon_only && wide_weapon;
+    const float yaw = (editor_cam ? FatalityPreviewBridge::editor_yaw.load(std::memory_order_relaxed)
+                                  : FatalityPreviewBridge::yaw.load(std::memory_order_relaxed)) * to_rad;
+    const float pitch = (editor_cam ? FatalityPreviewBridge::editor_pitch.load(std::memory_order_relaxed) : 0.f) * to_rad;
+    const float roll = (editor_cam ? FatalityPreviewBridge::editor_roll.load(std::memory_order_relaxed) : 0.f) * to_rad;
     const float cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch), cr = std::cos(roll), sr = std::sin(roll);
     matrix3x4_t matrix{};
     matrix[0][0]=cy*cp; matrix[0][1]=cy*sp*sr-sy*cr; matrix[0][2]=cy*sp*cr+sy*sr;
     matrix[1][0]=sy*cp; matrix[1][1]=sy*sp*sr+cy*cr; matrix[1][2]=sy*sp*cr-cy*sr;
     matrix[2][0]=-sp; matrix[2][1]=cp*sr; matrix[2][2]=cp*cr;
     for (int i=0; i<3; ++i) matrix[i][3] = -(matrix[i][0]*center.x + matrix[i][1]*center.y + matrix[i][2]*center.z);
-    if (weapon_only) {
+    if (editor_cam) {
         // Normalized screen drag; camera looks along +X, so Y/Z span its image plane.
         matrix[1][3] -= FatalityPreviewBridge::editor_pan_x.load(std::memory_order_relaxed) * radius * 2.f;
         matrix[2][3] -= FatalityPreviewBridge::editor_pan_y.load(std::memory_order_relaxed) * radius * 2.f;
@@ -430,14 +585,74 @@ void DrawTarget(void* target, bool weapon_only) {
     phase = "read texture handles";
     auto handles = *reinterpret_cast<void***>(reinterpret_cast<std::uintptr_t>(target) + 0x50);
     void* texture = handles && handles[0] ? *reinterpret_cast<void**>(reinterpret_cast<std::uintptr_t>(handles[0]) + 0x0c) : nullptr;
-    if (weapon_only) FatalityPreviewBridge::editor_texture.store(texture, std::memory_order_release);
+    // The portrait SKINS-tab display stores into the main preview texture;
+    // the wide editor strip keeps its own.
+    if (weapon_only && wide_weapon) FatalityPreviewBridge::editor_texture.store(texture, std::memory_order_release);
     else FatalityPreviewBridge::texture.store(texture, std::memory_order_release);
 }
 
 bool redraw_preview=true;
+// SKINS tab weapon display: the selected weapon (skin + paint kit element
+// colors) rendered into the main preview viewport instead of the agent.
+void PaintWeaponDisplay() {
+    const int index = FatalityPreviewBridge::editor_weapon.load(std::memory_order_relaxed);
+    if (index < 0 || static_cast<size_t>(index) >= PreviewCatalog::WeaponCount() || editor_missing[index]) {
+        FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release);
+        return;
+    }
+    if (!editor_models[index]) {
+        const auto path = PreviewCatalog::weapons[index].model;
+        if (!ModelExists(path)) { editor_missing[index] = true; LOG_WARN("weapon preview: missing %s", path); FatalityPreviewBridge::texture.store(nullptr, std::memory_order_release); return; }
+        phase = "allocate display weapon";
+        void* ptr = Slot<void*(__thiscall*)(void*, size_t)>(Interfaces::MemAlloc, 1)(Interfaces::MemAlloc, 0x75c);
+        if (!ptr) { editor_failed = true; return; }
+        std::memset(ptr, 0, 0x75c);
+        phase = "construct display weapon";
+        reinterpret_cast<ConstructModelFn>(ctor)(static_cast<MergedModel*>(ptr));
+        phase = "set display weapon model";
+        static_cast<MergedModel*>(ptr)->SetMDL(path);
+        editor_models[index] = ptr;
+    }
+    phase = "copy display weapon materials";
+    void* owner = UpdateWeaponMaterials(index);
+    model = editor_models[index];
+    static void* drawn{};
+    static float drawn_yaw{};
+    static int drawn_version{}, drawn_paint{}, drawn_seed{}, drawn_wear{};
+    const float yaw = FatalityPreviewBridge::yaw.load(std::memory_order_relaxed);
+    const int version = FatalityPreviewBridge::paint_color_version.load(std::memory_order_relaxed);
+    const int paint = FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed);
+    const int seed = FatalityPreviewBridge::editor_seed.load(std::memory_order_relaxed);
+    const int wear = static_cast<int>(FatalityPreviewBridge::editor_wear.load(std::memory_order_relaxed) * 1000.f);
+    if (!redraw_preview && drawn == model && drawn_yaw == yaw && drawn_version == version &&
+        drawn_paint == paint && drawn_seed == seed && drawn_wear == wear &&
+        FatalityPreviewBridge::texture.load(std::memory_order_acquire))
+        return;
+    const int color_count = FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed);
+    if (color_count > 0 && !tint_failed) {
+        phase = "resolve paint tint materials";
+        ResolveTintMaterials(index, owner);
+        phase = "apply paint tints";
+        for (int i = 0; i < pending_tint_count && i < 8 && i < color_count; ++i) {
+            const auto packed = FatalityPreviewBridge::paint_colors[i].load(std::memory_order_relaxed);
+            TintMaterial(pending_tints[i].material,
+                pending_tints[i].expect_name.empty() ? nullptr : pending_tints[i].expect_name.c_str(),
+                ((packed >> 16) & 255) / 255.f, ((packed >> 8) & 255) / 255.f, (packed & 255) / 255.f);
+            if (tint_failed) break;
+        }
+    }
+    phase = "draw display weapon";
+    DrawTarget(render_texture, true, false);
+    if (color_count > 0 && !tint_failed) { phase = "restore paint tints"; RestoreTints(); }
+    drawn = model; drawn_yaw = yaw; drawn_version = version; drawn_paint = paint; drawn_seed = seed; drawn_wear = wear;
+}
 void PaintImpl() {
     if (!render_texture && !Initialize()) { failed = true; LOG_WARN("model preview initialization failed"); return; }
     const bool skins = FatalityPreviewBridge::render_skins.load(std::memory_order_relaxed);
+    if (skins && FatalityPreviewBridge::preview_weapon.load(std::memory_order_relaxed)) {
+        PaintWeaponDisplay();
+        return;
+    }
     bool ct = FatalityPreviewBridge::render_ct.load(std::memory_order_relaxed);
     std::string local_path;
     if (!skins) {
@@ -569,14 +784,16 @@ void* FindLiveMaterialOwner(int index, int paint, int seed, float wear, int* rea
     }
     return nullptr;
 }
-void UpdateWeaponMaterials(int index) {
+// Returns the live material owner (only valid for this frame) so callers can
+// reuse its generated materials for the element tints.
+void* UpdateWeaponMaterials(int index) {
     const auto now = GetTickCount();
     const int paint = FatalityPreviewBridge::editor_paint.load(std::memory_order_relaxed);
     const int seed = FatalityPreviewBridge::editor_seed.load(std::memory_order_relaxed);
     const float wear = FatalityPreviewBridge::editor_wear.load(std::memory_order_relaxed);
     const bool changed = editor_material_model != index || editor_material_paint != paint ||
         editor_material_seed != seed || editor_material_wear != wear;
-    if (!changed && now - editor_material_refresh < 500) return;
+    if (!changed && now - editor_material_refresh < 500) return nullptr;
     editor_material_model = index; editor_material_refresh = now;
     editor_material_paint = paint; editor_material_seed = seed; editor_material_wear = wear;
     auto* preview = static_cast<MergedModel*>(editor_models[index]);
@@ -603,6 +820,25 @@ void UpdateWeaponMaterials(int index) {
     preview->SetMDL(PreviewCatalog::weapons[index].model, owner, nullptr);
     const int old = FatalityPreviewBridge::editor_material_status.exchange(status, std::memory_order_relaxed);
     if (old != status) LOG_INFO("weapon preview: experimental live material status=%d paint=%d", status, paint);
+    // Cache the generated material pointers (engine-stable) for the tints.
+    auto& cache = owner_material_cache[index];
+    cache.count = 0;
+    cache.paint = paint;
+    if (owner) {
+        auto* bytes = static_cast<unsigned char*>(owner);
+        const int material_count = *reinterpret_cast<int*>(bytes + 0x10);
+        auto** materials = *reinterpret_cast<void***>(bytes + 4);
+        if (material_count > 0 && material_count <= 16 && materials) {
+            for (int i = 0; i < material_count; ++i) {
+                void* m = materials[i];
+                if (!m) continue;
+                auto** mtable = *reinterpret_cast<void***>(m);
+                if (!mtable || !InClientModule(reinterpret_cast<std::uintptr_t>(mtable[mat_name]))) continue;
+                cache.materials[cache.count++] = m;
+            }
+        }
+    }
+    return owner;
 }
 void PaintWeaponImpl() {
     if (!render_texture) return; // normal preview owns common initialization
@@ -709,6 +945,12 @@ void Shutdown() {
     cubemap_retained=false;
     if (editor_target && editor_target_retained) Slot<void(__thiscall*)(void*)>(editor_target, 11)(editor_target);
     editor_target = nullptr; editor_target_retained = false; editor_failed = false;
+    tint_state.clear();
+    tint_failed = false;
+    tint_skipped_logged = false;
+    pending_tints = {};
+    pending_tint_count = 0;
+    for (auto& cache : owner_material_cache) cache = OwnerMaterialCache{};
     editor_material_refresh = 0; editor_material_model = -1;
     FatalityPreviewBridge::editor_material_status.store(0, std::memory_order_relaxed);
     std::memset(editor_missing, 0, sizeof(editor_missing));

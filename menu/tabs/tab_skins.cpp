@@ -436,6 +436,8 @@ namespace menu::group
             if (decal_picker >= 0) { render_decal_picker(layer, r); return; }
             if (equipment_screen != Equipment::None) { selected_weapon = {}; render_equipment(layer, r); return; }
             if (selected_weapon.internal) { render_skins(layer, r); return; }
+            if (FatalityPreviewBridge::preview_weapon.load(std::memory_order_relaxed))
+                FatalityPreviewBridge::preview_weapon.store(false, std::memory_order_relaxed);
             const auto ct = rect(r.tl(), r.tl() + vec2{72.f, 25.f});
             const auto t = rect(r.tl() + vec2{78.f, 0.f}, r.tl() + vec2{150.f, 25.f});
             layer->add_rect_filled_rounded(ct, team_ct ? colors.bg_block_light : colors.bg_bottom, 2.f);
@@ -747,6 +749,113 @@ namespace menu::group
             std::memcpy(choice.name.data(), pending.custom_name.data(), (std::min)(pending.custom_name.size(), choice.name.size() - 1));
             if (!SkinState::Set(team_ct, definition, choice)) LOG_WARN("skins: invalid choice for %s", selected_weapon.internal);
         }
+        // Paint kits whose model parts can be recolored. Skins that declare a
+        // "customization" block in items_game.txt are discovered from the
+        // schema; this fallback covers installs whose file has no such block.
+        struct PaintableRule { const char* weapon; const char* paint_part; };
+        static constexpr PaintableRule paintable_rules[] = {
+            {"weapon_awp", "lightning_strike"},
+        };
+        struct PaintColorInfo {
+            bool paintable{};
+            int elements{};
+            std::array<std::string, 8> labels{};
+            std::array<std::uint32_t, 8> colors{};
+        };
+        // The model's body materials, in engine bind order, become the
+        // recolorable elements for paint kits without schema customization data.
+        std::vector<std::string> weapon_material_labels(const char* weapon) const {
+            static std::map<std::string, std::vector<std::string>> cache;
+            const std::string key = weapon ? weapon : "";
+            if (const auto found = cache.find(key); found != cache.end()) return found->second;
+            std::vector<std::string> labels;
+            const int index = PreviewCatalog::WeaponIndex(weapon);
+            if (index >= 0 && index < static_cast<int>(PreviewCatalog::WeaponCount()) && Interfaces::ModelInfo) {
+                const char* path = PreviewCatalog::weapons[index].model;
+                const int model_index = Interfaces::ModelInfo->GetModelIndex(path);
+                auto* source = model_index >= 0 ? Interfaces::ModelInfo->GetModel(model_index) : nullptr;
+                auto* hdr = source ? Interfaces::ModelInfo->GetStudioModel(source) : nullptr;
+                if (hdr && hdr->textures > 0 && hdr->textures <= 64) {
+                    for (int i = 0; i < hdr->textures && labels.size() < 8; ++i) {
+                        const auto* tex = hdr->texture(i);
+                        if (!tex || !tex->name[0]) continue;
+                        auto full = std::string(tex->name);
+                        while (full.rfind("materials/", 0) == 0) full.erase(0, 10);
+                        const auto slash = full.find_last_of('/');
+                        auto label = full.substr(slash == std::string::npos ? 0 : slash + 1);
+                        const auto dot = label.find_last_of('.');
+                        if (dot != std::string::npos) label.erase(dot);
+                        if (label.empty()) continue;
+                        labels.push_back(std::move(label));
+                    }
+                }
+            }
+            if (cache.size() > 128) cache.clear();
+            return cache.emplace(key, labels).first->second;
+        }
+        PaintColorInfo paint_color_info() const {
+            PaintColorInfo info;
+            if (agent_editor || equipment_weapon || !selected_weapon.internal || pending.paint.empty()) return info;
+            const auto custom = schema_metadata.customization.find(pending.paint);
+            bool known = custom != schema_metadata.customization.end() && !custom->second.empty();
+            if (!known)
+                for (const auto& rule : paintable_rules)
+                    if (std::string(selected_weapon.internal).find(rule.weapon) != std::string::npos &&
+                        pending.paint.find(rule.paint_part) != std::string::npos) { known = true; break; }
+            if (!known) return info;
+            info.paintable = true;
+            if (custom != schema_metadata.customization.end() && !custom->second.empty()) {
+                info.elements = (std::min)(static_cast<int>(custom->second.size()), 8);
+                for (int i = 0; i < info.elements; ++i) {
+                    const auto& c = custom->second[i];
+                    info.colors[i] = SkinOptions::PackColor(evo::ren::color{c[0], c[1], c[2], 1.f});
+                    info.labels[i] = "Element " + std::to_string(i + 1);
+                }
+            } else {
+                const auto names = weapon_material_labels(selected_weapon.internal);
+                info.elements = names.empty() ? 1 : (std::min)(static_cast<int>(names.size()), 8);
+                for (int i = 0; i < info.elements; ++i) {
+                    info.colors[i] = 0x00FFFFFFu;
+                    info.labels[i] = i < static_cast<int>(names.size()) ? names[i] : "Element " + std::to_string(i + 1);
+                }
+            }
+            const auto stored = paint_colors.find(std::string(selected_weapon.internal) + "/" + pending.paint);
+            if (stored != paint_colors.end())
+                for (int i = 0; i < info.elements && i < 8; ++i) info.colors[i] = stored->second[i];
+            return info;
+        }
+        // Push the selected weapon (skin + element colors) into the preview
+        // bridge; the render hook shows it in the PREVIEW viewport.
+        void publish_paint_preview() {
+            if (!selected_weapon.internal) {
+                if (FatalityPreviewBridge::preview_weapon.load(std::memory_order_relaxed))
+                    FatalityPreviewBridge::preview_weapon.store(false, std::memory_order_relaxed);
+                return;
+            }
+            const auto paint_id = schema_metadata.paint_ids.find(pending.paint);
+            FatalityPreviewBridge::editor_weapon.store(PreviewCatalog::WeaponIndex(selected_weapon.internal), std::memory_order_relaxed);
+            FatalityPreviewBridge::editor_paint.store(paint_id == schema_metadata.paint_ids.end() ? 0 : paint_id->second, std::memory_order_relaxed);
+            FatalityPreviewBridge::editor_seed.store(pending.seed, std::memory_order_relaxed);
+            FatalityPreviewBridge::editor_wear.store(pending.wear, std::memory_order_relaxed);
+            FatalityPreviewBridge::preview_weapon.store(true, std::memory_order_relaxed);
+            const auto info = paint_color_info();
+            if (!info.paintable) {
+                if (FatalityPreviewBridge::paint_color_count.load(std::memory_order_relaxed) != 0)
+                    FatalityPreviewBridge::paint_color_count.store(0, std::memory_order_relaxed);
+                last_published_color_count = 0;
+                return;
+            }
+            FatalityPreviewBridge::paint_color_count.store(info.elements, std::memory_order_relaxed);
+            for (int i = 0; i < info.elements && i < 8; ++i)
+                FatalityPreviewBridge::paint_colors[i].store(info.colors[i], std::memory_order_relaxed);
+            bool changed = last_published_color_count != info.elements;
+            for (int i = 0; !changed && i < info.elements; ++i) changed = last_published_colors[i] != info.colors[i];
+            if (changed) {
+                last_published_color_count = info.elements;
+                for (int i = 0; i < info.elements; ++i) last_published_colors[i] = info.colors[i];
+                FatalityPreviewBridge::paint_color_version.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
         void open_catalog_settings() {
             if(auto existing=catalog_options.lock()){existing->close();return;}
             static std::uint64_t next_id=GUI_HASH("skins>catalog native settings");next_id+=512;
@@ -778,6 +887,7 @@ namespace menu::group
                 return grid.team_ct==ct && grid.agent_editor==agent &&
                     (agent?grid.agent_choice==agent_id:weapon==(grid.selected_weapon.internal?grid.selected_weapon.internal:""));
             };
+            const auto color_info = paint_color_info();
             auto panel=std::make_shared<SkinOptions::Panel>(control_id{next_id},
                 area_abs().tr()+vec2{-(agent?92.f:gloves?286.f:304.f),66.f},pending,agent,gloves,sticker_count(),
                 [self,matches](const SkinChoice& choice) {
@@ -788,6 +898,14 @@ namespace menu::group
                 },
                 [self,matches](int slot,std::shared_ptr<evo::ren::layer>& layer,const rect& box) {
                     if(auto grid=self.lock();grid && matches(*grid)) {bool budget=true;grid->draw_decal(layer,grid->pending.stickers[slot],box,budget);}
+                },
+                agent||gloves?0:color_info.elements,color_info.labels,color_info.colors,
+                [self,matches](int element,std::uint32_t packed) {
+                    if(auto grid=self.lock();grid && matches(*grid) && element>=0 && element<8) {
+                        const auto key=std::string(grid->selected_weapon.internal?grid->selected_weapon.internal:"")+"/"+grid->pending.paint;
+                        grid->paint_colors[key][element]=packed;
+                        grid->publish_paint_preview();
+                    }
                 });
             native_options=panel;panel->open();
         }
@@ -929,6 +1047,8 @@ namespace menu::group
             FatalityPreviewBridge::skins_selecting.store(false, std::memory_order_relaxed);
         }
         void render_equipment(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
+            if (FatalityPreviewBridge::preview_weapon.load(std::memory_order_relaxed))
+                FatalityPreviewBridge::preview_weapon.store(false, std::memory_order_relaxed);
             layer->font = draw.fonts[GUI_HASH("gui_main")];
             layer->add_text(r.tl() + vec2{2.f, 12.f}, equipment_title(equipment_screen), colors.text, text_params::with_v(align_center));
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
@@ -976,6 +1096,7 @@ namespace menu::group
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 3.f);
             layer->add_text(close.center(), "X", colors.text_dark, text_params::with_vh(align_center, align_center));
             FatalityPreviewBridge::weapon_editor_visible.store(false,std::memory_order_relaxed);
+            publish_paint_preview();
             bool budget = true;
             render_toolbar(layer,r);
             // 2px inset from the clip edges: a selected cell's outline sitting
@@ -1031,6 +1152,10 @@ namespace menu::group
         float decal_scroll{};
         bool agent_editor{}, equipment_weapon{};
         std::vector<std::string> paints;
+        // Paint kit element colors for paintable skins, keyed by "weapon/paint".
+        std::map<std::string, std::array<std::uint32_t, 8>> paint_colors;
+        int last_published_color_count{-1};
+        std::array<std::uint32_t, 8> last_published_colors{};
     };
     }
 

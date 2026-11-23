@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 namespace FatalityPreviewBridge {
 inline std::atomic<bool> visible{false};
 inline std::atomic<bool> skins_selecting{false};
@@ -27,4 +28,12 @@ inline std::atomic<int> editor_material_status{0};
 inline std::atomic<float> editor_yaw{0.f}, editor_pitch{0.f}, editor_roll{0.f};
 inline std::atomic<float> editor_pan_x{0.f}, editor_pan_y{0.f};
 inline std::atomic<void*> editor_texture{nullptr};
+// SKINS tab: while a weapon screen is open, the preview viewport shows the
+// selected weapon (skin + paint kit element colors) instead of the agent.
+inline std::atomic<bool> preview_weapon{false};
+// Packed 0x00RRGGBB; valid indices are 0..paint_color_count-1.
+inline std::atomic<std::uint32_t> paint_colors[8]{};
+inline std::atomic<int> paint_color_count{0};
+// Bumped only when the published color set changes (drives preview redraws).
+inline std::atomic<int> paint_color_version{0};
 }

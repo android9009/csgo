@@ -1,12 +1,26 @@
 #pragma once
 #include "../tabs/tabs.hpp"
 #include "../../sdk/skin_schema.hpp"
+#include "../../sdk/third_party/gui/src/gui/controls/color_picker.h"
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
 #include <functional>
+#include <string>
 
 namespace SkinOptions {
 using namespace evo::gui;
 using namespace evo::ren;
+// Paint element colors travel as packed 0x00RRGGBB so the menu and the
+// preview hook share one representation.
+inline std::uint32_t PackColor(color c) {
+    auto q = [](float v) { return std::uint32_t(std::clamp(static_cast<int>(std::lround(std::clamp(v, 0.f, 1.f) * 255.f)), 0, 255)); };
+    return (q(c.value.r) << 16) | (q(c.value.g) << 8) | q(c.value.b);
+}
+inline color UnpackColor(std::uint32_t v) {
+    return color{((v >> 16) & 255) / 255.f, ((v >> 8) & 255) / 255.f, (v & 255) / 255.f, 1.f};
+}
 struct Choice {
     std::string paint, custom_name;
     int seed{}, stattrak_count{};
@@ -45,9 +59,13 @@ class Panel final : public popup {
 public:
     Panel(control_id id,const vec2& anchor,const Choice& choice,bool agent,bool gloves,int slots,
           std::function<void(const Choice&)> changed,std::function<void(int)> pick,
-          std::function<void(int,std::shared_ptr<layer>&,const rect&)> image)
-        :popup(id,anchor,agent?vec2{92.f,190.f}:gloves?vec2{286.f,116.f}:vec2{304.f,slots?316.f:268.f},true),
-         values(std::make_shared<Values>(choice)),agent(agent),gloves(gloves),slots(slots),changed(std::move(changed)),pick(std::move(pick)),image(std::move(image)){}
+          std::function<void(int,std::shared_ptr<layer>&,const rect&)> image,
+          int color_count=0,const std::array<std::string,8>& color_labels={},
+          const std::array<std::uint32_t,8>& color_values={},std::function<void(int,std::uint32_t)> set_color={})
+        :popup(id,anchor,agent?vec2{92.f,190.f}:gloves?vec2{286.f,116.f}
+             :vec2{304.f,(slots?316.f:268.f)+(color_count>0?44.f+28.f*static_cast<float>(color_count):0.f)},true),
+         values(std::make_shared<Values>(choice)),agent(agent),gloves(gloves),slots(slots),changed(std::move(changed)),pick(std::move(pick)),image(std::move(image)),
+         color_count(color_count>0?(std::min)(color_count,8):0),color_labels(color_labels),color_values(color_values),set_color(std::move(set_color)){}
     void on_first_render_call() override {
         popup::on_first_render_call();
         std::weak_ptr<Panel> self=as<Panel>();
@@ -85,6 +103,26 @@ public:
                     [self,i]{if(auto p=self.lock()){if(p->pick)p->pick(i);p->close();}},
                     [self,i](std::shared_ptr<layer>& d,const rect& r){if(auto p=self.lock())if(p->image)p->image(i,d,r);});
                 add(slot);
+            }
+        }
+        // Paint kit element colors (only for paintable skins): one swatch per
+        // recolorable model part, below the stickers.
+        if(color_count>0) {
+            const float top=(slots?316.f:268.f)+12.f;
+            add(std::make_shared<label>(control_id{id+50},"Paint colors",colors.text,false,vec2{12.f,top}));
+            for(int i=0;i<color_count;++i) {
+                const float y=top+30.f+28.f*static_cast<float>(i);
+                auto row=std::make_shared<control_container>(control_id{id+60+static_cast<std::uint64_t>(i)},vec2{12.f,y},vec2{size.x-24.f,24.f});
+                auto text=color_labels[i].empty()?("Element "+std::to_string(i+1)):color_labels[i];
+                if(text.size()>18) text=text.substr(0,18)+"...";
+                row->add(std::make_shared<label>(control_id{id+70+static_cast<std::uint64_t>(i)},text,colors.text_dark,false,vec2{0.f,4.f}));
+                auto keep_color=std::make_shared<value_param<color>>(UnpackColor(color_values[i]));
+                auto picker=std::make_shared<color_picker>(control_id{id+80+static_cast<std::uint64_t>(i)},*keep_color,false);
+                picker->pos={116.f,3.f};picker->size={48.f,16.f};picker->margin={};
+                picker->callback=[self,i](color c){
+                    if(auto p=self.lock()){const auto packed=PackColor(c);p->color_values[i]=packed;if(p->set_color)p->set_color(i,packed);}
+                };
+                row->add(picker);add(row);
             }
         }
         // This popup builds children inside its own first-render callback,
@@ -126,6 +164,10 @@ private:
     std::function<void(const Choice&)> changed;
     std::function<void(int)> pick;
     std::function<void(int,std::shared_ptr<layer>&,const rect&)> image;
+    int color_count{};
+    std::array<std::string,8> color_labels{};
+    std::array<std::uint32_t,8> color_values{};
+    std::function<void(int,std::uint32_t)> set_color;
     std::shared_ptr<checkbox> stattrak_check;
     std::shared_ptr<slider<int>> count;
 };
