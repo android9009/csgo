@@ -594,7 +594,8 @@ namespace menu::group
         void on_mouse_wheel(float delta) override {
             input.consume_wheel();
             if (decal_picker >= 0) {
-                const float rows = static_cast<float>((visible_decals().size() + 2) / 3);
+                // +1 cell for the icon-less "None" entry, +2 for ceiling.
+                const float rows = static_cast<float>((visible_decals().size() + 3) / 3);
                 decal_scroll = std::clamp(decal_scroll - delta * 55.f, 0.f, (std::max)(0.f, rows * 78.f - (size.y - 42.f)));
                 return;
             }
@@ -860,7 +861,7 @@ namespace menu::group
         void decal_picker_click(const vec2& p) {
             if (p.y < 32.f) {
                 if (p.x >= size.x - 35.f) { decal_picker = -1; return; }
-                if (p.x < 130.f) { pending.stickers[decal_picker] = {}; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; return; }
+                return;
             }
             if (p.y < 42.f || p.x < 0.f) return;
             const float width = (size.x - 12.f) / 3.f;
@@ -869,7 +870,10 @@ namespace menu::group
             if (col < 0 || col >= 3 || row < 0 || p.x - static_cast<float>(col) * (width + 6.f) >= width) return;
             const auto visible = visible_decals();
             const size_t index = static_cast<size_t>(row * 3 + col);
-            if (index < visible.size()) { pending.stickers[decal_picker] = *visible[index]; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; }
+            // Cell 0 is the icon-less "None" entry, mirroring the agent list's
+            // Default row: selecting it clears the slot.
+            if (index == 0) { pending.stickers[decal_picker] = {}; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; return; }
+            if (index - 1 < visible.size()) { pending.stickers[decal_picker] = *visible[index - 1]; decal_picker = -1; if (!agent_editor) commit_weapon(); else agent_patches[team_ct ? 0 : 1][agent_choice] = pending.stickers; }
         }
         void draw_decal(std::shared_ptr<evo::ren::layer>& layer, const SkinSchema::Decal& decal, const rect& box, bool& budget) {
             if (decal.name.empty()) return;
@@ -887,8 +891,7 @@ namespace menu::group
         }
         void render_decal_picker(std::shared_ptr<evo::ren::layer>& layer, const rect& r) {
             layer->font = draw.fonts[GUI_HASH("gui_main")];
-            layer->add_text(r.tl() + vec2{4.f, 14.f}, "REMOVE", colors.accent, text_params::with_v(align_center));
-            layer->add_text(r.tl() + vec2{150.f, 14.f}, agent_editor ? "PATCHES" : "STICKERS", colors.text, text_params::with_v(align_center));
+            layer->add_text(r.tl() + vec2{4.f, 14.f}, agent_editor ? "PATCHES" : "STICKERS", colors.text, text_params::with_v(align_center));
             const rect close{r.tr() - vec2{30.f, 0.f}, r.tr() + vec2{0.f, 27.f}};
             layer->add_rect_filled_rounded(close, colors.bg_bottom, 2.f);
             layer->add_text(close.center(), "X", color{230, 60, 90}, text_params::with_vh(align_center, align_center));
@@ -897,15 +900,22 @@ namespace menu::group
             const rect viewport{r.tl() + vec2{0.f, 42.f}, r.br()};
             const auto clip = layer->g.clip_rect; layer->override_clip_rect(viewport);
             bool budget = true;
-            for (size_t i = 0; i < visible.size(); ++i) {
+            // One extra leading cell: "None" (icon-less, like the agent list's
+            // Default row) selects the empty sticker slot.
+            for (size_t i = 0; i <= visible.size(); ++i) {
                 const float x = r.mins.x + static_cast<float>(i % 3) * (width + 6.f);
                 const float y = r.mins.y + 42.f + static_cast<float>(i / 3) * 78.f - decal_scroll;
                 const rect cell{vec2{x,y},vec2{x+width,y+72.f}};
                 if (cell.maxs.y <= viewport.mins.y || cell.mins.y >= viewport.maxs.y) continue;
                 layer->add_rect_filled_rounded(cell, colors.bg_bottom, 2.f);
-                draw_decal(layer, *visible[i], rect{vec2{x+width*.5f-24.f,y+2.f},vec2{x+width*.5f+24.f,y+50.f}}, budget);
+                if (i == 0) {
+                    layer->font = draw.fonts[GUI_HASH("gui_main")];
+                    layer->add_text(vec2{x+3.f,y+58.f}, "None", colors.text_dark, text_params::with_v(align_center));
+                    continue;
+                }
+                draw_decal(layer, *visible[i - 1], rect{vec2{x+width*.5f-24.f,y+2.f},vec2{x+width*.5f+24.f,y+50.f}}, budget);
                 layer->font = draw.fonts[GUI_HASH("gui_main")];
-                layer->add_text(vec2{x+3.f,y+58.f}, visible[i]->name, colors.text, text_params::with_v(align_center));
+                layer->add_text(vec2{x+3.f,y+58.f}, visible[i - 1]->name, colors.text, text_params::with_v(align_center));
             }
             layer->g.clip_rect = clip;
         }

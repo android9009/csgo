@@ -120,11 +120,10 @@ void hsv_slider::on_mouse_down(char key)
 				};
 				const auto d1 = (cur - marker(0, value.get())).len_sqr();
 				const auto d2 = (cur - marker(1, secondary->get())).len_sqr();
-				if (d1 < 100.f || d2 < 100.f)
-				{
-					secondary_selected = d1 == d2 ? !secondary_selected : d2 < d1;
-					run_universal_callbacks();
-				}
+				// Move the stop closest to the cursor, not the one selected by
+				// the previous click.
+				secondary_selected = d2 < d1;
+				run_universal_callbacks();
 			}
 			current_edit = e_sb;
 		}

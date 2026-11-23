@@ -39,8 +39,8 @@ class Panel final : public popup {
         value_param<int> seed,count;
         value_param<float> wear;
         value_param<bool> souvenir;
-        value_param<bits> mode;
-        explicit Values(const Choice& c):choice(c),seed(c.seed),count(c.stattrak_count),wear(c.wear),souvenir(c.souvenir),mode(bits{std::uint64_t{1}<<c.stattrak_mode}){}
+        value_param<bool> stattrak;
+        explicit Values(const Choice& c):choice(c),seed(c.seed),count(c.stattrak_count),wear(c.wear),souvenir(c.souvenir),stattrak(c.stattrak_mode==1){}
     };
 public:
     Panel(control_id id,const vec2& anchor,const Choice& choice,bool agent,bool gloves,int slots,
@@ -68,10 +68,11 @@ public:
                 auto name=std::make_shared<text_input>(control_id{id+6},vec2{},vec2{154.f,24.f},std::nullopt,std::nullopt,31);
                 name->placeholder="Name tag";name->set_value(values->choice.custom_name);
                 name->callback=[self,keep](std::string& text){keep->choice.custom_name=text;if(auto p=self.lock())p->publish();};row("Custom name",name,150.f);
-                mode=std::make_shared<combo_box>(control_id{id+7},values->mode);
-                const char* names[]={"Default","Static","None"};
-                for(int i=0;i<3;++i)mode->add(std::make_shared<selectable>(control_id{id+20+static_cast<std::uint64_t>(i)},names[i],i));
-                mode->callback=[update](bits&){update();};row("StatTrak",mode,186.f);
+                // Plain on/off switch; the kill counter below sets the static
+                // value while it is on. (Old combo: Default/Static/None.)
+                stattrak_check=std::make_shared<checkbox>(control_id{id+7},values->stattrak);
+                stattrak_check->reset_internal();
+                stattrak_check->callback=[update](bool){update();};row("StatTrak",stattrak_check,186.f);
                 count=std::make_shared<slider<int>>(control_id{id+8},0,99999,values->count,"%d");
                 count->callback=[update](int,int){update();};row("Value",count,222.f);
             }
@@ -94,8 +95,8 @@ public:
     }
     void render() override {
         if(!is_visible)return;
-        if(mode)mode->is_taking_input=!values->souvenir.get();
-        if(count)count->is_taking_input=!values->souvenir.get() && !values->mode.get().get(2);
+        if(stattrak_check)stattrak_check->is_taking_input=!values->souvenir.get();
+        if(count)count->is_taking_input=!values->souvenir.get() && values->stattrak.get();
         begin_render();auto& d=draw.layers[ctx->content_layer];
         d->add_shadow_rect(area_abs(),8.f,true);
         d->add_rect_filled_rounded(area_abs(),colors.bg_block,3.f);
@@ -104,7 +105,7 @@ public:
         if(!agent && !gloves) {
             begin_render();auto& top=draw.layers[ctx->content_layer];
             if(values->souvenir.get())top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,180.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
-            else if(values->mode.get().get(2))top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,216.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
+            else if(!values->stattrak.get())top->add_rect_filled(rect{area_abs().tl()+vec2{8.f,216.f},area_abs().tl()+vec2{size.x-8.f,246.f}},color{0,0,0,135});
             end_render();
         }
     }
@@ -116,7 +117,8 @@ private:
     }
     void publish() {
         auto& c=values->choice;c.seed=values->seed.get();c.wear=values->wear.get();c.souvenir=values->souvenir.get();
-        c.stattrak_count=values->count.get();c.stattrak_mode=values->mode.get().first_set_bit().value_or(0);c.stattrak=c.stattrak_mode==1;
+        // Checkbox: on = static StatTrak with the counter below, off = no StatTrak.
+        c.stattrak_count=values->count.get();c.stattrak_mode=values->stattrak.get()?1:2;c.stattrak=c.stattrak_mode==1;
         if(changed)changed(c);
     }
     std::shared_ptr<Values> values;
@@ -124,7 +126,7 @@ private:
     std::function<void(const Choice&)> changed;
     std::function<void(int)> pick;
     std::function<void(int,std::shared_ptr<layer>&,const rect&)> image;
-    std::shared_ptr<combo_box> mode;
+    std::shared_ptr<checkbox> stattrak_check;
     std::shared_ptr<slider<int>> count;
 };
 class CatalogPanel final : public popup {
