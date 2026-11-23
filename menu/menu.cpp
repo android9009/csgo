@@ -95,6 +95,23 @@ static IDirect3DDevice9* gui_device = nullptr;
 static bool objects_ready = false;
 cfg_t cfg;
 
+// Diagnostics for the "menu is open (input captured) but invisible" case: every
+// Render() early return is logged, at most once per second per condition, so the
+// csgo_base.log shows which gate keeps the frame from reaching draw.render().
+namespace {
+struct RenderThrottle {
+    bool fired = false;
+    std::chrono::steady_clock::time_point last{};
+    bool ok() {
+        const auto now = std::chrono::steady_clock::now();
+        if (fired && now - last < std::chrono::seconds(1)) return false;
+        fired = true;
+        last = now;
+        return true;
+    }
+} g_diag_init, g_diag_device, g_diag_objects, g_diag_wnd;
+}
+
 std::shared_ptr<control> make_stacked_groupboxes( uint64_t id, const vec2& size,
                                                   const std::vector<std::shared_ptr<control>>& groups ) {
     const auto l = std::make_shared<layout>( evo::gui::control_id{ id, "" }, vec2( ), size, s_vertical );
@@ -146,15 +163,29 @@ namespace FatalityMenu {
 bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (gui_device) return gui_device == device && objects_ready;
-    if (!device || !hwnd) return false;
+    if (!device || !hwnd) {
+        if (g_diag_init.ok())
+            LOG_WARN("menu init: no device/hwnd (device=%p hwnd=%p - FindWindowA(\"Valve001\") failed?)",
+                     (void*)device, (void*)hwnd);
+        return false;
+    }
     // EndScene is also hooked on temporary probe devices during hook setup.
     // Do not bind the GUI to a probe rather than the actual game device.
     D3DDEVICE_CREATION_PARAMETERS params{};
-    if (FAILED(device->GetCreationParameters(&params))) return false;
-    if (params.hFocusWindow && !IsWindow(params.hFocusWindow)) return false;
+    if (FAILED(device->GetCreationParameters(&params))) {
+        if (g_diag_init.ok()) LOG_WARN("menu init: GetCreationParameters failed on device %p", (void*)device);
+        return false;
+    }
+    if (params.hFocusWindow && !IsWindow(params.hFocusWindow)) {
+        if (g_diag_init.ok()) LOG_WARN("menu init: device %p focus window %p is not a live window", (void*)device, (void*)params.hFocusWindow);
+        return false;
+    }
     char class_name[64]{};
     if (params.hFocusWindow && GetClassNameA(params.hFocusWindow, class_name, sizeof(class_name)) &&
-        std::strcmp(class_name, "csgo_base_dummy") == 0) return false;
+        std::strcmp(class_name, "csgo_base_dummy") == 0) {
+        if (g_diag_init.ok()) LOG_WARN("menu init: device %p is the dummy probe, skipped", (void*)device);
+        return false;
+    }
     try {
                 draw.adapter = std::make_shared<adapter_dx9>( hwnd, device );
                 // draw.create_layer( dx_adapter::esp_layer );
@@ -167,13 +198,13 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                // draw.create_layer( 37 );
                // draw.create_layer( 38 );
 
-                draw.adapter->on_vertex_shader_compilation_error = [ ]( const char* ) {
-                    // print_to_console( sdk::color::attention( ), XOR_STR( "Failed to compile vertex shader:\n" ) );
-                    };
+                draw.adapter->on_vertex_shader_compilation_error = [ ]( const char* err ) {
+                    LOG_ERROR("menu init: vertex shader compilation failed: %s", err ? err : "(no log)");
+                };
 
-                draw.adapter->on_fragment_shader_compilation_error = [ ]( const char* ) {
-                    // print_to_console( sdk::color::attention( ), XOR_STR( "Failed to compile fragment shader:\n" ) );
-                    };
+                draw.adapter->on_fragment_shader_compilation_error = [ ]( const char* err ) {
+                    LOG_ERROR("menu init: fragment shader compilation failed: %s", err ? err : "(no log)");
+                };
 
                 // buf = std::make_shared<layer>( draw.adapter->alloc_vb( ), draw.adapter->alloc_ib( ) );
                  //buf->vb->should_discard = false;
@@ -404,7 +435,19 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
         gui_device = device;
         objects_ready = true;
         ctx->reset();
-        LOG_INFO("Fatality source menu initialized");
+        // Which device the GUI is bound to, and whether it is a D3D9Ex device:
+        // the CS:GO main menu and in-game can present on different devices, and a
+        // stale binding is the classic "input captured, nothing drawn" cause.
+        bool is_ex = false;
+        IDirect3DDevice9Ex* ex_probe = nullptr;
+        if (SUCCEEDED(device->QueryInterface(IID_IDirect3DDevice9Ex, reinterpret_cast<void**>(&ex_probe)))) {
+            is_ex = true;
+            ex_probe->Release();
+        }
+        char focus_class[64]{};
+        if (params.hFocusWindow) GetClassNameA(params.hFocusWindow, focus_class, sizeof(focus_class));
+        LOG_INFO("Fatality source menu initialized (device=%p ex=%d focus_class=%s)",
+                 (void*)device, (int)is_ex, focus_class);
         return true;
     } catch (const std::exception& e) { LOG_ERROR("Fatality init failed: %s", e.what()); }
       catch (...) { LOG_ERROR("Fatality init failed"); }
@@ -413,9 +456,27 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
 void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (!gui_device && !Initialize(device, hwnd)) return;
-    if (device != gui_device || !objects_ready) return;
+    if (device != gui_device) {
+        // The presenting device is not the one the GUI bound to: the CS:GO main
+        // menu and in-game can present on different D3D9/D3D9Ex devices, and a
+        // stale binding is exactly the "input captured, nothing drawn" case.
+        // (A rebind needs the renderer's per-device objects rebuilt - see the
+        // device pointers below when this line repeats in csgo_base.log.)
+        if (g_diag_device.ok())
+            LOG_WARN("menu render: presenting device %p != bound device %p - menu invisible on this device",
+                     (void*)device, (void*)gui_device);
+        return;
+    }
+    if (!objects_ready) {
+        if (g_diag_objects.ok()) LOG_WARN("menu render: objects not ready (waiting for AfterReset)");
+        return;
+    }
     auto wnd = main_wnd.lock();
-    if (!wnd || !ctx) return;
+    if (!wnd || !ctx) {
+        if (g_diag_wnd.ok())
+            LOG_WARN("menu render: main window or context lost (wnd=%d ctx=%d)", (int)(wnd != nullptr), (int)(ctx != nullptr));
+        return;
+    }
     if (!open) FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     if (wnd->is_visible != open) {
         wnd->is_visible = wnd->is_taking_input = open;
