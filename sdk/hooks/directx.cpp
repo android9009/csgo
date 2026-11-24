@@ -40,24 +40,39 @@ long __stdcall EndScene(void* device) {
     if (!original) return D3D_OK;
 
     // The overlay-render pattern of the working reference build (airflow,
-    // origin/main: vmt_hooks.cpp::end_scene): a PIXELSTATE state block is
-    // captured on top of a forced set of render states - the game leaves the
-    // device in a mode the 2D overlay cannot draw with (alpha colour write,
-    // sRGB write, MSAA, antialiased lines, sRGB sampler) - and everything is
-    // restored afterwards.
+    // origin/main: vmt_hooks.cpp::end_scene): a state block is captured on top
+    // of a forced set of render states - the game leaves the device in a mode
+    // the 2D overlay cannot draw with (alpha colour write, sRGB write, MSAA,
+    // antialiased lines, sRGB sampler) - and everything is restored afterwards.
+    //
+    // The block is D3DSBT_ALL, not just PIXELSTATE: the evo renderer (unlike
+    // ImGui's d3d9 backend) restores only its pixel states, so the transforms,
+    // FVF and stream bindings it sets would leak into the game's own VGUI/
+    // panorama rendering (team select, console drew broken on the next frame)
+    // with a pixel-only block.
     IDirect3DStateBlock9* state = nullptr;
-    if (FAILED(dev->CreateStateBlock(D3DSBT_PIXELSTATE, &state)) || !state)
+    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &state)) || !state)
         return original(dev);
 
+    // Render states we force and put back manually (the block holds the forced
+    // values, so a plain Apply would keep them).
     DWORD colorwrite{}, srgbwrite{}, multisample{}, antialias{};
-    IDirect3DVertexDeclaration9* vert_decl = nullptr;
-    IDirect3DVertexShader9* vert_shader = nullptr;
     dev->GetRenderState(D3DRS_COLORWRITEENABLE, &colorwrite);
     dev->GetRenderState(D3DRS_SRGBWRITEENABLE, &srgbwrite);
     dev->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &multisample);
     dev->GetRenderState(D3DRS_ANTIALIASEDLINEENABLE, &antialias);
-    dev->GetVertexDeclaration(&vert_decl);
-    dev->GetVertexShader(&vert_shader);
+
+    // State that no state block covers: the FVF, the index buffer and the
+    // sampler states we force (address modes + sRGB texture).
+    UINT fvf = 0;
+    dev->GetFVF(&fvf);
+    IDirect3DIndexBuffer9* indices = nullptr;
+    dev->GetIndices(&indices);
+    DWORD addr_u{}, addr_v{}, addr_w{}, srgb_tex{};
+    dev->GetSamplerState(0, D3DSAMP_ADDRESSU, &addr_u);
+    dev->GetSamplerState(0, D3DSAMP_ADDRESSV, &addr_v);
+    dev->GetSamplerState(0, D3DSAMP_ADDRESSW, &addr_w);
+    dev->GetSamplerState(0, D3DSAMP_SRGBTEXTURE, &srgb_tex);
 
     dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, 0);
     dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, 0);
@@ -78,13 +93,22 @@ long __stdcall EndScene(void* device) {
     state->Apply();
     state->Release();
 
-    // Restore the game's state, the same tail as the reference pattern.
+    // Restore the game's state: the ALL block covers pixel/transform/lighting/
+    // viewport, the manual tail covers the forced states plus everything a
+    // state block cannot see.
     dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, multisample);
     dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, antialias);
     dev->SetRenderState(D3DRS_COLORWRITEENABLE, colorwrite);
     dev->SetRenderState(D3DRS_SRGBWRITEENABLE, srgbwrite);
-    dev->SetVertexDeclaration(vert_decl);
-    dev->SetVertexShader(vert_shader);
+    dev->SetFVF(fvf);
+    dev->SetIndices(indices);
+    if (indices) indices->Release();
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSU, addr_u);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSV, addr_v);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSW, addr_w);
+    dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, srgb_tex);
+    // The scissor rect rides in the D3DSBT_VIEWPORT part of the ALL block, so
+    // the Apply above already put the game's back.
 
     return original(dev);
 }
