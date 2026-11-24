@@ -114,7 +114,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // Live state for the scope/spread overlay (menu/overlays/screen_overlay.hpp):
             // whether the local player is scoped, the fov the view is drawn with and the
             // weapon's current inaccuracy (base * live penalty).
-            if (stage == 5) {
+            if (stage == 5 && ctx.local) {
                 VisualRuntime::ScreenState ss;
                 ss.scoped = ctx.local->m_bIsScoped();
                 ss.fov = static_cast<float>(ctx.local->m_iFOV());

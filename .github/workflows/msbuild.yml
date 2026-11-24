@@ -55,9 +55,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: csgo-release-win32
+          # The PDBs ride along so the "dll+0x..." RVAs in csgo_base.log render
+          # faults can be resolved to functions without rebuilding on a dev box.
           path: |
             build/Release/csgo_release.dll
             build/Release/injector.exe
+            build/Release/*.pdb
           if-no-files-found: error
 
   gui-port-check:

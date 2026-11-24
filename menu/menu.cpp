@@ -456,7 +456,12 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
       catch (...) { LOG_ERROR("Fatality init failed"); }
     return false;
 }
+// Phase table for the render-fault log (directx.cpp): which block of Render() is
+// live when the frame dies. 0 = idle (no frame in flight).
+static int g_render_phase = 0;
+int render_phase() { return g_render_phase; }
 void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
+    g_render_phase = 1; // gates / lazy Initialize
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (!gui_device && !Initialize(device, hwnd)) return;
     if (device != gui_device) {
@@ -480,6 +485,7 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
             LOG_WARN("menu render: main window or context lost (wnd=%d ctx=%d)", (int)(wnd != nullptr), (int)(ctx != nullptr));
         return;
     }
+    g_render_phase = 2; // per-frame setup: visibility, display scale, fonts
     if (!open) FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     if (wnd->is_visible != open) {
         wnd->is_visible = wnd->is_taking_input = open;
@@ -511,17 +517,22 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     }
     FatalityPreviewBridge::visible.store(false, std::memory_order_relaxed);
     FatalityPreviewBridge::weapon_editor_visible.store(false, std::memory_order_relaxed);
+    g_render_phase = 3; // config bridges publish the menu state to the runtimes
     VisualSettings::Configure();
     MiscSettings::Configure();
     RemovalsSettings::Configure();
+    g_render_phase = 4; // begin frame + screen overlays (ESP / scope / FX)
     draw.begin_frame();
     PlayerEspOverlay::Render();
     ScreenOverlay::Render();
     FxOverlay::Render();
+    g_render_phase = 5; // the menu body: tabs, widgets, popups
     ctx->render();
+    g_render_phase = 6; // submit: build the GPU buffers and draw
     draw.end_frame();
     draw.render();
     draw.flush();
+    g_render_phase = 0;
 }
 bool Input(UINT msg, WPARAM wp, LPARAM lp, bool open) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
