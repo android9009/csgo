@@ -58,7 +58,7 @@ set_target_properties(csgo_base PROPERTIES PREFIX "" OUTPUT_NAME "$<IF:$<CONFIG:
     ${GUI_RENDERER_DIR}/src/types/font.cpp
     ${GUI_RENDERER_DIR}/src/types/shader.cpp
     ${GUI_RENDERER_DIR}/src/types/texture.cpp)
-  file(GLOB_RECURSE GUI_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
+  file(GLOB GUI_EXTRA_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/menu/tabs/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/menu/bridge.cpp")
   add_library(gui_port_check STATIC ${GUI_EXTRA_SOURCES} ${GUI_SOURCES} ${GUI_RENDERER_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/menu/menu.cpp")
   set_target_properties(gui_port_check PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   target_include_directories(gui_port_check PRIVATE

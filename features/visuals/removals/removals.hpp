@@ -2,7 +2,7 @@
 // Removals for the Visuals tab: the "visuals>misc>other>removals" combo box.
 //
 // The combo box stores a bitset, so the bit order below must match the item list in
-// menu/tabs/visuals/misc/misc_other.cpp. tests/removals_test.cpp pins that order, because a silent
+// menu/tabs/tab_visuals.cpp. tests/removals_test.cpp pins that order, because a silent
 // mismatch between the UI order and the runtime bit is exactly how removals end up
 // toggling the wrong effect.
 #include <cstdint>
