@@ -239,7 +239,7 @@ bool TraceIsSane() {
         const Vector to{eye.x + direction.x * 1500.f, eye.y + direction.y * 1500.f,
                         eye.z + direction.z * 1500.f};
         CGameTrace trace;
-        if (!TraceLine(eye, to, &filter, &trace)) return false;
+        if (!TraceLine({eye.x, eye.y, eye.z}, {to.x, to.y, to.z}, &filter, &trace)) return false;
         if (trace.fraction < 0.f || trace.fraction > 1.f) return false;
         if (trace.fraction < 1.f) {
             const float length = trace.plane.normal.Length();
@@ -671,6 +671,7 @@ struct WarningState {
     float fade_started{-1.f};
     float fade_alpha{};
     float warning_visibility{};
+    float warning_transition{}; // the eased appear/fade value (0..1)
     float transition_from{};
     float transition_target{};
     float transition_started{};
@@ -1385,24 +1386,25 @@ void DrawTrajectory(VisualRuntime::FxFrame& frame, const Settings& s, Warning& w
     }
     if (points.size() >= 2) {
         for (std::size_t i = 1; i < points.size() && frame.line_count < static_cast<int>(frame.lines.size()); ++i) {
-            const Point& a = points[i - 1];
-            const Point& b = points[i];
-            const float dx = (b.nx - a.nx) * screen.width;
-            const float dy = (b.ny - a.ny) * screen.height;
+            // p0/p1: the color below already owns the name `b` (blue channel).
+            const Point& p0 = points[i - 1];
+            const Point& p1 = points[i];
+            const float dx = (p1.nx - p0.nx) * screen.width;
+            const float dy = (p1.ny - p0.ny) * screen.height;
             const float length = std::hypot(dx, dy);
             if (length < 0.25f) continue;
-            const int parts = a.time - elapsed < 0.08f ? (std::min)(16, (std::max)(1, static_cast<int>(std::ceil(length / 6.f)))) : 1;
+            const int parts = p0.time - elapsed < 0.08f ? (std::min)(16, (std::max)(1, static_cast<int>(std::ceil(length / 6.f)))) : 1;
             for (int part = 1; part <= parts; ++part) {
                 const float t0 = static_cast<float>(part - 1) / parts;
                 const float t1 = static_cast<float>(part) / parts;
-                const float time = a.time + (b.time - a.time) * ((t0 + t1) * 0.5f);
+                const float time = p0.time + (p1.time - p0.time) * ((t0 + t1) * 0.5f);
                 const float fade = Detail::TrajectoryFade(time, elapsed);
                 const float wave = Detail::TrajectoryWave(g.path_start + time, now);
                 const float alpha = base_alpha * wave * fade;
                 if (alpha <= 0.005f) continue;
                 frame.lines[frame.line_count++] = {
-                    a.nx + (b.nx - a.nx) * t0, a.ny + (b.ny - a.ny) * t0,
-                    a.nx + (b.nx - a.nx) * t1, a.ny + (b.ny - a.ny) * t1,
+                    p0.nx + (p1.nx - p0.nx) * t0, p0.ny + (p1.ny - p0.ny) * t0,
+                    p0.nx + (p1.nx - p0.nx) * t1, p0.ny + (p1.ny - p0.ny) * t1,
                     1.f, Rgba(r, gc, b, alpha)};
             }
         }
@@ -1565,8 +1567,14 @@ void DrawDamageLabels(VisualRuntime::FxFrame& frame, Warning& w, float now, bool
             gc = Detail::kGreen.g;
             b = Detail::kGreen.b;
         }
-        frame.texts[frame.text_count++] = {nx, ny + (row.offset - (1.f - row.alpha) * 5.f) / screen.height,
-                                           text_alpha, Rgba(r, gc, b, 1.f), row.text};
+        // Member writes: MSVC does not list-initialize the char[24] text from a
+        // char array through the aggregate assignment.
+        auto& slot = frame.texts[frame.text_count++];
+        slot.x = nx;
+        slot.y = ny + (row.offset - (1.f - row.alpha) * 5.f) / screen.height;
+        slot.alpha = text_alpha;
+        slot.color = Rgba(r, gc, b, 1.f);
+        std::snprintf(slot.text, sizeof(slot.text), "%s", row.text);
     }
 }
 
@@ -1668,14 +1676,22 @@ void DrawWarning(VisualRuntime::FxFrame& frame, const Settings& s, Warning& w, c
     if (show_damage && frame.text_count < static_cast<int>(frame.texts.size())) {
         char buffer[24];
         Detail::DamageLabel(w.local_damage, buffer, sizeof(buffer));
-        frame.texts[frame.text_count++] = {nx, ny + 12.f / screen.height, display_alpha,
-                                           Rgba(255, 255, 255, 1.f), buffer};
+        auto& slot = frame.texts[frame.text_count++];
+        slot.x = nx;
+        slot.y = ny + 12.f / screen.height;
+        slot.alpha = display_alpha;
+        slot.color = Rgba(255, 255, 255, 1.f);
+        std::snprintf(slot.text, sizeof(slot.text), "%s", buffer);
     }
     if (frame.text_count < static_cast<int>(frame.texts.size())) {
         char buffer[24];
         Detail::TimeLabel(w.remaining, buffer, sizeof(buffer));
-        frame.texts[frame.text_count++] = {nx, ny + (show_damage ? 24.f : 12.f) / screen.height,
-                                           display_alpha, Rgba(255, 255, 255, 1.f), buffer};
+        auto& slot = frame.texts[frame.text_count++];
+        slot.x = nx;
+        slot.y = ny + (show_damage ? 24.f : 12.f) / screen.height;
+        slot.alpha = display_alpha;
+        slot.color = Rgba(255, 255, 255, 1.f);
+        std::snprintf(slot.text, sizeof(slot.text), "%s", buffer);
     }
 
     // Off-screen arrow beyond the disc (the Lua's draw_arrow: 43 + 10 px).
