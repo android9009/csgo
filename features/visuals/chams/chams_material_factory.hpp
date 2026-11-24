@@ -1,9 +1,9 @@
 #pragma once
 #include "chams_materials.hpp"
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../utils/memory.hpp"
-#include "../../utils/offsets/offsets.hpp"
-#include "../../utils/log.hpp"
+#include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../utils/memory.hpp"
+#include "../../../utils/offsets/offsets.hpp"
+#include "../../../utils/log.hpp"
 #include <cstdint>
 #include <cstring>
 namespace ChamsMaterialFactory {

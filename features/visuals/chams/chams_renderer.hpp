@@ -1,9 +1,9 @@
 #pragma once
-#include "../../sdk/material.hpp"
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../sdk/visual_preview_state.hpp"
-#include "../../utils/log.hpp"
-#include "../../utils/memory.hpp"
+#include "../../../sdk/material.hpp"
+#include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../sdk/visual_preview_state.hpp"
+#include "../../../utils/log.hpp"
+#include "../../../utils/memory.hpp"
 #include "chams_material_factory.hpp"
 #include "chams_passes.hpp"
 

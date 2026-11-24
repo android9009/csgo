@@ -1,6 +1,6 @@
 #include "flash.hpp"
-#include "../../../context.hpp"
-#include "../../../sdk/entity/player.hpp"
+#include "../../../../../context.hpp"
+#include "../../../../../sdk/entity/player.hpp"
 
 namespace Removals::Flash {
 void FrameStage(int stage, bool enabled) {

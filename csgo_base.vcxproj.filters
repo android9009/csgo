@@ -163,13 +163,13 @@
     <ClCompile Include="features\skins\local_inventory.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\removals\removals.cpp">
+    <ClCompile Include="features\visuals\misc\other\removals\removals.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\removals\flash.cpp">
+    <ClCompile Include="features\visuals\misc\other\removals\flash.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\removals\punch.cpp">
+    <ClCompile Include="features\visuals\misc\other\removals\punch.cpp">
       <Filter>Features</Filter>
     </ClCompile>
     <ClCompile Include="features\misc\misc.cpp">
@@ -235,16 +235,16 @@
     <ClCompile Include="menu\preview\model_preview.cpp">
       <Filter>Menu\preview</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\shot_chams.cpp">
+    <ClCompile Include="features\visuals\chams\shot_chams.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\world_modulation.cpp">
+    <ClCompile Include="features\visuals\misc\world\world_modulation.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\player_esp.cpp">
+    <ClCompile Include="features\visuals\esp\player_esp.cpp">
       <Filter>Features</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\glow.cpp">
+    <ClCompile Include="features\visuals\esp\glow.cpp">
       <Filter>Features</Filter>
     </ClCompile>
     <ClCompile Include="sdk\hooks\framestage.cpp">
@@ -721,40 +721,40 @@
     <ClInclude Include="sdk\datatypes\game_event.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\removals\removals.hpp">
+    <ClInclude Include="features\visuals\misc\other\removals\removals.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\removals\flash.hpp">
+    <ClInclude Include="features\visuals\misc\other\removals\flash.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\removals\punch.hpp">
+    <ClInclude Include="features\visuals\misc\other\removals\punch.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_renderer.hpp">
+    <ClInclude Include="features\visuals\chams\chams_renderer.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_entities.hpp">
+    <ClInclude Include="features\visuals\chams\chams_entities.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_object_names.hpp">
+    <ClInclude Include="features\visuals\chams\chams_object_names.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\model_transparency.hpp">
+    <ClInclude Include="features\visuals\misc\other\model_transparency.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\model_transparency_rules.hpp">
+    <ClInclude Include="features\visuals\misc\other\model_transparency_rules.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\shot_chams.hpp">
+    <ClInclude Include="features\visuals\chams\shot_chams.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_passes.hpp">
+    <ClInclude Include="features\visuals\chams\chams_passes.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_materials.hpp">
+    <ClInclude Include="features\visuals\chams\chams_materials.hpp">
       <Filter>Features</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\chams_material_factory.hpp">
+    <ClInclude Include="features\visuals\chams\chams_material_factory.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="sdk\visual_preview_state.hpp">

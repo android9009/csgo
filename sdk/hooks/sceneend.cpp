@@ -1,6 +1,6 @@
 #include "hooks.hpp"
 #include "../../context.hpp"
-#include "../../features/visuals/shot_chams.hpp"
+#include "../../features/visuals/chams/shot_chams.hpp"
 #include "../interfaces/interfaces.hpp"
 #include "../../utils/offsets/offsets.hpp"
 #include "../../utils/memory.hpp"

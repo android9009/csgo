@@ -1,5 +1,5 @@
-#include "features/visuals/chams_passes.hpp"
-#include "features/visuals/chams_materials.hpp"
+#include "features/visuals/chams/chams_passes.hpp"
+#include "features/visuals/chams/chams_materials.hpp"
 #include <cassert>
 #include <cmath>
 #include <string_view>

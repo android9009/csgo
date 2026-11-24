@@ -1,5 +1,5 @@
 #include "hooks.hpp"
-#include "../../features/visuals/world_modulation.hpp"
+#include "../../features/visuals/misc/world/world_modulation.hpp"
 #include "../../utils/detourhook.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/memory.hpp"

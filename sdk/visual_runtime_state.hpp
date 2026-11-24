@@ -33,7 +33,7 @@ struct Effects {
     std::uint32_t world_fog_colour{0xFFFFFFFFu};
     // Visuals -> World: "Nightmode" (world texture modulation), "Sky" (skybox texture
     // modulation) and "Fullbright" (the engine's own `mat_fullbright` switch). See
-    // features/visuals/world_modulation.hpp.
+    // features/visuals/misc/world/world_modulation.hpp.
     bool nightmode{};
     std::uint32_t nightmode_colour{0xFFFFFFFFu};
     bool sky{};

@@ -7,9 +7,9 @@
 #include "../../context.hpp"
 #include "../../utils/config.hpp"
 #include "../../features/skins/local_inventory.hpp"
-#include "../../features/visuals/shot_chams.hpp"
-#include "../../features/visuals/world_modulation.hpp"
-#include "../../features/visuals/world_fog.hpp"
+#include "../../features/visuals/chams/shot_chams.hpp"
+#include "../../features/visuals/misc/world/world_modulation.hpp"
+#include "../../features/visuals/misc/world/world_fog.hpp"
 #include "../datatypes/c_user_cmd.hpp"
 #include <d3d9.h>
 #include "../structs.hpp"

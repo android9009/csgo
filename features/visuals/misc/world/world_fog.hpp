@@ -19,8 +19,8 @@
 #include <cstring>
 #include <windows.h>
 
-#include "../../sdk/convars.hpp"
-#include "../../utils/log.hpp"
+#include "../../../../sdk/convars.hpp"
+#include "../../../../utils/log.hpp"
 
 namespace WorldFog {
 namespace Detail {

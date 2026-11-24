@@ -26,7 +26,7 @@ sdk/
 ```
 
 `features/visuals/preview_material.hpp` was a misleading name: it renders both
-live-game chams and previews. It is now `features/visuals/chams_renderer.hpp`;
+live-game chams and previews. It is now `features/visuals/chams/chams_renderer.hpp`;
 its implementation and namespace have not changed. It belongs to game rendering,
 not the UI-only model-preview implementation.
 

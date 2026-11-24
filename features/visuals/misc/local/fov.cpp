@@ -1,7 +1,7 @@
 #include "fov.hpp"
-#include "../../context.hpp"
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../sdk/entity/player.hpp"
+#include "../../../../context.hpp"
+#include "../../../../sdk/interfaces/interfaces.hpp"
+#include "../../../../sdk/entity/player.hpp"
 #include <mutex>
 
 namespace FovChanger {

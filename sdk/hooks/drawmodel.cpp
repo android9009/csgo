@@ -3,10 +3,10 @@
 #include "../interfaces/interfaces.hpp"
 #include "../entity/entity.hpp"
 #include "../visual_runtime_state.hpp"
-#include "../../features/visuals/chams_renderer.hpp"
-#include "../../features/visuals/chams_entities.hpp"
-#include "../../features/visuals/shot_chams.hpp"
-#include "../../features/visuals/model_transparency.hpp"
+#include "../../features/visuals/chams/chams_renderer.hpp"
+#include "../../features/visuals/chams/chams_entities.hpp"
+#include "../../features/visuals/chams/shot_chams.hpp"
+#include "../../features/visuals/misc/other/model_transparency.hpp"
 #include "../../utils/log.hpp"
 #include <cstring>
 namespace HooksInternal {

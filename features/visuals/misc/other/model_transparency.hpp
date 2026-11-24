@@ -27,9 +27,9 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../sdk/material.hpp"
-#include "../../sdk/studiohdr.hpp"
+#include "../../../../sdk/interfaces/interfaces.hpp"
+#include "../../../../sdk/material.hpp"
+#include "../../../../sdk/studiohdr.hpp"
 #include "model_transparency_rules.hpp"
 
 namespace ModelTransparency {

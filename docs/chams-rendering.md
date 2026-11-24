@@ -10,7 +10,7 @@ borrowed `dev/glow_armsrace`, material-own modulation) is gone.
 All eight recipes are created at runtime from VMT buffers (same KeyValues
 path as before: `KeyValues::FromString(shader, flat params)` via
 `ChamsMaterialFactory::Parse`, then `IMaterialSystem::CreateMaterial`).
-Definitions live in `features/visuals/chams_materials.hpp`.
+Definitions live in `features/visuals/chams/chams_materials.hpp`.
 
 | menu label | bit | recipe | notes |
 |---|---|---|---|
@@ -28,7 +28,7 @@ holding them normalise to None in `VisualSettings::Configure`.
 
 ## Colouring (the airflow way)
 
-Per pass, `PreviewMaterial::Apply` (`features/visuals/chams_renderer.hpp`):
+Per pass, `PreviewMaterial::Apply` (`features/visuals/chams/chams_renderer.hpp`):
 
 1. material flags: TRANSLUCENT + NOFOG on, IGNOREZ = pass's ignore-Z,
    WIREFRAME off;

@@ -1,5 +1,5 @@
 #pragma once
-#include "../../sdk/studiohdr.hpp"
+#include "../../../sdk/studiohdr.hpp"
 namespace ShotChams {
 void Initialize();
 void Shutdown();

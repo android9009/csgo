@@ -1,6 +1,6 @@
 #pragma once
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../sdk/entity/entity.hpp"
+#include "../../../sdk/interfaces/interfaces.hpp"
+#include "../../../sdk/entity/entity.hpp"
 #include "chams_object_names.hpp"
 #include <cstring>
 #include <string_view>

@@ -1,9 +1,9 @@
 #include "world_modulation.hpp"
-#include "../../sdk/convars.hpp"
-#include "../../sdk/interfaces/interfaces.hpp"
-#include "../../sdk/material.hpp"
-#include "../../sdk/visual_runtime_state.hpp"
-#include "../../utils/log.hpp"
+#include "../../../../sdk/convars.hpp"
+#include "../../../../sdk/interfaces/interfaces.hpp"
+#include "../../../../sdk/material.hpp"
+#include "../../../../sdk/visual_runtime_state.hpp"
+#include "../../../../utils/log.hpp"
 #include <windows.h>
 
 namespace WorldModulation {

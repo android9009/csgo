@@ -1,7 +1,7 @@
 // Host checks for Visuals -> Misc -> LOCAL: "Thirdperson". Only exercises the pure
-// decision maths in features/visuals/thirdperson.hpp; the camera and render-mode writes
+// decision maths in features/visuals/misc/local/thirdperson.hpp; the camera and render-mode writes
 // need the game.
-#include "../features/visuals/thirdperson.hpp"
+#include "../features/visuals/misc/local/thirdperson.hpp"
 
 #include <cassert>
 #include <cmath>

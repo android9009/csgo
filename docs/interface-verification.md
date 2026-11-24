@@ -153,7 +153,7 @@ open question and are now settled:
 | 22 | local `LightDesc_t` array | copies an array of light descriptors |
 | 28 | single-float context setter | `movss [this+0x24c], xmm0` |
 
-So `features/visuals/chams_renderer.hpp` calling slot 33 with
+So `features/visuals/chams/chams_renderer.hpp` calling slot 33 with
 `(material, 0, -1)` is correct on this build: type 0 takes the replace path, and
 `-1` means "every submodel". Passing `(nullptr, 0, -1)` at the end of a pass
 restores the engine's own material, exactly as `Restore()` assumes.
@@ -222,7 +222,7 @@ the way Fatality does needs `MeshInstanceData_t`'s layout, and nothing in the mo
 proves it (the only float reachable from the instance pointer that the inner paths
 touch is `+0x44`, which is compared against a constant rather than used as colour).
 Modulating the material itself gets the same picture — see
-`features/visuals/model_transparency.hpp` and `docs/chams-rendering.md`.
+`features/visuals/misc/other/model_transparency.hpp` and `docs/chams-rendering.md`.
 
 ## What is still unverified
 
@@ -249,7 +249,7 @@ Modulating the material itself gets the same picture — see
 - `IMaterial`/`IMaterialVar` indices in `sdk/material.hpp` — verified.
 - `IMaterialSystem` 83/84/115 — verified.
 - `IStudioRender` 33 for `ForcedMaterialOverride` — verified; 34 is the query.
-- New `features/visuals/model_transparency.hpp` uses only the verified material
+- New `features/visuals/misc/other/model_transparency.hpp` uses only the verified material
   slots: it walks the model's materials through the studio header texture names
   (`FindMaterial(..., "Model textures")`), writes `$alpha` and the translucent
   flag, draws, and restores. No override, so chams keep precedence.

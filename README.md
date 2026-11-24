@@ -69,7 +69,7 @@ CS:GO Source 1 использует RecvTables и datamaps; отдельной S
 ## Что уже работает и куда расширять
 
 - Базовые entity/interface/netvar wrappers, IDA-pattern scanner, offset registry, VMT hooks, logging и VGUI-отрисовка.
-- Player ESP: `features/visuals/player_esp.cpp`.
+- Player ESP: `features/visuals/esp/player_esp.cpp`.
 - Misc: **вырезан полностью** (2026-11-22). `features/misc/` (`general/`, `other/`, `movement/`, `buybot/`) и `features/visuals/misc/` (thirdperson, fov changer, viewmodel fov, эффекты) удалены целиком — вместе с `.cpp`, заголовками и хуками (CreateMove, GetViewModelFOV, GetScreenAspectRatio, UpdatePostScreenEffects, CalcViewModelView) — что именно, в `docs/misc-runtime.md`. **Меню и конфиги не тронуты**: табы Misc и группа MISC в Visuals рисуются как раньше, чекбоксы переключают значения конфига в памяти, но в игре эти значения нигде не читаются — меню-бридж больше их не публикует. Геометрия scope/spread, которую рисует меню, заинлайнена в `menu/overlays/screen_overlay.hpp`. Remove flash и visual punch не затронуты — они живут в `features/visuals/removals/` (Removals вкладки Visuals). Lua-патчи (`lua-patches/`) и их тестовый харнес (`tests/lua/`) из репозитория удалены.
 - Меню открывается **Insert** — единственный хоткей в коде (F1/F2/F3/F5/F6/End из старых доков в реализации никогда не было). Сохранение/загрузка конфига не работает: `Config::Save/Load` из `utils/config.cpp` не вызываются никем, настройки меню не переживают рестарт.
 - Выгрузка по закрытию игры: `WndProc` на WM_CLOSE/WM_DESTROY/WM_ENDSESSION выставляет `ctx.unload`, поток из `main.cpp` после этого делает `Shutdown()` (восстановление хуков, скины, превью) и `FreeLibraryAndExitThread` — чит больше не держит процесс после закрытия CS.

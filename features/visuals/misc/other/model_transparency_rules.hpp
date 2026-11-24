@@ -3,7 +3,7 @@
 // allowed to touch. Interface-free so the rules can be unit tested off-target;
 // the material walk lives in model_transparency.hpp.
 #include <string_view>
-#include "chams_object_names.hpp"
+#include "../../chams/chams_object_names.hpp"
 
 namespace ModelTransparency {
 // A model that reaches DrawModelExecute with more textures than this is left

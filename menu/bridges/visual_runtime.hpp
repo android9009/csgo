@@ -2,9 +2,9 @@
 #include "../tabs/tabs.hpp"
 #include "../config.hpp"
 #include "../../sdk/visual_runtime_state.hpp"
-#include "../../features/visuals/chams_passes.hpp"
-#include "../../features/visuals/thirdperson.hpp"
-#include "../../features/visuals/fov.hpp"
+#include "../../features/visuals/chams/chams_passes.hpp"
+#include "../../features/visuals/misc/local/thirdperson.hpp"
+#include "../../features/visuals/misc/local/fov.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;

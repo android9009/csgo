@@ -1,7 +1,7 @@
 // Host checks for Visuals -> World: Nightmode / Sky colour modulation and the Sunlight
-// constants. The file only exercises the pure parts of features/visuals/world_modulation.hpp;
+// constants. The file only exercises the pure parts of features/visuals/misc/world/world_modulation.hpp;
 // the detour and the cvar writes need the game.
-#include "../features/visuals/world_modulation.hpp"
+#include "../features/visuals/misc/world/world_modulation.hpp"
 
 #include <cassert>
 #include <cmath>

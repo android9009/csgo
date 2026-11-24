@@ -1,9 +1,9 @@
 // Portable checks for the Visuals "Removals" mask and the two removals that are
 // implemented. The bit order is pinned to the combo box order in
 // menu/tabs/tab_visuals.cpp: a silent reorder there would toggle the wrong effect.
-#include "features/visuals/removals/flash.hpp"
-#include "features/visuals/removals/punch.hpp"
-#include "features/visuals/removals/removals.hpp"
+#include "features/visuals/misc/other/removals/flash.hpp"
+#include "features/visuals/misc/other/removals/punch.hpp"
+#include "features/visuals/misc/other/removals/removals.hpp"
 #include <cassert>
 #include <cstdint>
 #include <limits>

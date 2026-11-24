@@ -1,6 +1,6 @@
 #include "punch.hpp"
-#include "../../../context.hpp"
-#include "../../../sdk/entity/player.hpp"
+#include "../../../../../context.hpp"
+#include "../../../../../sdk/entity/player.hpp"
 
 namespace Removals::Punch {
 void FrameStage(int stage, bool enabled) {

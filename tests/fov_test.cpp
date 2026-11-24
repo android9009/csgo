@@ -1,6 +1,6 @@
 // Host checks for Visuals -> Misc -> LOCAL: "Fov changer". Only the pure clamp; the
 // m_iFOV writes need the game.
-#include "../features/visuals/fov.hpp"
+#include "../features/visuals/misc/local/fov.hpp"
 
 #include <cassert>
 

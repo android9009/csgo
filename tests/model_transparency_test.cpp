@@ -2,7 +2,7 @@
 // which draws the pass is allowed to touch. The material walk itself needs a live
 // material system, so it is exercised in game, not here; only the interface-free
 // rules header is included for that reason.
-#include "features/visuals/model_transparency_rules.hpp"
+#include "features/visuals/misc/other/model_transparency_rules.hpp"
 #include <cassert>
 #include <cmath>
 #include <cstdio>
