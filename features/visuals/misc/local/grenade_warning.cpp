@@ -1115,24 +1115,62 @@ void AddProjectiles(const Settings& s, float now, float dt, const Vec3& eye, std
 // Inferno fires (the Lua's add_fires / nearest_fire_segment)
 // ---------------------------------------------------------------------------
 
+// The fire cell arrays are plain C arrays in the entity; the recv table names
+// them with or without a "[0]" suffix depending on the build.
+std::ptrdiff_t FirePropOffset(const char* table, const char* prop) {
+    auto off = PropOffset(table, prop);
+    if (off) return off;
+    char suffixed[64];
+    const int n = std::snprintf(suffixed, sizeof(suffixed), "%s[0]", prop);
+    if (n > 0 && static_cast<size_t>(n) < sizeof(suffixed))
+        off = PropOffset(table, suffixed);
+    return off;
+}
+
+// The burning cells of one pool. A separate function (no non-trivial locals) so
+// the per-slot SEH read stays in its own leaf.
+struct FireCellRead {
+    Vec3 cells[64]{};
+    int used{};
+};
+
+FireCellRead ReadFireCells(const void* entity, const char* table, const Vec3& origin, int count) {
+    FireCellRead result;
+    const auto burning_base = FirePropOffset(table, "m_bFireIsBurning");
+    const auto dx_base = FirePropOffset(table, "m_fireXDelta");
+    const auto dy_base = FirePropOffset(table, "m_fireYDelta");
+    const auto dz_base = FirePropOffset(table, "m_fireZDelta");
+    const bool arrays_resolved = burning_base && dx_base && dy_base && dz_base;
+    const auto base_addr = reinterpret_cast<std::uintptr_t>(entity);
+    for (int slot = 0; slot < count && arrays_resolved; ++slot) {
+        bool burning_slot = false;
+        float dx = 0.f, dy = 0.f, dz = 0.f;
+        __try {
+            if (*reinterpret_cast<const bool*>(base_addr + burning_base + slot * 4)) {
+                burning_slot = true;
+                dx = *reinterpret_cast<const float*>(base_addr + dx_base + slot * 4);
+                dy = *reinterpret_cast<const float*>(base_addr + dy_base + slot * 4);
+                dz = *reinterpret_cast<const float*>(base_addr + dz_base + slot * 4);
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            burning_slot = false;
+        }
+        if (burning_slot && result.used < 64)
+            result.cells[result.used++] = {origin.x + dx, origin.y + dy, origin.z + dz};
+    }
+    // The Lua's fallback when the arrays are unreadable: one cell at the pool
+    // origin. With readable arrays and no burning cells yet, the pool is empty.
+    if (result.used == 0 && !arrays_resolved)
+        result.cells[result.used++] = {origin.x, origin.y, origin.z};
+    return result;
+}
+
 void AddFires(const Settings& s, float now, float dt, const Vec3& local_origin, std::vector<Warning>& warnings) {
     const float lifetime = CvarFloat(g_inferno_lifetime, 7.f);
     const bool friendly_fire = CvarFloat(g_friendlyfire, 0.f) != 0.f;
     const int local = Interfaces::Engine->GetLocalPlayer();
     const int highest = (std::min)(Interfaces::EntityList->GetHighestEntityIndex(), 2048);
     const int tick = Interfaces::Globals ? Interfaces::Globals->tickcount : 0;
-
-    // The fire cell arrays are plain C arrays in the entity; the recv table names
-    // them with or without a "[0]" suffix depending on the build.
-    const auto fire_offset = [](const char* table, const char* prop) {
-        auto off = PropOffset(table, prop);
-        if (off) return off;
-        char suffixed[64];
-        const int n = std::snprintf(suffixed, sizeof(suffixed), "%s[0]", prop);
-        if (n > 0 && static_cast<size_t>(n) < sizeof(suffixed))
-            off = PropOffset(table, suffixed);
-        return off;
-    };
 
     std::unordered_set<int> seen;
     for (int i = 1; i <= highest; ++i) {
@@ -1168,35 +1206,9 @@ void AddFires(const Settings& s, float now, float dt, const Vec3& local_origin, 
         const int count = (std::min)(64, (std::max)(0, raw_count));
         if (state.cell_count != (count_resolved ? count : 1) ||
             now - state.cells_time >= Detail::kDamageInterval) {
-            const auto burning_base = fire_offset(table, "m_bFireIsBurning");
-            const auto dx_base = fire_offset(table, "m_fireXDelta");
-            const auto dy_base = fire_offset(table, "m_fireYDelta");
-            const auto dz_base = fire_offset(table, "m_fireZDelta");
-            const bool arrays_resolved = burning_base && dx_base && dy_base && dz_base;
-            const auto base_addr = reinterpret_cast<std::uintptr_t>(entity);
-            int used = 0;
-            for (int slot = 0; slot < count && arrays_resolved; ++slot) {
-                bool burning_slot = false;
-                float dx = 0.f, dy = 0.f, dz = 0.f;
-                __try {
-                    if (*reinterpret_cast<const bool*>(base_addr + burning_base + slot * 4)) {
-                        burning_slot = true;
-                        dx = *reinterpret_cast<const float*>(base_addr + dx_base + slot * 4);
-                        dy = *reinterpret_cast<const float*>(base_addr + dy_base + slot * 4);
-                        dz = *reinterpret_cast<const float*>(base_addr + dz_base + slot * 4);
-                    }
-                } __except (EXCEPTION_EXECUTE_HANDLER) {
-                    burning_slot = false;
-                }
-                if (burning_slot && used < 64)
-                    state.cells[used++] = {origin.x + dx, origin.y + dy, origin.z + dz};
-            }
-            // The Lua's fallback when the arrays are unreadable: one cell at the
-            // pool origin. With readable arrays and no burning cells yet, the
-            // pool is empty and the warning is skipped for this frame.
-            if (used == 0 && !arrays_resolved)
-                state.cells[used++] = {origin.x, origin.y, origin.z};
-            state.cell_count = used;
+            const FireCellRead read = ReadFireCells(entity, table, {origin.x, origin.y, origin.z}, count);
+            state.cell_count = read.used;
+            for (int c = 0; c < read.used; ++c) state.cells[c] = read.cells[c];
             state.cells_time = now;
         }
         if (state.cell_count == 0) continue;

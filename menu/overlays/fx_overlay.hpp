@@ -87,7 +87,7 @@ void TrajectoryMark(const std::shared_ptr<layer>& d, const VisualRuntime::Screen
     const float size = (std::max)(mark.size * display.y, 2.f);
     const float alpha = (std::max)((std::min)(mark.alpha, 1.f), 0.f);
     if (alpha <= 0.01f) return;
-    const color white{255, 255, 255, static_cast<float>(255 * alpha + 0.5f)};
+    const color white{1.f, 1.f, 1.f, alpha};
     const color core{mark.color2};
     d->add_circle(centre, size, white, 20, 1.f, 1.5f);
     d->add_circle_filled(centre, size * 0.45f, core, 16);
@@ -103,19 +103,18 @@ void WarningDisc(const std::shared_ptr<layer>& d, const VisualRuntime::ScreenDis
     const vec2 centre{disc.x * display.x, disc.y * display.y};
     const float radius = (std::max)(disc.radius * display.y, 6.f);
     const float glow = (std::max)(disc.glow * display.y, radius);
-    const auto a = [](float f) { return static_cast<float>(255 * f + 0.5f); };
     const color base{disc.color};
     // Glow: the base colour fading to transparent at the edge.
     d->add_circle_filled_multicolor(centre, glow,
-                                    {color{base.value.r, base.value.g, base.value.b, a(alpha * (0.59f + 0.22f))},
+                                    {color{base.value.r, base.value.g, base.value.b, alpha * 0.81f},
                                      color{base.value.r, base.value.g, base.value.b, 0.f}},
                                     32);
     // Ring at the warning radius (the Lua's no-texture fallback outline).
-    d->add_circle(centre, radius, color{base.value.r, base.value.g, base.value.b, a(alpha * 0.55f)}, 28, 1.f, 1.f);
+    d->add_circle(centre, radius, color{base.value.r, base.value.g, base.value.b, alpha * 0.55f}, 28, 1.f, 1.f);
 
     const float r = radius;
-    auto white = color{255, 255, 255, a(alpha)};
-    auto shadow = color{0, 0, 0, a(alpha * 0.75f)};
+    auto white = color{1.f, 1.f, 1.f, alpha};
+    auto shadow = color{0.f, 0.f, 0.f, alpha * 0.75f};
     auto body = [&](const vec2& at, float radius_px) {
         d->add_circle_filled(at + vec2{1.f, 1.f}, radius_px, shadow, 20);
         d->add_circle_filled(at, radius_px, white, 20);
@@ -153,8 +152,7 @@ void Label(const std::shared_ptr<layer>& d, const VisualRuntime::ScreenText& tex
     if (alpha <= 0.005f) return;
     if (text.text[0] == 0) return;
     const vec2 p{text.x * display.x, text.y * display.y};
-    const auto a = [](float f) { return static_cast<float>(255 * f + 0.5f); };
-    d->add_text(p + vec2{1.f, 1.f}, text.text, color{0, 0, 0, a(alpha * 0.85f)},
+    d->add_text(p + vec2{1.f, 1.f}, text.text, color{0.f, 0.f, 0.f, alpha * 0.85f},
                 text_params::with_h(align_center));
     d->add_text(p, text.text, color{text.color}, text_params::with_h(align_center));
 }
