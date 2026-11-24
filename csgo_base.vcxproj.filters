@@ -348,37 +348,37 @@
     <ClCompile Include="menu\tabs\visuals\esp\esp.cpp">
       <Filter>Menu\tabs\visuals\esp</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\esp\esp_player.cpp">
+    <ClCompile Include="menu\tabs\visuals\esp\player\esp_player.cpp">
       <Filter>Menu\tabs\visuals\esp</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\esp\esp_world.cpp">
+    <ClCompile Include="menu\tabs\visuals\esp\world\esp_world.cpp">
       <Filter>Menu\tabs\visuals\esp</Filter>
     </ClCompile>
     <ClCompile Include="menu\tabs\visuals\chams\chams.cpp">
       <Filter>Menu\tabs\visuals\chams</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\chams\chams_general.cpp">
+    <ClCompile Include="menu\tabs\visuals\chams\general\chams_general.cpp">
       <Filter>Menu\tabs\visuals\chams</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\chams\chams_local.cpp">
+    <ClCompile Include="menu\tabs\visuals\chams\local\chams_local.cpp">
       <Filter>Menu\tabs\visuals\chams</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\chams\chams_enemy.cpp">
+    <ClCompile Include="menu\tabs\visuals\chams\enemy\chams_enemy.cpp">
       <Filter>Menu\tabs\visuals\chams</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\chams\chams_team.cpp">
+    <ClCompile Include="menu\tabs\visuals\chams\team\chams_team.cpp">
       <Filter>Menu\tabs\visuals\chams</Filter>
     </ClCompile>
     <ClCompile Include="menu\tabs\visuals\misc\visuals_misc.cpp">
       <Filter>Menu\tabs\visuals\misc</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\misc\misc_local.cpp">
+    <ClCompile Include="menu\tabs\visuals\misc\local\misc_local.cpp">
       <Filter>Menu\tabs\visuals\misc</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\misc\misc_other.cpp">
+    <ClCompile Include="menu\tabs\visuals\misc\other\misc_other.cpp">
       <Filter>Menu\tabs\visuals\misc</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\visuals\misc\misc_world.cpp">
+    <ClCompile Include="menu\tabs\visuals\misc\world\misc_world.cpp">
       <Filter>Menu\tabs\visuals\misc</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu.cpp">
