@@ -10,6 +10,7 @@
 #include "../../features/visuals/chams/shot_chams.hpp"
 #include "../../features/visuals/misc/world/world_modulation.hpp"
 #include "../../features/visuals/misc/world/world_fog.hpp"
+#include "../../features/visuals/misc/world/world_postfx.hpp"
 #include "../../features/visuals/misc/local/viewmodel.hpp"
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
@@ -193,6 +194,12 @@ bool Setup() {
     // Visuals -> World: Nightmode / Sky ride the material colour path, Fullbright the engine's
     // own mat_fullbright switch.
     HooksInternal::InstallWorldDetours();
+    // Visuals -> Misc -> LOCAL: the fov override lands in the player's base fields right
+    // before the engine builds the frame view (CCSPlayer::CalcView).
+    HooksInternal::InstallFovDetour();
+    // Visuals -> Misc -> LOCAL: "Remove scope" holds the local player's m_bIsScoped to
+    // false around the scope's post-screen shader pass (CViewRender::UpdatePostScreenEffects).
+    HooksInternal::InstallRemoveScopeDetour();
 
     ShotChams::Initialize();
     // Visuals -> Misc: the event-driven screen effects (tracers, impacts, hitmarker)
@@ -237,6 +244,8 @@ void EnsureDeviceHooks() {
 }
 void Restore() {
     HooksInternal::RemoveWorldDetours();
+    HooksInternal::RemoveFovDetour();
+    HooksInternal::RemoveRemoveScopeDetour();
     WorldModulation::Shutdown();
     ShotChams::Shutdown();
     Tracers::Shutdown();
@@ -245,6 +254,7 @@ void Restore() {
     GrenadeWarning::Shutdown();
     ViewModelChanger::Restore();
     WorldFog::Restore();
+    WorldPostfx::Shutdown();
     // Removals hands its cvars and the smoke material flag back before the
     // interfaces go away.
     Removals::Restore();

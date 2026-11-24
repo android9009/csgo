@@ -17,17 +17,23 @@ struct CvarSlot {
     bool found{};
 };
 
+// The 2023-10-11 client registers these under their plain names (verified in the dump:
+// `viewmodel_fov`, `viewmodel_offset_x/y/z` are referenced; the classic `vm_offset_*` /
+// `v_viewmodel_fov` spellings are NOT in the binary, which is what kept the feature dead).
+// There are no rotation cvars in this build (no `viewmodel_pitch/yaw/roll` strings), so
+// the three rotation slots stay "not found" and that part of the feature degrades to
+// nothing.
 struct State {
     bool attempted{};
     bool ready{};
     bool active{};
-    CvarSlot x{"vm_offset_x"};
-    CvarSlot y{"vm_offset_y"};
-    CvarSlot z{"vm_offset_z"};
-    CvarSlot roll{"vm_offset_roll"};
-    CvarSlot yaw{"vm_offset_yaw"};
-    CvarSlot pitch{"vm_offset_pitch"};
-    CvarSlot fov{"v_viewmodel_fov"};
+    CvarSlot x{"viewmodel_offset_x"};
+    CvarSlot y{"viewmodel_offset_y"};
+    CvarSlot z{"viewmodel_offset_z"};
+    CvarSlot roll{"viewmodel_roll"};
+    CvarSlot yaw{"viewmodel_yaw"};
+    CvarSlot pitch{"viewmodel_pitch"};
+    CvarSlot fov{"viewmodel_fov"};
     std::array<CvarSlot*, 7> slots{};
 };
 

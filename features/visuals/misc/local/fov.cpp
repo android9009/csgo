@@ -25,10 +25,13 @@ void FrameStage() {
     auto* local = ctx.local;
     if (!s.enabled || !local || !ctx.in_game) return;
     const int fov = Detail::ClampFov(s.fov);
-    // Hold the fov constant: writing both the live and the pre-zoom value keeps the scope from
-    // fighting us and gives the "remove zoom" effect for free.
-    local->m_iFOV() = fov;
+    // Hold the fov constant: the game resets m_iFOV from m_iDefaultFOV every frame when the
+    // player is unscoped, so all three base-player fields must carry our value (the `main`
+    // branch writes exactly default_fov = fov_start = fov). Writing only the live pair lets
+    // the reset win next frame, which is what made the feature look dead.
+    local->m_iDefaultFOV() = fov;
     local->m_iFOVStart() = fov;
+    local->m_iFOV() = fov;
 }
 
 void Shutdown() {

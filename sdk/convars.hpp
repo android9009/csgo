@@ -42,7 +42,39 @@ public:
     bool has_max{};
     float max_value{};
 
+    // The change-callback vector directly follows max_value in CS:GO's ConVar
+    // (`main`: c_convar::fn_change_callbacks, a CUtlVector of callback pointers).
+    // Source 1's CUtlVector header: data pointer, alloc count, grow method, grow amount, size.
+    struct ChangeCallbacks {
+        void* m_pData{};
+        int m_alloc_count{};
+        int m_grow_method{};
+        int m_grow_amount{};
+        int m_size{};
+    };
+    ChangeCallbacks change_callbacks{};
+
     const char* Name() const { return name; }
+
+    // Drops the cvar's change callbacks without freeing the storage (the `main` branch does
+    // exactly this for the fog family so the map's fog logic cannot react against the
+    // override). The header is only touched when it is plausible: a wrong layout would
+    // otherwise corrupt the cvar object.
+    void RemoveChangeCallbacks() {
+        __try {
+            const auto& cb = change_callbacks;
+            if (cb.m_size < 0 || cb.m_size > 64) return;
+            if (cb.m_alloc_count < 0 || cb.m_alloc_count > 256) return;
+            if (cb.m_size > cb.m_alloc_count) return;
+            if (cb.m_grow_method < 0 || cb.m_grow_method > 2) return;
+            if (cb.m_pData != nullptr &&
+                (reinterpret_cast<std::uintptr_t>(cb.m_pData) < 0x10000 ||
+                 reinterpret_cast<std::uintptr_t>(cb.m_pData) > 0x7FFFFFFF))
+                return;
+            cb.m_size = 0;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+    }
 
     // CS:GO obfuscates the numeric values with the object pointer (`main`: c_convar).
     float GetFloat() const {

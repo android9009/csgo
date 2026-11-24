@@ -13,6 +13,7 @@
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
 #include "../../features/visuals/misc/other/hitmarker.hpp"
+#include "../../features/visuals/misc/world/world_postfx.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -178,6 +179,31 @@ inline void Configure() {
         gw.warning = cfg.misc.grenade_helper.get();
         gw.warning_color = cfg.misc.grenade_warning_color.get().rgba();
         GrenadeWarning::Publish(gw);
+    }
+    // Visuals -> World: the post-processing block. Exposure/Bloom ride the map's
+    // env_tonemap_controller entity; the rest are cvar writes. The module applies them on
+    // the framestage (before the original) and hands everything back on level change /
+    // unload, so publishing here each frame is all the wiring it needs.
+    {
+        WorldPostfx::Settings pf;
+        auto& w = cfg.visuals.world_effects;
+        pf.exposure_enabled = w.exposure_enabled.get();
+        pf.exposure_amount = w.exposure.get();
+        pf.bloom_enabled = w.bloom.get();
+        pf.bloom_strength = w.bloom_strength.get();
+        pf.local_contrast_enabled = w.local_contrast.get();
+        pf.contrast_strength = w.contrast_strength.get();
+        pf.contrast_edge_strength = w.contrast_edge_strength.get();
+        pf.color_correction_enabled = w.color_correction.get();
+        pf.tone_curve = static_cast<int>(w.tone_curve.get().first_set_bit().value_or(0));
+        pf.grayscale = w.grayscale.get();
+        pf.dof_enabled = w.depth_of_field.get();
+        pf.dof_mode = static_cast<int>(w.dof_mode.get().first_set_bit().value_or(0));
+        pf.focus_distance = w.focus_distance.get();
+        pf.focus_speed = w.focus_speed.get();
+        pf.focus_range = w.focus_range.get();
+        pf.weather = static_cast<int>(w.weather.get().first_set_bit().value_or(0));
+        WorldPostfx::Publish(pf);
     }
     VisualRuntime::Publish(s);
 }

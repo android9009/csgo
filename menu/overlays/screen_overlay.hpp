@@ -2,12 +2,13 @@
 // Visuals -> Misc: the two screen-space elements the module owns - the four "Remove scope"
 // lines and the "Spread" circle.
 //
-// The game-side "Remove scope" detour (UpdatePostScreenEffects) has been removed along with
-// the rest of the misc logic, so these lines are plain menu drawing now: they are geometry
-// this file computes from the weapon inaccuracy and the fov, not a replacement for anything
-// the game no longer suppresses. The scope/spread maths that used to live in
-// features/visuals/misc/misc.hpp (VisualsMisc::Detail) is inlined below, because this
-// overlay is its only consumer.
+// The game-side "Remove scope" detour (UpdatePostScreenEffects) is owned by
+// sdk/hooks/viewhooks.cpp - it holds the local player's m_bIsScoped to false around the
+// scope's post-screen shader pass while a sniper rifle is held, and the PaintTraverse hook
+// (sdk/hooks/paint.cpp) drops the HudZoom panel - so these lines are the menu's replacement
+// scope frame: geometry this file computes from the weapon inaccuracy and the fov. The
+// scope/spread maths that used to live in features/visuals/misc/misc.hpp
+// (VisualsMisc::Detail) is inlined below, because this overlay is its only consumer.
 //
 // The values arrive through VisualRuntime: `screen_state` (scoped / inaccuracy / fov) and
 // `settings.screen` from the menu thread (mode, colour, thickness, invert, spread colours).

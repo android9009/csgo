@@ -115,13 +115,15 @@ int main() {
 
     // Catalogue integrity.
     assert(std::size(Patterns::kLegacySnapshotCatalog) == 58);
-    assert(std::size(Patterns::kPortedCatalog) == 107);
+    assert(std::size(Patterns::kPortedCatalog) == 108);
     assert(std::size(Patterns::kReferenceCatalog) == 7);
     std::set<std::string_view> names;
     Validate(Patterns::kLegacySnapshotCatalog, names);
     Validate(Patterns::kPortedCatalog, names);
     Validate(Patterns::kReferenceCatalog, names);
-    assert(names.size() == 58 + 107 + 7);
+    assert(names.size() == 58 + 108 + 7);
+    // The fov changer's CalcView detour target is part of the ported set.
+    assert(names.count("calc_view") == 1);
     // Every ported name is reachable through offsets::Get() as well.
     assert(names.count("setup_bones") == 1);
     assert(names.count("update_animstate") == 1);

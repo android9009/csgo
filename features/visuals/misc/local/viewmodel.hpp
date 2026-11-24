@@ -2,8 +2,10 @@
 // Visuals -> Misc -> LOCAL: "Viewmodel changer".
 //
 // The viewmodel's position, orientation and fov are the client's own cvars
-// (vm_offset_x/y/z, vm_offset_roll/pitch/yaw, v_viewmodel_fov), which the game reads
-// while it lays out the viewmodel for the frame. The feature asserts them through
+// (this build: viewmodel_offset_x/y/z and viewmodel_fov; the classic vm_offset_* /
+// v_viewmodel_fov spellings do not exist in the 2023-10-11 client, and there are no
+// rotation cvars in it at all, so the roll/yaw/pitch part degrades to nothing there),
+// which the game reads while it lays out the viewmodel for the frame. The feature asserts them through
 // the cvar layer (sdk/convars.hpp) instead of detouring the viewmodel renderer:
 // values are captured before the first write, asserted only while they differ from
 // what the feature wants (so a map change that resets them self-heals on the next

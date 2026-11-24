@@ -41,4 +41,13 @@ namespace HooksInternal {
     // resolved at runtime from the signature catalogue.
     void InstallWorldDetours();
     void RemoveWorldDetours();
+    // Visuals -> Misc -> LOCAL: the CCSPlayer::CalcView detour (fov changer), resolved at
+    // runtime from the signature catalogue.
+    void InstallFovDetour();
+    void RemoveFovDetour();
+    // Visuals -> Misc -> LOCAL: the CViewRender::UpdatePostScreenEffects detour
+    // (remove scope: the scope's post-screen shader is skipped while a sniper rifle is
+    // held), resolved at runtime from the signature catalogue.
+    void InstallRemoveScopeDetour();
+    void RemoveRemoveScopeDetour();
 }

@@ -144,7 +144,10 @@ inline constexpr std::uintptr_t dwRadarBase = 0x5237B04;
 inline constexpr std::uintptr_t dwSensitivity = 0xDEFBB8;
 inline constexpr std::uintptr_t dwSensitivityPtr = 0xDEFBB8;
 inline constexpr std::uintptr_t dwSetClanTag = 0x8DAB0;
-inline constexpr std::uintptr_t dwViewMatrix = 0x4DF1E74;
+// The 48-byte matrix3x4 view-matrix global: verified in the 2023-10-11 dump as the block
+// the client loads as three 16-byte rows (see the dwViewMatrix entry in the pattern
+// catalogue). The previous pinned value (0x4DF1E74) has no code reference in this build.
+inline constexpr std::uintptr_t dwViewMatrix = 0x4DF5F74;
 inline constexpr std::uintptr_t dwWeaponTable = 0x525F6DC;
 inline constexpr std::uintptr_t dwWeaponTableIndex = 0x326C;
 inline constexpr std::uintptr_t dwYawPtr = 0xDEF948;

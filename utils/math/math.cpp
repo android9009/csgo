@@ -2,6 +2,7 @@
 #include "../../context.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include <algorithm>
+#include <cstring>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -38,12 +39,38 @@ void angle_vectors(const QAngle& ang, Vector* fwd, Vector* right, Vector* up) {
     if (up) *up = {sp * cy, sp * sy, cp};
 }
 Vector angle_vector(const QAngle& ang) { Vector v; angle_vectors(ang, &v); return v; }
+void capture_view_matrix(const void* src) {
+    // The global holds three 16-byte rows (the client's own code loads exactly anchor
+    // +0/+16/+32); row 3 of the full matrix is the constant [0,0,0,1] the client appends.
+    std::memcpy(&ctx.view_matrix.m[0], src, 3 * sizeof(ctx.view_matrix.m[0]));
+    ctx.view_matrix.m[3][0] = 0.f;
+    ctx.view_matrix.m[3][1] = 0.f;
+    ctx.view_matrix.m[3][2] = 0.f;
+    ctx.view_matrix.m[3][3] = 1.f;
+}
+
 bool world_to_screen(const Vector& world, Vector2D& screen) {
-    float w = ctx.view_matrix.m[3][0] * world.x + ctx.view_matrix.m[3][1] * world.y
-            + ctx.view_matrix.m[3][2] * world.z + ctx.view_matrix.m[3][3];
-    if (w < 0.01f) return false;
-    screen.x = ctx.screen_size.x * 0.5f * (1.f + (ctx.view_matrix.m[0][0] * world.x + ctx.view_matrix.m[0][1] * world.y + ctx.view_matrix.m[0][2] * world.z + ctx.view_matrix.m[0][3]) / w);
-    screen.y = ctx.screen_size.y * 0.5f * (1.f - (ctx.view_matrix.m[1][0] * world.x + ctx.view_matrix.m[1][1] * world.y + ctx.view_matrix.m[1][2] * world.z + ctx.view_matrix.m[1][3]) / w);
+    // ctx.view_matrix is a pure affine view transform here (row 3 = [0,0,0,1]; see
+    // capture_view_matrix), so the perspective divide has to be done explicitly, the same
+    // way the client projects world points: view space is +X right, +Y down, +Z forward,
+    // and the horizontal fov is the live player fov (m_iFOV), which is also what keeps
+    // this correct while scoped or with the fov changer on.
+    const VMatrix& m = ctx.view_matrix;
+    const float vx = m.m[0][0] * world.x + m.m[0][1] * world.y + m.m[0][2] * world.z + m.m[0][3];
+    const float vy = m.m[1][0] * world.x + m.m[1][1] * world.y + m.m[1][2] * world.z + m.m[1][3];
+    const float vz = m.m[2][0] * world.x + m.m[2][1] * world.y + m.m[2][2] * world.z + m.m[2][3];
+    if (vz < 0.01f) return false; // behind the near plane
+    if (ctx.screen_size.x < 2.f || ctx.screen_size.y < 2.f) return false;
+    float fov = 90.f;
+    if (ctx.local) {
+        const int live = ctx.local->m_iFOV();
+        if (live >= 1 && live <= 179) fov = static_cast<float>(live);
+    }
+    const float aspect = ctx.screen_size.x / ctx.screen_size.y;
+    const float scale_x = (ctx.screen_size.x * 0.5f) / std::tan(DEG2RAD(fov) * 0.5f);
+    const float scale_y = scale_x / aspect; // the game holds the horizontal fov constant
+    screen.x = ctx.screen_size.x * 0.5f + (vx / vz) * scale_x;
+    screen.y = ctx.screen_size.y * 0.5f + (vy / vz) * scale_y;
     return true;
 }
 float lerp(float a, float b, float t) { return a + (b - a) * t; }

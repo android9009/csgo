@@ -7,6 +7,7 @@
 #include "../../features/visuals/misc/other/model_transparency.hpp"
 #include "../../features/visuals/misc/world/world_fog.hpp"
 #include "../../features/visuals/misc/world/world_modulation.hpp"
+#include "../../features/visuals/misc/world/world_postfx.hpp"
 #include "../../features/visuals/misc/local/thirdperson.hpp"
 #include "../../features/visuals/misc/local/fov.hpp"
 #include "../../features/visuals/misc/local/viewmodel.hpp"
@@ -27,29 +28,62 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_POSTDATAUPDATE_START=2, FRAME_NET_UPDATE_POSTDATAUPDATE_END=3,
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
-    if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
+    auto original = Hooks::GetFrameStageNotifyOriginal();
+    // Visuals -> World: the fog override and the tonemap/postfx writes must land in the
+    // cvars and the env_tonemap_controller entity BEFORE the original framestage runs.
+    // CClientMode::FrameStageNotification(FRAME_RENDER_START) samples the fog cvars and
+    // reads the tonemap entity while it builds the frame, so a write after original is a
+    // frame late and the map's own state wins. The `main` branch (airflow) does exactly
+    // this: POST_PROCESSING->remove() is called above original(stage). With no game
+    // running the cvars are handed straight back.
+    if (stage == 5) {
+        const bool in_game = Interfaces::Engine &&
+            Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
+        const auto effects = VisualRuntime::GetEffects();
+        if (in_game) {
+            __try { WorldFog::Apply(effects.world_fog, effects.world_fog_colour); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                WorldFog::Restore();
+            }
+            __try { WorldPostfx::Frame(); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+            // The viewmodel's own cvars are read while RenderView lays out the viewmodel,
+            // i.e. inside the original that follows: asserting them before the original is
+            // what makes the override visible on this frame instead of one frame late.
+            __try { ViewModelChanger::FrameStage(); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+        } else {
+            // Invalidate (not just Restore): a map transition runs through the not-in-game
+            // state, and the new level writes its own fog family on load. Dropping the
+            // capture makes the next in-game frame re-capture the new map's start/end/
+            // density instead of overwriting them with the previous map's.
+            __try { WorldFog::Invalidate(); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+            __try { WorldPostfx::ResetState(); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+            __try { ViewModelChanger::Restore(); }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+        }
+    }
+    if (original) original(ecx, stage);
     // The D3D device may not have existed at hook-setup time; re-attach the EndScene
     // hook (idempotent no-op once attached) so the menu can render.
     Hooks::EnsureDeviceHooks();
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
-    // Visuals -> World -> "Fog": the client reads fog_override/fog_color while it builds the
-    // frame's fog, so the override is asserted at render start. With no game running (main
-    // menu, disconnect) the cvars are handed straight back.
     // Visuals -> World: "Fullbright" rides the engine's own mat_fullbright switch, kept in step
-    // here (the tint half runs inside the GetColorModulation detour).
+    // here (the tint half runs inside the GetColorModulation detour). Fullbright and
+    // Sunlight already work in game post-original, so they stay where they are.
     if (stage == 5) {
         __try { WorldModulation::Frame(); }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             static bool logged = false;
             if (!logged) { logged = true; LOG_WARN("visuals world: fullbright cvar write raised an exception"); }
-        }
-    }
-    if (stage == 5) {
-        const auto effects = VisualRuntime::GetEffects();
-        __try { WorldFog::Apply(effects.world_fog, effects.world_fog_colour); }
-        __except (EXCEPTION_EXECUTE_HANDLER) {
-            WorldFog::Restore();
         }
     }
     // Prop / texture transparency: bring the recorded models' own materials to the
@@ -87,7 +121,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         // (and at render start, when the local weapon may have changed).
         if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore(); ViewModelChanger::Restore(); }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Invalidate(); WorldPostfx::ResetState(); ViewModelChanger::Restore(); }
             else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
@@ -108,9 +142,9 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // entity is fresh (render start) and cleared when the feature is off.
             if (stage == 5) ThirdPerson::FrameStage();
             if (stage == 5) FovChanger::FrameStage();
-            // Visuals -> Misc -> LOCAL: "Viewmodel changer" asserts the vm_offset_* /
-            // v_viewmodel_fov cvars (the viewmodel's position/rotation/fov).
-            if (stage == 5) ViewModelChanger::FrameStage();
+            // "Viewmodel changer" asserts its cvars ABOVE the original (the viewmodel reads
+            // them during this frame's RenderView); the not-in-game reset line below still
+            // calls ViewModelChanger::Restore().
             // Live state for the scope/spread overlay (menu/overlays/screen_overlay.hpp):
             // whether the local player is scoped, the fov the view is drawn with and the
             // weapon's current inaccuracy (base * live penalty).

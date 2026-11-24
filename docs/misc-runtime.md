@@ -1,5 +1,11 @@
 # Misc runtime
 
+> **Superseded:** the `features/visuals/misc` block has since been re-ported (see
+> docs/visuals-audit.md and docs/pattern-catalog.md) - including "Remove scope", whose
+> game-side detour (update_postscreen_effects) and the PaintTraverse HudZoom skip are
+> installed again in sdk/hooks/viewhooks.cpp and sdk/hooks/paint.cpp. The removal
+> recorded below still describes what that commit deleted.
+
 > **2026-11-22: the misc features are gone, completely.**
 >
 > - `features/misc/` — removed in full: radar reveal, clan tag, reveal enemy chat,

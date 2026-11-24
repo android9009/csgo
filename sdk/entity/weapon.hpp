@@ -62,6 +62,12 @@ public:
     NETVAR_FALLBACK(short, m_iItemDefinitionIndex, "DT_BaseAttributableItem", "m_iItemDefinitionIndex", offsets::netvars::m_iItemDefinitionIndex)
     NETVAR_FALLBACK(std::uint32_t, m_hOwnerEntity, "DT_BaseEntity", "m_hOwnerEntity", offsets::netvars::m_hOwnerEntity)
     bool IsGun() const { return m_iClip1() >= 0; }
+    // The four CS:GO sniper rifles by item definition index (9 AWP, 11 G3SG1, 38 SCAR-20,
+    // 40 SSG 08) - the same set the `main` branch's is_sniper() switches over.
+    bool IsSniper() const {
+        const int def = m_iItemDefinitionIndex();
+        return def == 9 || def == 11 || def == 38 || def == 40;
+    }
     CCSWeaponData* GetWeaponData() const;
     const char* GetWeaponName() const;
 };

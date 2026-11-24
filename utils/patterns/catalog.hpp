@@ -132,7 +132,17 @@ inline constexpr Definition kLegacySnapshotCatalog[] = {
     {"dwSensitivity", "client.dll", "81 F9 ? ? ? ? 75 7E F3 0F 10 05", {2, 0, 0, 0}, 1, true, 0},
     {"dwSensitivityPtr", "client.dll", "81 F9 ? ? ? ? 75 7E F3 0F 10 05", {2, 0, 0, 0}, 1, true, 0},
     {"dwSetClanTag", "engine.dll", "53 56 57 8B DA 8B F9 FF 15", {0, 0, 0, 0}, 0, true, 0},
-    {"dwViewMatrix", "client.dll", "0F 10 05 ? ? ? ? 8D 85 ? ? ? ? B9", {3, 0, 0, 0}, 1, true, 176},
+    // View matrix global. The match's movups loads a 48-byte (3 x 16-byte row) block that
+    // the client uses as its live matrix3x4 view matrix: verified in the 2023-10-11 dump,
+    // the sole instruction of this shape (client RVA 0x220E78) reads exactly three rows
+    // (anchor +0/+16/+32) plus a neighbouring float at +48, and the code that builds the
+    // full 4x4 appends the hardcoded row [0,0,0,1] (constant at client RVA 0xD2F5F0). The
+    // `main` branch's +176 offset predates this layout - at +176 no code in this build has
+    // a single reference, which is what kept every screen-space feature dead (a zero
+    // matrix makes world_to_screen always fail). The matrix therefore resolves to the
+    // anchor itself (extra 0); consumers must treat row 3 as [0,0,0,1] and project with
+    // the live fov (see Math::world_to_screen).
+    {"dwViewMatrix", "client.dll", "0F 10 05 ? ? ? ? 8D 85 ? ? ? ? B9", {3, 0, 0, 0}, 1, true, 0},
     {"dwWeaponTable", "client.dll", "B9 ? ? ? ? 6A 00 FF 50 08 C3", {1, 0, 0, 0}, 1, true, 0},
     {"dwWeaponTableIndex", "client.dll", "39 86 ? ? ? ? 74 06 89 86 ? ? ? ? 8B 86", {2, 0, 0, 0}, 1, false, 0},
     {"dwYawPtr", "client.dll", "8B 44 24 1C 35 ? ? ? ? 89 44 24 14 EB 0D", {5, 0, 0, 0}, 1, true, 0},
@@ -289,6 +299,14 @@ inline constexpr Definition kPortedCatalog[] = {
     // it hooked. See docs/visuals-audit.md for why the cvar path below is what ships.
     {"want_reticle_shown", "client.dll", "53 56 57 8B 3D ? ? ? ? 8B F1 85 FF", {0, 0, 0, 0}, 0, true, 0},
     {"want_reticle_shown_alt", "client.dll", "55 8B EC 53 56 8B F1 8B 4D ? 57 E8", {0, 0, 0, 0}, 0, true, 0},
+
+    // Visuals -> Misc -> LOCAL "Fov changer": CCSPlayer::CalcView, the virtual the engine
+    // calls with the local player to build the frame view (the fov arrives in XMM0). The
+    // `main` branch carries one signature per supported build; this spelling is the one
+    // that matches the 2023-10-11 client (unique hit; the prologue saves the XMM0 float
+    // and checks high CCSPlayer fields). The detour writes m_iDefaultFOV/m_iFOVStart/m_iFOV
+    // before the original runs, so the game's own zoom math sees the override.
+    {"calc_view", "client.dll", "55 8B EC 83 EC 14 53 56 57 FF 75 18", {0, 0, 0, 0}, 0, true, 0},
 
     // server.dll (2)
     {"draw_hitbox", "server.dll", "55 8B EC 81 EC ? ? ? ? 53 56 8B 35 ? ? ? ? 8B D9 57 8B CE", {0, 0, 0, 0}, 0, true, 0},

@@ -43,8 +43,10 @@ struct Effects {
     bool sunlight{};
     // Visuals -> Misc -> local: "Remove scope" (mode, the 0..4 values of cfg_t::noscope),
     // its line colour/thickness/invert switch, and the "Spread" circle. The overlay in
-    // menu/overlays/screen_overlay.hpp reads these; the game-side scope-mask logic has been
-    // removed, so only the menu drawing consumes this block now.
+    // menu/overlays/screen_overlay.hpp reads these; scope_mode > 0 also publishes the
+    // scope_removal flag, which the update_postscreen_effects detour (the scope's
+    // post-screen shader pass, see sdk/hooks/viewhooks.cpp) and the PaintTraverse HudZoom
+    // skip (sdk/hooks/paint.cpp) consume.
     struct Screen {
         int scope_mode{};
         std::uint32_t scope_line_color{0xFF000000u}; // 0xRRGGBBAA, black by default
@@ -68,6 +70,10 @@ inline std::atomic<bool> any_material{false};
 inline std::atomic<bool> any_transparency{false};
 inline std::atomic<bool> shot_requested{false};
 inline std::atomic<bool> glow_closing{false};
+// "Remove scope" (Local): active when the menu's mode is anything but "None". Read by the
+// update_postscreen_effects detour and the PaintTraverse skip on every panel, so it is an
+// atomic, not the Effects copy.
+inline std::atomic<bool> scope_removal{false};
 inline Settings Get(){std::lock_guard<std::recursive_mutex> lock(mutex);return settings;}
 inline Effects GetEffects(){std::lock_guard<std::recursive_mutex> lock(mutex);return static_cast<const Effects&>(settings);}
 inline void Publish(const Settings& s){
@@ -79,6 +85,7 @@ inline void Publish(const Settings& s){
     any_material.store(any,std::memory_order_relaxed);
     shot_requested.store(s.chams_enabled && s.shot.enabled && s.shot.kind>0,std::memory_order_relaxed);
     any_transparency.store(s.texture_transparency>0.f || s.prop_transparency>0.f,std::memory_order_relaxed);
+    scope_removal.store(s.screen.scope_mode>0,std::memory_order_relaxed);
 }
 // Live game thread -> render thread state for the same overlay: whether the local player is
 // scoped, the field of view the picture is drawn with and the weapon's current inaccuracy
