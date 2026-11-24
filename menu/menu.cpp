@@ -544,11 +544,9 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
             FxOverlay::Render();
         }
     }
-    // the menu body: tabs, widgets, popups
-    // The gui context only runs while the menu is visible (the window is
-    // hidden otherwise anyway): keeps the per-frame path free of the gui's
-    // internal bookkeeping when nothing gui-side is on screen.
-    if (open) ctx->render();
+    // the menu body: tabs, widgets, popups (the windows are hidden while the
+    // menu is closed, but the context ticks every frame as before)
+    ctx->render();
     // submit: build the GPU buffers and draw
     draw.end_frame();
     draw.render();
