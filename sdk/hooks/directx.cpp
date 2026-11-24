@@ -64,7 +64,7 @@ long __stdcall EndScene(void* device) {
 
     // State that no state block covers: the FVF, the index buffer and the
     // sampler states we force (address modes + sRGB texture).
-    UINT fvf = 0;
+    DWORD fvf = 0; // GetFVF takes a DWORD* (SetFVF wants a UINT)
     dev->GetFVF(&fvf);
     IDirect3DIndexBuffer9* indices = nullptr;
     dev->GetIndices(&indices);
@@ -100,7 +100,7 @@ long __stdcall EndScene(void* device) {
     dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, antialias);
     dev->SetRenderState(D3DRS_COLORWRITEENABLE, colorwrite);
     dev->SetRenderState(D3DRS_SRGBWRITEENABLE, srgbwrite);
-    dev->SetFVF(fvf);
+    dev->SetFVF(static_cast<UINT>(fvf));
     dev->SetIndices(indices);
     if (indices) indices->Release();
     dev->SetSamplerState(0, D3DSAMP_ADDRESSU, addr_u);
