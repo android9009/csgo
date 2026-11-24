@@ -9,6 +9,13 @@
 #include "../../features/visuals/misc/world/world_modulation.hpp"
 #include "../../features/visuals/misc/local/thirdperson.hpp"
 #include "../../features/visuals/misc/local/fov.hpp"
+#include "../../features/visuals/misc/local/viewmodel.hpp"
+#include "../../features/visuals/misc/local/force_crosshair.hpp"
+#include "../../features/visuals/misc/local/penetration_crosshair.hpp"
+#include "../../features/visuals/misc/other/out_of_fov.hpp"
+#include "../../features/visuals/misc/other/tracers.hpp"
+#include "../../features/visuals/misc/other/impacts.hpp"
+#include "../../features/visuals/misc/other/hitmarker.hpp"
 #include "../../features/misc/misc.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
@@ -79,7 +86,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
         // (and at render start, when the local weapon may have changed).
         if (Interfaces::Engine && Interfaces::EntityList && Interfaces::Globals && (stage == 0 || stage == 4 || stage == 5)) {
             ctx.in_game = Interfaces::Engine->IsInGame() && Interfaces::Engine->IsConnected();
-            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore(); }
+            if (!ctx.in_game) { ctx.reset(); ctx.frame_stage = stage; ModelTransparency::Purge(); WorldFog::Restore(); ViewModelChanger::Restore(); }
             else {
             const int local_index = Interfaces::Engine->GetLocalPlayer();
             ctx.local = static_cast<CCSPlayer*>(Interfaces::EntityList->GetClientEntity(local_index));
@@ -100,6 +107,38 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // entity is fresh (render start) and cleared when the feature is off.
             if (stage == 5) ThirdPerson::FrameStage();
             if (stage == 5) FovChanger::FrameStage();
+            // Visuals -> Misc -> LOCAL: "Viewmodel changer" asserts the vm_offset_* /
+            // v_viewmodel_fov cvars (the viewmodel's position/rotation/fov).
+            if (stage == 5) ViewModelChanger::FrameStage();
+            // Live state for the scope/spread overlay (menu/overlays/screen_overlay.hpp):
+            // whether the local player is scoped, the fov the view is drawn with and the
+            // weapon's current inaccuracy (base * live penalty).
+            if (stage == 5) {
+                VisualRuntime::ScreenState ss;
+                ss.scoped = ctx.local->m_bIsScoped();
+                ss.fov = static_cast<float>(ctx.local->m_iFOV());
+                int width = 0, height = 0;
+                if (Interfaces::Engine) Interfaces::Engine->GetScreenSize(width, height);
+                ss.width = width;
+                ss.height = height;
+                ss.inaccuracy = FovChanger::Detail::Inaccuracy(
+                    ctx.weapon_data ? ctx.weapon_data->inaccuracy_stand : 0.f,
+                    ctx.weapon ? ctx.weapon->m_fAccuracyPenalty() : 0.f);
+                VisualRuntime::PublishScreen(ss);
+            }
+            // Visuals -> Misc: the per-frame screen effects - Out of FOV arrows, bullet
+            // tracers, impacts, hitmarkers and the two crosshairs. One snapshot per
+            // frame; empty when none of them fire, which the overlay draws as nothing.
+            if (stage == 5) {
+                VisualRuntime::FxFrame fx;
+                OutOfFov::Contribute(fx);
+                Tracers::Contribute(fx);
+                Impacts::Contribute(fx);
+                Hitmarker::Contribute(fx);
+                ForceCrosshair::Contribute(fx);
+                PenetrationCrosshair::Contribute(fx);
+                VisualRuntime::PublishFx(fx);
+            }
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }

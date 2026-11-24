@@ -166,6 +166,27 @@
     <ClCompile Include="features\visuals\misc\other\removals.cpp">
       <Filter>Features</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\misc\other\out_of_fov.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\other\tracers.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\other\impacts.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\other\hitmarker.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\local\force_crosshair.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\local\penetration_crosshair.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
+    <ClCompile Include="features\visuals\misc\local\viewmodel.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="features\misc\misc.cpp">
       <Filter>Features\misc</Filter>
     </ClCompile>
@@ -716,6 +737,27 @@
       <Filter>SDK</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\misc\other\removals.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\other\out_of_fov.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\other\tracers.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\other\impacts.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\other\hitmarker.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\local\force_crosshair.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\local\penetration_crosshair.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\local\viewmodel.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\chams\chams_renderer.hpp">

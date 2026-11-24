@@ -5,6 +5,13 @@
 #include "../../features/visuals/chams/chams_passes.hpp"
 #include "../../features/visuals/misc/local/thirdperson.hpp"
 #include "../../features/visuals/misc/local/fov.hpp"
+#include "../../features/visuals/misc/local/viewmodel.hpp"
+#include "../../features/visuals/misc/local/force_crosshair.hpp"
+#include "../../features/visuals/misc/local/penetration_crosshair.hpp"
+#include "../../features/visuals/misc/other/out_of_fov.hpp"
+#include "../../features/visuals/misc/other/tracers.hpp"
+#include "../../features/visuals/misc/other/impacts.hpp"
+#include "../../features/visuals/misc/other/hitmarker.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -93,6 +100,70 @@ inline void Configure() {
         fv.aspect = cfg.misc.aspect.get();
         fv.remove_zoom = cfg.misc.fov_scope.get();
         FovChanger::Publish(fv);
+    }
+    // Visuals -> Misc -> LOCAL: "Viewmodel changer" (vm_offset_* / v_viewmodel_fov cvars).
+    {
+        ViewModelChanger::Settings vm;
+        vm.enabled = cfg.misc.vm_fov_enabled.get();
+        vm.fov = cfg.misc.vm_fov.get();
+        vm.x = cfg.misc.viewmodel_x.get();
+        vm.y = cfg.misc.viewmodel_y.get();
+        vm.z = cfg.misc.viewmodel_z.get();
+        vm.roll = cfg.misc.viewmodel_roll.get();
+        vm.yaw = cfg.misc.viewmodel_yaw.get();
+        vm.pitch = cfg.misc.viewmodel_pitch.get();
+        ViewModelChanger::Publish(vm);
+    }
+    // Visuals -> Misc -> LOCAL: the two crosshairs.
+    {
+        ForceCrosshair::Settings fc;
+        fc.enabled = cfg.misc.force_crosshair.get();
+        ForceCrosshair::Publish(fc);
+        PenetrationCrosshair::Settings pc;
+        pc.enabled = cfg.visuals.autowall_crosshair.get();
+        PenetrationCrosshair::Publish(pc);
+    }
+    // Visuals -> Misc -> OTHER: "Out of FOV".
+    {
+        OutOfFov::Settings oof;
+        oof.enabled = cfg.visuals.out_of_fov.get();
+        oof.color = cfg.visuals.out_of_fov_col.get().rgba();
+        oof.distance = cfg.visuals.out_of_fov_dst.get();
+        oof.size = cfg.visuals.out_of_fov_size.get();
+        OutOfFov::Publish(oof);
+    }
+    // Visuals -> Misc -> OTHER: "Bullet tracers" (per-target colour and style).
+    {
+        Tracers::Settings tr;
+        for (int i = 0; i < Tracers::Target::Count; ++i) {
+            tr.enabled[i] = cfg.misc.tracer_targets.get().test(i);
+            tr.color[i] = cfg.misc.tracer_colors[i].get().rgba();
+            tr.style[i] = static_cast<int>(cfg.misc.tracer_style[i].get().first_set_bit().value_or(0));
+        }
+        Tracers::Publish(tr);
+    }
+    // Visuals -> Misc -> OTHER: "Show impacts".
+    {
+        Impacts::Settings im;
+        im.enabled = cfg.misc.impacts.get();
+        im.color1 = cfg.misc.impacts_color.get().rgba();
+        im.color2 = cfg.misc.impacts_color2.get().rgba();
+        Impacts::Publish(im);
+    }
+    // Visuals -> Misc -> OTHER: "Hitmarker" (the bitset is keyed by cfg_t::hitmarker_*).
+    {
+        Hitmarker::Settings hm;
+        const auto bits = cfg.misc.hitmarker.get();
+        hm.world = bits.test(cfg_t::hitmarker_world);
+        hm.screen = bits.test(cfg_t::hitmarker_cross);
+        hm.kibit = bits.test(cfg_t::hitmarker_kibit);
+        hm.world_color = cfg.misc.hitmarker_world_color.get().rgba();
+        hm.screen_color = cfg.misc.hitmarker_screen_color.get().rgba();
+        hm.kibit_color = cfg.misc.hitmarker_kibit_color.get().rgba();
+        hm.world_duration = cfg.misc.hitmarker_duration[cfg_t::hitmarker_world].get();
+        hm.screen_duration = cfg.misc.hitmarker_duration[cfg_t::hitmarker_cross].get();
+        hm.kibit_duration = cfg.misc.hitmarker_duration[cfg_t::hitmarker_kibit].get();
+        Hitmarker::Publish(hm);
     }
     VisualRuntime::Publish(s);
 }

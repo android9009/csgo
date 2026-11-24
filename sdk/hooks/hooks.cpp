@@ -10,6 +10,10 @@
 #include "../../features/visuals/chams/shot_chams.hpp"
 #include "../../features/visuals/misc/world/world_modulation.hpp"
 #include "../../features/visuals/misc/world/world_fog.hpp"
+#include "../../features/visuals/misc/local/viewmodel.hpp"
+#include "../../features/visuals/misc/other/tracers.hpp"
+#include "../../features/visuals/misc/other/impacts.hpp"
+#include "../../features/visuals/misc/other/hitmarker.hpp"
 #include "../datatypes/c_user_cmd.hpp"
 #include <d3d9.h>
 #include "../structs.hpp"
@@ -189,6 +193,11 @@ bool Setup() {
     HooksInternal::InstallWorldDetours();
 
     ShotChams::Initialize();
+    // Visuals -> Misc: the event-driven screen effects (tracers, impacts, hitmarker)
+    // each own their game-event listener.
+    Tracers::Initialize();
+    Impacts::Initialize();
+    Hitmarker::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
         device_ex_hook.is_hooked(), panel_hook.is_hooked(),
@@ -225,6 +234,10 @@ void Restore() {
     HooksInternal::RemoveWorldDetours();
     WorldModulation::Shutdown();
     ShotChams::Shutdown();
+    Tracers::Shutdown();
+    Impacts::Shutdown();
+    Hitmarker::Shutdown();
+    ViewModelChanger::Restore();
     WorldFog::Restore();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();

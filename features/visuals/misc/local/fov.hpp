@@ -25,6 +25,17 @@ inline int ClampFov(int fov) {
     if (fov > 179) return 179;
     return fov;
 }
+// The weapon's current inaccuracy in radians, as close as this build can get to the
+// engine's live value: the weapon data's standing inaccuracy scaled by the live
+// m_fAccuracyPenalty (the spread the game accumulates from movement and shots). The
+// scope/spread overlay converts it to pixels with the same focal-length maths the
+// game's own crosshair uses, so a higher penalty grows the spread circle and the
+// dynamic scope gap.
+inline float Inaccuracy(float base, float penalty) {
+    if (!std::isfinite(base) || base < 0.f) base = 0.f;
+    if (!std::isfinite(penalty) || penalty < 0.f) penalty = 0.f;
+    return base * (1.f + penalty);
+}
 } // namespace Detail
 
 void Publish(const Settings& s);
