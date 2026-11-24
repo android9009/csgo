@@ -381,9 +381,7 @@ namespace menu::group
             MAKE_RUNTIME(id+"textured",selectable,"Textured",cfg_t::cham_textured),
             MAKE_RUNTIME(id+"flat",selectable,"Flat",cfg_t::cham_flat),
             MAKE_RUNTIME(id+"glow",selectable,"Glow",cfg_t::cham_glow),
-            MAKE_RUNTIME(id+"bubble",selectable,"Bubble",cfg_t::cham_bubble),
-            MAKE_RUNTIME(id+"sprite",selectable,"Custom Sprite",cfg_t::cham_sprite),
-            MAKE_RUNTIME(id+"fadeup",selectable,"Fade Up",cfg_t::cham_fade_up)});
+            MAKE_RUNTIME(id+"sprite",selectable,"Custom Sprite",cfg_t::cham_sprite)});
 	}
 
 	void visuals_models_local(std::shared_ptr<layout> &e)

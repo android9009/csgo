@@ -8,15 +8,16 @@ namespace ChamsPasses {
 struct Pass {int kind{};std::uint32_t primary{},secondary{};bool ignore_z{};};
 struct Plan {std::array<Pass,4> passes{};int count{};};
 // Material selection = the cham_material bitset index (menu/config.hpp). The
-// The old "airflow" project used eight material slots: 1 Textured, 2 Flat,
+// old "airflow" project used eight material slots: 1 Textured, 2 Flat,
 // 5 Fade Up, 6 Bubble, 7 Glow, 8 Custom Sprite, 9 Shaded, 10 Metallic (3, 4 were
-// already dead). Shaded (9) and Metallic (10) are no longer offered (removed on
-// request): their bit indices are kept so saved configs do not shift, but
-// Selection() now maps them to off, leaving six active modes.
-inline constexpr int Shaded=9,Metallic=10,GlowKind=7,KindCount=11;
+// already dead). Fade Up (5), Bubble (6), Shaded (9) and Metallic (10) are no
+// longer offered (removed on request): their bit indices are kept so saved
+// configs do not shift, but Selection() maps them to off, leaving four active
+// modes (Textured, Flat, Glow, Custom Sprite).
+inline constexpr int FadeUp=5,Bubble=6,Shaded=9,Metallic=10,GlowKind=7,KindCount=11;
 inline int Selection(int kind){
     switch(kind){
-        case 1:case 2:case 5:case 6:case GlowKind:case 8:return kind;
+        case 1:case 2:case GlowKind:case 8:return kind;
         default:return 0;
     }
 }
