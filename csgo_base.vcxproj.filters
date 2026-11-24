@@ -10,6 +10,10 @@
     <Filter Include="Menu\overlays"><UniqueIdentifier>{AA96A066-B801-5A24-A84A-6CB671C52E2D}</UniqueIdentifier></Filter>
     <Filter Include="Menu\preview"><UniqueIdentifier>{69512119-13E3-57B6-89B6-4381405C00B9}</UniqueIdentifier></Filter>
     <Filter Include="Menu\tabs"><UniqueIdentifier>{8B45B771-7471-51FB-A0F5-53390B046177}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\tabs\visuals"><UniqueIdentifier>{1e2df230-118f-4b99-95f0-612835ce9477}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\tabs\visuals\esp"><UniqueIdentifier>{f7a3adbd-019c-463f-86f0-b769438623eb}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\tabs\visuals\chams"><UniqueIdentifier>{22b13a1c-d2a4-4a28-82e4-a3e875cc49ff}</UniqueIdentifier></Filter>
+    <Filter Include="Menu\tabs\visuals\misc"><UniqueIdentifier>{1a8056eb-91c4-4d61-9c86-14d237e6d1ff}</UniqueIdentifier></Filter>
 
     <Filter Include="Core">
       <UniqueIdentifier>{903E4E56-FDBD-5793-BEC8-BD410BD7E538}</UniqueIdentifier>
@@ -338,8 +342,44 @@
     <ClCompile Include="menu\tabs\tab_skins.cpp">
       <Filter>Menu\tabs</Filter>
     </ClCompile>
-    <ClCompile Include="menu\tabs\tab_visuals.cpp">
-      <Filter>Menu\tabs</Filter>
+    <ClCompile Include="menu\tabs\visuals\visuals.cpp">
+      <Filter>Menu\tabs\visuals</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\esp\esp.cpp">
+      <Filter>Menu\tabs\visuals\esp</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\esp\esp_player.cpp">
+      <Filter>Menu\tabs\visuals\esp</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\esp\esp_world.cpp">
+      <Filter>Menu\tabs\visuals\esp</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\chams\chams.cpp">
+      <Filter>Menu\tabs\visuals\chams</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\chams\chams_general.cpp">
+      <Filter>Menu\tabs\visuals\chams</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\chams\chams_local.cpp">
+      <Filter>Menu\tabs\visuals\chams</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\chams\chams_enemy.cpp">
+      <Filter>Menu\tabs\visuals\chams</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\chams\chams_team.cpp">
+      <Filter>Menu\tabs\visuals\chams</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\misc\visuals_misc.cpp">
+      <Filter>Menu\tabs\visuals\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\misc\misc_local.cpp">
+      <Filter>Menu\tabs\visuals\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\misc\misc_other.cpp">
+      <Filter>Menu\tabs\visuals\misc</Filter>
+    </ClCompile>
+    <ClCompile Include="menu\tabs\visuals\misc\misc_world.cpp">
+      <Filter>Menu\tabs\visuals\misc</Filter>
     </ClCompile>
     <ClCompile Include="menu\menu.cpp">
       <Filter>Menu</Filter>
@@ -876,6 +916,9 @@
     </ClInclude>
     <ClInclude Include="menu\tabs\tabs.hpp">
       <Filter>Menu\tabs</Filter>
+    </ClInclude>
+    <ClInclude Include="menu\tabs\visuals\visuals.hpp">
+      <Filter>Menu\tabs\visuals</Filter>
     </ClInclude>
     <ClInclude Include="menu\menu.hpp">
       <Filter>Menu</Filter>

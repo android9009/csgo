@@ -157,7 +157,7 @@
     <ClCompile Include="menu\tabs\visuals\chams\chams_local.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\visuals\chams\chams_enemy.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\visuals\chams\chams_team.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
-    <ClCompile Include="menu\tabs\visuals\misc\misc.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
+    <ClCompile Include="menu\tabs\visuals\misc\visuals_misc.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\visuals\misc\misc_local.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\visuals\misc\misc_other.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
     <ClCompile Include="menu\tabs\visuals\misc\misc_world.cpp"><LanguageStandard>stdcpp20</LanguageStandard></ClCompile>
