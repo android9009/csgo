@@ -198,6 +198,29 @@ bool Setup() {
     return original_wndproc != nullptr &&
         (device_hook.is_hooked() || device_d3d9_hook.is_hooked() || device_ex_hook.is_hooked());
 }
+void EnsureDeviceHooks() {
+    // The captured-device EndScene/Reset hooks are only attempted once, in Setup().
+    // If shaderapidx9.dll's device pointer was still null then (the D3D9Ex device is
+    // created lazily) and the D3D9Ex dummy device could not be created either, the
+    // live device's EndScene is never hooked: the WndProc/menu toggle still works, but
+    // the menu never renders. Re-read the device each frame and attach the hooks the
+    // moment it exists. A cheap no-op once the captured device is already hooked.
+    if (device_hook.is_hooked()) return;
+    void* device = Interfaces::RefreshDirectDevice();
+    if (!device) return;
+    void* vtable = *reinterpret_cast<void**>(device);
+    if (!vtable) return;
+    // A dummy vtable hook already owns this vtable, so the live device is covered.
+    if ((device_d3d9_hook.is_hooked() && d3d9_vtable == vtable) ||
+        (device_ex_hook.is_hooked() && ex_vtable == vtable)) return;
+    direct_vtable = vtable;
+    const bool end_ok = device_hook.attach(device, 42, reinterpret_cast<void*>(&HooksInternal::EndScene));
+    const bool reset_ok = reset_hook.attach(device, 16, reinterpret_cast<void*>(&HooksInternal::Reset));
+    if (end_ok && reset_ok)
+        LOG_INFO("device EndScene hook attached after setup (device was unavailable): vtable=%p", vtable);
+    else
+        LOG_WARN("late device hook failed: endscene=%d reset=%d vtable=%p", end_ok, reset_ok, vtable);
+}
 void Restore() {
     HooksInternal::RemoveWorldDetours();
     WorldModulation::Shutdown();

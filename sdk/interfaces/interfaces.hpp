@@ -307,6 +307,10 @@ namespace Interfaces {
     }
     bool Setup();
     bool Check();
+    // Re-read shaderapidx9.dll's D3D9Ex device pointer. It is created lazily and
+    // can be null when Setup() first runs; the menu's EndScene hook needs the live
+    // device, so callers re-read this until it becomes available.
+    void* RefreshDirectDevice();
 
     inline IBaseClientDll* Client = nullptr;
     inline IClientMode* ClientMode = nullptr;

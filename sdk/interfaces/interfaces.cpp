@@ -157,6 +157,11 @@ bool Setup() {
 
     return Check();
 }
+void* RefreshDirectDevice() {
+    auto* device = ReadModulePointer("shaderapidx9.dll", offsets::Get("dwppDirect3DDevice9"));
+    if (device) DirectDevice = device;
+    return DirectDevice;
+}
 bool Check() {
     const bool ok = Client && EntityList && Engine && ClientState && Globals && Input
                  && Panel && ModelRender && ConVar && MaterialSystem && Surface;

@@ -7,6 +7,10 @@ class CUserCmd;
 namespace Hooks {
     bool Setup();
     void Restore();
+    // Cheap per-frame step: if the live D3D device's EndScene/Reset hooks were
+    // not installed at Setup() (device pointer null, D3D9Ex dummy unavailable),
+    // attach them the moment the device becomes available so the menu can render.
+    void EnsureDeviceHooks();
     using PaintTraverseFn = void (__thiscall*)(void*, unsigned int, bool, bool);
     PaintTraverseFn GetPaintTraverseOriginal();
     using EndSceneFn = long (__stdcall*)(IDirect3DDevice9*);

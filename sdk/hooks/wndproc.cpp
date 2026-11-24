@@ -22,6 +22,9 @@ static bool ForwardGuiInput(UINT message, WPARAM wparam, LPARAM lparam, bool ope
 }
 
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    // Cheap backup for the per-frame ensure: the D3D device may have appeared between
+    // hook-setup and the first frame; a no-op once the EndScene hook is attached.
+    Hooks::EnsureDeviceHooks();
     // Never let GUI input handling consume the game's shutdown messages.
     // Only flag the shutdown here: WndProc can be executing inside a hook, so
     // the actual hook restore and DLL self-unload run in the main thread (main.cpp).

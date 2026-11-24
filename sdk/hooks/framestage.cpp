@@ -18,6 +18,9 @@ namespace HooksInternal {
 // FRAME_NET_UPDATE_END=4, FRAME_RENDER_START=5, FRAME_RENDER_END=6.
 void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
     if (auto original = Hooks::GetFrameStageNotifyOriginal()) original(ecx, stage);
+    // The D3D device may not have existed at hook-setup time; re-attach the EndScene
+    // hook (idempotent no-op once attached) so the menu can render.
+    Hooks::EnsureDeviceHooks();
     if (stage == 0) {if(VisualRuntime::glow_closing.load())VisualRuntime::UpdateGlow();LocalInventory::Frame();}
     if (stage == 5) VisualRuntime::UpdateGlow();
     // Visuals -> World -> "Fog": the client reads fog_override/fog_color while it builds the
