@@ -156,6 +156,7 @@
     <ClCompile Include="menu\preview\model_preview.cpp" />
     <ClCompile Include="features\visuals\chams\shot_chams.cpp" />
     <ClCompile Include="features\visuals\misc\world\world_modulation.cpp" />
+    <ClCompile Include="features\visuals\misc\world\world_postfx.cpp" />
     <ClCompile Include="features\visuals\misc\local\thirdperson.cpp" />
     <ClCompile Include="features\visuals\misc\local\fov.cpp" />
     <ClCompile Include="features\visuals\esp\player_esp.cpp" />
@@ -391,6 +392,7 @@
     <ClInclude Include="features\visuals\misc\local\grenade_warning.hpp" />
     <ClInclude Include="features\visuals\misc\local\viewmodel.hpp" />
     <ClInclude Include="features\visuals\misc\world\world_modulation.hpp" />
+    <ClInclude Include="features\visuals\misc\world\world_postfx.hpp" />
     <ClInclude Include="features\visuals\chams\chams_renderer.hpp" />
     <ClInclude Include="features\visuals\chams\chams_entities.hpp" />
     <ClInclude Include="features\visuals\chams\chams_object_names.hpp" />
