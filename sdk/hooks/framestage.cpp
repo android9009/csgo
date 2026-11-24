@@ -3,7 +3,7 @@
 #include "../visual_runtime_state.hpp"
 #include "../../features/skins/skin_changer.hpp"
 #include "../../features/skins/local_inventory.hpp"
-#include "../../features/visuals/misc/other/removals/removals.hpp"
+#include "../../features/visuals/misc/other/removals.hpp"
 #include "../../features/visuals/misc/other/model_transparency.hpp"
 #include "../../features/visuals/misc/world/world_fog.hpp"
 #include "../../features/visuals/misc/world/world_modulation.hpp"

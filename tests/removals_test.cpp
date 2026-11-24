@@ -1,9 +1,7 @@
 // Portable checks for the Visuals "Removals" mask and the two removals that are
 // implemented. The bit order is pinned to the combo box order in
 // menu/tabs/tab_visuals.cpp: a silent reorder there would toggle the wrong effect.
-#include "features/visuals/misc/other/removals/flash.hpp"
-#include "features/visuals/misc/other/removals/punch.hpp"
-#include "features/visuals/misc/other/removals/removals.hpp"
+#include "features/visuals/misc/other/removals.hpp"
 #include <cassert>
 #include <cstdint>
 #include <limits>
@@ -46,19 +44,19 @@ int main() {
     }
 
     // Flash: only a positive duration is cleared, NaN included in the reject set.
-    assert(Removals::Flash::ShouldClear(1.f));
-    assert(Removals::Flash::ShouldClear(0.001f));
-    assert(Removals::Flash::ShouldClear(std::numeric_limits<float>::max()));
-    assert(!Removals::Flash::ShouldClear(0.f));
-    assert(!Removals::Flash::ShouldClear(-1.f));
-    assert(!Removals::Flash::ShouldClear(std::numeric_limits<float>::quiet_NaN()));
-    assert(!Removals::Flash::ShouldClear(-std::numeric_limits<float>::infinity()));
+    assert(Removals::Detail::ShouldClear(1.f));
+    assert(Removals::Detail::ShouldClear(0.001f));
+    assert(Removals::Detail::ShouldClear(std::numeric_limits<float>::max()));
+    assert(!Removals::Detail::ShouldClear(0.f));
+    assert(!Removals::Detail::ShouldClear(-1.f));
+    assert(!Removals::Detail::ShouldClear(std::numeric_limits<float>::quiet_NaN()));
+    assert(!Removals::Detail::ShouldClear(-std::numeric_limits<float>::infinity()));
 
     // Punch: any non-zero component needs a write, NaN compares unequal and is cleared.
-    assert(!Removals::Punch::ShouldZero(0.f, 0.f, 0.f));
-    assert(Removals::Punch::ShouldZero(1.f, 0.f, 0.f));
-    assert(Removals::Punch::ShouldZero(0.f, -2.f, 0.f));
-    assert(Removals::Punch::ShouldZero(0.f, 0.f, 0.5f));
-    assert(Removals::Punch::ShouldZero(std::numeric_limits<float>::quiet_NaN(), 0.f, 0.f));
+    assert(!Removals::Detail::ShouldZero(0.f, 0.f, 0.f));
+    assert(Removals::Detail::ShouldZero(1.f, 0.f, 0.f));
+    assert(Removals::Detail::ShouldZero(0.f, -2.f, 0.f));
+    assert(Removals::Detail::ShouldZero(0.f, 0.f, 0.5f));
+    assert(Removals::Detail::ShouldZero(std::numeric_limits<float>::quiet_NaN(), 0.f, 0.f));
     return 0;
 }

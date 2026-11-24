@@ -163,13 +163,7 @@
     <ClCompile Include="features\skins\local_inventory.cpp">
       <Filter>Features\skins</Filter>
     </ClCompile>
-    <ClCompile Include="features\visuals\misc\other\removals\removals.cpp">
-      <Filter>Features</Filter>
-    </ClCompile>
-    <ClCompile Include="features\visuals\misc\other\removals\flash.cpp">
-      <Filter>Features</Filter>
-    </ClCompile>
-    <ClCompile Include="features\visuals\misc\other\removals\punch.cpp">
+    <ClCompile Include="features\visuals\misc\other\removals.cpp">
       <Filter>Features</Filter>
     </ClCompile>
     <ClCompile Include="features\misc\misc.cpp">
@@ -721,13 +715,7 @@
     <ClInclude Include="sdk\datatypes\game_event.hpp">
       <Filter>SDK</Filter>
     </ClInclude>
-    <ClInclude Include="features\visuals\misc\other\removals\removals.hpp">
-      <Filter>Features</Filter>
-    </ClInclude>
-    <ClInclude Include="features\visuals\misc\other\removals\flash.hpp">
-      <Filter>Features</Filter>
-    </ClInclude>
-    <ClInclude Include="features\visuals\misc\other\removals\punch.hpp">
+    <ClInclude Include="features\visuals\misc\other\removals.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\chams\chams_renderer.hpp">

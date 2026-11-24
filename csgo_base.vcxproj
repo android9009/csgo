@@ -163,9 +163,7 @@
     <ClCompile Include="features\skins\skin_changer.cpp" />
     <ClCompile Include="features\skins\equipment_changer.cpp" />
     <ClCompile Include="features\skins\local_inventory.cpp" />
-    <ClCompile Include="features\visuals\misc\other\removals\removals.cpp" />
-    <ClCompile Include="features\visuals\misc\other\removals\flash.cpp" />
-    <ClCompile Include="features\visuals\misc\other\removals\punch.cpp" />
+    <ClCompile Include="features\visuals\misc\other\removals.cpp" />
     <ClCompile Include="features\misc\misc.cpp" />
     <ClCompile Include="features\misc\events\misc_events.cpp" />
     <ClCompile Include="features\misc\general\general.cpp" />
@@ -375,10 +373,8 @@
     <ClInclude Include="sdk\datatypes\c_user_cmd.hpp" />
     <ClInclude Include="sdk\datatypes\game_event.hpp" />
     <ClInclude Include="sdk\convars.hpp" />
-    <ClInclude Include="features\visuals\misc\other\removals\removals.hpp" />
+    <ClInclude Include="features\visuals\misc\other\removals.hpp" />
     <ClInclude Include="features\visuals\misc\world\world_modulation.hpp" />
-    <ClInclude Include="features\visuals\misc\other\removals\flash.hpp" />
-    <ClInclude Include="features\visuals\misc\other\removals\punch.hpp" />
     <ClInclude Include="features\visuals\chams\chams_renderer.hpp" />
     <ClInclude Include="features\visuals\chams\chams_entities.hpp" />
     <ClInclude Include="features\visuals\chams\chams_object_names.hpp" />
