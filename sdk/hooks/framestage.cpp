@@ -7,6 +7,7 @@
 #include "../../features/visuals/model_transparency.hpp"
 #include "../../features/visuals/world_fog.hpp"
 #include "../../features/visuals/world_modulation.hpp"
+#include "../../features/visuals/thirdperson.hpp"
 #include "../../features/misc/misc.hpp"
 #include "../../context.hpp"
 #include "../interfaces/interfaces.hpp"
@@ -94,6 +95,9 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
             // inside this SEH frame. Movement and the buy bot ride the CreateMove hook.
             Misc::FrameStage(stage);
             Removals::FrameStage(stage);
+            // Visuals -> Misc -> LOCAL: the third-person chase camera is set once the local
+            // entity is fresh (render start) and cleared when the feature is off.
+            if (stage == 5) ThirdPerson::FrameStage();
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }

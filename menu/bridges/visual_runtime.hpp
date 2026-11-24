@@ -3,6 +3,7 @@
 #include "../config.hpp"
 #include "../../sdk/visual_runtime_state.hpp"
 #include "../../features/visuals/chams_passes.hpp"
+#include "../../features/visuals/thirdperson.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -71,6 +72,18 @@ inline void Configure() {
     };
     object(0,w.weapon_visuals,w.weapon_glow.get());object(1,w.grenade_visuals,w.grenade_glow.get());object(2,w.c4_visuals,w.c4_glow.get());
     for(int i=0;i<3;++i)s.esp[i]=ReadEsp(i==esp.active_profile ? static_cast<cfg_t::visuals_t::esp_player_t&>(esp) : esp.profiles[i],i);
+    // Visuals -> Misc -> LOCAL: "Thirdperson" has its own runtime (the same per-feature
+    // pattern as the Misc tab); it is published here each frame and consumed in framestage.
+    {
+        ThirdPerson::Settings tp;
+        tp.enabled = cfg.misc.thirdperson.get();
+        tp.force_dead = cfg.misc.thirdperson_dead.get();
+        tp.disable_grenade = cfg.misc.thirdperson_grenade.get();
+        tp.distance = cfg.misc.thirdperson_dist.get();
+        tp.scope_transparency = cfg.misc.transparency_in_scope.get();
+        tp.nade_transparency = cfg.misc.transparency_nade.get();
+        ThirdPerson::Publish(tp);
+    }
     VisualRuntime::Publish(s);
 }
 }
