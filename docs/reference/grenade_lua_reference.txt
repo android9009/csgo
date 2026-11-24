@@ -1,0 +1,2504 @@
+local ffi = require("ffi")
+local bit = require("bit")
+
+local band = bit.band
+local abs, ceil, cos, exp, floor, huge = math.abs, math.ceil, math.cos, math.exp, math.floor, math.huge
+local max, min, rad, sin, sqrt = math.max, math.min, math.rad, math.sin, math.sqrt
+
+local client_camera_angles, client_eye_position, client_trace_line =
+    client.camera_angles, client.eye_position, client.trace_line
+local entity_get_all, entity_get_prop, entity_is_enemy = entity.get_all, entity.get_prop, entity.is_enemy
+local globals_realtime, globals_tickinterval = globals.realtime, globals.tickinterval
+local renderer_circle, renderer_circle_outline, renderer_text =
+    renderer.circle, renderer.circle_outline, renderer.text
+local ui_get, ui_set, ui_set_visible = ui.get, ui.set, ui.set_visible
+
+ffi.cdef([[
+    typedef void    (__thiscall *ge_trace_ray_fn)(void *self, void *ray, unsigned int mask, void *filter, void *result);
+
+    typedef const void *(__thiscall *ge_get_model_fn)(void *self, int index);
+    typedef const char *(__thiscall *ge_get_model_name_fn)(void *self, const void *model);
+    typedef const char *(__thiscall *ge_get_model_keyvalues_fn)(void *self, const void *model);
+    typedef const void *(__thiscall *ge_get_collision_model_fn)(void *self, int index);
+    typedef const char *(__thiscall *ge_get_entity_lump_fn)(void *self);
+]])
+
+local function log(r, g, b, message)
+    client.color_log(r, g, b, "[Grenade Enhancements] " .. message)
+end
+
+local function guarded(callback)
+    local failed = false
+    return function(...)
+        local ok, err = pcall(callback, ...)
+        if not ok and not failed then
+            failed = true
+            log(255, 80, 80, tostring(err))
+        end
+    end
+end
+
+local function cvar_float(name, default)
+    local ok, value = pcall(function()
+        return cvar[name]:get_float()
+    end)
+    return ok and value or default
+end
+
+local function clamp(value, limit)
+    return max(-limit, min(limit, value))
+end
+
+local function address(pointer)
+    return tonumber(ffi.cast("uint32_t", pointer))
+end
+local function u8(addr)
+    return ffi.cast("uint8_t *", addr)[0]
+end
+local function i32(addr)
+    return ffi.cast("int32_t *", addr)[0]
+end
+local function u32(addr)
+    return ffi.cast("uint32_t *", addr)[0]
+end
+local function align16(addr)
+    return floor((addr + 15) / 16) * 16
+end
+
+local function has_bytes(addr, ...)
+    for i = 1, select("#", ...) do
+        if u8(addr + i - 1) ~= select(i, ...) then
+            return false
+        end
+    end
+    return true
+end
+
+local function vfunc(instance, index)
+    return u32(u32(instance) + index * 4)
+end
+
+local GRENADE_SIZE = 2
+local GRAVITY_SCALE = 0.4
+local ELASTICITY = 0.45
+local SLEEP_SPEED_SQR = 20 * 20
+local STOP_EPSILON = 0.1
+local MAX_BOUNCES = 20
+local THINK_INTERVAL = 0.2
+local FUSE_MOLOTOV = 2.0
+local FUSE_TIMED = 1.5
+local DETONATE_SLOPE = cos(rad(30))
+local BREAK_DAMAGE = 10
+local BREAK_SLOWDOWN = 0.4
+local TOUCH_DAMAGE = 1
+local TOUCH_SPEED = 100
+local TOUCH_INTERVAL = 1.0
+
+local MASK_GRENADE = 0x4208608B
+local MASK_SOLID = 0x0200400B
+local MASK_LINE = 0x0008400B
+local MASK_SHOT = 0x46004003
+
+local COLLISION_GROUP_PROJECTILE = 13
+local FSOLID_NOT_STANDABLE = 0x10
+local SURF_SKY = 0x4
+local MAX_IGNORED = 32
+
+local SIGNATURES = {
+    create = "\x55\x8B\xEC\x83\xEC\x0C\x53\x56\x8B\xF2\x89\x75\xF8\x57\x85\xF6\x75\x09",
+}
+
+local RVA = {
+    create = 0x32BCB0,
+    world_filter_vtable = 0xBFB97C,
+    world_filter_should_hit = 0x19C260,
+    list_filter_vtable = 0xBEA984,
+    list_filter_should_hit = 0x379610,
+    game_rules = 0x379308,
+}
+
+local OFFSET = {
+    entity_index = 0x64,
+    trace_surface = 66,
+    trace_entity = 76,
+    collision_text = 8,
+}
+
+local VFUNC = {
+    trace_ray = 5,
+    get_model = 1,
+    get_model_name = 3,
+    get_collision_model = 6,
+    get_model_keyvalues = 21,
+    get_entity_lump = 99,
+}
+
+local trace = { ready = false, enabled = false, checked = false, entities = false }
+
+local function init_entity_filter(base)
+    local vtable, should_hit = base + RVA.list_filter_vtable, base + RVA.list_filter_should_hit
+    if u32(vtable) ~= should_hit then
+        return
+    end
+
+    if
+        not has_bytes(should_hit + 12, 0x8B, 0x77, 0x1C)
+        or not has_bytes(base + RVA.game_rules - 2, 0x8B, 0x0D)
+    then
+        return
+    end
+
+    trace.ignored = ffi.new("uint32_t[?]", MAX_IGNORED)
+    trace.entity_filter_data = ffi.new("uint32_t[9]")
+    trace.entity_filter_data[0] = vtable
+    trace.entity_filter_data[2] = COLLISION_GROUP_PROJECTILE
+    trace.entity_filter_data[4] = address(trace.ignored)
+    trace.entity_filter_data[5] = MAX_IGNORED
+    trace.entity_filter = ffi.cast("void *", trace.entity_filter_data)
+    trace.game_rules = u32(base + RVA.game_rules)
+end
+
+local function init_trace(base)
+    local vtable, should_hit = base + RVA.world_filter_vtable, base + RVA.world_filter_should_hit
+    if not has_bytes(base, 0x4D, 0x5A) then
+        return
+    end
+    if u32(vtable) ~= should_hit or not has_bytes(should_hit, 0x32, 0xC0, 0xC2) then
+        return
+    end
+
+    local interface = client.create_interface("engine.dll", "EngineTraceClient004")
+    if not interface then
+        return
+    end
+
+    local instance = address(interface)
+    trace.self = ffi.cast("void *", instance)
+    trace.call = ffi.cast("ge_trace_ray_fn", vfunc(instance, VFUNC.trace_ray))
+
+    trace.filter_data = ffi.new("uint32_t[4]")
+    trace.filter_data[0] = vtable
+    trace.filter = ffi.cast("void *", trace.filter_data)
+    init_entity_filter(base)
+
+    trace.ray_data = ffi.new("uint8_t[128]")
+    local ray = align16(address(trace.ray_data))
+    trace.ray = ffi.cast("float *", ray)
+    trace.ray_flags = ffi.cast("uint8_t *", ray)
+    trace.ray_ptr = ffi.cast("void *", ray)
+
+    trace.result_data = ffi.new("uint8_t[192]")
+    local result = align16(address(trace.result_data))
+    trace.result = ffi.cast("float *", result)
+    trace.result_flags = ffi.cast("uint8_t *", result)
+    trace.result_ptr = ffi.cast("void *", result)
+
+    trace.ready = true
+end
+
+local function trace_hull(x, y, z, dx, dy, dz, mask, half, entities)
+    local ray = trace.ray
+    ray[0], ray[1], ray[2] = x, y, z
+    ray[4], ray[5], ray[6] = dx, dy, dz
+    ray[8], ray[9], ray[10] = 0, 0, 0
+    ray[12], ray[13], ray[14] = half, half, half
+    trace.ray_flags[68] = half == 0 and 1 or 0
+    trace.ray_flags[69] = (dx ~= 0 or dy ~= 0 or dz ~= 0) and 1 or 0
+
+    ffi.fill(trace.result_data, 192)
+    trace.call(
+        trace.self,
+        trace.ray_ptr,
+        mask,
+        entities and trace.entity_filter or trace.filter,
+        trace.result_ptr
+    )
+
+    local result = trace.result
+    return result[11],
+        result[6],
+        result[7],
+        result[8],
+        result[3],
+        result[4],
+        result[5],
+        trace.result_flags[55] ~= 0
+end
+
+local function trace_entity()
+    local pointer = ffi.cast("uint32_t *", ffi.cast("uint8_t *", trace.result_ptr) + OFFSET.trace_entity)[0]
+    if pointer == 0 then
+        return 0, 0
+    end
+    return i32(pointer + OFFSET.entity_index), pointer
+end
+
+local function trace_hit_sky()
+    if not trace.enabled then
+        return false
+    end
+    local flags = ffi.cast("uint16_t *", ffi.cast("uint8_t *", trace.result_ptr) + OFFSET.trace_surface)[0]
+    return band(flags, SURF_SKY) ~= 0
+end
+
+local function reset_ignored()
+    if trace.entity_filter_data then
+        trace.entity_filter_data[7] = 0
+    end
+end
+
+local function ignore_entity(pointer)
+    local filter = trace.entity_filter_data
+    local count = filter[7]
+    if count >= MAX_IGNORED then
+        return false
+    end
+    trace.ignored[count] = pointer
+    filter[7] = count + 1
+    return true
+end
+
+local function trace_solid(x, y, z, dx, dy, dz, mask, half)
+    if not trace.entities then
+        local fraction, nx, ny, nz, ex, ey, ez, start_solid = trace_hull(x, y, z, dx, dy, dz, mask, half)
+        return fraction, nx, ny, nz, ex, ey, ez, start_solid, 0, 0
+    end
+
+    while true do
+        local fraction, nx, ny, nz, ex, ey, ez, start_solid =
+            trace_hull(x, y, z, dx, dy, dz, mask, half, true)
+        local entindex, pointer = trace_entity()
+        local player = entindex >= 1 and entindex <= globals.maxplayers()
+        if not player or not ignore_entity(pointer) then
+            return fraction, nx, ny, nz, ex, ey, ez, start_solid, entindex, pointer
+        end
+    end
+end
+
+local function sweep_hull(x, y, z, dx, dy, dz)
+    local fraction, nx, ny, nz, ex, ey, ez, start_solid, entindex, pointer =
+        trace_solid(x, y, z, dx, dy, dz, MASK_GRENADE, GRENADE_SIZE)
+    if start_solid then
+        fraction, nx, ny, nz, ex, ey, ez, start_solid, entindex, pointer =
+            trace_solid(x - dx, y - dy, z - dz, dx * 2, dy * 2, dz * 2, MASK_LINE, 0)
+    end
+    return fraction, nx, ny, nz, ex, ey, ez, entindex, pointer
+end
+
+local HULL_POINTS = { { 0, 0, 0 } }
+for _, x in ipairs({ -GRENADE_SIZE, GRENADE_SIZE }) do
+    for _, y in ipairs({ -GRENADE_SIZE, GRENADE_SIZE }) do
+        for _, z in ipairs({ -GRENADE_SIZE, GRENADE_SIZE }) do
+            HULL_POINTS[#HULL_POINTS + 1] = { x, y, z }
+        end
+    end
+end
+local PROBE_SIGNS = { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
+
+local trace_ignore = 0
+
+local function trace_ray(x, y, z, dx, dy, dz)
+    local ex, ey, ez = x + dx, y + dy, z + dz
+    local fraction, entindex = client_trace_line(trace_ignore, x, y, z, ex, ey, ez)
+    if fraction < 1 and entindex and entindex >= 1 and entindex <= 64 and entindex ~= trace_ignore then
+        fraction = client_trace_line(entindex, x, y, z, ex, ey, ez)
+    end
+    return fraction
+end
+
+local function probe_normal(x, y, z, dx, dy, dz, fraction)
+    local length = sqrt(dx * dx + dy * dy + dz * dz)
+    local ux, uy, uz = dx / length, dy / length, dz / length
+    local rx, ry, rz = 0, 0, 1
+    if abs(uz) > 0.9 then
+        rx, ry, rz = 1, 0, 0
+    end
+
+    local ax, ay, az = uy * rz - uz * ry, uz * rx - ux * rz, ux * ry - uy * rx
+    local a_length = sqrt(ax * ax + ay * ay + az * az)
+    ax, ay, az = ax / a_length, ay / a_length, az / a_length
+    local bx, by, bz = uy * az - uz * ay, uz * ax - ux * az, ux * ay - uy * ax
+
+    for _, sign in ipairs(PROBE_SIGNS) do
+        local sa, sb = sign[1], sign[2]
+        local fa = trace_ray(x + ax * sa, y + ay * sa, z + az * sa, dx, dy, dz)
+        local fb = trace_ray(x + bx * sb, y + by * sb, z + bz * sb, dx, dy, dz)
+        if fa < 1 and fb < 1 then
+            local px, py, pz =
+                ax * sa + dx * (fa - fraction), ay * sa + dy * (fa - fraction), az * sa + dz * (fa - fraction)
+            local qx, qy, qz =
+                bx * sb + dx * (fb - fraction), by * sb + dy * (fb - fraction), bz * sb + dz * (fb - fraction)
+            local nx, ny, nz = py * qz - pz * qy, pz * qx - px * qz, px * qy - py * qx
+            local n_length = sqrt(nx * nx + ny * ny + nz * nz)
+            if n_length > 1e-6 then
+                nx, ny, nz = nx / n_length, ny / n_length, nz / n_length
+                if nx * ux + ny * uy + nz * uz > 0 then
+                    nx, ny, nz = -nx, -ny, -nz
+                end
+                return nx, ny, nz
+            end
+        end
+    end
+    return -ux, -uy, -uz
+end
+
+local function sweep_rays(x, y, z, dx, dy, dz)
+    local fraction, first = 2, 0
+    for i = 1, #HULL_POINTS do
+        local point = HULL_POINTS[i]
+        local hit = trace_ray(x + point[1], y + point[2], z + point[3], dx, dy, dz)
+        if hit < fraction then
+            fraction, first = hit, i
+        end
+    end
+    if fraction >= 1 then
+        return 1, 0, 0, 0, x + dx, y + dy, z + dz
+    end
+
+    local point = HULL_POINTS[first]
+    local nx, ny, nz = probe_normal(x + point[1], y + point[2], z + point[3], dx, dy, dz, fraction)
+    return fraction, nx, ny, nz, x + dx * fraction, y + dy * fraction, z + dz * fraction
+end
+
+local function sweep(x, y, z, dx, dy, dz)
+    if trace.enabled then
+        return sweep_hull(x, y, z, dx, dy, dz)
+    end
+    local fraction, nx, ny, nz, ex, ey, ez = sweep_rays(x, y, z, dx, dy, dz)
+    return fraction, nx, ny, nz, ex, ey, ez, 0, 0
+end
+
+local function find_burn_point(x, y, z)
+    if trace.enabled then
+        local fraction, _, _, _, _, _, ground = trace_solid(x, y, z + 10, 0, 0, -138, MASK_SOLID, 0)
+        if fraction < 1 then
+            return x, y, ground + 2
+        end
+    else
+        local fraction = client_trace_line(trace_ignore, x, y, z + 10, x, y, z - 128)
+        if fraction < 1 then
+            return x, y, z + 10 - 138 * fraction + 2
+        end
+    end
+end
+
+local function trace_is_sane(player)
+    local ex, ey, ez = client_eye_position()
+    local pitch, yaw = client_camera_angles()
+    if not ex or not pitch then
+        return false
+    end
+
+    local cp, sp, cy, sy = cos(rad(pitch)), sin(rad(pitch)), cos(rad(yaw)), sin(rad(yaw))
+    local matches = 0
+    for _, direction in ipairs({
+        { 0, 0, -1 },
+        { 0, 0, 1 },
+        { cp * cy, cp * sy, -sp },
+        { cy, sy, 0 },
+        { -cy, -sy, 0 },
+        { sy, -cy, 0 },
+    }) do
+        local dx, dy, dz = direction[1] * 1500, direction[2] * 1500, direction[3] * 1500
+        local expected = client_trace_line(player, ex, ey, ez, ex + dx, ey + dy, ez + dz)
+        local fraction, nx, ny, nz = trace_hull(ex, ey, ez, dx, dy, dz, MASK_SOLID, 0)
+        if fraction < 1 and abs(sqrt(nx * nx + ny * ny + nz * nz) - 1) > 0.02 then
+            return false
+        end
+        if fraction < 1 and abs(fraction - expected) <= 0.03 then
+            matches = matches + 1
+        end
+    end
+    return matches >= 2
+end
+
+local function check_trace(player)
+    local now = globals_realtime()
+    if trace.ready and not trace.enabled and now >= (trace.checked or 0) then
+        trace.checked = now + 1
+        trace.enabled = trace_is_sane(player)
+    end
+    trace.entities = trace.enabled and trace.entity_filter ~= nil and u32(trace.game_rules) ~= 0
+end
+
+local model_info, engine_client
+do
+    local interface = client.create_interface("engine.dll", "VModelInfoClient004")
+    if interface then
+        local instance = address(interface)
+        model_info = {
+            self = ffi.cast("void *", instance),
+            get_model = ffi.cast("ge_get_model_fn", vfunc(instance, VFUNC.get_model)),
+            get_name = ffi.cast("ge_get_model_name_fn", vfunc(instance, VFUNC.get_model_name)),
+            get_keyvalues = ffi.cast("ge_get_model_keyvalues_fn", vfunc(instance, VFUNC.get_model_keyvalues)),
+            get_collision = ffi.cast("ge_get_collision_model_fn", vfunc(instance, VFUNC.get_collision_model)),
+        }
+    end
+
+    interface = client.create_interface("engine.dll", "VEngineClient014")
+    if interface then
+        local instance = address(interface)
+        engine_client = {
+            self = ffi.cast("void *", instance),
+            get_entity_lump = ffi.cast("ge_get_entity_lump_fn", vfunc(instance, VFUNC.get_entity_lump)),
+        }
+    end
+end
+
+local function lookup_model_name(index)
+    if not model_info or index <= 0 then
+        return ""
+    end
+    local model = model_info.get_model(model_info.self, index)
+    if model == nil then
+        return ""
+    end
+    local name = model_info.get_name(model_info.self, model)
+    return name ~= nil and ffi.string(name):lower() or ""
+end
+
+local model_names = {}
+
+local function model_name(index)
+    local name = model_names[index]
+    if not name then
+        local found, result = pcall(lookup_model_name, index)
+        name = found and result or ""
+        model_names[index] = name
+    end
+    return name
+end
+
+local function model_keyvalues(index)
+    if not model_info or index <= 0 then
+        return
+    end
+    local model = model_info.get_model(model_info.self, index)
+    if model == nil then
+        return
+    end
+    local text = model_info.get_keyvalues(model_info.self, model)
+    if text ~= nil then
+        return ffi.string(text)
+    end
+end
+
+local function collision_keyvalues(index)
+    if not model_info or index <= 0 then
+        return
+    end
+    local collision = model_info.get_collision(model_info.self, index)
+    if collision == nil then
+        return
+    end
+
+    local packed = band(ffi.cast("const uint16_t *", collision)[0], 0x8000) ~= 0
+    local text = u32(address(collision) + OFFSET.collision_text)
+    if not packed and text ~= 0 then
+        return ffi.string(ffi.cast("const char *", text))
+    end
+end
+
+local function entity_lump()
+    if not engine_client then
+        return
+    end
+    local text = engine_client.get_entity_lump(engine_client.self)
+    if text ~= nil then
+        return ffi.string(text)
+    end
+end
+
+local function parse_keyvalues(text)
+    local position, length = 1, #text
+
+    local function token()
+        while true do
+            position = text:find("%S", position) or length + 1
+            if text:sub(position, position + 1) ~= "//" then
+                break
+            end
+            position = (text:find("\n", position, true) or length) + 1
+        end
+        if position > length then
+            return
+        end
+
+        local first = text:sub(position, position)
+        if first == '"' then
+            local close = text:find('"', position + 1, true) or length + 1
+            local value = text:sub(position + 1, close - 1)
+            position = close + 1
+            return value, true
+        elseif first == "{" or first == "}" then
+            position = position + 1
+            return first, false
+        end
+
+        local stop = text:find('[%s{}"]', position) or length + 1
+        local value = text:sub(position, stop - 1)
+        position = stop
+        return value, true
+    end
+
+    local function section()
+        local result = {}
+        while true do
+            local key, key_is_text = token()
+            if not key or (key == "}" and not key_is_text) then
+                return result
+            end
+            key = key:lower()
+
+            local value, value_is_text = token()
+            if not value then
+                return result
+            end
+            if value == "{" and not value_is_text then
+                local blocks = result[key]
+                if type(blocks) ~= "table" then
+                    blocks = {}
+                    result[key] = blocks
+                end
+                blocks[#blocks + 1] = section()
+            elseif result[key] == nil then
+                result[key] = value
+            end
+        end
+    end
+
+    return section()
+end
+
+local function first_section(tree, key)
+    local blocks = tree[key]
+    return type(blocks) == "table" and blocks[1] or nil
+end
+
+local function to_integer(text)
+    local number = tonumber(text) or 0
+    return number < 0 and ceil(number) or floor(number)
+end
+
+local CLASSES = {
+    CBreakableSurface = "glass",
+    CBaseEntity = "brush",
+    CDynamicProp = "dynamic",
+    CPhysicsPropMultiplayer = "physics",
+}
+
+local PROPDATA_FILE = "csgo/scripts/propdata.txt"
+
+local BRUSH_PROPDATA = {
+    "Wooden.Tiny",
+    "Wooden.Small",
+    "Wooden.Medium",
+    "Wooden.Large",
+    "Wooden.Huge",
+    "Metal.Small",
+    "Metal.Medium",
+    "Metal.Large",
+    "Cardboard.Small",
+    "Cardboard.Medium",
+    "Cardboard.Large",
+    "Stone.Small",
+    "Stone.Medium",
+    "Stone.Large",
+    "Stone.Huge",
+    "Glass.Small",
+    "Plastic.Small",
+    "Plastic.Medium",
+    "Plastic.Large",
+    "Pottery.Small",
+    "Pottery.Medium",
+    "Pottery.Large",
+    "Pottery.Huge",
+    "Glass.Window",
+}
+local MATERIAL_GLASS, MATERIAL_UNBREAKABLE_GLASS = 0, 7
+local SF_BREAK_TRIGGER_ONLY = 1
+
+local INTERACTIONS = {
+    { "physgun_interactions", "onbreak", "explode_fire" },
+    { "physgun_interactions", "onbreak", "explode_ice" },
+    { "physgun_interactions", "onfirstimpact", "break" },
+    { "fire_interactions", "flammable", "yes" },
+    { "fire_interactions", "ignite", "halfhealth" },
+    { "fire_interactions", "explosive_resist", "yes" },
+    { "fire_interactions", "melee_immune", "yes" },
+}
+
+local GLASS = { health = 1, club = 1, minimum = 0 }
+
+local breakables = {}
+
+local function propdata_base(name)
+    local bases = breakables.bases
+    if not bases then
+        bases = {}
+        breakables.bases = bases
+
+        local found, text = pcall(function()
+            return readfile(PROPDATA_FILE)
+        end)
+        local root = found and type(text) == "string" and first_section(parse_keyvalues(text), "propdata.txt")
+        if root then
+            for key, blocks in pairs(root) do
+                if type(blocks) == "table" then
+                    bases[key] = blocks[1]
+                end
+            end
+        else
+            log(255, 180, 80, "could not read " .. PROPDATA_FILE .. ", breakable props are treated as solid")
+        end
+    end
+    return bases[name:lower()]
+end
+
+local function apply_propdata(prop, section, interactions, depth)
+    local base = section.base
+    base = type(base) == "string" and base ~= "" and depth < 8 and propdata_base(base)
+    if base then
+        apply_propdata(prop, base, base, depth + 1)
+    end
+
+    prop.club = tonumber(section["dmg.club"]) or prop.club
+    if section.health then
+        prop.health = to_integer(section.health)
+    end
+    if section.breakable_model then
+        prop.gib_model = section.breakable_model
+    end
+    if section.breakable_count then
+        prop.gib_count = to_integer(section.breakable_count)
+    end
+
+    for _, interaction in ipairs(INTERACTIONS) do
+        local block = first_section(interactions, interaction[1])
+        local value = block and block[interaction[2]]
+        if type(value) == "string" and value:lower() == interaction[3] then
+            prop.interacts = true
+            if interaction[2] == "melee_immune" then
+                prop.melee_immune = true
+            end
+        end
+    end
+end
+
+local function read_prop(model_index)
+    local text = model_keyvalues(model_index)
+    if not text then
+        return
+    end
+
+    local root = parse_keyvalues(text)
+    root = first_section(root, "mdlkeyvalue") or root
+    local section = first_section(root, "prop_data")
+    if not section then
+        return
+    end
+
+    local prop = { health = 0, club = 1, minimum = 0, gib_count = 0 }
+    apply_propdata(prop, section, root, 0)
+
+    local collision = collision_keyvalues(model_index)
+    local gibs = collision and parse_keyvalues(collision)["break"]
+    local gib_count = type(gibs) == "table" and #gibs or 0
+    if not collision then
+        gib_count = 1
+    end
+    if gib_count == 0 and prop.gib_model and prop.gib_model ~= "" then
+        gib_count = prop.gib_count
+    end
+
+    if prop.health ~= 0 and (gib_count > 0 or prop.interacts) then
+        return prop
+    end
+end
+
+local function prop_data(model_index)
+    local props = breakables.props
+    if not props then
+        props = {}
+        breakables.props = props
+    end
+
+    local prop = props[model_index]
+    if prop == nil then
+        prop = read_prop(model_index) or false
+        props[model_index] = prop
+    end
+    return prop or nil
+end
+
+local function read_brushes()
+    local brushes = {}
+    for block in (entity_lump() or ""):gmatch("%b{}") do
+        local model = block:find('"classname"%s+"func_breakable"') and block:match('"model"%s+"(%*%d+)"')
+        if model then
+            local function value(key)
+                return to_integer(block:match('"' .. key .. '"%s+"([^"]*)"'))
+            end
+            brushes[model] = {
+                health = value("health"),
+                material = value("material"),
+                flags = value("spawnflags"),
+                propdata = value("propdata"),
+                minimum = value("minhealthdmg"),
+            }
+        end
+    end
+    return brushes
+end
+
+local function brush_data(model_index)
+    if not breakables.brushes then
+        breakables.brushes = read_brushes()
+    end
+
+    local brush = { health = 1, club = cvar_float("func_breakdmg_club", 1.5), minimum = 0 }
+    local keys = breakables.brushes[model_name(model_index)]
+    if not keys then
+        return
+    end
+
+    brush.health, brush.minimum = keys.health, keys.minimum
+    local base = BRUSH_PROPDATA[keys.propdata]
+    base = base and propdata_base(base)
+    if base then
+        apply_propdata(brush, base, base, 0)
+    end
+
+    if brush.health == 0 or band(keys.flags, SF_BREAK_TRIGGER_ONLY) ~= 0 then
+        brush.immune = true
+        if keys.material == MATERIAL_GLASS then
+            brush.health = 1
+        end
+    end
+    if keys.material == MATERIAL_UNBREAKABLE_GLASS then
+        brush.immune = true
+    end
+    return brush
+end
+
+local function breakable(entindex)
+    local kind = CLASSES[entity.get_classname(entindex) or ""]
+    if not kind then
+        return
+    end
+
+    local model_index = entity_get_prop(entindex, "m_nModelIndex") or 0
+    local data
+    if kind == "glass" then
+        data = GLASS
+    elseif kind == "brush" then
+        data = brush_data(model_index)
+        if not data then
+            return
+        end
+    else
+        data = prop_data(model_index)
+    end
+
+    return {
+        kind = kind,
+        data = data,
+        broken = false,
+        health = data and data.health or 0,
+        damageable = data ~= nil and not data.immune,
+    }
+end
+
+local function club(target, damage)
+    if target.broken then
+        return
+    end
+    if target.kind == "glass" then
+        target.health, target.broken = 0, true
+        return
+    end
+
+    local data = target.data
+    if not target.damageable or damage < data.minimum then
+        return
+    end
+    damage = damage * data.club
+    if target.kind ~= "brush" and (damage < data.minimum or data.melee_immune) then
+        return
+    end
+
+    local health = target.health - damage
+    target.health = health < 0 and ceil(health) or floor(health)
+    target.broken = target.health <= 0
+end
+
+local function is_standable(entindex)
+    return band(entity_get_prop(entindex, "m_usSolidFlags") or 0, FSOLID_NOT_STANDABLE) == 0
+end
+
+local function forget_map()
+    breakables = {}
+    model_names = {}
+end
+
+client.set_event_callback("level_init", forget_map)
+client.set_event_callback("cs_game_disconnected", forget_map)
+
+client.set_event_callback("console_input", function(text)
+    if text ~= "ge_probe" then
+        return
+    end
+    local ok, err = pcall(function()
+        local player = entity.get_local_player()
+        local ex, ey, ez = client_eye_position()
+        local pitch, yaw = client_camera_angles()
+        check_trace(player)
+        log(
+            200,
+            200,
+            255,
+            string.format(
+                "trace ready %s, engine trace %s, entity filter %s, game rules %s",
+                tostring(trace.ready),
+                tostring(trace.enabled),
+                tostring(trace.entity_filter ~= nil),
+                tostring(trace.entities)
+            )
+        )
+        if not trace.entities then
+            return
+        end
+
+        local cp, sp, cy, sy = cos(rad(pitch)), sin(rad(pitch)), cos(rad(yaw)), sin(rad(yaw))
+        reset_ignored()
+        for step = 1, 4 do
+            local fraction, _, _, _, _, _, _, _, entindex, pointer = trace_solid(
+                ex,
+                ey,
+                ez,
+                cp * cy * 3000,
+                cp * sy * 3000,
+                -sp * 3000,
+                MASK_GRENADE,
+                GRENADE_SIZE
+            )
+            if fraction >= 1 then
+                log(200, 200, 255, step .. ": nothing")
+                break
+            end
+
+            local class = entindex > 0 and entity.get_classname(entindex) or "world"
+            local model_index = entindex > 0 and entity_get_prop(entindex, "m_nModelIndex") or 0
+            log(
+                200,
+                200,
+                255,
+                string.format(
+                    "%d: entity %d, class %s, model %s '%s', distance %.0f",
+                    step,
+                    entindex,
+                    tostring(class),
+                    tostring(model_index),
+                    model_name(model_index or 0),
+                    fraction * 3000
+                )
+            )
+            if entindex <= 0 then
+                break
+            end
+
+            local target = breakable(entindex)
+            if target then
+                local data = target.data or {}
+                log(
+                    200,
+                    200,
+                    255,
+                    string.format(
+                        "   kind %s, health %s, club x%s, damageable %s, immune %s",
+                        target.kind,
+                        tostring(target.health),
+                        tostring(data.club),
+                        tostring(target.damageable),
+                        tostring(data.immune)
+                    )
+                )
+                if target.kind == "brush" then
+                    local count = 0
+                    for _ in pairs(breakables.brushes or {}) do
+                        count = count + 1
+                    end
+                    local keys = (breakables.brushes or {})[model_name(model_index)]
+                    log(
+                        200,
+                        200,
+                        255,
+                        string.format(
+                            "   entity lump: %d func_breakable, this one %s",
+                            count,
+                            keys
+                                    and string.format(
+                                        "health %d material %d flags %d propdata %d",
+                                        keys.health,
+                                        keys.material,
+                                        keys.flags,
+                                        keys.propdata
+                                    )
+                                or "NOT FOUND"
+                        )
+                    )
+                elseif target.kind ~= "glass" then
+                    local keyvalues, collision =
+                        model_keyvalues(model_index), collision_keyvalues(model_index)
+                    log(
+                        200,
+                        200,
+                        255,
+                        "   model keyvalues: "
+                            .. (keyvalues and keyvalues:gsub("%s+", " "):sub(1, 160) or "NONE")
+                    )
+                    log(
+                        200,
+                        200,
+                        255,
+                        string.format(
+                            "   collision text: %s, 'break' sections %d",
+                            collision and #collision or "NONE",
+                            collision and #(parse_keyvalues(collision)["break"] or {}) or 0
+                        )
+                    )
+                end
+            else
+                log(200, 200, 255, "   not a breakable class: bounces")
+            end
+            if not ignore_entity(pointer) then
+                break
+            end
+        end
+    end)
+    if not ok then
+        log(255, 80, 80, "probe: " .. tostring(err))
+    end
+    return true
+end)
+
+local function simulate(x, y, z, vx, vy, vz, kind, age, path)
+    local molotov = kind == "molotov"
+    local dt = globals_tickinterval()
+    local fuse = molotov and FUSE_MOLOTOV or FUSE_TIMED
+    local gravity = GRAVITY_SCALE * cvar.sv_gravity:get_float()
+    local speed_limit = cvar.sv_maxvelocity:get_float()
+    local think_ticks = max(1, floor(0.5 + THINK_INTERVAL / dt))
+    local last_tick = ceil((fuse + 1) / dt)
+    local asleep, bounces = false, 0
+    local touched = {}
+    local next_touch = 0
+
+    reset_ignored()
+
+    local function record(time, collision)
+        if path then
+            local n = #path
+            path[n + 1], path[n + 2], path[n + 3] = x, y, z
+            path.times = path.times or {}
+            path.times[n / 3 + 1] = time or 0
+            if collision then
+                path.collisions = path.collisions or {}
+                path.collisions[#path.collisions + 1] = { x, y, z, time or 0 }
+            end
+        end
+    end
+
+    local function detonate(time)
+        record(time)
+        if not molotov then
+            return x, y, z, time
+        end
+        local bx, by, bz = find_burn_point(x, y, z)
+        return bx, by, bz, time
+    end
+
+    local function breakable_at(entindex)
+        if entindex <= 0 then
+            return
+        end
+        local target = touched[entindex]
+        if target == nil then
+            target = breakable(entindex) or false
+            touched[entindex] = target
+        end
+        return target or nil
+    end
+
+    local function ignites(nz, target)
+        if not molotov or nz < DETONATE_SLOPE or trace_hit_sky() then
+            return false
+        end
+        return not (target and (target.kind == "glass" or target.kind == "brush"))
+    end
+
+    local function ignite(time, entindex)
+        if entindex > 0 then
+            return detonate(time)
+        end
+        record(time, true)
+        return x, y, z, time
+    end
+
+    local function breaks_through(target)
+        if target.kind == "physics" and target.broken then
+            return false
+        end
+        if (target.kind == "dynamic" or target.kind == "physics") and not target.damageable then
+            return false
+        end
+        club(target, BREAK_DAMAGE)
+        return target.health <= 0
+    end
+
+    for tick = 0, last_tick do
+        local elapsed = age + tick
+        if elapsed % think_ticks == 0 and elapsed * dt > fuse then
+            return detonate(tick * dt)
+        end
+        record(tick * dt)
+
+        if not asleep then
+            local falling = vz - gravity * dt
+            local mx, my, mz = vx * dt, vy * dt, (vz + falling) / 2 * dt
+            vx, vy, vz = clamp(vx, speed_limit), clamp(vy, speed_limit), clamp(falling, speed_limit)
+
+            local fraction, nx, ny, nz, entindex, pointer
+            fraction, nx, ny, nz, x, y, z, entindex, pointer = sweep(x, y, z, mx, my, mz)
+
+            if fraction < 1 then
+                record((tick + fraction) * dt, true)
+                local target = breakable_at(entindex)
+
+                if ignites(nz, target) then
+                    return ignite((tick + fraction) * dt, entindex)
+                end
+                if
+                    kind == "flash"
+                    and target
+                    and not target.broken
+                    and (target.kind ~= "brush" or target.damageable)
+                    and tick * dt >= next_touch
+                    and vx * vx + vy * vy + vz * vz > TOUCH_SPEED * TOUCH_SPEED
+                then
+                    club(target, TOUCH_DAMAGE)
+                    next_touch = tick * dt + TOUCH_INTERVAL
+                end
+
+                local through = target and breaks_through(target)
+                if target and target.broken then
+                    ignore_entity(pointer)
+                end
+
+                if through then
+                    vx, vy, vz = vx * BREAK_SLOWDOWN, vy * BREAK_SLOWDOWN, vz * BREAK_SLOWDOWN
+                else
+                    local backoff = (vx * nx + vy * ny + vz * nz) * 2
+                    vx, vy, vz = vx - nx * backoff, vy - ny * backoff, vz - nz * backoff
+                    if abs(vx) < STOP_EPSILON then
+                        vx = 0
+                    end
+                    if abs(vy) < STOP_EPSILON then
+                        vy = 0
+                    end
+                    if abs(vz) < STOP_EPSILON then
+                        vz = 0
+                    end
+                    vx, vy, vz = vx * ELASTICITY, vy * ELASTICITY, vz * ELASTICITY
+
+                    local speed_sqr = vx * vx + vy * vy + vz * vz
+                    local floor_like = nz > 0.7 or (nz > 0.1 and speed_sqr < SLEEP_SPEED_SQR)
+                    if floor_like and (entindex <= 0 or is_standable(entindex)) then
+                        if speed_sqr < SLEEP_SPEED_SQR then
+                            vx, vy, vz, asleep = 0, 0, 0, true
+                        elseif speed_sqr > 96000 then
+                            local along = (vx * nx + vy * ny + vz * nz) / sqrt(speed_sqr)
+                            if along > 0.5 then
+                                local keep = (1 - along) + 0.5
+                                vx, vy, vz = vx * keep, vy * keep, vz * keep
+                            end
+                        end
+                    end
+
+                    if not asleep then
+                        local rest = (1 - fraction) * dt
+                        fraction, nx, ny, nz, x, y, z, entindex =
+                            sweep(x, y, z, vx * rest, vy * rest, vz * rest)
+                        if fraction < 1 then
+                            record((tick + 1) * dt, true)
+                        end
+                        if fraction < 1 and ignites(nz, breakable_at(entindex)) then
+                            return ignite((tick + 1) * dt, entindex)
+                        end
+                    end
+
+                    bounces = bounces + 1
+                    if bounces > MAX_BOUNCES then
+                        return detonate(tick * dt)
+                    end
+                end
+            end
+        end
+    end
+
+    return detonate(last_tick * dt)
+end
+
+local function find_signature(pattern)
+    local match = client.find_signature("client.dll", pattern)
+        or client.find_signature("client_panorama.dll", pattern)
+    return match and address(match)
+end
+
+do
+    local anchor = find_signature(SIGNATURES.create)
+    local base = anchor and anchor - RVA.create
+    if base then
+        init_trace(base)
+    end
+end
+
+(function()
+    local NAME = "Grenade proximity warning"
+    local RANGE, MAX_WARNINGS = 350, 6
+    local DAMAGE_INTERVAL, FADE_TIME = 0.05, 0.30
+    local HE_DAMAGE, HE_RADIUS, HE_ARMOR_RATIO, HE_MIN_RADIUS = 99, 350, 1.2, 100
+    local PLAYER_HEIGHT, PLAYER_HALF_WIDTH = 72, 16
+
+    local PROJECTILES = {
+        { "CBaseCSGrenadeProjectile" },
+        { "CHEGrenadeProjectile", "he" },
+        { "CFlashbangProjectile", "flash" },
+        { "CMolotovProjectile", "molotov" },
+    }
+    local YELLOW, RED = { 193, 196, 81 }, { 255, 48, 48 }
+    local GREEN = { 163, 207, 104 }
+
+    local function saturate(value)
+        return max(0, min(1, value))
+    end
+    local function smoothstep(value)
+        value = saturate(value)
+        return value * value * (3 - 2 * value)
+    end
+    local function ease_out_cubic(value)
+        value = saturate(value) - 1
+        return value * value * value + 1
+    end
+    local function mix(a, b, amount)
+        return floor(a + (b - a) * saturate(amount) + 0.5)
+    end
+    local function mix_color(amount)
+        amount = smoothstep(amount)
+        return mix(YELLOW[1], RED[1], amount), mix(YELLOW[2], RED[2], amount), mix(YELLOW[3], RED[3], amount)
+    end
+    local function approach(current, target, speed, dt)
+        return current + (target - current) * (1 - exp(-speed * min(dt, 0.1)))
+    end
+
+    local builtin, tab, container
+    for _, path in ipairs({
+        { "VISUALS", "Other ESP" },
+        { "VISUALS", "Player ESP" },
+        { "VISUALS", "Effects" },
+        { "VISUALS", "Colored models" },
+        { "MISC", "Miscellaneous" },
+        { "MISC", "Settings" },
+    }) do
+        local found, reference = pcall(ui.reference, path[1], path[2], NAME)
+        if found and reference then
+            builtin, tab, container = reference, path[1], path[2]
+            break
+        end
+    end
+    tab, container = tab or "VISUALS", container or "Other ESP"
+    local grenades_ok, grenades, grenades_picker = pcall(ui.reference, "VISUALS", "Other ESP", "Grenades")
+    grenades = grenades_ok and grenades or nil
+    local hit_ok, hit_control, hit_picker =
+        pcall(ui.reference, "VISUALS", "Other ESP", "Grenade trajectory (hit)")
+    local trajectory_colors = {}
+    if grenades_ok and grenades_picker then
+        trajectory_colors[#trajectory_colors + 1] = grenades_picker
+    end
+    if hit_ok then
+        if hit_picker then
+            trajectory_colors[#trajectory_colors + 1] = hit_picker
+        end
+        if hit_control then
+            trajectory_colors[#trajectory_colors + 1] = hit_control
+        end
+    end
+    local function trajectory_color()
+        for _, reference in ipairs(trajectory_colors) do
+            local ok, r, g, b, a = pcall(ui_get, reference)
+            if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+                return r, g, b, a or 255
+            end
+        end
+        return YELLOW[1], YELLOW[2], YELLOW[3], 220
+    end
+    local builtin_controls = {}
+    for _, reference in pairs({ warning = builtin, grenades = grenades }) do
+        builtin_controls[#builtin_controls + 1] = { reference = reference }
+    end
+    local builtins_disabled = false
+    local function sync_builtins(active)
+        for _, control in ipairs(builtin_controls) do
+            if active then
+                if not builtins_disabled then
+                    control.initial = ui_get(control.reference)
+                end
+                if ui_get(control.reference) then
+                    ui_set(control.reference, false)
+                end
+            elseif builtins_disabled then
+                ui_set(control.reference, control.initial)
+            end
+        end
+        builtins_disabled = active
+    end
+
+    local enabled = ui.new_checkbox(tab, container, "Animated grenade warning")
+    local show_path = ui.new_checkbox(tab, container, "Animated grenade trajectory")
+    local show_damage = ui.new_checkbox(tab, container, "Trajectory damage labels")
+    ui_set(enabled, true)
+    ui_set(show_path, true)
+    ui_set(show_damage, true)
+    ui.set_callback(enabled, function()
+        sync_builtins(ui_get(enabled))
+    end)
+    sync_builtins(ui_get(enabled))
+
+    local images_ok, images = pcall(require, "gamesense/images")
+    local function panorama_icon(path)
+        if not images_ok or not images or not images.get_panorama_image then
+            return
+        end
+        local ok, icon = pcall(images.get_panorama_image, path)
+        return ok and icon or nil
+    end
+    local grenade_icon = panorama_icon("icons/equipment/hegrenade.svg")
+    local fire_icon = panorama_icon("icons/equipment/inferno.svg")
+        or panorama_icon("icons/equipment/molotov.svg")
+
+    local function radial_texture(size)
+        local pixels, center = {}, (size - 1) * 0.5
+        for py = 0, size - 1 do
+            for px = 0, size - 1 do
+                local dx, dy = (px - center) / center, (py - center) / center
+                local distance = sqrt(dx * dx + dy * dy)
+                local strength = saturate(1 - distance)
+                strength = strength * strength * (3 - 2 * strength)
+                pixels[#pixels + 1] = string.char(255, 255, 255, floor(strength * 255 + 0.5))
+            end
+        end
+        return renderer.load_rgba(table.concat(pixels), size, size)
+    end
+    local glow_texture = radial_texture(128)
+    local function make_disc()
+        local pixels, size = {}, 64
+        for py = 0, size - 1 do
+            for px = 0, size - 1 do
+                local dx, dy = px - 31.5, py - 31.5
+                local coverage = saturate(31.5 - sqrt(dx * dx + dy * dy))
+                pixels[#pixels + 1] = string.char(255, 255, 255, floor(coverage * 255 + 0.5))
+            end
+        end
+        return renderer.load_rgba(table.concat(pixels), size, size)
+    end
+    local disc_texture = make_disc()
+    local function collision_marker(x, y, r, g, b, alpha)
+        if disc_texture then
+            renderer.texture(disc_texture, x - 2.5, y - 2.5, 5, 5, 0, 0, 0, alpha, "f")
+            renderer.texture(disc_texture, x - 2, y - 2, 4, 4, r, g, b, alpha, "f")
+        else
+            renderer_circle(x, y, 0, 0, 0, alpha, 2.5, 0, 1)
+            renderer_circle(x, y, r, g, b, alpha, 2, 0, 1)
+        end
+    end
+
+    local function fallback_icon(kind, x, y, r, g, b, alpha)
+        if kind == "he" or kind == "flash" then
+            renderer_circle(x, y + 2, r, g, b, alpha, 10, 0, 1)
+            renderer.rectangle(x - 5, y - 14, 10, 6, r, g, b, alpha)
+            renderer.rectangle(x + 4, y - 13, 9, 3, r, g, b, alpha)
+            renderer.line(x + 12, y - 11, x + 14, y - 5, r, g, b, alpha)
+        else
+            renderer.triangle(x, y - 12, x - 8, y + 6, x + 7, y + 6, r, g, b, alpha)
+            renderer_circle(x, y + 3, r, g, b, alpha, 8, 0, 1)
+            renderer.triangle(x + 6, y - 6, x, y + 6, x + 9, y + 6, r, g, b, alpha)
+        end
+    end
+
+    local function draw_icon(kind, x, y, alpha, scale)
+        local icon = (kind == "fire" or kind == "molotov") and fire_icon or grenade_icon
+        if icon and type(icon.draw) == "function" then
+            local height = floor(((kind == "he" or kind == "flash") and 32 or 25) * (scale or 1) + 0.5)
+            local width = 24
+            if type(icon.measure) == "function" then
+                local ok, measured_width, measured_height = pcall(icon.measure, icon, nil, height)
+                if
+                    ok
+                    and type(measured_width) == "number"
+                    and measured_width > 0
+                    and type(measured_height) == "number"
+                    and measured_height > 0
+                then
+                    width, height = measured_width, measured_height
+                end
+            elseif type(icon.width) == "number" and type(icon.height) == "number" and icon.height > 0 then
+                width = max(1, floor(height * icon.width / icon.height + 0.5))
+            end
+            local left, top = floor(x - width / 2), floor(y - height / 2 - 1)
+
+            local shadow_ok = pcall(icon.draw, icon, left + 1, top + 1, width, height, 0, 0, 0, alpha, true)
+            local icon_ok = pcall(icon.draw, icon, left, top, width, height, 255, 255, 255, alpha, true)
+            if shadow_ok and icon_ok then
+                return
+            end
+        end
+        fallback_icon(kind, x + 1, y + 1, 0, 0, 0, alpha)
+        fallback_icon(kind, x, y, 255, 255, 255, alpha)
+    end
+
+    local function exposed(x, y, z, tx, ty, tz)
+        if trace.enabled then
+            local fraction = trace_hull(x, y, z, tx - x, ty - y, tz - z, MASK_SHOT, 0)
+            return fraction >= 1 and 1 or 0
+        end
+        local ignore = trace_ignore
+        for _ = 1, 5 do
+            local fraction, entindex = client_trace_line(ignore, x, y, z, tx, ty, tz)
+            if fraction >= 1 then
+                return 1
+            end
+            if not entindex or entindex <= 0 then
+                return 0
+            end
+            x, y, z = x + (tx - x) * fraction, y + (ty - y) * fraction, z + (tz - z) * fraction
+            ignore = entindex
+        end
+        return 0
+    end
+
+    local target_snapshots, damage_targets = {}, {}
+    local targets_updated = -1
+    local targets_count, targets_revision = -1, 0
+    local fallback_projectiles, fallback_scan_at = {}, 0
+    local target_properties = {
+        "m_vecOrigin",
+        "m_vecViewOffset[2]",
+        "m_ArmorValue",
+        "m_bHasHeavyArmor",
+        "m_iTeamNum",
+        "m_iHealth",
+    }
+    local function dormant(index)
+        return entity.is_dormant and entity.is_dormant(index) == true
+    end
+    local function damage_prop(index, name)
+        local saved = target_snapshots[index]
+        if dormant(index) and saved and saved[name] then
+            return saved[name][1], saved[name][2], saved[name][3]
+        end
+        return entity_get_prop(index, name)
+    end
+    local function update_damage_targets(local_player)
+        local now = globals_realtime()
+        local live_players = entity.get_players(false)
+        if now - targets_updated < DAMAGE_INTERVAL and targets_count == #live_players then
+            return
+        end
+        targets_updated = now
+        targets_count, targets_revision = #live_players, targets_revision + 1
+        local candidates = { [local_player] = true }
+        for _, index in ipairs(live_players) do
+            candidates[index] = true
+        end
+        if entity.get_classname then
+            for index = 1, (globals.maxplayers and globals.maxplayers() or 64) do
+                if entity.get_classname(index) == "CCSPlayer" then
+                    candidates[index] = true
+                end
+            end
+        end
+        damage_targets = {}
+        for index in pairs(candidates) do
+            local saved = target_snapshots[index]
+            if not dormant(index) or not saved then
+                saved = saved or {}
+                saved.alive, saved.enemy = entity.is_alive(index), entity_is_enemy(index) == true
+                for _, name in ipairs(target_properties) do
+                    local values = saved[name] or {}
+                    values[1], values[2], values[3] = entity_get_prop(index, name)
+                    saved[name] = values
+                end
+                target_snapshots[index] = saved
+            end
+            if saved.alive then
+                damage_targets[#damage_targets + 1] = index
+            end
+        end
+        for index in pairs(target_snapshots) do
+            if not candidates[index] then
+                target_snapshots[index] = nil
+            end
+        end
+    end
+    local function after_armor(player, damage, scale)
+        local heavy = damage_prop(player, "m_bHasHeavyArmor") == 1
+        damage = damage * scale
+        if heavy then
+            damage = damage * 0.85
+        end
+        local armor = damage_prop(player, "m_ArmorValue") or 0
+        if armor <= 0 or damage <= 0 then
+            return damage
+        end
+        local ratio, bonus, heavy_bonus = 0.5 * HE_ARMOR_RATIO, 0.5, 1
+        if heavy then
+            ratio, bonus, heavy_bonus = ratio * 0.5, 0.33, 0.33
+        end
+        local to_health = damage * ratio
+        local to_armor = (damage - to_health) * (bonus * heavy_bonus)
+        if to_armor > armor then
+            to_health = damage - armor / bonus
+        end
+        return to_health
+    end
+
+    local function blast_damage(player, local_player, x, y, z, damage, radius, scale)
+        local ox, oy, oz = damage_prop(player, "m_vecOrigin")
+        if not ox then
+            return 0, after_armor(player, damage, scale)
+        end
+        local ex, ey, ez
+        if player == local_player then
+            ex, ey, ez = client_eye_position()
+        end
+        if not ex then
+            local view_z = damage_prop(player, "m_vecViewOffset[2]") or 64
+            ex, ey, ez = ox, oy, oz + view_z
+        end
+        z = z + 1
+        local point_blank = after_armor(player, damage, scale)
+        local dx, dy, dz = ex - x, ey - y, ez - z
+        local sigma = radius / 3
+        local falloff = exp(-(dx * dx + dy * dy + dz * dz) / (2 * sigma * sigma))
+        if after_armor(player, damage * falloff, scale) < 0.5 then
+            return 0, point_blank
+        end
+        local rx, ry = PLAYER_HALF_WIDTH, 0
+        local visible = 0.40 * exposed(x, y, z, ex, ey, ez)
+            + 0.20 * exposed(x, y, z, ox, oy, oz + PLAYER_HEIGHT)
+            + 0.20 * exposed(x, y, z, ox, oy, oz)
+            + 0.10 * exposed(x, y, z, ox - rx, oy - ry, oz + 36)
+            + 0.10 * exposed(x, y, z, ox + rx, oy + ry, oz + 36)
+        if visible <= 0 then
+            return 0, point_blank
+        end
+        return max(0, floor(after_armor(player, damage * falloff * visible, scale) + 0.5)), point_blank
+    end
+
+    local function grenade_kind(entindex, radius)
+        local model = model_name(entity_get_prop(entindex, "m_nModelIndex") or 0)
+        if model:find("frag", 1, true) then
+            return "he"
+        end
+        if model:find("flash", 1, true) then
+            return "flash"
+        end
+        if radius > 0 and radius <= HE_MIN_RADIUS then
+            return "flash"
+        end
+        return "he"
+    end
+    local function entity_from_handle(handle)
+        if handle and handle > 0 then
+            return band(handle, 0x7FF)
+        end
+    end
+    local function is_threat(kind, own, friendly, friendly_fire, self_scale)
+        if kind == "flash" then
+            return not own
+        end
+
+        return true
+    end
+    local tracked, fire_states, retired = {}, {}, {}
+    local render_clock
+    local damage_error_logged = false
+    local function reset()
+        tracked, fire_states, retired, target_snapshots, damage_targets = {}, {}, {}, {}, {}
+        render_clock = nil
+        fallback_projectiles, fallback_scan_at, targets_updated = {}, 0, -1
+        targets_count, targets_revision = -1, 0
+    end
+    local function finish_projectile(index)
+        retired[index] = retired[index] or globals_realtime()
+        local state = tracked[index]
+        if state then
+            state.path = {}
+            state.finished = true
+            state.finished_at = state.finished_at or globals_realtime()
+            if state.last_warning then
+                state.last_warning.active = false
+            end
+        end
+    end
+
+    local function collect_damage(
+        grenade,
+        local_player,
+        thrower,
+        own,
+        friendly,
+        self_scale,
+        team_scale,
+        raw_damage,
+        radius
+    )
+        local entries, local_damage, max_damage = {}, 0, 0
+        local targets = damage_targets
+        for _, target in ipairs(targets) do
+            if
+                entity.is_alive(target)
+                or (dormant(target) and target_snapshots[target] and target_snapshots[target].alive)
+            then
+                local thrower_team = thrower and damage_prop(thrower, "m_iTeamNum")
+                local target_team = damage_prop(target, "m_iTeamNum")
+                local same_team = thrower_team ~= nil and thrower_team == target_team
+                local scale = target == thrower and self_scale or (same_team and team_scale or 1)
+                if scale > 0 then
+                    local damage, maximum = blast_damage(
+                        target,
+                        local_player,
+                        grenade.x,
+                        grenade.y,
+                        grenade.z,
+                        raw_damage,
+                        radius,
+                        scale
+                    )
+                    max_damage = target == local_player and maximum or max_damage
+                    if damage > 0 then
+                        local local_hit = target == local_player
+                        entries[#entries + 1] = {
+                            damage = damage,
+                            local_hit = local_hit,
+                            index = target,
+                            enemy = target ~= local_player
+                                and target_snapshots[target]
+                                and target_snapshots[target].enemy == true,
+                        }
+                        if local_hit then
+                            local_damage = damage
+                        end
+                    end
+                end
+            end
+        end
+        table.sort(entries, function(a, b)
+            if a.local_hit ~= b.local_hit then
+                return a.local_hit
+            end
+            return a.damage > b.damage
+        end)
+        return entries, local_damage, max_damage
+    end
+
+    local function add_projectiles(warnings, player, friendly_fire)
+        local now, dt = globals_realtime(), globals_tickinterval()
+        local self_scale = cvar_float("ff_damage_reduction_grenade_self", 1)
+        local team_scale = friendly_fire and cvar_float("ff_damage_reduction_grenade", 0.25) or 0
+        local half_latency = (client.latency() or 0) / 2
+        local seen = {}
+        local candidates = {}
+        for _, projectile in ipairs(PROJECTILES) do
+            local ok, entities = pcall(entity_get_all, projectile[1])
+            for _, index in ipairs(ok and entities or {}) do
+                candidates[index] = projectile[2] or candidates[index] or false
+            end
+        end
+
+        if now >= fallback_scan_at then
+            fallback_scan_at = now + 0.25
+            fallback_projectiles = {}
+            local ok_all, all = pcall(entity_get_all)
+            for _, index in ipairs(ok_all and all or {}) do
+                if candidates[index] == nil and entity.get_classname then
+                    local class = entity.get_classname(index) or ""
+                    if class:lower():find("projectile", 1, true) then
+                        local model = entity_get_prop(index, "m_nModelIndex") or 0
+                        local name = model_name(model)
+                        local kind
+                        if name:find("frag", 1, true) or name:find("hegrenade", 1, true) then
+                            kind = "he"
+                        elseif name:find("molotov", 1, true) or name:find("incendiary", 1, true) then
+                            kind = "molotov"
+                        end
+                        if kind then
+                            fallback_projectiles[index] = { kind = kind, model = model }
+                        end
+                    end
+                end
+            end
+        end
+        for index, cached in pairs(fallback_projectiles) do
+            if candidates[index] == nil then
+                if entity_get_prop(index, "m_nModelIndex") == cached.model then
+                    candidates[index] = cached.kind
+                else
+                    fallback_projectiles[index] = nil
+                end
+            end
+        end
+        for entindex, forced_kind in pairs(candidates) do
+            local molotov = forced_kind == "molotov"
+            do
+                local x, y, z = entity_get_prop(entindex, "m_vecOrigin")
+
+                local exploded = (entity_get_prop(entindex, "m_nExplodeEffectTickBegin") or 0) > 0
+                local thrower = entity_from_handle(entity_get_prop(entindex, "m_hThrower"))
+                local own = thrower == player
+                local friendly = not own and thrower ~= nil and entity_is_enemy(thrower) == false
+                local radius = entity_get_prop(entindex, "m_DmgRadius") or 0
+                local kind = forced_kind or (molotov and "molotov" or grenade_kind(entindex, radius))
+                local previous = tracked[entindex]
+                if
+                    exploded or (previous and previous.end_time and globals.curtime() >= previous.end_time)
+                then
+                    finish_projectile(entindex)
+                end
+                if
+                    not seen[entindex]
+                    and not retired[entindex]
+                    and x
+                    and not exploded
+                    and is_threat(kind, own, friendly, friendly_fire, self_scale)
+                then
+                    seen[entindex] = true
+                    local grenade = tracked[entindex]
+                    if not grenade then
+                        grenade = {
+                            first_seen = now,
+                            initial_age = half_latency + dt,
+                            simulated = -1,
+                            alpha = 0,
+                            last_frame = now,
+                        }
+                        tracked[entindex] = grenade
+                    end
+                    grenade.current_position = { x, y, z }
+                    local age = grenade.initial_age + now - grenade.first_seen
+                    local simtime = entity_get_prop(entindex, "m_flSimulationTime") or globals.curtime()
+                    local spawned = entity_get_prop(entindex, "m_flSpawnTime")
+                    local vx, vy, vz = entity_get_prop(entindex, "m_vecVelocity")
+                    if spawned and spawned > 0 and spawned <= simtime and simtime - spawned < 10 then
+                        age = simtime - spawned
+                    elseif (entity_get_prop(entindex, "m_nBounces") or 0) == 0 then
+                        local ix, iy, iz = entity_get_prop(entindex, "m_vInitialVelocity")
+                        local gravity = cvar_float("sv_gravity", 800) * GRAVITY_SCALE
+                        if
+                            iz
+                            and vz
+                            and gravity > 0
+                            and abs((ix or 0) - (vx or 0)) + abs((iy or 0) - (vy or 0)) < 12
+                        then
+                            local ballistic_age = (iz - vz) / gravity
+                            if ballistic_age >= 0 and ballistic_age < 4 then
+                                age = ballistic_age
+                            end
+                        end
+                    end
+
+                    local outdated = grenade.simulated < 0 or grenade.sample_time ~= simtime
+                    if outdated then
+                        local age_ticks = max(0, floor(age / dt + 0.5))
+                        local path = {}
+                        local px, py, pz, time_left =
+                            simulate(x, y, z, vx or 0, vy or 0, vz or 0, kind, age_ticks, path)
+                        grenade.simulated, grenade.path = now, path
+                        grenade.sample_time = simtime
+                        grenade.path_start = globals.curtime() - max(0, globals.curtime() - simtime)
+                        grenade.x, grenade.y, grenade.z = px, py, pz
+                        grenade.fuse = px and age_ticks * dt + time_left
+                        local predicted_end = px and grenade.path_start + time_left
+
+                        if
+                            predicted_end
+                            and grenade.end_time
+                            and (kind == "he" or grenade.end_time - globals.curtime() <= 0.12)
+                        then
+                            grenade.end_time = min(grenade.end_time, predicted_end)
+                        else
+                            grenade.end_time = predicted_end
+                        end
+                    end
+                    if
+                        grenade.x
+                        and kind == "he"
+                        and (
+                            now - (grenade.damage_time or -1) >= DAMAGE_INTERVAL
+                            or grenade.damage_revision ~= targets_revision
+                        )
+                    then
+                        local raw_damage = entity_get_prop(entindex, "m_flDamage") or 0
+                        grenade.damage_time = now
+                        grenade.damage_revision = targets_revision
+                        local ok, entries, local_damage, maximum = pcall(
+                            collect_damage,
+                            grenade,
+                            player,
+                            thrower,
+                            own,
+                            friendly,
+                            self_scale,
+                            team_scale,
+                            raw_damage >= 1 and raw_damage or HE_DAMAGE,
+                            radius >= HE_MIN_RADIUS and radius or HE_RADIUS
+                        )
+                        if ok then
+                            grenade.damage_entries, grenade.damage, grenade.max_damage =
+                                entries, local_damage, maximum
+                        else
+                            grenade.damage_entries, grenade.damage, grenade.max_damage = {}, 0, HE_DAMAGE
+                            if not damage_error_logged then
+                                damage_error_logged = true
+                                log(255, 100, 100, "HE damage labels disabled: " .. tostring(entries))
+                            end
+                        end
+                    end
+                    if grenade.x then
+                        if kind == "he" then
+                            grenade.enemy_danger = false
+                            for _, entry in ipairs(grenade.damage_entries or {}) do
+                                if entry.enemy and entry.damage > 0 then
+                                    grenade.enemy_danger = true
+                                    break
+                                end
+                            end
+                        elseif kind == "molotov" and now - (grenade.danger_time or -1) >= DAMAGE_INTERVAL then
+                            grenade.danger_time = now
+                            grenade.enemy_danger = false
+                            for _, enemy in ipairs(damage_targets) do
+                                local ox, oy, oz = damage_prop(enemy, "m_vecOrigin")
+                                local owner_team = thrower and damage_prop(thrower, "m_iTeamNum")
+                                local enemy_team = damage_prop(enemy, "m_iTeamNum")
+                                local can_hurt = not thrower
+                                    or enemy == thrower
+                                    or owner_team ~= enemy_team
+                                    or friendly_fire
+                                if
+                                    target_snapshots[enemy]
+                                    and target_snapshots[enemy].enemy
+                                    and can_hurt
+                                    and ox
+                                then
+                                    local dx, dy = ox - grenade.x, oy - grenade.y
+                                    if
+                                        dx * dx + dy * dy > 0
+                                        and dx * dx + dy * dy + (oz - grenade.z) ^ 2 < (3 * 39.37) ^ 2
+                                        and abs(oz - grenade.z) < 70
+                                        and exposed(grenade.x, grenade.y, grenade.z + 4, ox, oy, oz + 36)
+                                            > 0
+                                    then
+                                        grenade.enemy_danger = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+
+                    if grenade.x then
+                        grenade.last_seen = now
+                        local warning = {
+                            x = grenade.x,
+                            y = grenade.y,
+                            z = grenade.z,
+                            remaining = max(0, (grenade.end_time or globals.curtime()) - globals.curtime()),
+                            kind = kind,
+                            own = own,
+                            damage = grenade.damage or 0,
+                            max_damage = grenade.max_damage,
+                            damage_entries = grenade.damage_entries or {},
+                            state = grenade,
+                            active = true,
+                        }
+                        grenade.last_warning = warning
+                        warnings[#warnings + 1] = warning
+                    end
+                end
+            end
+        end
+        for index, finished_at in pairs(retired) do
+            if candidates[index] == nil and now - finished_at > 1 then
+                retired[index] = nil
+            end
+        end
+        for entindex, grenade in pairs(tracked) do
+            if not seen[entindex] then
+                local elapsed = now - (grenade.finished_at or grenade.last_seen or now)
+                if grenade.last_warning and elapsed < FADE_TIME then
+                    local warning = grenade.last_warning
+                    warning.active, warning.remaining = false, 0
+                    warnings[#warnings + 1] = warning
+                else
+                    tracked[entindex] = nil
+                end
+            end
+        end
+    end
+
+    local function nearest_fire_segment(index, state, x, y, z, px, py, pz, now)
+        local raw_count = entity_get_prop(index, "m_fireCount")
+        local count = min(64, max(0, raw_count or 1))
+        if
+            not state.cells
+            or state.cell_count ~= count
+            or now - (state.cells_time or -1) >= DAMAGE_INTERVAL
+        then
+            local cells = state.cells or {}
+            local used = 0
+            for slot = 0, count - 1 do
+                local burning = entity_get_prop(index, "m_bFireIsBurning", slot)
+                if burning ~= false and burning ~= 0 then
+                    local dx = entity_get_prop(index, "m_fireXDelta", slot)
+                    local dy = entity_get_prop(index, "m_fireYDelta", slot)
+                    local dz = entity_get_prop(index, "m_fireZDelta", slot)
+                    if dx and dy and dz then
+                        used = used + 1
+                        local cell = cells[used] or {}
+                        cell[1], cell[2], cell[3] = x + dx, y + dy, z + dz
+                        cells[used] = cell
+                    elseif not raw_count then
+                        used = used + 1
+                        cells[used] = { x, y, z }
+                    end
+                end
+            end
+            for slot = #cells, used + 1, -1 do
+                cells[slot] = nil
+            end
+            state.cells, state.cells_time, state.cell_count = cells, now, count
+        end
+        local closest, best_distance, touching
+        for _, cell in ipairs(state.cells) do
+            local dx, dy, dz = px - cell[1], py - cell[2], pz - cell[3]
+            local horizontal = sqrt(dx * dx + dy * dy)
+            local edge = max(0, horizontal - 60)
+            local distance = sqrt(edge * edge + dz * dz)
+            if not best_distance or distance < best_distance then
+                best_distance = distance
+                local fraction = horizontal > 60 and 60 / horizontal or 0
+                closest = { cell[1] + dx * fraction, cell[2] + dy * fraction, cell[3] }
+                touching = horizontal <= 60 and abs(dz) < 70
+            end
+        end
+        return closest, best_distance, touching
+    end
+
+    local function add_fires(warnings, player, friendly_fire)
+        local dt, lifetime, seen = globals_tickinterval(), cvar_float("inferno_flame_lifetime", 7), {}
+        local now = globals_realtime()
+        local px, py, pz = damage_prop(player, "m_vecOrigin")
+        if not px then
+            return
+        end
+        for _, entindex in ipairs(entity_get_all("CInferno")) do
+            local x, y, z = entity_get_prop(entindex, "m_vecOrigin")
+            local ignited = entity_get_prop(entindex, "m_nFireEffectTickBegin")
+            if x and ignited and ignited > 0 then
+                local owner = entity_from_handle(entity_get_prop(entindex, "m_hOwnerEntity"))
+                local friendly = owner ~= nil and owner ~= player and entity_is_enemy(owner) == false
+                local burning = max(0, (globals.tickcount() - ignited) * dt)
+                if (not friendly or friendly_fire) and burning < lifetime then
+                    local state = fire_states[entindex] or { alpha = 0, last_frame = now, first_seen = now }
+                    fire_states[entindex] = state
+                    local position, distance, touching =
+                        nearest_fire_segment(entindex, state, x, y, z, px, py, pz, now)
+                    if position then
+                        seen[entindex] = true
+                        local frame_time = now - (state.position_time or now)
+                        state.position_time = now
+                        if state.world_x then
+                            state.world_x = approach(state.world_x, position[1], 14, frame_time)
+                            state.world_y = approach(state.world_y, position[2], 14, frame_time)
+                            state.world_z = approach(state.world_z, position[3], 14, frame_time)
+                        else
+                            state.world_x, state.world_y, state.world_z =
+                                position[1], position[2], position[3]
+                        end
+                        state.last_seen = now
+                        local warning = {
+                            x = state.world_x,
+                            y = state.world_y,
+                            z = state.world_z,
+                            fire_distance = distance,
+                            touching = touching,
+                            remaining = lifetime - burning,
+                            kind = "fire",
+                            damage = 0,
+                            damage_entries = {},
+                            state = state,
+                            active = true,
+                        }
+                        state.last_warning = warning
+                        warnings[#warnings + 1] = warning
+                    end
+                end
+            end
+        end
+        for entindex, state in pairs(fire_states) do
+            if not seen[entindex] then
+                if state.last_warning and now - (state.last_seen or now) < FADE_TIME then
+                    local warning = state.last_warning
+                    warning.active, warning.remaining = false, 0
+                    warnings[#warnings + 1] = warning
+                else
+                    fire_states[entindex] = nil
+                end
+            end
+        end
+    end
+
+    local function visual_time()
+        local tick_time, now = globals.curtime(), globals_realtime()
+        if not render_clock then
+            render_clock = { tick = tick_time, updated = now, value = tick_time }
+        elseif render_clock.tick ~= tick_time then
+            render_clock.tick, render_clock.updated = tick_time, now
+        end
+        local time = tick_time + min(max(0, now - render_clock.updated), globals_tickinterval() * 2)
+        render_clock.value = max(render_clock.value, time)
+        return render_clock.value
+    end
+
+    local function store_path_point(points, index, x, y, z, time)
+        local point = points[index] or {}
+        point[1], point[2], point[3], point[4] = x, y, z, time
+        points[index] = point
+    end
+
+    local function smooth_path(state)
+        local path, points = state.path or {}, state.render_points or {}
+        state.render_points = points
+        local count = 0
+        local elapsed = max(0, visual_time() - (state.path_start or globals.curtime()))
+        local times = path.times or {}
+        for index = 1, #path / 3 do
+            local time = times[index] or (index - 1) * globals_tickinterval()
+            if time >= elapsed then
+                local offset = (index - 1) * 3
+                if count == 0 and index > 1 then
+                    local previous_time = times[index - 1] or time - globals_tickinterval()
+                    local fraction = saturate((elapsed - previous_time) / max(time - previous_time, 0.0001))
+                    count = 1
+                    store_path_point(
+                        points,
+                        count,
+                        path[offset - 2] + (path[offset + 1] - path[offset - 2]) * fraction,
+                        path[offset - 1] + (path[offset + 2] - path[offset - 1]) * fraction,
+                        path[offset] + (path[offset + 3] - path[offset]) * fraction,
+                        elapsed
+                    )
+                end
+                count = count + 1
+                store_path_point(points, count, path[offset + 1], path[offset + 2], path[offset + 3], time)
+            end
+        end
+        return points, elapsed, count
+    end
+
+    local function draw_trajectory(warning, r, g, b, alpha)
+        if not ui_get(show_path) or warning.kind == "fire" then
+            return
+        end
+        local points, elapsed, count = smooth_path(warning.state)
+        local phase = globals_realtime() * 1.8
+        local previous_x, previous_y, previous_time
+        for index = 1, count do
+            local point = points[index]
+            local x, y = renderer.world_to_screen(point[1], point[2], point[3])
+            if x and previous_x and (x - previous_x) ^ 2 + (y - previous_y) ^ 2 >= 0.0625 then
+                local dx, dy = x - previous_x, y - previous_y
+                local length = sqrt(dx * dx + dy * dy)
+                local parts = previous_time - elapsed < 0.08 and max(1, min(16, ceil(length / 6))) or 1
+                for part = 1, parts do
+                    local t0, t1 = (part - 1) / parts, part / parts
+                    local time = previous_time + (point[4] - previous_time) * ((t0 + t1) * 0.5)
+                    local fade = smoothstep((time - elapsed) / 0.08)
+                    local progress = (warning.state.path_start or 0) + time
+                    local wave = 0.55 + 0.45 * (0.5 + 0.5 * sin((progress * 3 - phase) * math.pi * 2))
+                    local a = floor(alpha * wave * fade)
+                    if a > 0 then
+                        local ax, ay = previous_x + dx * t0, previous_y + dy * t0
+                        local bx, by = previous_x + dx * t1, previous_y + dy * t1
+                        renderer.line(ax + 1, ay + 1, bx + 1, by + 1, 0, 0, 0, floor(a * 0.72))
+                        renderer.line(ax, ay, bx, by, r, g, b, a)
+                    end
+                end
+            end
+            previous_x, previous_y, previous_time = x, y, point[4]
+        end
+
+        for _, hit in ipairs((warning.state.path or {}).collisions or {}) do
+            if hit[4] >= elapsed then
+                local x, y = renderer.world_to_screen(hit[1], hit[2], hit[3])
+                if x then
+                    local hit_alpha = floor(alpha * smoothstep((hit[4] - elapsed) / 0.08))
+                    if hit_alpha > 0 then
+                        collision_marker(x, y, 255, 255, 255, hit_alpha)
+                    end
+                end
+            end
+        end
+
+        local x, y = renderer.world_to_screen(warning.x, warning.y, warning.z)
+        if x then
+            local tint = warning.state.enemy_danger and GREEN or RED
+            collision_marker(x, y, tint[1], tint[2], tint[3], alpha)
+        end
+    end
+
+    local function draw_damage_labels(warning)
+        if not ui_get(show_damage) or warning.kind == "fire" then
+            return
+        end
+        local x, y = renderer.world_to_screen(warning.x, warning.y, warning.z + 4)
+        if not x then
+            return
+        end
+        local labels = {}
+        if warning.kind == "he" then
+            for _, entry in ipairs(warning.damage_entries) do
+                if (entry.local_hit or entry.enemy) and (entry.damage or 0) > 0 and #labels < 4 then
+                    labels[#labels + 1] = entry
+                end
+            end
+        elseif warning.kind == "molotov" then
+            local local_player = entity.get_local_player()
+            for _, target in ipairs(damage_targets) do
+                local snapshot = target_snapshots[target]
+                if target == local_player or (snapshot and snapshot.enemy) then
+                    local ox, oy, oz = damage_prop(target, "m_vecOrigin")
+                    if ox then
+                        local dx, dy, dz = warning.x - ox, warning.y - oy, warning.z - oz
+                        local distance = sqrt(dx * dx + dy * dy + dz * dz)
+                        local meters = floor(distance / 39.37 * 10 + 0.5) / 10
+                        if distance / 39.37 < 4 and meters > 0 then
+                            labels[#labels + 1] = {
+                                index = target,
+                                text = string.format("%.1f m", meters),
+                                distance = distance,
+                                local_player = target == local_player,
+                                local_hit = target == local_player
+                                    and distance <= cvar_float("inferno_max_range", 150),
+                            }
+                        end
+                    end
+                end
+            end
+            table.sort(labels, function(a, b)
+                if a.local_player ~= b.local_player then
+                    return a.local_player
+                end
+                if a.distance == b.distance then
+                    return a.index < b.index
+                end
+                return a.distance < b.distance
+            end)
+            while #labels > 4 do
+                table.remove(labels)
+            end
+        end
+        if warning.active == false then
+            labels = {}
+        end
+        local state, now = warning.state, globals_realtime()
+        local elapsed = min(0.1, now - (state.labels_frame or now))
+        state.labels_frame = now
+        state.label_rows = state.label_rows or {}
+        local rows, wanted = state.label_rows, {}
+        for index, entry in ipairs(labels) do
+            local key = entry.index and ("player:" .. entry.index) or "distance"
+            wanted[key] = true
+            local row = rows[key]
+            if not row then
+                row = { alpha = 0, offset = 0, key = key }
+                rows[key] = row
+            end
+            row.entry, row.order = entry, index
+        end
+        local visible, total = {}, 0
+        for key, row in pairs(rows) do
+            row.alpha = approach(row.alpha, wanted[key] and 1 or 0, wanted[key] and 16 or 20, elapsed)
+            if not wanted[key] and row.alpha < 0.008 then
+                rows[key] = nil
+            else
+                local text = row.entry.text or string.format("%d dmg", row.entry.damage)
+                if row.text ~= text then
+                    row.text = text
+                    row.width, row.height = renderer.measure_text("", text)
+                end
+                total = total + (row.height + 1) * row.alpha
+                visible[#visible + 1] = row
+            end
+        end
+        table.sort(visible, function(a, b)
+            if a.order == b.order then
+                return a.key < b.key
+            end
+            return a.order < b.order
+        end)
+        local cursor = 0
+        for _, row in ipairs(visible) do
+            local entry = row.entry
+            local text = row.text
+            local tw, th = row.width, row.height
+
+            local target_offset = -6 - total + cursor
+            row.offset = approach(row.offset, target_offset, 18, elapsed)
+            cursor = cursor + (th + 1) * row.alpha
+            local tx, ty = floor(x - tw / 2), floor(y + row.offset - (1 - row.alpha) * 5)
+            local text_alpha = row.alpha * (1 - (state.warning_visibility or 0))
+            local opacity = floor(255 * text_alpha + 0.5)
+            if opacity > 0 then
+                local pad = 4
+                local half = ceil((tw + pad * 2 + 16) / 2)
+                renderer.gradient(
+                    x - half,
+                    ty - 1,
+                    half,
+                    th + 2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    floor(105 * text_alpha),
+                    true
+                )
+                renderer.gradient(x, ty - 1, half, th + 2, 0, 0, 0, floor(105 * text_alpha), 0, 0, 0, 0, true)
+                local tr, tg, tb = 255, 255, 255
+                if entry.local_hit then
+                    tr, tg, tb = 255, 58, 58
+                elseif
+                    (entry.enemy and (entry.damage or 0) > 50)
+                    or (entry.distance and not entry.local_player and entry.distance < 3 * 39.37)
+                then
+                    tr, tg, tb = GREEN[1], GREEN[2], GREEN[3]
+                end
+                if glow_texture then
+                    renderer.texture(
+                        glow_texture,
+                        tx - 8,
+                        ty - 4,
+                        tw + 16,
+                        th + 8,
+                        0,
+                        0,
+                        0,
+                        floor(90 * text_alpha),
+                        "f"
+                    )
+                end
+                renderer_text(tx, ty, tr, tg, tb, opacity, "", 0, text)
+            end
+        end
+    end
+
+    local function warning_risk(warning, fire_reach)
+        if warning.kind == "he" then
+            if warning.damage > 8 then
+                return 1, true
+            end
+            return saturate(warning.damage / 8), false
+        elseif warning.kind == "fire" then
+            return 1 - saturate((warning.fire_distance or warning.distance) / 200), warning.touching == true
+        elseif warning.kind == "molotov" then
+            local risk = 1 - saturate((warning.distance - fire_reach) / max(RANGE - fire_reach, 1))
+            return risk, warning.distance <= fire_reach
+        end
+        return 0, false
+    end
+
+    local function screen_position(wx, wy, wz, width, height, margin)
+        local half_w, half_h = width / 2 - margin, height / 2 - margin
+        local screen_x, screen_y = renderer.world_to_screen(wx, wy, wz)
+        if screen_x then
+            local dx, dy = screen_x - width / 2, screen_y - height / 2
+            local reach = sqrt((dx / half_w) ^ 2 + (dy / half_h) ^ 2)
+            local outside = reach > 1
+            if outside then
+                dx, dy = dx / reach, dy / reach
+            end
+            return width / 2 + dx, height / 2 + dy, outside
+        end
+        local ex, ey, ez = client_eye_position()
+        local pitch, yaw = client_camera_angles()
+        if not ex or not pitch then
+            return width / 2, height - margin, true
+        end
+        local cp, sp, cy, sy = cos(rad(pitch)), sin(rad(pitch)), cos(rad(yaw)), sin(rad(yaw))
+        local dx, dy, dz = wx - ex, wy - ey, wz - ez
+        local right = dx * sy - dy * cy
+        local down = -(dx * (sp * cy) + dy * (sp * sy) + dz * cp)
+        local length = sqrt(right * right + down * down)
+        if length < 1e-4 then
+            right, down, length = 0, 1, 1
+        end
+        right, down = right / length, down / length
+        local scale = 1 / sqrt((right / half_w) ^ 2 + (down / half_h) ^ 2)
+        return width / 2 + right * scale, height / 2 + down * scale, true
+    end
+
+    local function draw_arrow(x, y, width, height, warning_radius, r, g, b, alpha)
+        local dx, dy = x - width / 2, y - height / 2
+        local length = max(1, sqrt(dx * dx + dy * dy))
+        dx, dy = dx / length, dy / length
+        local side_x, side_y = -dy, dx
+        local arrow_x, arrow_y = x + dx * (warning_radius + 10), y + dy * (warning_radius + 10)
+        local tip_x, tip_y = arrow_x + dx * 5, arrow_y + dy * 5
+        local base_x, base_y = arrow_x - dx * 3, arrow_y - dy * 3
+        local half_base = 3 * sqrt(3)
+        renderer.triangle(
+            tip_x + 1,
+            tip_y + 1,
+            base_x + side_x * half_base + 1,
+            base_y + side_y * half_base + 1,
+            base_x - side_x * half_base + 1,
+            base_y - side_y * half_base + 1,
+            0,
+            0,
+            0,
+            floor(alpha * 0.75)
+        )
+        renderer.triangle(
+            tip_x,
+            tip_y,
+            base_x + side_x * half_base,
+            base_y + side_y * half_base,
+            base_x - side_x * half_base,
+            base_y - side_y * half_base,
+            r,
+            g,
+            b,
+            alpha
+        )
+    end
+
+    local function draw_warning(warning, width, height, fire_reach)
+        local state, now = warning.state, globals_realtime()
+        local dt = min(0.1, now - (state.last_frame or now))
+        state.last_frame = now
+        local active = warning.active ~= false
+        state.visible_since = state.visible_since or state.first_seen or now
+        if active then
+            state.fade_started = nil
+            local appearing = ease_out_cubic((now - state.visible_since) / 0.24)
+            state.alpha, state.scale = appearing, 0.72 + 0.28 * appearing
+        else
+            if not state.fade_started then
+                state.fade_started, state.fade_alpha = now, state.alpha or 0
+            end
+            local fading = smoothstep((now - state.fade_started) / FADE_TIME)
+            state.alpha = state.fade_alpha * (1 - fading)
+            state.scale = 1 - 0.18 * fading
+        end
+        if state.alpha < 0.005 then
+            return
+        end
+        local risk, critical = warning_risk(warning, fire_reach)
+        state.risk = approach(state.risk or 0, risk, 8, dt)
+        local r, g, b = mix_color(critical and 1 or state.risk)
+        local period = critical and 0.28 or mix(105, 38, state.risk) / 100
+        local pulse = 0.5 + 0.5 * sin(now * math.pi * 2 / period)
+        pulse = smoothstep(pulse)
+        local display_alpha = state.alpha * (state.warning_visibility or 0)
+        local alpha = floor(255 * display_alpha)
+        local radius = (25 + 6 * state.risk + 3 * pulse * state.risk) * state.scale
+        local glow_radius = (44 + 2 * pulse * state.risk) * state.scale
+
+        local x, y, offscreen = screen_position(warning.x, warning.y, warning.z + 12, width, height, 90)
+        local glow_r, glow_g, glow_b = r, g, b
+        local glow_alpha = floor((150 + 55 * state.risk + 35 * pulse * state.risk) * display_alpha)
+        if glow_texture then
+            renderer.texture(
+                glow_texture,
+                floor(x - glow_radius),
+                floor(y - glow_radius),
+                floor(glow_radius * 2),
+                floor(glow_radius * 2),
+                glow_r,
+                glow_g,
+                glow_b,
+                glow_alpha,
+                "f"
+            )
+        else
+            renderer_circle(x, y, glow_r, glow_g, glow_b, floor(glow_alpha * 0.55), radius, 0, 1)
+        end
+
+        local icon_offset = warning.kind == "he" and -12 or (warning.kind == "flash" and -8 or -9)
+        draw_icon(warning.kind, x, y + icon_offset, alpha, state.scale)
+
+        local detail = warning.kind == "he" and warning.damage > 0 and string.format("-%d HP", warning.damage)
+            or nil
+        if detail then
+            renderer_text(x, y + 12, 255, 255, 255, alpha, "cb", 0, detail)
+        end
+        renderer_text(
+            x,
+            y + (detail and 24 or 12),
+            255,
+            255,
+            255,
+            alpha,
+            "cb",
+            0,
+            string.format("%.1f s", ceil(warning.remaining * 10) / 10)
+        )
+        if offscreen then
+            draw_arrow(x, y, width, height, 43, 255, 255, 255, alpha)
+        end
+    end
+
+    local function draw_warnings(warnings, ex, ey, ez)
+        local nearby = {}
+        for _, warning in ipairs(warnings) do
+            local dx, dy, dz = warning.x - ex, warning.y - ey, warning.z - ez
+            warning.distance = warning.fire_distance or sqrt(dx * dx + dy * dy + dz * dz)
+            if warning.distance <= RANGE then
+                nearby[#nearby + 1] = warning
+            end
+        end
+        table.sort(nearby, function(a, b)
+            return a.distance < b.distance
+        end)
+        local selected = {}
+        for index = 1, min(#nearby, MAX_WARNINGS) do
+            selected[nearby[index].state] = true
+        end
+        local now = globals_realtime()
+        for _, warning in ipairs(warnings) do
+            local state = warning.state
+            local target = selected[state] and 1 or 0
+            local transition = state.warning_transition
+            if not transition then
+                transition = { from = 0, value = 0, target = target, started = now }
+                state.warning_transition = transition
+            end
+            transition.value = transition.from
+                + (transition.target - transition.from)
+                    * ease_out_cubic((now - transition.started) / 0.22)
+            if transition.target ~= target then
+                transition.from, transition.target, transition.started = transition.value, target, now
+            end
+
+            state.warning_visibility = transition.value * smoothstep((RANGE - warning.distance) / 24)
+
+            if warning.kind ~= "fire" and warning.active ~= false then
+                local enemy_danger = false
+                local has_damage = (warning.damage or 0) > 0
+                if warning.kind == "he" then
+                    for _, entry in ipairs(warning.damage_entries or {}) do
+                        if (entry.damage or 0) > 0 then
+                            has_damage = true
+                            enemy_danger = enemy_danger or entry.enemy == true
+                        end
+                    end
+                elseif warning.kind == "molotov" then
+                    enemy_danger = warning.state.enemy_danger == true
+                end
+                local r, g, b, alpha = trajectory_color()
+                if enemy_danger then
+                    r, g, b = GREEN[1], GREEN[2], GREEN[3]
+                elseif has_damage then
+                    r, g, b = YELLOW[1], YELLOW[2], YELLOW[3]
+                end
+                draw_trajectory(warning, r, g, b, alpha)
+            end
+            draw_damage_labels(warning)
+        end
+        local width, height = client.screen_size()
+        local fire_reach = cvar_float("inferno_max_range", 150)
+        for index = #nearby, 1, -1 do
+            if (nearby[index].state.warning_visibility or 0) > 0 then
+                draw_warning(nearby[index], width, height, fire_reach)
+            end
+        end
+    end
+
+    local function on_paint()
+        sync_builtins(ui_get(enabled))
+        if not ui_get(enabled) then
+            reset()
+            return
+        end
+        local player = entity.get_local_player()
+        local ex, ey, ez = client_eye_position()
+        if not player or not entity.is_alive(player) or not ex then
+            return
+        end
+        check_trace(player)
+        trace_ignore = player
+        update_damage_targets(player)
+        local warnings = {}
+        local friendly_fire = cvar_float("mp_friendlyfire", 0) ~= 0
+        add_projectiles(warnings, player, friendly_fire)
+        add_fires(warnings, player, friendly_fire)
+        draw_warnings(warnings, ex, ey, ez)
+    end
+
+    local function on_detonate(event)
+        local id = tonumber(event.entityid)
+        if id and id > 2047 then
+            id = band(id, 0x7FF)
+        end
+        if id and tracked[id] then
+            finish_projectile(id)
+            return
+        end
+
+        if not event.x or not event.y or not event.z then
+            return
+        end
+        for index, state in pairs(tracked) do
+            local warning = state.last_warning
+            local kind = event.name == "hegrenade_detonate" and "he" or "molotov"
+            if warning and warning.kind == kind then
+                local dx, dy, dz = warning.x - event.x, warning.y - event.y, warning.z - event.z
+                local distance2 = dx * dx + dy * dy + dz * dz
+                local current = state.current_position
+                if current then
+                    dx, dy, dz = current[1] - event.x, current[2] - event.y, current[3] - event.z
+                    distance2 = min(distance2, dx * dx + dy * dy + dz * dz)
+                end
+                if distance2 < 128 * 128 then
+                    finish_projectile(index)
+                end
+            end
+        end
+    end
+    for _, event_name in ipairs({ "hegrenade_detonate", "molotov_detonate", "inferno_startburn" }) do
+        local name = event_name
+        client.set_event_callback(name, function(event)
+            on_detonate({ name = name, entityid = event.entityid, x = event.x, y = event.y, z = event.z })
+        end)
+    end
+    client.set_event_callback("paint", guarded(on_paint))
+    client.set_event_callback("level_init", reset)
+    client.set_event_callback("cs_game_disconnected", reset)
+    client.set_event_callback("shutdown", function()
+        sync_builtins(false)
+    end)
+end)()

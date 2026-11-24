@@ -170,6 +170,7 @@
     <ClCompile Include="features\visuals\misc\other\hitmarker.cpp" />
     <ClCompile Include="features\visuals\misc\local\force_crosshair.cpp" />
     <ClCompile Include="features\visuals\misc\local\penetration_crosshair.cpp" />
+    <ClCompile Include="features\visuals\misc\local\grenade_warning.cpp" />
     <ClCompile Include="features\visuals\misc\local\viewmodel.cpp" />
     <ClCompile Include="features\misc\misc.cpp" />
     <ClCompile Include="features\misc\events\misc_events.cpp" />
@@ -387,6 +388,7 @@
     <ClInclude Include="features\visuals\misc\other\hitmarker.hpp" />
     <ClInclude Include="features\visuals\misc\local\force_crosshair.hpp" />
     <ClInclude Include="features\visuals\misc\local\penetration_crosshair.hpp" />
+    <ClInclude Include="features\visuals\misc\local\grenade_warning.hpp" />
     <ClInclude Include="features\visuals\misc\local\viewmodel.hpp" />
     <ClInclude Include="features\visuals\misc\world\world_modulation.hpp" />
     <ClInclude Include="features\visuals\chams\chams_renderer.hpp" />

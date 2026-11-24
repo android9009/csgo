@@ -8,6 +8,7 @@
 #include "../../features/visuals/misc/local/viewmodel.hpp"
 #include "../../features/visuals/misc/local/force_crosshair.hpp"
 #include "../../features/visuals/misc/local/penetration_crosshair.hpp"
+#include "../../features/visuals/misc/local/grenade_warning.hpp"
 #include "../../features/visuals/misc/other/out_of_fov.hpp"
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
@@ -164,6 +165,19 @@ inline void Configure() {
         hm.screen_duration = cfg.misc.hitmarker_duration[cfg_t::hitmarker_cross].get();
         hm.kibit_duration = cfg.misc.hitmarker_duration[cfg_t::hitmarker_kibit].get();
         Hitmarker::Publish(hm);
+    }
+    // Visuals -> Misc -> LOCAL: "Grenade prediction" (trajectory + damage/distance
+    // labels) and "Grenade proximity warning" (the edge disc). The trajectory's
+    // base colour is the miss colour; its hit/miss menu colours are reused from the
+    // bullet-tracer pair (the Lua script's own trajectory colour picker maps here).
+    {
+        GrenadeWarning::Settings gw;
+        gw.prediction = cfg.misc.grenade_tracer.get();
+        gw.prediction_hit_color = cfg.misc.tracer_color.get().rgba();
+        gw.prediction_miss_color = cfg.misc.box_color.get().rgba();
+        gw.warning = cfg.misc.grenade_helper.get();
+        gw.warning_color = cfg.misc.grenade_warning_color.get().rgba();
+        GrenadeWarning::Publish(gw);
     }
     VisualRuntime::Publish(s);
 }

@@ -14,6 +14,7 @@
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
 #include "../../features/visuals/misc/other/hitmarker.hpp"
+#include "../../features/visuals/misc/local/grenade_warning.hpp"
 #include "../datatypes/c_user_cmd.hpp"
 #include <d3d9.h>
 #include "../structs.hpp"
@@ -198,6 +199,9 @@ bool Setup() {
     Tracers::Initialize();
     Impacts::Initialize();
     Hitmarker::Initialize();
+    // Visuals -> Misc -> LOCAL: the grenade proximity warning listens for
+    // hegrenade/molotov detonations so a finished warning fades at the blast.
+    GrenadeWarning::Initialize();
     LOG_INFO("hooks installed (WndProc=%d EndScene=%d/%d/%d PaintTraverse=%d FrameStageNotify=%d SceneEnd=%d DrawModelExecute=%d)",
         original_wndproc != nullptr, device_hook.is_hooked(), device_d3d9_hook.is_hooked(),
         device_ex_hook.is_hooked(), panel_hook.is_hooked(),
@@ -237,6 +241,7 @@ void Restore() {
     Tracers::Shutdown();
     Impacts::Shutdown();
     Hitmarker::Shutdown();
+    GrenadeWarning::Shutdown();
     ViewModelChanger::Restore();
     WorldFog::Restore();
     VisualRuntime::ShutdownGlow();

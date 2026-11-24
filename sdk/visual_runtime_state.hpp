@@ -98,7 +98,29 @@ struct ScreenMark {
     float alpha{1.f};
     std::uint32_t color1{};
     std::uint32_t color2{};
-    int kind{};     // 0 = impact box, 1 = world hitmarker, 2 = centre hitmarker
+    int kind{};     // 0 = impact box, 1 = world hitmarker, 2 = centre hitmarker,
+                    // 3 = grenade trajectory marker (white ring, color2 core)
+};
+
+// "Grenade proximity warning": a radial glow with a ring and a small icon. `x`/`y`
+// are normalized, `radius` and `glow` are fractions of the screen height, `icon`
+// picks the silhouette (0 none, 1 grenade - also used for flash, 2 molotov/fire).
+struct ScreenDisc {
+    float x{}, y{};
+    float radius{};
+    float glow{};
+    float alpha{1.f};
+    int icon{};
+    std::uint32_t color{};
+};
+
+// A floating label (predicted damage, remaining fuse, molotov distance) centred on
+// (x, y) in normalized coordinates; `text` is NUL-terminated.
+struct ScreenText {
+    float x{}, y{};
+    float alpha{1.f};
+    std::uint32_t color{};
+    char text[24]{};
 };
 
 // "Out of FOV": an arrow at the screen edge. `x`/`y` are normalized, `angle` is the direction
@@ -120,6 +142,10 @@ struct FxFrame {
     int mark_count{};
     std::array<ScreenArrow, 32> arrows{};
     int arrow_count{};
+    std::array<ScreenDisc, 8> discs{};
+    int disc_count{};
+    std::array<ScreenText, 24> texts{};
+    int text_count{};
 };
 inline std::mutex fx_mutex;
 inline FxFrame fx_frame;

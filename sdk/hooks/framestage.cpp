@@ -12,6 +12,7 @@
 #include "../../features/visuals/misc/local/viewmodel.hpp"
 #include "../../features/visuals/misc/local/force_crosshair.hpp"
 #include "../../features/visuals/misc/local/penetration_crosshair.hpp"
+#include "../../features/visuals/misc/local/grenade_warning.hpp"
 #include "../../features/visuals/misc/other/out_of_fov.hpp"
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
@@ -127,8 +128,10 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
                 VisualRuntime::PublishScreen(ss);
             }
             // Visuals -> Misc: the per-frame screen effects - Out of FOV arrows, bullet
-            // tracers, impacts, hitmarkers and the two crosshairs. One snapshot per
-            // frame; empty when none of them fire, which the overlay draws as nothing.
+            // tracers, impacts, hitmarkers, the two crosshairs and the grenade
+            // prediction / proximity warning (traces + damage snapshots, so it runs
+            // last before the snapshot is published). One snapshot per frame; empty
+            // when none of them fire, which the overlay draws as nothing.
             if (stage == 5) {
                 VisualRuntime::FxFrame fx;
                 OutOfFov::Contribute(fx);
@@ -137,6 +140,7 @@ void __fastcall FrameStageNotify(void* ecx, void* /*edx*/, int stage) {
                 Hitmarker::Contribute(fx);
                 ForceCrosshair::Contribute(fx);
                 PenetrationCrosshair::Contribute(fx);
+                GrenadeWarning::Contribute(fx);
                 VisualRuntime::PublishFx(fx);
             }
         }

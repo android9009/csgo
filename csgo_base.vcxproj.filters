@@ -184,6 +184,9 @@
     <ClCompile Include="features\visuals\misc\local\penetration_crosshair.cpp">
       <Filter>Features</Filter>
     </ClCompile>
+    <ClCompile Include="features\visuals\misc\local\grenade_warning.cpp">
+      <Filter>Features</Filter>
+    </ClCompile>
     <ClCompile Include="features\visuals\misc\local\viewmodel.cpp">
       <Filter>Features</Filter>
     </ClCompile>
@@ -755,6 +758,9 @@
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\misc\local\penetration_crosshair.hpp">
+      <Filter>Features</Filter>
+    </ClInclude>
+    <ClInclude Include="features\visuals\misc\local\grenade_warning.hpp">
       <Filter>Features</Filter>
     </ClInclude>
     <ClInclude Include="features\visuals\misc\local\viewmodel.hpp">
