@@ -39,37 +39,15 @@ long __stdcall EndScene(void* device) {
     auto original = Hooks::GetEndSceneOriginalFor(dev);
     if (!original) return D3D_OK;
 
-    // The state handling of the build that worked in-game: a full D3DSBT_ALL
-    // block captured over the game's state, applied again after our render.
-    // On top of it - and only on top, because it happens AFTER the capture -
-    // the forced render states of the reference build (airflow,
-    // origin/main: vmt_hooks.cpp::end_scene): the game leaves the device in a
-    // mode the 2D overlay cannot draw with (alpha colour write, sRGB write,
-    // MSAA, antialiased lines, sRGB sampler). The Apply puts every state back
-    // exactly as the game had it, so nothing manual needs restoring.
+    // Preserve the game's complete device state around the GUI renderer (the
+    // original logic of the build that worked in-game - no forced states).
     IDirect3DStateBlock9* state = nullptr;
-    if (FAILED(dev->CreateStateBlock(D3DSBT_ALL, &state)) || !state)
-        return original(dev);
-
-    state->Capture();
-
-    dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, 0);
-    dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, 0);
-    dev->SetRenderState(D3DRS_COLORWRITEENABLE, 0xffffffff);
-    dev->SetRenderState(D3DRS_SRGBWRITEENABLE, 0);
-    dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
-    dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-    dev->SetSamplerState(0, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
-    dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, 0);
-
+    if (SUCCEEDED(dev->CreateStateBlock(D3DSBT_ALL, &state)) && state) state->Capture();
     __try {
         RenderWithCatch(dev, FindWindowA("Valve001", nullptr), Config::settings.show_menu);
     } __except (LogRenderException(GetExceptionInformation())) {
     }
-
-    state->Apply();
-    state->Release();
-
+    if (state) { state->Apply(); state->Release(); }
     return original(dev);
 }
 long __stdcall Reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* params) {
