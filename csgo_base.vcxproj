@@ -157,6 +157,7 @@
     <ClCompile Include="features\visuals\shot_chams.cpp" />
     <ClCompile Include="features\visuals\world_modulation.cpp" />
     <ClCompile Include="features\visuals\thirdperson.cpp" />
+    <ClCompile Include="features\visuals\fov.cpp" />
     <ClCompile Include="features\visuals\player_esp.cpp" />
     <ClCompile Include="features\visuals\glow.cpp" />
     <ClCompile Include="features\skins\skin_changer.cpp" />

@@ -4,6 +4,7 @@
 #include "../../sdk/visual_runtime_state.hpp"
 #include "../../features/visuals/chams_passes.hpp"
 #include "../../features/visuals/thirdperson.hpp"
+#include "../../features/visuals/fov.hpp"
 namespace VisualSettings {
 using namespace evo::gui;
 using namespace evo::ren;
@@ -83,6 +84,15 @@ inline void Configure() {
         tp.scope_transparency = cfg.misc.transparency_in_scope.get();
         tp.nade_transparency = cfg.misc.transparency_nade.get();
         ThirdPerson::Publish(tp);
+    }
+    // Visuals -> Misc -> LOCAL: "Fov changer" (same per-feature pattern).
+    {
+        FovChanger::Settings fv;
+        fv.enabled = cfg.misc.fov_enabled.get();
+        fv.fov = static_cast<int>(cfg.misc.fov.get());
+        fv.aspect = cfg.misc.aspect.get();
+        fv.remove_zoom = cfg.misc.fov_scope.get();
+        FovChanger::Publish(fv);
     }
     VisualRuntime::Publish(s);
 }
