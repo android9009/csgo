@@ -62,7 +62,7 @@ public:
     // otherwise corrupt the cvar object.
     void RemoveChangeCallbacks() {
         __try {
-            const auto& cb = change_callbacks;
+            auto& cb = change_callbacks;
             if (cb.m_size < 0 || cb.m_size > 64) return;
             if (cb.m_alloc_count < 0 || cb.m_alloc_count > 256) return;
             if (cb.m_size > cb.m_alloc_count) return;
