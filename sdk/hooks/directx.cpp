@@ -101,16 +101,57 @@ int LogRenderException(EXCEPTION_POINTERS* info) {
 long __stdcall EndScene(void* device) {
     auto* dev = static_cast<IDirect3DDevice9*>(device);
     if (!dev) return D3D_OK;
-    // Preserve the game's complete device state around the original GUI renderer.
+    auto original = Hooks::GetEndSceneOriginalFor(dev);
+    if (!original) return D3D_OK;
+
+    // The overlay-render pattern of the working reference build (airflow,
+    // origin/main: vmt_hooks.cpp::end_scene): a PIXELSTATE state block is
+    // captured on top of a forced set of render states - the game leaves the
+    // device in a mode the 2D overlay cannot draw with (alpha colour write,
+    // sRGB write, MSAA, antialiased lines, sRGB sampler) - and everything is
+    // restored afterwards.
     IDirect3DStateBlock9* state = nullptr;
-    if (SUCCEEDED(dev->CreateStateBlock(D3DSBT_ALL, &state)) && state) state->Capture();
+    if (FAILED(dev->CreateStateBlock(D3DSBT_PIXELSTATE, &state)) || !state)
+        return original(dev);
+
+    DWORD colorwrite{}, srgbwrite{}, multisample{}, antialias{};
+    IDirect3DVertexDeclaration9* vert_decl = nullptr;
+    IDirect3DVertexShader9* vert_shader = nullptr;
+    dev->GetRenderState(D3DRS_COLORWRITEENABLE, &colorwrite);
+    dev->GetRenderState(D3DRS_SRGBWRITEENABLE, &srgbwrite);
+    dev->GetRenderState(D3DRS_MULTISAMPLEANTIALIAS, &multisample);
+    dev->GetRenderState(D3DRS_ANTIALIASEDLINEENABLE, &antialias);
+    dev->GetVertexDeclaration(&vert_decl);
+    dev->GetVertexShader(&vert_shader);
+
+    dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, 0);
+    dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, 0);
+    dev->SetRenderState(D3DRS_COLORWRITEENABLE, 0xffffffff);
+    dev->SetRenderState(D3DRS_SRGBWRITEENABLE, 0);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+    dev->SetSamplerState(0, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
+    dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, 0);
+
+    state->Capture();
+
     __try {
         RenderWithCatch(dev, FindWindowA("Valve001", nullptr), Config::settings.show_menu);
     } __except (LogRenderException(GetExceptionInformation())) {
     }
-    if (state) { state->Apply(); state->Release(); }
-    auto original = Hooks::GetEndSceneOriginalFor(dev);
-    return original ? original(dev) : D3D_OK;
+
+    state->Apply();
+    state->Release();
+
+    // Restore the game's state, the same tail as the reference pattern.
+    dev->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, multisample);
+    dev->SetRenderState(D3DRS_ANTIALIASEDLINEENABLE, antialias);
+    dev->SetRenderState(D3DRS_COLORWRITEENABLE, colorwrite);
+    dev->SetRenderState(D3DRS_SRGBWRITEENABLE, srgbwrite);
+    dev->SetVertexDeclaration(vert_decl);
+    dev->SetVertexShader(vert_shader);
+
+    return original(dev);
 }
 long __stdcall Reset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* params) {
     auto original = Hooks::GetResetOriginalFor(dev);

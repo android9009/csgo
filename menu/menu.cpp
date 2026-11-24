@@ -523,11 +523,37 @@ void Render(IDirect3DDevice9* device, HWND hwnd, bool open) {
     RemovalsSettings::Configure();
     g_render_phase = 4; // begin frame + screen overlays (ESP / scope / FX)
     draw.begin_frame();
-    PlayerEspOverlay::Render();
-    ScreenOverlay::Render();
-    FxOverlay::Render();
+    {
+        // One-shot safety net: if a runtime snapshot lock is held by another
+        // thread at frame start, reading the snapshots would block the game
+        // thread - skip this frame's overlays instead of waiting. (With the
+        // snapshot locks now recursive, a same-thread re-entrancy can no
+        // longer throw the "resource deadlock would occur" that used to
+        // abort every frame before a single pixel was drawn.)
+        static bool probe_logged = false;
+        auto is_free = [](auto& m) {
+            if (m.try_lock()) { m.unlock(); return true; }
+            return false;
+        };
+        const bool fx_free = is_free(VisualRuntime::fx_mutex);
+        const bool screen_free = is_free(VisualRuntime::screen_mutex);
+        const bool settings_free = is_free(VisualRuntime::mutex);
+        if (!probe_logged && !(fx_free && screen_free && settings_free)) {
+            probe_logged = true;
+            LOG_ERROR("menu render: runtime lock held at frame start (fx=%d screen=%d settings=%d); overlays skipped this frame",
+                      (int)fx_free, (int)screen_free, (int)settings_free);
+        }
+        if (fx_free && screen_free && settings_free) {
+            PlayerEspOverlay::Render();
+            ScreenOverlay::Render();
+            FxOverlay::Render();
+        }
+    }
     g_render_phase = 5; // the menu body: tabs, widgets, popups
-    ctx->render();
+    // The gui context only runs while the menu is visible (the window is
+    // hidden otherwise anyway): keeps the per-frame path free of the gui's
+    // internal bookkeeping when nothing gui-side is on screen.
+    if (open) ctx->render();
     g_render_phase = 6; // submit: build the GPU buffers and draw
     draw.end_frame();
     draw.render();

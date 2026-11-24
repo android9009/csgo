@@ -56,20 +56,26 @@ struct Effects {
     } screen;
 };
 struct Settings : Effects {std::array<Esp,3> esp{};};
-inline std::mutex mutex;
+// All runtime locks are recursive, deliberately: the modern MSVC STL
+// std::mutex throws std::system_error ("resource deadlock would occur") when
+// the same thread locks it twice, and one such re-entrant lock in the render
+// path used to abort every EndScene frame so nothing - menu or overlays -
+// ever drew. Cross-thread safety is unchanged (recursive_mutex is still a
+// proper mutual-exclusion lock between threads).
+inline std::recursive_mutex mutex;
 inline Settings settings;
 inline std::atomic<bool> any_material{false};
 inline std::atomic<bool> any_transparency{false};
 inline std::atomic<bool> shot_requested{false};
 inline std::atomic<bool> glow_closing{false};
-inline Settings Get(){std::lock_guard<std::mutex> lock(mutex);return settings;}
-inline Effects GetEffects(){std::lock_guard<std::mutex> lock(mutex);return static_cast<const Effects&>(settings);}
+inline Settings Get(){std::lock_guard<std::recursive_mutex> lock(mutex);return settings;}
+inline Effects GetEffects(){std::lock_guard<std::recursive_mutex> lock(mutex);return static_cast<const Effects&>(settings);}
 inline void Publish(const Settings& s){
     bool any=false;
     for(int i=0;i<3;++i)any=any || (s.objects[i].enabled && s.objects[i].kind>0) ||
         (s.chams_enabled && (s.players[i].kind>0 || s.ragdolls[i].kind>0 || s.attachments[i].kind>0));
     any=any || (s.chams_enabled && (s.arms.kind>0 || s.shot.kind>0));
-    {std::lock_guard<std::mutex> lock(mutex);settings=s;}
+    {std::lock_guard<std::recursive_mutex> lock(mutex);settings=s;}
     any_material.store(any,std::memory_order_relaxed);
     shot_requested.store(s.chams_enabled && s.shot.enabled && s.shot.kind>0,std::memory_order_relaxed);
     any_transparency.store(s.texture_transparency>0.f || s.prop_transparency>0.f,std::memory_order_relaxed);
@@ -147,27 +153,27 @@ struct FxFrame {
     std::array<ScreenText, 24> texts{};
     int text_count{};
 };
-inline std::mutex fx_mutex;
+inline std::recursive_mutex fx_mutex;
 inline FxFrame fx_frame;
 
 inline void PublishFx(const FxFrame& frame) {
-    std::lock_guard<std::mutex> lock(fx_mutex);
+    std::lock_guard<std::recursive_mutex> lock(fx_mutex);
     fx_frame = frame;
 }
 inline FxFrame GetFx() {
-    std::lock_guard<std::mutex> lock(fx_mutex);
+    std::lock_guard<std::recursive_mutex> lock(fx_mutex);
     return fx_frame;
 }
 
-inline std::mutex screen_mutex;
+inline std::recursive_mutex screen_mutex;
 inline ScreenState screen_state;
 
 inline void PublishScreen(const ScreenState& state) {
-    std::lock_guard<std::mutex> lock(screen_mutex);
+    std::lock_guard<std::recursive_mutex> lock(screen_mutex);
     screen_state = state;
 }
 inline ScreenState GetScreen() {
-    std::lock_guard<std::mutex> lock(screen_mutex);
+    std::lock_guard<std::recursive_mutex> lock(screen_mutex);
     return screen_state;
 }
 
@@ -183,9 +189,9 @@ struct Players {std::array<Player,64> items{};int count{};};
 inline Players player_frame;
 // Fill a caller-owned persistent buffer; never return ~80 KiB by value on
 // the game's small render-thread stack (including disabled-feature frames).
-inline void CopyPlayers(Players& out){std::lock_guard<std::mutex> lock(mutex);out=player_frame;}
-inline void ClearPlayers(){std::lock_guard<std::mutex> lock(mutex);player_frame.count=0;}
-inline void PublishPlayers(const Players& p){std::lock_guard<std::mutex> lock(mutex);player_frame=p;}
+inline void CopyPlayers(Players& out){std::lock_guard<std::recursive_mutex> lock(mutex);out=player_frame;}
+inline void ClearPlayers(){std::lock_guard<std::recursive_mutex> lock(mutex);player_frame.count=0;}
+inline void PublishPlayers(const Players& p){std::lock_guard<std::recursive_mutex> lock(mutex);player_frame=p;}
 void CapturePlayers();
 void UpdateGlow();
 void RestoreGlow();

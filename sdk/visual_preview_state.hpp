@@ -21,20 +21,26 @@ struct Segment {Point a,b;};
 struct Geometry { Box box; bool valid{};std::array<Segment,64> skeleton{};int segments{}; };
 enum Element { Name, Health, Armor, Ammo, Weapon, Icon, Flags, ElementCount=EspDock::Count };
 using Layout = EspDock::Layout;
-inline std::mutex mutex;
+// Recursive: the modern MSVC std::mutex throws "resource deadlock would
+// occur" (std::system_error) when the same thread locks it twice, and that
+// throw used to abort the whole EndScene render path every frame (the menu
+// never drew). The preview state is touched from both the menu render and
+// the preview widgets' callbacks, which can re-enter; recursive keeps it
+// safe instead of fatal.
+inline std::recursive_mutex mutex;
 inline Material material;
 inline Geometry geometry;
 inline Layout layout=EspDock::Defaults();
-inline Material GetMaterial() { std::lock_guard<std::mutex> lock(mutex); return material; }
-inline void SetMaterial(const Material& value) { std::lock_guard<std::mutex> lock(mutex); material=value; }
-inline Geometry GetGeometry() { std::lock_guard<std::mutex> lock(mutex); return geometry; }
-inline void SetGeometry(const Geometry& value) { std::lock_guard<std::mutex> lock(mutex); geometry=value; }
-inline void SetLayout(const Layout& value){std::lock_guard<std::mutex> lock(mutex);layout=value;}
-inline Layout GetLayout() { std::lock_guard<std::mutex> lock(mutex); return layout; }
+inline Material GetMaterial() { std::lock_guard<std::recursive_mutex> lock(mutex); return material; }
+inline void SetMaterial(const Material& value) { std::lock_guard<std::recursive_mutex> lock(mutex); material=value; }
+inline Geometry GetGeometry() { std::lock_guard<std::recursive_mutex> lock(mutex); return geometry; }
+inline void SetGeometry(const Geometry& value) { std::lock_guard<std::recursive_mutex> lock(mutex); geometry=value; }
+inline void SetLayout(const Layout& value){std::lock_guard<std::recursive_mutex> lock(mutex);layout=value;}
+inline Layout GetLayout() { std::lock_guard<std::recursive_mutex> lock(mutex); return layout; }
 inline void SetDock(int id,EspDock::Side side,int order){
-    std::lock_guard<std::mutex> lock(mutex);EspDock::Move(layout,id,side,order);
+    std::lock_guard<std::recursive_mutex> lock(mutex);EspDock::Move(layout,id,side,order);
 }
-inline void ResetDock(int id){if(id<0 || id>=ElementCount)return;std::lock_guard<std::mutex> lock(mutex);layout[id]=EspDock::Defaults()[id];}
+inline void ResetDock(int id){if(id<0 || id>=ElementCount)return;std::lock_guard<std::recursive_mutex> lock(mutex);layout[id]=EspDock::Defaults()[id];}
 // Clamp the entire element, not just its origin, to the preview interior.
 inline Point ClampPosition(Point p, Point size, Point viewport) {
     return {(std::max)(0.f,(std::min)(p.x,(std::max)(0.f,viewport.x-size.x))),
