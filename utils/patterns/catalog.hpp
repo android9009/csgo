@@ -207,6 +207,13 @@ inline constexpr Definition kPortedCatalog[] = {
     {"item_system", "client.dll", "A1 ? ? ? ? 85 C0 75 53", {0, 0, 0, 0}, 0, true, 0},
     {"line_goes_through_smoke", "client.dll", "55 8B EC 83 EC 08 8B 15 ? ? ? ? 0F 57 C0", {0, 0, 0, 0}, 0, true, 0},
     {"load_from_buffer", "client.dll", "55 8B EC 83 E4 F8 83 EC 34 53 8B 5D 0C 89", {0, 0, 0, 0}, 0, true, 0},
+    // KeyValues::Init / KeyValues::LoadFromBuffer member-function addresses, used by
+    // the legacy chams material-creation path (origin/main chams.cpp::create_material).
+    // LoadFromBuffer is shared by every `main` build block; Init is branch-specific:
+    // the non-LEGACY E8 form is primary (resolves its call target to an RVA), and the
+    // LEGACY form (match - 0x45) is the `..._alt` fallback.
+    {"init_key_values", "client.dll", "E8 ? ? ? ? 8B F0 EB 02 33 F6 8B 45 08 8B 78", {1, 0, 0, 0}, 0, true, 0, true},
+    {"init_key_values_alt", "client.dll", "8B 0E 33 4D FC 81 E1 ? ? ? ? 31 0E 88 46 03 C1 F8 08 66 89 46 12 8B C6", {0, 0, 0, 0}, 0, true, -0x45, false},
     {"local", "client.dll", "8B 0D ? ? ? ? 83 FF FF 74 07", {2, 0, 0, 0}, 1, true, 0},
     {"lookup_bone", "client.dll", "55 8B EC 53 56 8B F1 57 83 BE ? ? ? ? ? 75", {0, 0, 0, 0}, 0, true, 0},
     {"model_renderable_animating", "client.dll", "E8 ? ? ? ? 85 C0 75 04 33 C0 5E C3 83", {1, 0, 0, 0}, 0, true, 0, true},

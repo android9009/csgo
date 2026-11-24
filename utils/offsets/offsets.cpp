@@ -64,6 +64,7 @@ bool Init() {
     REGISTER_SIGNATURE(interpolate_player); REGISTER_SIGNATURE(interpolate_server_entities);
     REGISTER_SIGNATURE(invalidate_bone_cache); REGISTER_SIGNATURE(invalidate_physics_recursive);
     REGISTER_SIGNATURE(is_breakable_entity); REGISTER_SIGNATURE(item_system);
+    REGISTER_SIGNATURE(init_key_values); REGISTER_SIGNATURE(init_key_values_alt);
     REGISTER_SIGNATURE(line_goes_through_smoke); REGISTER_SIGNATURE(load_from_buffer);
     REGISTER_SIGNATURE(load_named_sky); REGISTER_SIGNATURE(local); REGISTER_SIGNATURE(lookup_bone);
     REGISTER_SIGNATURE(model_renderable_animating); REGISTER_SIGNATURE(move_helper);
