@@ -1,5 +1,5 @@
-// Portable checks for the Visuals "Removals" mask and the two removals that are
-// implemented. The bit order is pinned to the combo box order in
+// Portable checks for the Visuals "Removals" mask and the pure decision helpers
+// behind it. The bit order is pinned to the combo box order in
 // menu/tabs/tab_visuals.cpp: a silent reorder there would toggle the wrong effect.
 #include "features/visuals/misc/other/removals.hpp"
 #include <cassert>
@@ -42,6 +42,34 @@ int main() {
         const auto all = Removals::FromMask(~0ull);
         assert(all.flash && all.visual_punch);
     }
+
+    // The full decoded mask: every bit lands in its own field.
+    {
+        const auto none = Removals::FromMask(0);
+        assert(!(none.flash || none.smoke || none.particle || none.post_processing ||
+                 none.water || none.blood || none.decals || none.ragdolls ||
+                 none.visual_punch || none.shadows));
+        const auto all = Removals::FromMask(~0ull);
+        assert(all.flash && all.smoke && all.particle && all.post_processing &&
+               all.water && all.blood && all.decals && all.ragdolls &&
+               all.visual_punch && all.shadows);
+        const auto one = Removals::FromMask(1ull << Removals::Bits::Water);
+        assert(one.water && !(one.flash || one.smoke || one.particle || one.post_processing ||
+                              one.blood || one.decals || one.ragdolls || one.visual_punch || one.shadows));
+    }
+
+    // Blood and decals share the mat_decals override (blood in CS:GO is a decal).
+    assert(!Removals::Detail::DecalsActive(false, false));
+    assert(Removals::Detail::DecalsActive(true, false));
+    assert(Removals::Detail::DecalsActive(false, true));
+    assert(Removals::Detail::DecalsActive(true, true));
+
+    // Change-driven writes: the cvar / material flag is written exactly when the
+    // wanted state differs from the asserted state.
+    assert(Removals::Detail::ShouldWrite(true, false));
+    assert(Removals::Detail::ShouldWrite(false, true));
+    assert(!Removals::Detail::ShouldWrite(true, true));
+    assert(!Removals::Detail::ShouldWrite(false, false));
 
     // Flash: only a positive duration is cleared, NaN included in the reject set.
     assert(Removals::Detail::ShouldClear(1.f));

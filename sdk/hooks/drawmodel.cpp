@@ -7,6 +7,7 @@
 #include "../../features/visuals/chams/chams_entities.hpp"
 #include "../../features/visuals/chams/shot_chams.hpp"
 #include "../../features/visuals/misc/other/model_transparency.hpp"
+#include "../../features/visuals/misc/other/removals.hpp"
 #include "../../utils/log.hpp"
 #include <cstring>
 namespace HooksInternal {
@@ -87,7 +88,12 @@ void NoteTransparency(const DrawModelState_t& state,const ModelRenderInfo_t& inf
 }
 void __fastcall DrawModelExecute(void* ecx,void*,void* context,const DrawModelState_t& state,const ModelRenderInfo_t& info,matrix3x4_t* bone_to_world) {
     bool handled=false;
-    __try {ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);NoteTransparency(state,info);}
+    __try {
+        // Removals -> "Ragdolls": the model is skipped before the chams pass, so a
+        // removed ragdoll gets no chams either.
+        if(Removals::SkipModel(info))handled=true;
+        else{ShotChams::Capture(state,info,bone_to_world);handled=DrawConfigured(ecx,context,state,info,bone_to_world);NoteTransparency(state,info);}
+    }
     __except(LogChamsFault(GetExceptionInformation())) {
         __try {PreviewMaterial::Restore();}__except(EXCEPTION_EXECUTE_HANDLER){}
         static bool logged=false;if(!logged){logged=true;LOG_WARN("chams: model pass raised exception; restored material override");}

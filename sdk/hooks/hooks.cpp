@@ -14,6 +14,7 @@
 #include "../../features/visuals/misc/other/tracers.hpp"
 #include "../../features/visuals/misc/other/impacts.hpp"
 #include "../../features/visuals/misc/other/hitmarker.hpp"
+#include "../../features/visuals/misc/other/removals.hpp"
 #include "../../features/visuals/misc/local/grenade_warning.hpp"
 #include "../datatypes/c_user_cmd.hpp"
 #include <d3d9.h>
@@ -244,6 +245,9 @@ void Restore() {
     GrenadeWarning::Shutdown();
     ViewModelChanger::Restore();
     WorldFog::Restore();
+    // Removals hands its cvars and the smoke material flag back before the
+    // interfaces go away.
+    Removals::Restore();
     VisualRuntime::ShutdownGlow();
     LocalInventory::Shutdown();
     if (game_window && original_wndproc)
