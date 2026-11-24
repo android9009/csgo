@@ -379,9 +379,7 @@ namespace menu::group
 	{
         c->add({MAKE_RUNTIME(id+"none",selectable,"None",cfg_t::cham_none),
             MAKE_RUNTIME(id+"textured",selectable,"Textured",cfg_t::cham_textured),
-            MAKE_RUNTIME(id+"shaded",selectable,"Shaded",cfg_t::cham_shaded),
             MAKE_RUNTIME(id+"flat",selectable,"Flat",cfg_t::cham_flat),
-            MAKE_RUNTIME(id+"metallic",selectable,"Metallic",cfg_t::cham_metallic),
             MAKE_RUNTIME(id+"glow",selectable,"Glow",cfg_t::cham_glow),
             MAKE_RUNTIME(id+"bubble",selectable,"Bubble",cfg_t::cham_bubble),
             MAKE_RUNTIME(id+"sprite",selectable,"Custom Sprite",cfg_t::cham_sprite),
@@ -402,7 +400,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -423,7 +421,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -447,7 +445,7 @@ namespace menu::group
 
 				t->get_parent()->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -468,7 +466,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -494,7 +492,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -514,13 +512,13 @@ namespace menu::group
 				const bool enabled = !v.none() && !v.test(cfg_t::cham_none);
 				gear->set_visible(enabled);
 				FIND_SAFE(secondary, "visuals>chams>enemy>history>settings>secondary color");
-				secondary->get_parent()->set_visible(enabled && (v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+				secondary->get_parent()->set_visible(enabled && (v.test(cfg_t::cham_glow)));
 			};
 			ADD_INLINE("Backtrack", c, MAKE("visuals>chams>enemy>history>settings", settings, [](auto e) {
 				ADD("Primary color", "visuals>chams>enemy>history>settings>primary color", color_picker, cfg.visuals.chams.enemy_backtrack.col1, true, vec2{}, true);
 				const auto secondary = make_control("Secondary color", MAKE("visuals>chams>enemy>history>settings>secondary color", color_picker, cfg.visuals.chams.enemy_backtrack.col2, true, vec2{}, true));
 				const auto &v = *cfg.visuals.chams.enemy_backtrack.mat;
-				secondary->set_visible(!v.none() && !v.test(cfg_t::cham_none) && (v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+				secondary->set_visible(!v.none() && !v.test(cfg_t::cham_none) && (v.test(cfg_t::cham_glow)));
 				e->add(secondary);
 			})->make_invisible());
 		}
@@ -536,7 +534,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -558,7 +556,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			const auto gear = MAKE("visuals>chams>enemy>ragdoll>settings", settings, [](auto e) {
@@ -585,7 +583,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -616,7 +614,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(
@@ -639,7 +637,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			const auto gear = MAKE("visuals>chams>team>ragdoll>settings", settings, [](auto e) {
@@ -666,7 +664,7 @@ namespace menu::group
 
 				t->set_visible(!v.test(cfg_t::cham_none));
 				sc->get_parent()->set_visible(
-					(v.test(cfg_t::cham_glow) || v.test(cfg_t::cham_metallic)));
+					(v.test(cfg_t::cham_glow)));
 			};
 
 			ADD_INLINE(

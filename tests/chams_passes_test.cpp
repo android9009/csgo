@@ -3,9 +3,11 @@
 #include <cassert>
 #include <cmath>
 #include <string_view>
+// Shaded (9) and Metallic (10) are no longer offered (removed on request), so the
+// supported set is the six remaining recipes.
 static bool supported(int kind) {
     return kind==1 || kind==2 || kind==5 || kind==6 || kind==ChamsPasses::GlowKind ||
-        kind==8 || kind==ChamsPasses::Shaded || kind==ChamsPasses::Metallic;
+        kind==8;
 }
 int main(){
     VisualPreview::Material choice;choice.enabled=true;choice.primary=0x80402010;choice.secondary=0x4000ff80;choice.hidden=0x60203040;
@@ -43,7 +45,7 @@ int main(){
     assert(ChamsPasses::GhostFade(0.f)==1.f && ChamsPasses::GhostFade(.5f)==1.f);
     assert(ChamsPasses::GhostFade(.8f)>.49f && ChamsPasses::GhostFade(.8f)<.51f);
     assert(ChamsPasses::GhostFade(1.f)==0.f && ChamsPasses::GhostFade(-1.f)==0.f);
-    assert(ChamsPasses::UsesSecondary(ChamsPasses::GlowKind) && ChamsPasses::UsesSecondary(ChamsPasses::Metallic));
+    assert(ChamsPasses::UsesSecondary(ChamsPasses::GlowKind) && !ChamsPasses::UsesSecondary(ChamsPasses::Metallic));
     assert(!ChamsPasses::UsesSecondary(2) && !ChamsPasses::UsesSecondary(ChamsPasses::Shaded));
     using sv=std::string_view;
     for(int i=0;i<ChamsMaterial::Count;++i){
@@ -60,4 +62,6 @@ int main(){
     assert(sv(ChamsMaterial::VMT(ChamsMaterial::World)).find("money")!=sv::npos);
     assert(!ChamsMaterial::Parameters("not a VMT"));
     assert(ChamsPasses::Selection(3)==0 && ChamsPasses::Selection(4)==0 && ChamsPasses::Selection(11)==0);
+    // Removed modes: their bit indices stay (config compatibility) but no longer select a pass.
+    assert(ChamsPasses::Selection(ChamsPasses::Shaded)==0 && ChamsPasses::Selection(ChamsPasses::Metallic)==0);
 }

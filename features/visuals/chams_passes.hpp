@@ -8,19 +8,20 @@ namespace ChamsPasses {
 struct Pass {int kind{};std::uint32_t primary{},secondary{};bool ignore_z{};};
 struct Plan {std::array<Pass,4> passes{};int count{};};
 // Material selection = the cham_material bitset index (menu/config.hpp). The
-// supported set is the old "airflow" project's eight materials:
-//   1 Textured, 2 Flat, 5 Fade Up, 6 Bubble, 7 Glow, 8 Custom Sprite,
-//   9 Shaded, 10 Metallic. Everything else (3, 4 and unknown) maps to off.
+// The old "airflow" project used eight material slots: 1 Textured, 2 Flat,
+// 5 Fade Up, 6 Bubble, 7 Glow, 8 Custom Sprite, 9 Shaded, 10 Metallic (3, 4 were
+// already dead). Shaded (9) and Metallic (10) are no longer offered (removed on
+// request): their bit indices are kept so saved configs do not shift, but
+// Selection() now maps them to off, leaving six active modes.
 inline constexpr int Shaded=9,Metallic=10,GlowKind=7,KindCount=11;
 inline int Selection(int kind){
     switch(kind){
-        case 1:case 2:case 5:case 6:case GlowKind:case 8:case Shaded:case Metallic:return kind;
+        case 1:case 2:case 5:case 6:case GlowKind:case 8:return kind;
         default:return 0;
     }
 }
-// Only these two materials consume the secondary (effect) colour: Metallic
-// uses it as the phong tint, Glow as the additive rim colour.
-inline bool UsesSecondary(int kind){return kind==GlowKind || kind==Metallic;}
+// Only Glow consumes the secondary (effect) colour (the additive rim tint).
+inline bool UsesSecondary(int kind){return kind==GlowKind;}
 inline bool Composite(int kind){return kind==GlowKind;}
 inline bool FreshSnapshot(float captured,float now){return std::isfinite(captured) && std::isfinite(now) && now>=captured && now-captured<=.25f;}
 inline float GhostFade(float age){return !std::isfinite(age) || age<0.f || age>=1.f ? 0.f : std::clamp((1.f-age)/.4f,0.f,1.f);}
