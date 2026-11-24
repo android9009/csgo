@@ -60,13 +60,14 @@ void LogRenderFault(const char* kind, EXCEPTION_POINTERS* info) {
     }
     auto* record = info->ExceptionRecord;
     char where[64];
-    FormatAddress(record->ExceptionAddress, where, sizeof(where));
+    FormatAddress(reinterpret_cast<Addr>(record->ExceptionAddress), where, sizeof(where));
     if (record->ExceptionCode == 0xC0000005) {
         // Access violation: the access type and the faulting data address say a lot
         // (a tiny data address = member access through a null/stale pointer).
-        const bool is_write = record->ExceptionInformation[0] == 1;
+        // ExceptionInformation is PVOID[15] in winnt.h; [0] is 0=read, 1=write.
+        const bool is_write = reinterpret_cast<Addr>(record->ExceptionInformation[0]) == 1;
         char data_where[64];
-        FormatAddress(record->ExceptionInformation[1], data_where, sizeof(data_where));
+        FormatAddress(reinterpret_cast<Addr>(record->ExceptionInformation[1]), data_where, sizeof(data_where));
         LOG_ERROR("menu render fault #%u: AV %s %s at %s phase=%d open=%d",
                   number, is_write ? "write" : "read", data_where, where, phase, Menu_IsOpen());
     } else {
