@@ -1,6 +1,7 @@
 #include "globals.hpp"
 #include "skins.hpp"
 #include "predfix.hpp"
+#include "menu/menu.hpp"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -40,6 +41,11 @@ namespace hooks
 
 		if (RENDER->done && g_cfg.misc.menu)
 		{
+			// FATALITY menu (menu/) consumes its own input first; the legacy
+			// ImGui handler is kept for compatibility (it no longer draws the
+			// menu, so it only forwards stray messages).
+			if (FatalityMenu::InputSafe(msg, wp, lp, true))
+				return true;
 			if (ImGui_ImplWin32_WndProcHandler(wnd, msg, wp, lp) || ImGui::GetIO().WantTextInput)
 				return true;
 		}

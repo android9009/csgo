@@ -8,10 +8,55 @@
 #include <ShlObj.h>
 #include <algorithm>
 #include <map>
+#include <cstring>
 #include <d3d9.h>
-#include <d3dx9.h>
+#include <lib/image.h>
 
-#define add_texture_to_memory D3DXCreateTextureFromFileInMemory
+// Modern Windows SDKs no longer ship d3dx9.h. All embedded images are PNG, so
+// decode them with the stb_image vendored in the evo renderer and upload to D3D9.
+static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, size_t size, LPDIRECT3DTEXTURE9* out_texture)
+{
+	*out_texture = nullptr;
+
+	if (!device || !data || size == 0)
+		return false;
+
+	int width = 0, height = 0, channels = 0;
+	unsigned char* rgba = stbi_load_from_memory(reinterpret_cast<const unsigned char*>(data), static_cast<int>(size), &width, &height, &channels, 4);
+	if (!rgba || width <= 0 || height <= 0)
+	{
+		stbi_image_free(rgba);
+		return false;
+	}
+
+	bool ok = false;
+	if (SUCCEEDED(device->CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, out_texture, nullptr)) && *out_texture)
+	{
+		IDirect3DSurface9* surface = nullptr;
+		if (SUCCEEDED((*out_texture)->GetLevel(0, &surface)) && surface)
+		{
+			D3DLOCKED_RECT locked;
+			if (SUCCEEDED(surface->LockRect(0, &locked, nullptr, 0)))
+			{
+				const size_t row_bytes = static_cast<size_t>(width) * 4u;
+				for (int y = 0; y < height; ++y)
+					memcpy(reinterpret_cast<BYTE*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch, rgba + row_bytes * y, row_bytes);
+				surface->UnlockRect(0);
+				ok = true;
+			}
+			surface->Release();
+		}
+
+		if (!ok)
+		{
+			(*out_texture)->Release();
+			*out_texture = nullptr;
+		}
+	}
+
+	stbi_image_free(rgba);
+	return ok;
+}
 
 std::vector< std::string > key_strings = { XOR("None"), XOR("M1"), XOR("M2"), XOR("Ctrl+brk"), XOR("M3"), XOR("M4"), XOR("M5"), XOR(" "), XOR("Back"), XOR("Tab"),
   XOR(" "), XOR(" "), XOR(" "), XOR("Enter"), XOR(" "), XOR(" "), XOR("Shift"), XOR("Ctrl"), XOR("Alt"), XOR("Pause"), XOR("Caps"), XOR(" "), XOR(" "),

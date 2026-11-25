@@ -553,4 +553,26 @@ void AfterReset(IDirect3DDevice9* device, HRESULT result) {
     std::lock_guard<std::recursive_mutex> lock(gui_mutex);
     if (device == gui_device && !objects_ready && SUCCEEDED(result)) { draw.refresh(); draw.create_objects(); objects_ready = true; }
 }
+
+void RenderSafe(IDirect3DDevice9* device, HWND hwnd, bool open) {
+    try { Render(device, hwnd, open); }
+    catch (const std::exception& e) { LOG_ERROR("Fatality menu render failed: %s", e.what()); }
+    catch (...) { LOG_ERROR("Fatality menu render failed (unknown exception)"); }
+}
+bool InputSafe(UINT msg, WPARAM wp, LPARAM lp, bool open) {
+    try { return Input(msg, wp, lp, open); }
+    catch (const std::exception& e) { LOG_ERROR("Fatality menu input failed: %s", e.what()); }
+    catch (...) { LOG_ERROR("Fatality menu input failed (unknown exception)"); }
+    return false;
+}
+void BeforeResetSafe(IDirect3DDevice9* device) {
+    try { BeforeReset(device); }
+    catch (const std::exception& e) { LOG_ERROR("Fatality menu reset failed: %s", e.what()); }
+    catch (...) { LOG_ERROR("Fatality menu reset failed (unknown exception)"); }
+}
+void AfterResetSafe(IDirect3DDevice9* device, HRESULT result) {
+    try { AfterReset(device, result); }
+    catch (const std::exception& e) { LOG_ERROR("Fatality menu reset failed: %s", e.what()); }
+    catch (...) { LOG_ERROR("Fatality menu reset failed (unknown exception)"); }
+}
 }
