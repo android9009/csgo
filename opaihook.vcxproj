@@ -823,6 +823,14 @@
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
     </ClCompile>
+    <ClCompile Include="utils\offsets\offsets.cpp">
+      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
+      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="utils\patterns\patterns.cpp">
+      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
+      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="world_modulation.hpp" />
