@@ -12,11 +12,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 // memory.hpp (no includes of its own) relies on the globals.hpp preamble for
 // these; replicate the minimal parts it needs.
 #ifndef INLINE
 #define INLINE __forceinline
+#endif
+// Libs/libs.h (the usual WINCALL source) drags in lazy_importer/xorstr/
+// PolyHook - unnecessary here, the plain call form is all memory.hpp needs.
+#ifndef WINCALL
+#define WINCALL(func) func
 #endif
 
 #include "../memory.hpp"
