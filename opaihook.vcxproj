@@ -156,7 +156,7 @@
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
     <PropertyGroup Label="FatalityMenuIncludes">
-    <IncludePath>$(SolutionDir)sdk\third_party\gui\deps\renderer\include;$(SolutionDir)sdk\third_party\gui\src;$(SolutionDir)sdk\third_party\gui;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)sdk\third_party\gui\deps\renderer\include;$(SolutionDir)sdk\third_party\gui\src;$(SolutionDir)sdk\third_party\gui;$(SolutionDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
 <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
