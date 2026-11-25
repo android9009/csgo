@@ -69,7 +69,7 @@ inline IMaterial* CreateVMT(const char* name,const char* shader,const char* vmt)
             auto* key=new c_key_values();
             reinterpret_cast<InitFn>(reinterpret_cast<std::uintptr_t>(base)+init_rva)(key,shader,0,0);
             reinterpret_cast<LoadFn>(load_addr)(key,name,vmt,nullptr,nullptr,nullptr,nullptr);
-            if(auto* material=Interfaces::MaterialSystem->CreateMaterial(name,key);
+            if(auto* material=Interfaces::CreateMaterial(name,key);
                material && !material->IsErrorMaterial()){
                 material->IncrementReferenceCount();
                 LOG_INFO("chams material created (legacy): %s (shader %s)",name,material->GetShaderName());
@@ -82,7 +82,7 @@ inline IMaterial* CreateVMT(const char* name,const char* shader,const char* vmt)
             auto* key=new c_key_values();
             reinterpret_cast<InitFn>(reinterpret_cast<std::uintptr_t>(base)+init_alt)(key,shader);
             reinterpret_cast<LoadFn>(load_addr)(key,name,vmt,nullptr,nullptr,nullptr);
-            if(auto* material=Interfaces::MaterialSystem->CreateMaterial(name,key);
+            if(auto* material=Interfaces::CreateMaterial(name,key);
                material && !material->IsErrorMaterial()){
                 material->IncrementReferenceCount();
                 LOG_INFO("chams material created (legacy): %s (shader %s)",name,material->GetShaderName());
@@ -97,7 +97,7 @@ inline IMaterial* CreateVMT(const char* name,const char* shader,const char* vmt)
     if(!body){LOG_WARN("chams material has no parameters: %s",name);return nullptr;}
     auto* kv=Parse(shader,body);
     if(!kv){LOG_WARN("chams material parser unavailable: %s",name);return nullptr;}
-    auto* material=Interfaces::MaterialSystem->CreateMaterial(name,kv);
+    auto* material=Interfaces::CreateMaterial(name,kv);
     if(!material || material->IsErrorMaterial()){
         LOG_WARN("chams material creation failed: %s (shader %s)",name,shader);
         return nullptr;

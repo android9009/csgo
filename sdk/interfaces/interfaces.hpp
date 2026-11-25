@@ -10,6 +10,7 @@
 #include <windows.h>
 #include "../../hacks.hpp"
 #include "../studiohdr.hpp"
+#include "../material.hpp"
 
 class IEngineClient {
 public:
@@ -95,6 +96,25 @@ inline void* CaptureRaw(const char* module, const char* name) {
     if (!creator) return nullptr;
     int version = 0;
     return creator(name, &version);
+}
+
+// IMaterialSystem::CreateMaterial(name, key_values) - vfunc 83 on the Source 1
+// x86 vtable (same slot the Fatality IKS lens verified: SEH + self-call
+// through the singleton). key_values is the legacy 40-byte c_key_values.
+// IVModelRender::ForcedMaterialOverride - vfunc 1 (Source 1 x86), same slot
+// the Fatality IVModelRender lens used.
+inline void ForcedMaterialOverride(IMaterial* material, int override_type = 0, int overrides = 0) {
+    if (!ModelRender) return;
+    using Fn = void (__thiscall*)(void*, IMaterial*, int, int);
+    auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(ModelRender))[1]);
+    if (fn) fn(ModelRender, material, override_type, overrides);
+}
+
+inline IMaterial* CreateMaterial(const char* name, void* key_values) {
+    if (!MaterialSystem || !name) return nullptr;
+    using Fn = IMaterial* (__thiscall*)(void*, const char*, void*);
+    auto fn = reinterpret_cast<Fn>((*reinterpret_cast<void***>(MaterialSystem))[83]);
+    return fn ? fn(MaterialSystem, name, key_values) : nullptr;
 }
 
 inline bool Check() {

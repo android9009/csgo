@@ -59,7 +59,7 @@ inline void Restore() {
     if(!active && !view_saved && !studio_override)return;
     if(studio_override && Interfaces::StudioRender){MEM::GetVFunc<void(__thiscall*)(void*,IMaterial*,int,int)>(Interfaces::StudioRender,33)(Interfaces::StudioRender,nullptr,0,-1);studio_override=false;}
     active=nullptr;
-    if(Interfaces::ModelRender)Interfaces::ModelRender->ForcedMaterialOverride(nullptr);
+    if(Interfaces::ModelRender)Interfaces::ForcedMaterialOverride(nullptr);
     if(view_saved && Interfaces::RenderView){
         view_saved=false;
         ViewSlot<void(__thiscall*)(void*,const float*)>(6)(Interfaces::RenderView,old_view_color);
@@ -99,7 +99,7 @@ inline bool Apply(int kind,std::uint32_t rgba,bool ignore_z=false,std::uint32_t 
         ViewSlot<void(__thiscall*)(void*,float)>(4)(Interfaces::RenderView,ChamsPasses::Alpha(color));
     }
     active=material;
-    Interfaces::ModelRender->ForcedMaterialOverride(material);
+    Interfaces::ForcedMaterialOverride(material);
     return true;
 }
 // Both callers draw exactly this plan. The preview has no occluder and requests

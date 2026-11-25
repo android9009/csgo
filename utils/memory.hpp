@@ -50,7 +50,7 @@ inline std::uintptr_t FindPattern(const char* module, const char* pattern) {
     return 0;
 }
 inline uintptr_t GetPattern(const char* module, const char* pattern) {
-    return reinterpret_cast<uintptr_t>(FindPattern(module, pattern));
+    return FindPattern(module, pattern);
 }
 template <class T>
 inline T GetVFunc(void* object, std::size_t slot) {
