@@ -1,0 +1,40 @@
+name: CS:GO (airflow) Win32 build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-live:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build opaihook.sln (Live Win32)
+        shell: pwsh
+        run: |
+          msbuild opaihook.sln /m /t:Rebuild /p:Configuration=Live /p:Platform=x86 /verbosity:minimal 2>&1 | Tee-Object -FilePath build-live.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content build-live.log | Select-String '(: error |fatal error|error LNK|MSB\d+)' | Select-Object -Unique | Select-Object -First 40 | ForEach-Object { Write-Output "::error::$_" }
+            $tail = @(Get-Content build-live.log)[-50..-1] -join " ||| "
+            for ($k = 0; $k -lt $tail.Length; $k += 2800) {
+              Write-Output ("::notice::TAIL" + $k + "|" + $tail.Substring($k, [Math]::Min(2800, $tail.Length - $k)))
+            }
+          }
+          exit $code
+
+      - name: Verify + upload release
+        shell: pwsh
+        run: |
+          $dll = "Bins/csgo-release.dll"
+          if (!(Test-Path $dll)) { throw "Missing $dll" }
+          Get-Item $dll | ForEach-Object { Write-Output ("size=" + $_.Length) }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: csgo-airflow-live-win32
+          path: Bins/csgo-release.dll
+          if-no-files-found: error
