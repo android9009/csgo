@@ -11,6 +11,7 @@
 #include <d3d9.h>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
