@@ -9,7 +9,16 @@
 // same-named, differently-laid-out definitions.
 #include <windows.h>
 #include <d3d9.h>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+
+// memory.hpp (no includes of its own) relies on the globals.hpp preamble for
+// these; replicate the minimal parts it needs.
+#ifndef INLINE
+#define INLINE __forceinline
+#endif
+
 #include "../memory.hpp"
 
 class c_base_combat_weapon;
