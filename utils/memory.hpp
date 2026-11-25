@@ -9,13 +9,13 @@ inline void* GetModuleBase(const char* module) {
     return reinterpret_cast<void*>(GetModuleHandleA(module));
 }
 // Byte pattern with "?" wildcards (e.g. "8D 44 24 28 B9 ? ? ? ? 50").
-inline void* FindPattern(const char* module, const char* pattern) {
+inline std::uintptr_t FindPattern(const char* module, const char* pattern) {
     const auto base = reinterpret_cast<uint8_t*>(GetModuleHandleA(module));
-    if (!base) return nullptr;
+    if (!base) return 0;
     const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return nullptr;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return 0;
     const auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE) return nullptr;
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return 0;
     const auto* section = reinterpret_cast<const IMAGE_SECTION_HEADER*>(
         reinterpret_cast<const uint8_t*>(&nt->OptionalHeader) + nt->FileHeader.SizeOfOptionalHeader);
     size_t need = 0;
@@ -44,10 +44,10 @@ inline void* FindPattern(const char* module, const char* pattern) {
                 }
                 ++byte_index;
             }
-            if (hit) return begin + offset;
+            if (hit) return reinterpret_cast<std::uintptr_t>(begin + offset);
         }
     }
-    return nullptr;
+    return 0;
 }
 inline uintptr_t GetPattern(const char* module, const char* pattern) {
     return reinterpret_cast<uintptr_t>(FindPattern(module, pattern));
