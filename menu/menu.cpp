@@ -77,6 +77,7 @@
 #include "bridges/visual_runtime.hpp"
 #include "bridges/misc_runtime.hpp"
 #include "bridges/removals.hpp"
+#include "bridges/airflow_sync.hpp"
 #include "overlays/player_esp_overlay.hpp"
 #include "overlays/screen_overlay.hpp"
 #include "overlays/fx_overlay.hpp"
@@ -229,6 +230,11 @@ bool Initialize(IDirect3DDevice9* device, HWND hwnd) {
                     std::make_shared<font>( ( win_dir + ( "/fonts/segoeuib.ttf" ) ).c_str( ), 13.f, font_flag_shadow, 0, 0x45F );
                 draw.fonts[ GUI_HASH( "segoeuib28" ) ] =
                     std::make_shared<font>( ( win_dir + ( "/fonts/segoeuib.ttf" ) ).c_str( ), 28.f, font_flag_shadow, 0, 0x45F );
+                // The ESP preview and the skins labels address the menu's main text
+                // font under these stable names; alias them so those panels render
+                // (a null entry would dereference empty shared_ptrs in the preview).
+                draw.fonts[ GUI_HASH( "gui_main" ) ] = draw.fonts[ GUI_HASH( "segoeui13" ) ];
+                draw.fonts[ GUI_HASH( "weapon_icons" ) ] = draw.fonts[ GUI_HASH( "segoeui13" ) ];
 
                 // menu::menu.create( );
 
