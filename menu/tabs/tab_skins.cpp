@@ -1,9 +1,8 @@
-// d3d9.h is all the game world this TU needs: sdk/interfaces/interfaces.hpp
-// pulls hacks.hpp (IDirect3DDevice9). Do NOT include globals.hpp here - the
-// skin code runs on the shim SDK types, which collide with the main tree's
-// definitions of the same names.
-#include <windows.h>
-#include <d3d9.h>
+// Do NOT include globals.hpp here - the skin code runs on the shim SDK types,
+// which collide with the main tree's definitions of the same names. The
+// preamble provides the declarations hacks.hpp (via
+// sdk/interfaces/interfaces.hpp) needs.
+#include "../../sdk/hacks_preamble.hpp"
 #include "tabs.hpp"
 #include "../controls/skin_options_popup.hpp"
 
