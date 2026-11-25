@@ -9,11 +9,45 @@
 #include <algorithm>
 #include <map>
 #include <cstring>
+#include <type_traits>
 #include <d3d9.h>
 #include <lib/image.h>
 
 // Modern Windows SDKs no longer ship d3dx9.h. All embedded images are PNG, so
 // decode them with the stb_image vendored in the evo renderer and upload to D3D9.
+//
+// The D3D9 interface signatures also differ between the legacy DirectX 9 SDK
+// headers (developer machines, via $(DXSDK_Dir)) and the modern Windows SDK
+// headers (CI): the newer d3d9.h drops the Level parameter from
+// LockRect/UnlockRect and removes IDirect3DTexture9::GetLevel. The probe below
+// detects which LockRect shape is in use so the same source builds on both.
+namespace {
+template <typename T>
+struct d3d9_lockrect_kind : std::integral_constant<int, 0> {};
+template <>
+struct d3d9_lockrect_kind<HRESULT (IDirect3DSurface9::*)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD)>
+	: std::integral_constant<int, 4> {};
+template <>
+struct d3d9_lockrect_kind<HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*, const RECT*)>
+	: std::integral_constant<int, 2> {};
+template <>
+struct d3d9_lockrect_kind<HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*)>
+	: std::integral_constant<int, 1> {};
+}
+
+#if d3d9_lockrect_kind<decltype(&IDirect3DSurface9::LockRect)>::value == 4
+#define FATALITY_SURFACE_LOCK(s, r) (s)->LockRect(0, (r), nullptr, 0)
+#define FATALITY_SURFACE_UNLOCK(s) (s)->UnlockRect(0)
+#elif d3d9_lockrect_kind<decltype(&IDirect3DSurface9::LockRect)>::value == 2
+#define FATALITY_SURFACE_LOCK(s, r) (s)->LockRect((r), nullptr)
+#define FATALITY_SURFACE_UNLOCK(s) (s)->UnlockRect()
+#elif d3d9_lockrect_kind<decltype(&IDirect3DSurface9::LockRect)>::value == 1
+#define FATALITY_SURFACE_LOCK(s, r) (s)->LockRect((r))
+#define FATALITY_SURFACE_UNLOCK(s) (s)->UnlockRect()
+#else
+#error "add_texture_to_memory: unrecognized IDirect3DSurface9::LockRect signature"
+#endif
+
 static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, size_t size, LPDIRECT3DTEXTURE9* out_texture)
 {
 	*out_texture = nullptr;
@@ -33,15 +67,15 @@ static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, si
 	if (SUCCEEDED(device->CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, out_texture, nullptr)) && *out_texture)
 	{
 		IDirect3DSurface9* surface = nullptr;
-		if (SUCCEEDED((*out_texture)->GetLevel(0, &surface)) && surface)
+		if (SUCCEEDED((*out_texture)->GetSurfaceLevel(0, &surface)) && surface)
 		{
 			D3DLOCKED_RECT locked;
-			if (SUCCEEDED(surface->LockRect(0, &locked, nullptr, 0)))
+			if (SUCCEEDED(FATALITY_SURFACE_LOCK(surface, &locked)))
 			{
 				const size_t row_bytes = static_cast<size_t>(width) * 4u;
 				for (int y = 0; y < height; ++y)
 					memcpy(reinterpret_cast<BYTE*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch, rgba + row_bytes * y, row_bytes);
-				surface->UnlockRect(0);
+				FATALITY_SURFACE_UNLOCK(surface);
 				ok = true;
 			}
 			surface->Release();
