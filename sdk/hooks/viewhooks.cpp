@@ -25,18 +25,6 @@ void* g_calc_view_original{};
 Detour_Hook g_postscreen_hook;
 void* g_postscreen_original{};
 
-// The fov parameter of CBasePlayer::CalcView arrives in XMM0. Captured as the very first
-// thing the detour does (the MSVC x86 prologue does not touch XMM0), because the snapshot
-// and the netvar accessors make calls that clobber it before the original is invoked.
-__forceinline float CaptureXmm0() {
-    float value;
-    __asm {
-        movss xmm1, xmm0
-        movss value, xmm1
-    }
-    return value;
-}
-
 // IEngineTrace... no: IMaterial::GetColorModulation (materialsystem.dll, `main`'s
 // `get_color_modulation`). Verified in the supplied materialsystem.dll: `55 8B EC 83 EC ? 56 8B
 // F1 8A 46` matches once at RVA 0xF90, the body writes the three floats through the three stack
@@ -64,13 +52,21 @@ std::uintptr_t ModuleFunction(const char* module, const char* name) {
     return base ? base + rva : 0;
 }
 
-// CCSPlayer::CalcView(CCalcViewContext*, int zoomLevel, float fov). The engine reads the
-// player's m_iFOV/m_iFOVStart/m_iDefaultFOV inside this call to build the frame view, so
-// the override has to land in those fields BEFORE the original runs (the `main` branch's
-// calc_view detour does exactly this). Only the live local player is touched; everyone
-// else goes straight to the original.
-void __fastcall CalcView(void* ecx, void* /*edx*/, void* context, int zoom_level) {
-    const float incoming_fov = CaptureXmm0();
+// The view-calc helper `main` detours as calc_view (catalogue pattern, unique in the
+// verified client, RVA 0x3E0FB0). Its prologue (55 8B EC 83 EC 14 53 56 57 FF 75 18 ...)
+// shows the real shape: `this` = the player, FIVE pointer-sized stack arguments, the
+// fifth of which the original CALLS as a function pointer ([ebp+0x18]). `main`'s working
+// thunk declares all five and forwards them untouched - the declaration types there are
+// nominal, nothing is ever dereferenced. Any argument count or register value we fail to
+// pass through corrupts the original's call: it then calls whatever stack residue is
+// below our three pushed values (an uncaught AV, the game dies with 0x64). So this thunk
+// is strictly pass-through: capture nothing, forward all five.
+//
+// The `main` branch's calc_view detour writes the player's fov fields BEFORE the original
+// runs (the original reads them to build the frame view), so the override lands the same
+// way. Only the live local player is touched; everyone else goes straight to the original.
+void __fastcall CalcView(void* ecx, void* /*edx*/, void* a1, void* a2, void* a3, void* a4,
+                         void* a5) {
     __try {
         if (ctx.local && ecx == ctx.local) {
             const auto snapshot = FovChanger::Snapshot();
@@ -85,27 +81,28 @@ void __fastcall CalcView(void* ecx, void* /*edx*/, void* context, int zoom_level
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         // A bad local pointer drops this frame's override; the game's own view stands.
     }
-    using Fn = void(__thiscall*)(void*, void*, int, float);
+    using Fn = void(__thiscall*)(void*, void*, void*, void*, void*, void*);
     const auto original = reinterpret_cast<Fn>(g_calc_view_original);
-    if (original) original(ecx, context, zoom_level, incoming_fov);
+    if (original) original(ecx, a1, a2, a3, a4, a5);
 }
 
-// CViewRender::UpdatePostScreenEffects(CCSPlayer* local): the frame pass that applies the
-// scope's post-screen shader (lens + vignette) while the local player's m_bIsScoped is set.
-// The pattern's body loads its one stack argument (the local player) and calls it, so the
-// thunk declares it as a `__fastcall` stack arg and forwards it to the original untouched.
+// The frame pass that applies the scope's post-screen shader (lens + vignette) while the
+// local player's m_bIsScoped is set. The pattern's prologue (55 8B EC 51 53 56 57 8B F9 8B
+// 4D 04 E8 ...) loads [ebp+4] - the RETURN ADDRESS - not a stack argument, and `main`'s
+// verified thunk for this exact pattern declares none: the original is a plain one-argument
+// thiscall. An earlier port here declared a "local player" stack argument that does not
+// exist; the gate compared that stack residue to ctx.local, never matched, and the feature
+// stayed silently dead. The gate now rides on ctx.local, like `main` (local alive + sniper
+// + the menu flag).
 //
-// Visuals -> Misc -> LOCAL "Remove scope": while a sniper rifle is held and the menu flag
-// is on, the netvar is held to false for the duration of the original call (so the shader
-// pass skips the scope look) and restored to the saved value right after - the `main`
-// branch's remove_post_screen_effects trick. The VGUI zoom overlay (the HudZoom panel) is
-// dropped separately by the PaintTraverse hook. When the object being processed is not the
-// local player the hand is skipped and the call forwarded untouched, so a mismatched
-// pointer fails closed instead of corrupting state.
-void __fastcall UpdatePostscreenEffects(void* ecx, void* /*edx*/, void* local_player) {
+// Visuals -> Misc -> LOCAL "Remove scope": the netvar is held to false for the duration of
+// the original call (so the shader pass skips the scope look) and restored to the saved
+// value right after - the `main` branch's remove_post_screen_effects trick. The VGUI zoom
+// overlay (the HudZoom panel) is dropped separately by the PaintTraverse hook.
+void __fastcall UpdatePostscreenEffects(void* ecx, void* /*edx*/) {
     bool restore = false;
     __try {
-        if (ctx.local && local_player == ctx.local && ctx.local->IsAlive() &&
+        if (ctx.local && ctx.local->IsAlive() &&
             VisualRuntime::scope_removal.load(std::memory_order_relaxed) &&
             ctx.local->GetActiveWeapon() && ctx.local->GetActiveWeapon()->IsSniper())
         {
@@ -115,9 +112,9 @@ void __fastcall UpdatePostscreenEffects(void* ecx, void* /*edx*/, void* local_pl
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         restore = false;
     }
-    using Fn = void(__thiscall*)(void*, void*);
+    using Fn = void(__thiscall*)(void*);
     const auto original = reinterpret_cast<Fn>(g_postscreen_original);
-    if (original) original(ecx, local_player);
+    if (original) original(ecx);
     if (restore) {
         __try {
             if (ctx.local) ctx.local->m_bIsScoped() = true;
