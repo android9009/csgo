@@ -20,10 +20,13 @@ inline void* Parse(const char* name,const char* value) {
     if(!parser)return nullptr;
     void* result=nullptr;
 #if defined(_M_IX86)
+    // MSVC inline asm cannot name const parameters; use plain locals.
+    auto name_local=name;
+    auto value_local=value;
     __asm {
         push 0
-        mov edx,value
-        mov ecx,name
+        mov edx,value_local
+        mov ecx,name_local
         call parser
         add esp,4
         mov result,eax

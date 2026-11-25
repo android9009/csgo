@@ -23,7 +23,7 @@ inline void* FindPattern(const char* module, const char* pattern) {
         if (pattern[j] != ' ') { ++j; /* skip second hex digit or '?' */ ++need; }
     for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i) {
         if (!(section[i].Characteristics & IMAGE_SCN_MEM_EXECUTE)) continue;
-        const uint8_t* begin = base + section[i].VirtualAddress;
+        uint8_t* begin = base + section[i].VirtualAddress;
         const size_t length = section[i].Misc.VirtualSize;
         if (need > length) continue;
         for (size_t offset = 0; offset + need <= length; ++offset) {
