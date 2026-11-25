@@ -8,6 +8,7 @@
 #include "../../features/visuals/chams/chams_renderer.hpp"
 #include "../../sdk/model_preview.hpp"
 #include "../../sdk/model_preview_render.hpp"
+#include "../../sdk/visual_preview_state.hpp"
 #include "../../sdk/interfaces/interfaces.hpp"
 #include "bridge.hpp"
 #include "catalog.hpp"

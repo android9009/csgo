@@ -7,7 +7,7 @@
 #include <cstdint>
 class CBaseEntity {
 public:
-    CBaseEntity* next() const { return *reinterpret_cast<CBaseEntity**>(this); }
+    CBaseEntity* next() const { return *reinterpret_cast<const CBaseEntity* const*>(this); }
     int index() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x8); }
     int m_iHealth() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x100); }
     int m_iArmor() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x120); }
@@ -15,7 +15,7 @@ public:
     float m_flHealthDecayTime() const { return *reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(this) + 0x108); }
     bool m_bDormant() const { return *reinterpret_cast<const uint8_t*>(reinterpret_cast<const uint8_t*>(this) + 0x10) != 0; }
     int m_Flags() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x104); }
-    float* m_vecOrigin() const { return reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(this) + 0x138); }
+    const float* m_vecOrigin() const { return reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(this) + 0x138); }
     int m_iAccount() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x2F78); }
 };
 using CBasePlayer = CBaseEntity;

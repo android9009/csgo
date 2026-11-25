@@ -97,6 +97,11 @@ inline void* CaptureRaw(const char* module, const char* name) {
     return creator(name, &version);
 }
 
+inline bool Check() {
+    return Engine && EntityList && ModelInfo && ModelRender && MaterialSystem
+           && RenderView && StudioRender;
+}
+
 // Idempotent and cheap: called once per frame by the menu draw entry point.
 // Interfaces HACKS does not expose yet stay null until the game loads them.
 inline bool Setup() {
@@ -120,9 +125,5 @@ inline bool Setup() {
         }
     }
     return Check();
-}
-inline bool Check() {
-    return Engine && EntityList && ModelInfo && ModelRender && MaterialSystem
-           && RenderView && StudioRender;
 }
 }
