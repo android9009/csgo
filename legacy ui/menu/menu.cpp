@@ -31,31 +31,40 @@ struct surface_lock_op
 	static_assert(sizeof(T) == 0, "add_texture_to_memory: unrecognized IDirect3DSurface9::LockRect shape");
 	static bool apply(T, IDirect3DSurface9*, D3DLOCKED_RECT*);
 };
+// The this-calling convention of the declared member varies between SDK
+// generations (MIDL-generated headers spell __stdcall explicitly), so each
+// parameter shape is matched under both spellings.
 template <>
 struct surface_lock_op<HRESULT (IDirect3DSurface9::*)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD)>
 {
-	using lock_t = HRESULT (IDirect3DSurface9::*)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD);
-	static bool apply(lock_t fn, IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
+	static bool apply(HRESULT (IDirect3DSurface9::*fn)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD), IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
 	{
 		return SUCCEEDED((surface->*fn)(0, locked, nullptr, 0));
 	}
 };
 template <>
-struct surface_lock_op<HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*, const RECT*)>
+struct surface_lock_op<HRESULT (__stdcall IDirect3DSurface9::*)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD)>
 {
-	using lock_t = HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*, const RECT*);
-	static bool apply(lock_t fn, IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
+	static bool apply(HRESULT (__stdcall IDirect3DSurface9::*fn)(DWORD, D3DLOCKED_RECT*, const RECT*, DWORD), IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
 	{
-		return SUCCEEDED((surface->*fn)(locked, nullptr));
+		return SUCCEEDED((surface->*fn)(0, locked, nullptr, 0));
+	}
+};
+// Modern (24H2-generation) Windows SDK: LockRect(locked, rect, flags) - no Level.
+template <>
+struct surface_lock_op<HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*, const RECT*, DWORD)>
+{
+	static bool apply(HRESULT (IDirect3DSurface9::*fn)(D3DLOCKED_RECT*, const RECT*, DWORD), IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
+	{
+		return SUCCEEDED((surface->*fn)(locked, nullptr, 0));
 	}
 };
 template <>
-struct surface_lock_op<HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*)>
+struct surface_lock_op<HRESULT (__stdcall IDirect3DSurface9::*)(D3DLOCKED_RECT*, const RECT*, DWORD)>
 {
-	using lock_t = HRESULT (IDirect3DSurface9::*)(D3DLOCKED_RECT*);
-	static bool apply(lock_t fn, IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
+	static bool apply(HRESULT (__stdcall IDirect3DSurface9::*fn)(D3DLOCKED_RECT*, const RECT*, DWORD), IDirect3DSurface9* surface, D3DLOCKED_RECT* locked)
 	{
-		return SUCCEEDED((surface->*fn)(locked));
+		return SUCCEEDED((surface->*fn)(locked, nullptr, 0));
 	}
 };
 
@@ -68,8 +77,15 @@ struct surface_unlock_op
 template <>
 struct surface_unlock_op<HRESULT (IDirect3DSurface9::*)(DWORD)>
 {
-	using unlock_t = HRESULT (IDirect3DSurface9::*)(DWORD);
-	static void apply(unlock_t fn, IDirect3DSurface9* surface)
+	static void apply(HRESULT (IDirect3DSurface9::*fn)(DWORD), IDirect3DSurface9* surface)
+	{
+		(surface->*fn)(0);
+	}
+};
+template <>
+struct surface_unlock_op<HRESULT (__stdcall IDirect3DSurface9::*)(DWORD)>
+{
+	static void apply(HRESULT (__stdcall IDirect3DSurface9::*fn)(DWORD), IDirect3DSurface9* surface)
 	{
 		(surface->*fn)(0);
 	}
@@ -77,8 +93,15 @@ struct surface_unlock_op<HRESULT (IDirect3DSurface9::*)(DWORD)>
 template <>
 struct surface_unlock_op<HRESULT (IDirect3DSurface9::*)(void)>
 {
-	using unlock_t = HRESULT (IDirect3DSurface9::*)(void);
-	static void apply(unlock_t fn, IDirect3DSurface9* surface)
+	static void apply(HRESULT (IDirect3DSurface9::*fn)(void), IDirect3DSurface9* surface)
+	{
+		(surface->*fn)();
+	}
+};
+template <>
+struct surface_unlock_op<HRESULT (__stdcall IDirect3DSurface9::*)(void)>
+{
+	static void apply(HRESULT (__stdcall IDirect3DSurface9::*fn)(void), IDirect3DSurface9* surface)
 	{
 		(surface->*fn)();
 	}
