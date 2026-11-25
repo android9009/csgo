@@ -1,5 +1,10 @@
 // Experimental Source 1 preview, based on Fatality's entity_rendering::paint.
-#include "../../globals.hpp"
+// d3d9.h is all the game world this TU needs: sdk/interfaces/interfaces.hpp
+// pulls hacks.hpp (IDirect3DDevice9). Do NOT include globals.hpp here - this
+// preview runs on the shim SDK types (plain matrix3x4_t, studio types), which
+// collide with the main tree's aligned/differently-laid-out definitions.
+#include <windows.h>
+#include <d3d9.h>
 #include "model_preview.hpp"
 #include "../../features/visuals/chams/chams_renderer.hpp"
 #include "../../sdk/model_preview.hpp"
@@ -16,8 +21,6 @@
 #include "../../features/skins/skin_state.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/detourhook.hpp"
-#include <windows.h>
-#include <d3d9.h>
 #include <array>
 #include <cmath>
 #include <algorithm>
