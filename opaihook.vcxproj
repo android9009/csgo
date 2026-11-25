@@ -535,10 +535,6 @@
     <ClInclude Include="xorstr.hpp" />
   </ItemGroup>
   <ItemGroup Label="FatalityMenu">
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\adapters\adapter_dx11.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
     <ClCompile Include="sdk\third_party\gui\deps\renderer\src\adapters\adapter_dx9.cpp">
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
@@ -547,15 +543,7 @@
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
     </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\ib_dx11.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
     <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\ib_dx9.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\vb_dx11.cpp">
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
     </ClCompile>
