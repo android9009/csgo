@@ -26,6 +26,14 @@
 #define WINCALL(func) func
 #endif
 
+// Release-path obfuscation plumbing hacks.hpp needs (CREATE_DUMMY_PTR /
+// DECLARE_XORED_PTR / XORED_PTR / GET_XOR_KEYUI32). Pure string/number
+// obfuscation - no game types, safe next to the shim SDK world.
+#include "../seeds.hpp"
+#include "../hash.hpp"
+#include "../xorint.hpp"
+#include "../xorpointer.hpp"
+
 #include "../memory.hpp"
 
 class c_base_combat_weapon;
