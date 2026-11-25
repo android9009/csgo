@@ -1,3 +1,4 @@
+#include "../../globals.hpp"
 #include "tabs.hpp"
 #include "../controls/skin_options_popup.hpp"
 

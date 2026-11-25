@@ -1,4 +1,5 @@
 // Experimental Source 1 preview, based on Fatality's entity_rendering::paint.
+#include "../../globals.hpp"
 #include "model_preview.hpp"
 #include "../../features/visuals/chams/chams_renderer.hpp"
 #include "../../sdk/model_preview.hpp"
