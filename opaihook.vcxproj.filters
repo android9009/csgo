@@ -165,9 +165,6 @@
     <ClCompile Include="utils\memory.cpp">
       <Filter>utils</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\misc_structs.cpp">
-      <Filter>sdk</Filter>
-    </ClCompile>
     <ClCompile Include="utils\modules.cpp">
       <Filter>utils</Filter>
     </ClCompile>
@@ -204,9 +201,6 @@
     <ClCompile Include="features\rage\resolver.cpp">
       <Filter>features/rage</Filter>
     </ClCompile>
-    <ClCompile Include="sdk\sdk_misc.cpp">
-      <Filter>sdk</Filter>
-    </ClCompile>
     <ClCompile Include="features\visuals\server_bones.cpp">
       <Filter>features/visuals</Filter>
     </ClCompile>
@@ -225,9 +219,6 @@
     <ClCompile Include="features\rage\threaded_animstate.cpp">
       <Filter>features/rage</Filter>
     </ClCompile>
-    <ClCompile Include="utils\threads.cpp">
-      <Filter>utils</Filter>
-    </ClCompile>
     <ClCompile Include="sdk\vgui_panel.cpp">
       <Filter>sdk</Filter>
     </ClCompile>
@@ -236,12 +227,6 @@
     </ClCompile>
     <ClCompile Include="features\visuals\world_modulation.cpp">
       <Filter>features/visuals</Filter>
-    </ClCompile>
-    <ClCompile Include="utils\xorpointer.cpp">
-      <Filter>utils</Filter>
-    </ClCompile>
-    <ClCompile Include="utils\xorstr.cpp">
-      <Filter>utils</Filter>
     </ClCompile>
     <ClInclude Include="features\anti_aim\animations.hpp">
       <Filter>features/anti_aim</Filter>

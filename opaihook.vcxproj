@@ -413,7 +413,6 @@
     <ClCompile Include="utils\math.cpp" />
     <ClCompile Include="utils\md5_pseudo_random.cpp" />
     <ClCompile Include="utils\memory.cpp" />
-    <ClCompile Include="sdk\misc_structs.cpp" />
     <ClCompile Include="utils\modules.cpp" />
     <ClCompile Include="features\misc\movement.cpp" />
     <ClCompile Include="sdk\netvars.cpp" />
@@ -426,19 +425,15 @@
     <ClCompile Include="features\misc\remove_projectiles.cpp" />
     <ClCompile Include="utils\render.cpp" />
     <ClCompile Include="features\rage\resolver.cpp" />
-    <ClCompile Include="sdk\sdk_misc.cpp" />
     <ClCompile Include="features\visuals\server_bones.cpp" />
     <ClCompile Include="features\skins\skins.cpp" />
     <ClCompile Include="features\misc\spoofers.cpp" />
     <ClCompile Include="sdk\structs.cpp" />
     <ClCompile Include="features\visuals\thirdperson.cpp" />
     <ClCompile Include="features\rage\threaded_animstate.cpp" />
-    <ClCompile Include="utils\threads.cpp" />
     <ClCompile Include="sdk\vgui_panel.cpp" />
     <ClCompile Include="sdk\hooks\vmt_hooks.cpp" />
     <ClCompile Include="features\visuals\world_modulation.cpp" />
-    <ClCompile Include="utils\xorpointer.cpp" />
-    <ClCompile Include="utils\xorstr.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="features\anti_aim\animations.hpp" />
