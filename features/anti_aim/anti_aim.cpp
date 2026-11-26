@@ -16,7 +16,7 @@
 
 bool can_fake_duck()
 {
-	return g_cfg.binds[fd_b].toggled && (MOVEMENT->on_ground() && !(HACKS->cmd->buttons.has(IN_JUMP)));
+	return KEY_STATES->resolve(CXOR("Fake duck"), g_cfg.misc.fake_duck).active && (MOVEMENT->on_ground() && !(HACKS->cmd->buttons.has(IN_JUMP)));
 }
 
 void c_anti_aim::fake_duck()
@@ -43,7 +43,7 @@ void c_anti_aim::fake_duck()
 		return;
 	}
 
-	if (g_cfg.binds[fd_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Fake duck"), g_cfg.misc.fake_duck).active)
 	{
 		if (start)
 		{
@@ -101,7 +101,7 @@ void c_anti_aim::slow_walk()
 	auto velocity = HACKS->local->velocity();
 
 #ifdef LEGACY
-	if (g_cfg.binds[sw_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Slow walk"), g_cfg.misc.slow_walk).active)
 	{
 		HACKS->cmd->buttons.remove(IN_SPEED);
 
@@ -113,7 +113,7 @@ void c_anti_aim::slow_walk()
 #else
 	auto max_speed = HACKS->local->is_scoped() ? HACKS->weapon_info->max_speed_alt : HACKS->weapon_info->max_speed;
 
-	if (g_cfg.binds[sw_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Slow walk"), g_cfg.misc.slow_walk).active)
 		game_movement::modify_move(*HACKS->cmd, velocity, max_speed * 0.34f);
 	else
 	{
@@ -186,7 +186,7 @@ void c_anti_aim::extended_fake()
 
 	auto speed = HACKS->local->velocity().length_2d();
 
-	bool ensure_lean = (max_speed / 3.4f) >= speed || g_cfg.binds[sw_b].toggled || g_cfg.binds[ens_lean_b].toggled;
+	bool ensure_lean = (max_speed / 3.4f) >= speed || KEY_STATES->resolve(CXOR("Slow walk"), g_cfg.misc.slow_walk).active || KEY_STATES->resolve(CXOR("Force extend"), g_cfg.antihit.force_extend).active;
 
 	auto holding_w = HACKS->cmd->buttons.has(IN_FORWARD);
 	auto holding_a = HACKS->cmd->buttons.has(IN_MOVELEFT);
@@ -202,16 +202,16 @@ void c_anti_aim::extended_fake()
 
 	float roll_angle = max_roll * ((float)g_cfg.antihit.distortion_range / 100.f) * (-fake_side);
 
-	if (g_cfg.binds[ens_lean_b].toggled || !moving)
+	if (KEY_STATES->resolve(CXOR("Force extend"), g_cfg.antihit.force_extend).active || !moving)
 		HACKS->cmd->viewangles.z = roll_angle;
 }
 
 void c_anti_aim::manual_yaw()
 {
-	if (g_cfg.binds[left_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Manual left"), g_cfg.antihit.manual_left).active)
 		best_yaw -= 90.f;
 
-	if (g_cfg.binds[right_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Manual right"), g_cfg.antihit.manual_right).active)
 		best_yaw += 90.f;
 }
 
@@ -219,7 +219,7 @@ void c_anti_aim::automatic_edge()
 {
 	edging = false;
 
-	if (g_cfg.binds[freestand_b].toggled || !g_cfg.binds[edge_b].toggled || !MOVEMENT->on_ground() || g_cfg.binds[left_b].toggled || g_cfg.binds[right_b].toggled || g_cfg.binds[back_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Freestanding"), g_cfg.antihit.freestand).active || !KEY_STATES->resolve(CXOR("Edge yaw"), g_cfg.antihit.active_edge).active || !MOVEMENT->on_ground() || KEY_STATES->resolve(CXOR("Manual left"), g_cfg.antihit.manual_left).active || KEY_STATES->resolve(CXOR("Manual right"), g_cfg.antihit.manual_right).active || KEY_STATES->resolve(CXOR("Manual back"), g_cfg.antihit.manual_back).active)
 		return;
 
 	float best_dist = FLT_MAX;
@@ -268,7 +268,7 @@ void c_anti_aim::automatic_edge()
 
 void c_anti_aim::freestanding()
 {
-	if (!g_cfg.binds[freestand_b].toggled || !MOVEMENT->on_ground() || g_cfg.binds[left_b].toggled || g_cfg.binds[right_b].toggled || g_cfg.binds[back_b].toggled)
+	if (!KEY_STATES->resolve(CXOR("Freestanding"), g_cfg.antihit.freestand).active || !MOVEMENT->on_ground() || KEY_STATES->resolve(CXOR("Manual left"), g_cfg.antihit.manual_left).active || KEY_STATES->resolve(CXOR("Manual right"), g_cfg.antihit.manual_right).active || KEY_STATES->resolve(CXOR("Manual back"), g_cfg.antihit.manual_back).active)
 		return;
 
 	auto player = get_closest_player();
@@ -365,7 +365,7 @@ void c_anti_aim::freestanding()
 
 void c_anti_aim::at_targets()
 {
-	if (!g_cfg.antihit.at_targets || g_cfg.binds[edge_b].toggled || g_cfg.binds[left_b].toggled || g_cfg.binds[right_b].toggled || g_cfg.binds[back_b].toggled)
+	if (!g_cfg.antihit.at_targets || KEY_STATES->resolve(CXOR("Edge yaw"), g_cfg.antihit.active_edge).active || KEY_STATES->resolve(CXOR("Manual left"), g_cfg.antihit.manual_left).active || KEY_STATES->resolve(CXOR("Manual right"), g_cfg.antihit.manual_right).active || KEY_STATES->resolve(CXOR("Manual back"), g_cfg.antihit.manual_back).active)
 		return;
 
 	auto player = get_closest_player(false, true);
@@ -791,7 +791,7 @@ void c_anti_aim::run()
 	if (g_cfg.antihit.desync_mode)
 		fake_side = dsy_flipper ? 1 : -1;
 	else
-		fake_side = g_cfg.binds[inv_b].toggled ? -1 : 1;
+		fake_side = KEY_STATES->resolve(CXOR("Inverter"), g_cfg.antihit.inverter).active ? -1 : 1;
 
 	at_targets();
 	automatic_edge();
@@ -865,7 +865,7 @@ void c_anti_aim::run()
 		tick %= 3;
 	}
 
-	if (!(g_cfg.binds[left_b].toggled || g_cfg.binds[right_b].toggled || g_cfg.binds[back_b].toggled))
+	if (!(KEY_STATES->resolve(CXOR("Manual left"), g_cfg.antihit.manual_left).active || KEY_STATES->resolve(CXOR("Manual right"), g_cfg.antihit.manual_right).active || KEY_STATES->resolve(CXOR("Manual back"), g_cfg.antihit.manual_back).active))
 		best_yaw += g_cfg.antihit.yaw_add;
 
 	if (g_cfg.antihit.def_yaw && defensive_aa)

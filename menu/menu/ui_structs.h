@@ -77,6 +77,15 @@ struct key_binds_t
 	}
 };
 
+// resolved state of a menu control that owns a key bind
+struct bind_state_t
+{
+	bool enabled{}; // checkbox value or a mode that is not "off"
+	bool active{};  // enabled and (no bind, or the bind is held / toggled)
+	int key = -1;
+	int type = -1;
+};
+
 extern std::vector< std::string > key_strings;
 
 struct tab_animation_t

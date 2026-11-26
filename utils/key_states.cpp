@@ -94,75 +94,93 @@ void c_key_states::update(UINT uMsg, WPARAM wParam)
 	if (HACKS->open_console)
 		return;
 
-	for (int i = 0; i < binds_max; ++i)
-	{
-		auto& b = g_cfg.binds[i];
+	this->update_item_binds(uMsg, wParam);
+}
 
-		if (b.key == -1 && b.type != 0)
+// Resolves one menu control: the value itself plus the bind attached to it.
+// A control with no bind behaves exactly like its raw value.
+bind_state_t c_key_states::resolve(const char* label, bool enabled)
+{
+	bind_state_t state{};
+	state.enabled = enabled;
+
+	auto it = g_cfg.item_binds.find(label != nullptr ? label : "");
+	if (it == g_cfg.item_binds.end() || (it->second.type != 1 && it->second.type != 2))
+	{
+		state.active = enabled;
+		return state;
+	}
+
+	state.key = it->second.key;
+	state.type = it->second.type;
+	state.active = enabled || it->second.toggled;
+
+	return state;
+}
+
+// "Manual back" wins over left / right when both are bound, same as the old
+// manual-angle binds did. Left and right cancel each other.
+static void resolve_manual_angles()
+{
+	auto& left = g_cfg.item_binds[CXOR("Manual left")];
+	auto& right = g_cfg.item_binds[CXOR("Manual right")];
+	auto& back = g_cfg.item_binds[CXOR("Manual back")];
+
+	if (!g_cfg.antihit.enable)
+	{
+		left.toggled = false;
+		right.toggled = false;
+		back.toggled = false;
+		return;
+	}
+
+	if (back.toggled)
+	{
+		left.toggled = false;
+		right.toggled = false;
+	}
+	else if (left.toggled && right.toggled)
+		right.toggled = false;
+}
+
+// Per-control binds (the gear next to every rage checkbox / multibox).
+// Same Always / Hold / Toggle semantics as the global binds above, but keyed by
+// the control label so any menu item can own a bind without a new enum entry.
+std::mutex item_binds_mutex{};
+
+void c_key_states::update_item_binds(UINT uMsg, WPARAM wParam)
+{
+	auto key_state = this->get_key_state(uMsg, wParam);
+
+	const std::lock_guard<std::mutex> lock(item_binds_mutex);
+
+	for (auto& entry : g_cfg.item_binds)
+	{
+		auto& bind = entry.second;
+
+		bind.key = (std::max)(bind.key, -1);
+		bind.key = (std::min)(bind.key, 255);
+
+		if (bind.key == -1 && bind.type != 0)
 		{
-			b.toggled = false;
+			bind.toggled = false;
 			continue;
 		}
 
-		switch (b.type)
+		switch (bind.type)
 		{
 		case 0:
-			b.toggled = true;
+			bind.toggled = true;
 			break;
 		case 1:
-			b.toggled = this->at(b.key);
+			bind.toggled = bind.key >= 0 && this->at(bind.key);
+			break;
+		case 2:
+			if (bind.key >= 0 && key_state.key == bind.key && key_state.state)
+				bind.toggled = !bind.toggled;
 			break;
 		}
-
-		if (b.type == 2)
-		{
-			bool key_changed = key_updated(b.key, uMsg, wParam);
-
-			if (i == left_b || i == right_b || i == back_b)
-			{
-				if (!g_cfg.antihit.enable)
-				{
-					b.toggled = false;
-					continue;
-				}
-
-				b.type = 2;
-				if (b.key > 0 && key_changed)
-				{
-					if (i == left_b)
-					{
-						b.toggled = !b.toggled;
-						if (b.toggled)
-						{
-							g_cfg.binds[right_b].toggled = false;
-							g_cfg.binds[back_b].toggled = false;
-						}
-					}
-					else if (i == right_b)
-					{
-						b.toggled = !b.toggled;
-						if (b.toggled)
-						{
-							g_cfg.binds[back_b].toggled = false;
-							g_cfg.binds[left_b].toggled = false;
-						}
-					}
-					else if (i == back_b)
-					{
-						b.toggled = !b.toggled;
-						if (b.toggled)
-						{
-							g_cfg.binds[right_b].toggled = false;
-							g_cfg.binds[left_b].toggled = false;
-						}
-					}
-				}
-			}
-			else
-			{
-				if (key_changed)
-					b.toggled = !b.toggled;
-			}
-		}
 	}
+
+	resolve_manual_angles();
 }

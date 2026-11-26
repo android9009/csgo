@@ -336,6 +336,23 @@ bool c_menu::selectable_flags(const char* label, unsigned int* flags, unsigned i
 	return pressed;
 }
 
+// single choice variant used by the Extra groupbox (Body aim / Safe points)
+void c_menu::multi_combo_exclusive(const char* name, int& var, std::vector<std::string> elements)
+{
+	var = std::clamp(var, 0, (int)elements.size() - 1);
+
+	if (this->begin_combo(name, elements[var].c_str(), 0, elements.size()))
+	{
+		for (int i = 0; i < (int)elements.size(); i++)
+		{
+			if (this->selectable(elements[i].c_str(), var == i))
+				var = i;
+		}
+
+		ImGui::EndCombo();
+	}
+}
+
 void c_menu::multi_combo(const char* name, unsigned int& var, std::vector< std::string > elements)
 {
 	int t = 0;

@@ -659,124 +659,82 @@ void c_menu::draw_ui_items()
 		{
 		case 0:
 		{
-			// please turn off legit before configuring rage!
-			//if (g_cfg.legit.enable)
-			//	render_warning_message(XOR("legit"), XOR("rage"));
-		//	else
+			ImGui::Columns(2, 0, false);
+			ImGui::SetColumnOffset(1, 270);
 			{
-				ImGui::Columns(2, 0, false);
-				ImGui::SetColumnOffset(1, 270);
+				auto& weapon = g_cfg.rage.weapon[g_cfg.rage.group_type];
+
+				begin_child(CXOR("Choose your weapon"))
 				{
-					begin_child(CXOR("Choose your weapon"))
+					bind_combo(CXOR("Setting up..."), CXOR("Setting up..."), &g_cfg.rage.group_type, weapon_configs, IM_ARRAYSIZE(weapon_configs));
+
+					if (g_cfg.rage.group_type > 0)
 					{
-						combo(CXOR("Setting up..."), &g_cfg.rage.group_type, weapon_configs, IM_ARRAYSIZE(weapon_configs));
-						if (g_cfg.rage.group_type > 0)
-						{
-							auto name = XOR("Enable config##group_") + std::to_string(g_cfg.rage.group_type);
-							checkbox(name.c_str(), &g_cfg.rage.weapon[g_cfg.rage.group_type].enable);
-						}
+						auto name = XOR("Enable config##group_") + std::to_string(g_cfg.rage.group_type);
+						checkbox(name.c_str(), &g_cfg.rage.weapon[g_cfg.rage.group_type].enable);
 					}
-					end_child;
-
-					begin_child(CXOR("General"))
-					{
-						checkbox(CXOR("Enable"), &g_cfg.rage.enable);
-						checkbox(CXOR("Auto fire"), &g_cfg.rage.auto_fire);
-
-						checkbox(CXOR("Anti aim correction"), &g_cfg.rage.resolver);
-
-						slider_int(CXOR("Enemy desync"), &g_cfg.rage.desync_degree, -58, 58, g_cfg.rage.desync_degree == 0 ? CXOR("Auto") : CXOR("%d"));
-					}
-					end_child;
-
-					begin_child(CXOR("Exploits"))
-					{
-						key_bind(CXOR("Double tap"), g_cfg.binds[dt_b]);
-
-#ifndef LEGACY
-						key_bind(CXOR("Hide shots"), g_cfg.binds[hs_b]);
-#endif
-
-						checkbox(CXOR("Defensive in air"), &g_cfg.rage.air_defensive);
-					}
-					end_child;
-
-					begin_child(CXOR("Bindings"))
-					{
-						key_bind(CXOR("Override damage"), g_cfg.binds[override_dmg_b]);
-						key_bind(CXOR("Force body"), g_cfg.binds[force_body_b]);
-
-#ifndef LEGACY
-						key_bind(CXOR("Force safe point"), g_cfg.binds[force_sp_b]);
-#endif
-
-					}
-					end_child;
-
-					begin_child(CXOR("Ping spike"))
-					{
-						int max_spike_amount = (int)(HACKS->max_unlag * 1000.f);
-
-						key_bind(CXOR("Ping spike"), g_cfg.binds[spike_b]);
-						slider_int(CXOR("Amount"), &g_cfg.rage.spike_amt, 0, max_spike_amount, CXOR("%d%ms"));
-					}
-					end_child;
 				}
-				ImGui::NextColumn();
+				end_child;
+
+				begin_child(CXOR("Main"))
 				{
-					auto& weapon_settings = g_cfg.rage.weapon[g_cfg.rage.group_type];
+					// Enable owns the gear with auto fire / anti aim correction / dormant aimbot
+					bind_checkbox(CXOR("rage_enable"), CXOR("Enable"), &g_cfg.rage.enable, settings_main);
 
-					begin_child(CXOR("Accuracy"))
-					{
-						if (g_cfg.rage.group_type == global || g_cfg.rage.group_type == auto_snipers || g_cfg.rage.group_type == scout || g_cfg.rage.group_type == awp)
-							checkbox(CXOR("Auto scope"), &weapon_settings.auto_scope);
-
-						auto dmg_str = weapon_settings.mindamage == 100 ? CXOR("HP") : weapon_settings.mindamage > 100 ? CXOR("HP + ") + std::to_string(weapon_settings.mindamage - 100) : CXOR("%dHP");
-						auto override_str = weapon_settings.damage_override == 100 ? CXOR("HP") : weapon_settings.damage_override > 100 ? CXOR("HP + ") + std::to_string(weapon_settings.damage_override - 100) : CXOR("%dHP");
-
-				//		multi_combo(CXOR("Skip hitchance"), weapon_settings.hitchance_skips, { XOR("Low spread"), XOR("DT / Still") });
-
-						slider_int(CXOR("Hitchance"), &weapon_settings.hitchance, 0, 100, CXOR("%d%%"));
-
-						slider_int(CXOR("Min damage"), &weapon_settings.mindamage, 1, 120, dmg_str.c_str());
-						slider_int(CXOR("Min damage (override)"), &weapon_settings.damage_override, 1, 120, override_str.c_str());
-
-						checkbox(CXOR("Quick stop"), &weapon_settings.quick_stop);
-						multi_combo(CXOR("Options##quick_stop"), weapon_settings.quick_stop_options, { CXOR("Early"), CXOR("Between shots"), CXOR("Force accuracy"), CXOR("In air")/*, CXOR("Force duck")*/ });
-					}
-					end_child;
-
-					begin_child(CXOR("Hitscan"))
-					{
-						multi_combo(CXOR("Hitboxes"), weapon_settings.hitboxes, { XOR("Head"), XOR("Chest"), XOR("Stomach"), XOR("Pelvis"), XOR("Arms"), XOR("Legs") });
-
-						static auto percent_xored = XOR("%d");
-
-						auto scale_head_str = weapon_settings.scale_head == -1 ? CXOR("Auto") : percent_xored;
-						auto scale_body_str = weapon_settings.scale_body == -1 ? CXOR("Auto") : percent_xored;
-
-						slider_int(CXOR("Head scale"), &weapon_settings.scale_head, -1, 100, scale_head_str.c_str());
-						slider_int(CXOR("Body scale"), &weapon_settings.scale_body, -1, 100, scale_body_str.c_str());
-						checkbox( CXOR("Prefer body"), &weapon_settings.prefer_body );
-						checkbox( CXOR("Prefer safe point"), &weapon_settings.prefer_safe );
-
-				/*		checkbox(CXOR("Prefer safe point"), &weapon_settings.prefer_safe);
-						checkbox(CXOR("Prefer body"), &weapon_settings.prefer_body);*/
-					}
-					end_child;
-
-					//begin_child(CXOR("Roll resolver"))
-					//{
-					//	key_bind(CXOR("Roll override"), g_cfg.binds[force_roll_b]);
-					//	slider_int(CXOR("Angle"), &g_cfg.rage.roll_amt, -90, 90, CXOR("%d degree"));
-					//	slider_int(CXOR("Pitch angle"), &g_cfg.rage.roll_amt_pitch, 0, 20, CXOR("%d degree"));
-					//}
-					//end_child;
+					// Double tap owns the gear with the defensive mode and the speed
+					bind_checkbox(CXOR("rage_dt"), CXOR("Double tap"), &g_cfg.rage.double_tap, settings_double_tap);
+					bind_checkbox(CXOR("rage_hs"), CXOR("Hide shot"), &g_cfg.rage.hide_shots);
 				}
+				end_child;
+
+				begin_child(CXOR("Extra"))
+				{
+					std::vector< std::string > aim_modes = { CXOR("Off"), CXOR("Prefer"), CXOR("Force") };
+
+					bind_combo(CXOR("extra_body"), CXOR("Body aim"), weapon.body_aim, aim_modes);
+					bind_combo(CXOR("extra_safe"), CXOR("Safe points"), weapon.safe_point, aim_modes);
+				}
+				end_child;
+
+				begin_child(CXOR("Ping spike"))
+				{
+					bind_slider(CXOR("spike_amt"), CXOR("Ping spike"), &g_cfg.rage.spike_amt, 0, (int)(HACKS->max_unlag * 1000.f), CXOR("%d%%"));
+				}
+				end_child;
+			}
+			ImGui::NextColumn();
+			{
+				auto& weapon = g_cfg.rage.weapon[g_cfg.rage.group_type];
+
+				begin_child(CXOR("Hitscan"))
+				{
+					bind_multi_combo(CXOR("hc_hitbox"), CXOR("Hitbox"), weapon.hitboxes,
+						{ CXOR("Head"), CXOR("Chest"), CXOR("Stomach"), CXOR("Pelvis"), CXOR("Arms"), CXOR("Legs") });
+
+					// Multipoint owns the gear with the head / body point amount
+					bind_multi_combo(CXOR("hc_multipoint"), CXOR("Multipoint"), weapon.multipoint,
+						{ CXOR("Head"), CXOR("Chest"), CXOR("Stomach"), CXOR("Pelvis"), CXOR("Arms"), CXOR("Legs") }, settings_multipoint);
+				}
+				end_child;
+
+				begin_child(CXOR("Accuracy"))
+				{
+					if (g_cfg.rage.group_type == global || g_cfg.rage.group_type == auto_snipers
+						|| g_cfg.rage.group_type == scout || g_cfg.rage.group_type == awp)
+						bind_checkbox(CXOR("acc_scope"), CXOR("Auto scope"), &weapon.auto_scope);
+
+					bind_slider(CXOR("acc_hitchance"), CXOR("Hitchance"), &weapon.hitchance, 0, 100, CXOR("%d%%"));
+					bind_slider(CXOR("acc_mindamage"), CXOR("Min damage"), &weapon.mindamage, 1, 120, CXOR("%d"));
+
+					bind_checkbox(CXOR("acc_quickstop"), CXOR("Quick stop"), &weapon.quick_stop);
+					bind_multi_combo(CXOR("acc_qs_options"), CXOR("Options##quick_stop"), weapon.quick_stop_options,
+						{ CXOR("Early"), CXOR("Between shots"), CXOR("Force accuracy"), CXOR("In air") });
+				}
+				end_child;
 			}
 		}
 		break;
-		case 1:
+	case 1:
 		{
 			// please turn off rage before configuring legit!
 		//	if (g_cfg.rage.enable)
@@ -788,32 +746,32 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Choose your weapon    "))
 					{
-						combo(CXOR("Setting up...##legit"), &g_cfg.legit.group_type, legit_weapon_configs, IM_ARRAYSIZE(legit_weapon_configs));
+						bind_combo(CXOR("Setting up...##legit"), CXOR("Setting up..."), &g_cfg.legit.group_type, legit_weapon_configs, IM_ARRAYSIZE(legit_weapon_configs));
 					}
 					end_child;
 
 					begin_child(CXOR("General     "))
 					{
-						checkbox(CXOR("Enable##legit_cfg"), &g_cfg.legit.enable);
+						bind_checkbox(CXOR("Enable##legit_cfg"), CXOR("Enable"), &g_cfg.legit.enable);
 
-						key_bind(CXOR("Aim##legit_cfg"), g_cfg.binds[toggle_legit_b]);
-						checkbox(CXOR("Autowall##legit_cfg"), &g_cfg.legit.autowall);
+						bind_checkbox(CXOR("Aim##legit_cfg"), CXOR("Aim"), &g_cfg.legit.aim_key);
+						bind_checkbox(CXOR("Autowall##legit_cfg"), CXOR("Autowall"), &g_cfg.legit.autowall);
 
 						auto dmg_str = g_cfg.legit.min_damage == 100 ? CXOR("HP") : g_cfg.legit.min_damage > 100 ? CXOR("HP + ") + std::to_string(g_cfg.legit.min_damage - 100) : CXOR("%dHP");
 
-						slider_int(CXOR("Min damage"), &g_cfg.legit.min_damage, 1, 120, dmg_str.c_str());
+						bind_slider(CXOR("Min damage"), CXOR("Min damage"), &g_cfg.legit.min_damage, 1, 120, dmg_str.c_str());
 
-						checkbox(CXOR("Disable on flash"), &g_cfg.legit.flash_check);
-						checkbox(CXOR("Disable on smoke"), &g_cfg.legit.smoke_check);
+						bind_checkbox(CXOR("Disable on flash"), CXOR("Disable on flash"), &g_cfg.legit.flash_check);
+						bind_checkbox(CXOR("Disable on smoke"), CXOR("Disable on smoke"), &g_cfg.legit.smoke_check);
 					}
 					end_child;
 
 					begin_child(CXOR("RCS settings "))
 					{
 						auto& rcs_cfg = g_cfg.legit.rcs;
-						checkbox(CXOR("Enable##legit_aimbot_rcs"), &rcs_cfg.enable);
+						bind_checkbox(CXOR("Enable##legit_aimbot_rcs"), CXOR("Enable"), &rcs_cfg.enable);
 
-						slider_int(CXOR("Amount##legit_aimbot_rcs"), &rcs_cfg.amount, 1, 100, CXOR("%d%%"));
+						bind_slider(CXOR("Amount##legit_aimbot_rcs"), CXOR("Amount"), &rcs_cfg.amount, 1, 100, CXOR("%d%%"));
 					}
 					end_child;
 				}
@@ -822,18 +780,18 @@ void c_menu::draw_ui_items()
 					begin_child(CXOR("Weapon settings "))
 					{
 						auto& legit_cfg = g_cfg.legit.legit_weapon[g_cfg.legit.group_type];
-						checkbox(CXOR("Enable##legit_aimbot"), &legit_cfg.enable);
-						checkbox(CXOR("Draw FOV##legit_aimbot"), &legit_cfg.fov_cicle);
+						bind_checkbox(CXOR("Enable##legit_aimbot"), CXOR("Enable"), &legit_cfg.enable);
+						bind_checkbox(CXOR("Draw FOV##legit_aimbot"), CXOR("Draw FOV"), &legit_cfg.fov_cicle);
 						color_picker(CXOR("FOV color##legit_aimbot"), legit_cfg.circle_color);
-						checkbox(CXOR("Backtrack##legit_aimbot"), &legit_cfg.backtrack);
-						checkbox(CXOR("Quick stop##legit_aimbot"), &legit_cfg.quick_stop);
+						bind_checkbox(CXOR("Backtrack##legit_aimbot"), CXOR("Backtrack"), &legit_cfg.backtrack);
+						bind_checkbox(CXOR("Quick stop##legit_aimbot"), CXOR("Quick stop"), &legit_cfg.quick_stop);
 
-						multi_combo(CXOR("Hitboxes"), legit_cfg.hitboxes, { XOR("Head"), XOR("Chest"), XOR("Stomach"), XOR("Pelvis") });
+						bind_multi_combo(CXOR("Hitboxes"), CXOR("Hitboxes"), legit_cfg.hitboxes, { XOR("Head"), XOR("Chest"), XOR("Stomach"), XOR("Pelvis") });
 
-						slider_int(CXOR("FOV"), &legit_cfg.fov, 1, 100);
-						slider_int(CXOR("Smooth"), &legit_cfg.smooth, 1, 100);
+						bind_slider(CXOR("FOV"), CXOR("FOV"), &legit_cfg.fov, 1, 100);
+						bind_slider(CXOR("Smooth"), CXOR("Smooth"), &legit_cfg.smooth, 1, 100);
 
-						slider_int(CXOR("Shot delay"), &legit_cfg.aim_delay, 0, 1000, CXOR("%d% ms"));
+						bind_slider(CXOR("Shot delay"), CXOR("Shot delay"), &legit_cfg.aim_delay, 0, 1000, CXOR("%d% ms"));
 					}
 					end_child;
 				}
@@ -847,36 +805,36 @@ void c_menu::draw_ui_items()
 			{
 				begin_child(CXOR("Main"))
 				{
-					checkbox(CXOR("Enable##antiaim"), &g_cfg.antihit.enable);
+					bind_checkbox(CXOR("Enable##antiaim"), CXOR("Enable"), &g_cfg.antihit.enable);
 #ifndef LEGACY
-					//checkbox(CXOR("Silent on-shot##antiaim"), &g_cfg.antihit.silent_onshot);
+					//bind_checkbox(CXOR("Silent on-shot##antiaim"), CXOR("Silent on-shot"), &g_cfg.antihit.silent_onshot);
 #endif
-					checkbox(CXOR("At targets##antiaim"), &g_cfg.antihit.at_targets);
+					bind_checkbox(CXOR("At targets##antiaim"), CXOR("At targets"), &g_cfg.antihit.at_targets);
 
-					combo(CXOR("Pitch"), &g_cfg.antihit.pitch, aa_pitch, IM_ARRAYSIZE(aa_pitch));
-					combo(CXOR("Yaw"), &g_cfg.antihit.yaw, aa_yaw, IM_ARRAYSIZE(aa_yaw));
-					slider_int(CXOR("Yaw add"), &g_cfg.antihit.yaw_add, -180, 180);
+					bind_combo(CXOR("Pitch"), CXOR("Pitch"), &g_cfg.antihit.pitch, aa_pitch, IM_ARRAYSIZE(aa_pitch));
+					bind_combo(CXOR("Yaw"), CXOR("Yaw"), &g_cfg.antihit.yaw, aa_yaw, IM_ARRAYSIZE(aa_yaw));
+					bind_slider(CXOR("Yaw add"), CXOR("Yaw add"), &g_cfg.antihit.yaw_add, -180, 180);
 
-					combo(CXOR("Yaw jitter"), &g_cfg.antihit.jitter_mode, aa_jitter_yaw, IM_ARRAYSIZE(aa_jitter_yaw));
+					bind_combo(CXOR("Yaw jitter"), CXOR("Yaw jitter"), &g_cfg.antihit.jitter_mode, aa_jitter_yaw, IM_ARRAYSIZE(aa_jitter_yaw));
 					if (g_cfg.antihit.jitter_mode > 0)
-						slider_int(CXOR("Range##jitter"), &g_cfg.antihit.jitter_range, -180, 180);
+						bind_slider(CXOR("Range##jitter"), CXOR("Range"), &g_cfg.antihit.jitter_range, -180, 180);
 
-					key_bind(CXOR("Edge yaw"), g_cfg.binds[edge_b]);
-					key_bind(CXOR("Freestanding"), g_cfg.binds[freestand_b]);
+					bind_checkbox(CXOR("Edge yaw##aa"), CXOR("Edge yaw"), &g_cfg.antihit.active_edge);
+					bind_checkbox(CXOR("Freestanding##aa"), CXOR("Freestanding"), &g_cfg.antihit.freestand);
 
-					key_bind(CXOR("Manual left"), g_cfg.binds[left_b]);
-					key_bind(CXOR("Manual right"), g_cfg.binds[right_b]);
-					key_bind(CXOR("Manual back"), g_cfg.binds[back_b]);
+					bind_checkbox(CXOR("Manual left##aa"), CXOR("Manual left"), &g_cfg.antihit.manual_left);
+					bind_checkbox(CXOR("Manual right##aa"), CXOR("Manual right"), &g_cfg.antihit.manual_right);
+					bind_checkbox(CXOR("Manual back##aa"), CXOR("Manual back"), &g_cfg.antihit.manual_back);
 				}
 				end_child;
 
 #ifndef LEGACY
 				begin_child(CXOR("Defensive Anti-Aims"))
 				{
-					checkbox(CXOR("Change pitch##antiaim"), &g_cfg.antihit.def_pitch);
-					checkbox(CXOR("Change yaw##antiaim"), &g_cfg.antihit.def_yaw);
+					bind_checkbox(CXOR("Change pitch##antiaim"), CXOR("Change pitch"), &g_cfg.antihit.def_pitch);
+					bind_checkbox(CXOR("Change yaw##antiaim"), CXOR("Change yaw"), &g_cfg.antihit.def_yaw);
 
-					combo(CXOR("Defensive type##antiaim"), &g_cfg.antihit.def_aa_mode, defensive_aa_mode, IM_ARRAYSIZE(defensive_aa_mode));
+					bind_combo(CXOR("Defensive type##antiaim"), CXOR("Defensive type"), &g_cfg.antihit.def_aa_mode, defensive_aa_mode, IM_ARRAYSIZE(defensive_aa_mode));
 				}
 				end_child;
 #endif
@@ -885,54 +843,50 @@ void c_menu::draw_ui_items()
 			{
 				begin_child(CXOR("Fake lag"))
 				{
-					checkbox(CXOR("Enable##fakelag"), &g_cfg.antihit.fakelag);
+					bind_checkbox(CXOR("Enable##fakelag"), CXOR("Enable"), &g_cfg.antihit.fakelag);
 
-					multi_combo(CXOR("Conditions##fakelag"), g_cfg.antihit.fakelag_conditions,
+					bind_multi_combo(CXOR("Conditions##fakelag"), CXOR("Conditions"), g_cfg.antihit.fakelag_conditions,
 						{
 						  XOR("Standing"),
 						  XOR("Moving"),
 						  XOR("Air"),
 						});
 
-					slider_int(CXOR("Limit"), &g_cfg.antihit.fakelag_limit, 1, HACKS->max_choke ? HACKS->max_choke + 1 : 15, CXOR("%d ticks"));
+					bind_slider(CXOR("Limit"), CXOR("Limit"), &g_cfg.antihit.fakelag_limit, 1, HACKS->max_choke ? HACKS->max_choke + 1 : 15, CXOR("%d ticks"));
 
-					checkbox(CXOR("Fluctuate in air##fakelag"), &g_cfg.antihit.fluctiate_in_air);
+					bind_checkbox(CXOR("Fluctuate in air##fakelag"), CXOR("Fluctuate in air"), &g_cfg.antihit.fluctiate_in_air);
 				}
 				end_child;
 
 #ifndef LEGACY
 				begin_child(CXOR("Enhancement"))
 				{
-				//	checkbox(CXOR("Jitter move"), &g_cfg.antihit.jitter_move);
-					checkbox(CXOR("Randomize yaw jitter"), &g_cfg.antihit.random_jitter);
-					checkbox(CXOR("Randomize fake jitter"), &g_cfg.antihit.random_dsy);
-					checkbox(CXOR("Randomize fake amount"), &g_cfg.antihit.random_amount);
+				//	bind_checkbox(CXOR("Jitter move"), CXOR("Jitter move"), &g_cfg.antihit.jitter_move);
+					bind_checkbox(CXOR("Randomize yaw jitter"), CXOR("Randomize yaw jitter"), &g_cfg.antihit.random_jitter);
+					bind_checkbox(CXOR("Randomize fake jitter"), CXOR("Randomize fake jitter"), &g_cfg.antihit.random_dsy);
+					bind_checkbox(CXOR("Randomize fake amount"), CXOR("Randomize fake amount"), &g_cfg.antihit.random_amount);
 				}
 				end_child;
 #endif
 
 				begin_child(CXOR("Movement"))
 				{
-#ifdef LEGACY
-					key_bind(CXOR("Fake walk"), g_cfg.binds[sw_b]);
-#else
-					key_bind(CXOR("Fake duck"), g_cfg.binds[fd_b]);
-					key_bind(CXOR("Slow walk"), g_cfg.binds[sw_b]);
-#endif
+					bind_checkbox(CXOR("Fake duck##aa"), CXOR("Fake duck"), &g_cfg.misc.fake_duck);
+					bind_checkbox(CXOR("Slow walk##aa"), CXOR("Slow walk"), &g_cfg.misc.slow_walk);
 				}
 				end_child;
 
 				begin_child(CXOR("Fake angle"))
 				{
-					checkbox(CXOR("Enable##fake_angle"), &g_cfg.antihit.desync);
-					key_bind(CXOR("Inverter"), g_cfg.binds[inv_b]);
+					bind_checkbox(CXOR("Enable##fake_angle"), CXOR("Enable"), &g_cfg.antihit.desync);
+					bind_checkbox(CXOR("Inverter##aa"), CXOR("Inverter"), &g_cfg.antihit.inverter);
 #ifndef LEGACY
-					combo(CXOR("Fake type"), &g_cfg.antihit.desync_mode, aa_desync_type, IM_ARRAYSIZE(aa_desync_type));
-					slider_int(CXOR("Left amount##desync"), &g_cfg.antihit.desync_left, 0, 58, CXOR("%d"));
-					slider_int(CXOR("Right amount##desync"), &g_cfg.antihit.desync_right, 0, 58, CXOR("%d"));
+					bind_combo(CXOR("Fake type"), CXOR("Fake type"), &g_cfg.antihit.desync_mode, aa_desync_type, IM_ARRAYSIZE(aa_desync_type));
+					bind_slider(CXOR("Left amount##desync"), CXOR("Left amount"), &g_cfg.antihit.desync_left, 0, 58, CXOR("%d"));
+					bind_slider(CXOR("Right amount##desync"), CXOR("Right amount"), &g_cfg.antihit.desync_right, 0, 58, CXOR("%d"));
 #else
-				//	combo(CXOR("Breaker type"), &g_cfg.antihit.desync_mode, aa_desync_type, IM_ARRAYSIZE(aa_desync_type));
-					slider_int(CXOR("LBY Delta##desync"), &g_cfg.antihit.desync_left, 0, 180, CXOR("%d"));
+				//	bind_combo(CXOR("Breaker type"), CXOR("Breaker type"), &g_cfg.antihit.desync_mode, aa_desync_type, IM_ARRAYSIZE(aa_desync_type));
+					bind_slider(CXOR("LBY Delta##desync"), CXOR("LBY Delta"), &g_cfg.antihit.desync_left, 0, 180, CXOR("%d"));
 #endif
 				}
 				end_child;
@@ -940,11 +894,11 @@ void c_menu::draw_ui_items()
 #ifndef LEGACY
 				begin_child(CXOR("Extended fake"))
 				{
-					checkbox(CXOR("Enable##distortion"), &g_cfg.antihit.distortion);
-					key_bind(CXOR("Force extend"), g_cfg.binds[ens_lean_b]);
+					bind_checkbox(CXOR("Enable##distortion"), CXOR("Enable"), &g_cfg.antihit.distortion);
+					bind_checkbox(CXOR("Force extend##aa"), CXOR("Force extend"), &g_cfg.antihit.force_extend);
 
-					slider_int(CXOR("Amount##body_lean"), &g_cfg.antihit.distortion_range, 0, 100, CXOR("%d%%"));
-					slider_int(CXOR("Height##body_lean"), &g_cfg.antihit.distortion_pitch, 0, 50);
+					bind_slider(CXOR("Amount##body_lean"), CXOR("Amount"), &g_cfg.antihit.distortion_range, 0, 100, CXOR("%d%%"));
+					bind_slider(CXOR("Height##body_lean"), CXOR("Height"), &g_cfg.antihit.distortion_pitch, 0, 50);
 				}
 				end_child;
 #endif
@@ -983,8 +937,8 @@ void c_menu::draw_ui_items()
 					begin_child("General ");
 					{
 						auto& enemy_esp = g_cfg.visuals.esp[esp_enemy];
-						checkbox(CXOR("Enable##esp_enemy"), &enemy_esp.enable);
-						multi_combo(CXOR("Elements##esp_enemy"), enemy_esp.elements,
+						bind_checkbox(CXOR("Enable##esp_enemy"), CXOR("Enable"), &enemy_esp.enable);
+						bind_multi_combo(CXOR("Elements##esp_enemy"), CXOR("Elements"), enemy_esp.elements,
 							{
 							  XOR("Box"),
 							  XOR("Name"),
@@ -1032,24 +986,24 @@ void c_menu::draw_ui_items()
 					{
 						static int chams_model = 0;
 
-						combo(CXOR("Type"), &chams_model, enemy_models, IM_ARRAYSIZE(enemy_models));
+						bind_combo(CXOR("Type"), CXOR("Type"), &chams_model, enemy_models, IM_ARRAYSIZE(enemy_models));
 
 						auto& enemy_config = g_cfg.visuals.chams[chams_model];
 
-						checkbox(CXOR("Enable"), &enemy_config.enable);
+						bind_checkbox(CXOR("Enable"), CXOR("Enable"), &enemy_config.enable);
 						if (chams_model == 2)
-							checkbox(CXOR("Full history"), &g_cfg.visuals.show_all_history);
+							bind_checkbox(CXOR("Full history"), CXOR("Full history"), &g_cfg.visuals.show_all_history);
 
-						combo(CXOR("Material"), &enemy_config.material, vis_chams_type, IM_ARRAYSIZE(vis_chams_type));
+						bind_combo(CXOR("Material"), CXOR("Material"), &enemy_config.material, vis_chams_type, IM_ARRAYSIZE(vis_chams_type));
 						color_picker(CXOR("Material color"), enemy_config.main_color);
 						if (enemy_config.material == 4)
 						{
-							slider_int(CXOR("Fill"), &enemy_config.glow_fill, 0, 100, CXOR("%d%%"));
+							bind_slider(CXOR("Fill"), CXOR("Fill"), &enemy_config.glow_fill, 0, 100, CXOR("%d%%"));
 							color_picker(CXOR("Glow color"), enemy_config.glow_color);
 						}
 
 						if (chams_model == 3)
-							slider_int(CXOR("Shot duration"), &enemy_config.shot_duration, 1, 10, CXOR("%d s"));
+							bind_slider(CXOR("Shot duration"), CXOR("Shot duration"), &enemy_config.shot_duration, 1, 10, CXOR("%d s"));
 
 						if (enemy_config.material == 6)
 							input_text(CXOR("Sprite path"), enemy_config.chams_sprite, 128);
@@ -1058,8 +1012,8 @@ void c_menu::draw_ui_items()
 
 					begin_child(CXOR("Player OOF "));
 					{
-						slider_int(CXOR("Distance  "), &enemy_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
-						slider_int(CXOR("Size  "), &enemy_esp.offscreen_size, 5, 25, CXOR("%d px"));
+						bind_slider(CXOR("Distance  "), CXOR("Distance  "), &enemy_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
+						bind_slider(CXOR("Size  "), CXOR("Size  "), &enemy_esp.offscreen_size, 5, 25, CXOR("%d px"));
 						color_picker(CXOR("Color##esp_enemy_arrow"), enemy_esp.colors.offscreen_arrow);
 						color_picker(CXOR("Outline color##esp_enemy_arrow"), enemy_esp.colors.offscreen_arrow_outline);
 					}
@@ -1074,20 +1028,20 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("General    "))
 					{
-						checkbox(CXOR("Glow##local_player"), &g_cfg.visuals.local_glow);
+						bind_checkbox(CXOR("Glow##local_player"), CXOR("Glow"), &g_cfg.visuals.local_glow);
 
 						if (g_cfg.visuals.local_glow)
 							color_picker(CXOR("Glow color##local_esp_glow"), g_cfg.visuals.local_glow_color);
 
-						slider_int(CXOR("Attachments blend"), &g_cfg.misc.attachments_amt, 0, 100, CXOR("%d%%"));
+						bind_slider(CXOR("Attachments blend"), CXOR("Attachments blend"), &g_cfg.misc.attachments_amt, 0, 100, CXOR("%d%%"));
 					}
 					end_child;
 
 					begin_child(CXOR("Crosshair    "))
 					{
-						checkbox(CXOR("Penetration crosshair"), &g_cfg.misc.pen_xhair);
-						checkbox(CXOR("Force crosshair on sniper"), &g_cfg.misc.snip_crosshair);
-						checkbox(CXOR("Fix zoom sensitivity"), &g_cfg.misc.fix_sensitivity);
+						bind_checkbox(CXOR("Penetration crosshair"), CXOR("Penetration crosshair"), &g_cfg.misc.pen_xhair);
+						bind_checkbox(CXOR("Force crosshair on sniper"), CXOR("Force crosshair on sniper"), &g_cfg.misc.snip_crosshair);
+						bind_checkbox(CXOR("Fix zoom sensitivity"), CXOR("Fix zoom sensitivity"), &g_cfg.misc.fix_sensitivity);
 					}
 					end_child;
 				}
@@ -1097,17 +1051,17 @@ void c_menu::draw_ui_items()
 					{
 						static int chams_local_model = 0;
 
-						combo(CXOR("Type##local"), &chams_local_model, local_models, IM_ARRAYSIZE(local_models));
+						bind_combo(CXOR("Type##local"), CXOR("Type"), &chams_local_model, local_models, IM_ARRAYSIZE(local_models));
 
 						auto& local_config = g_cfg.visuals.chams[chams_local_model + 5];
 
-						checkbox(CXOR("Enable##local"), &local_config.enable);
+						bind_checkbox(CXOR("Enable##local"), CXOR("Enable"), &local_config.enable);
 
-						combo(CXOR("Material##local"), &local_config.material, vis_chams_type, IM_ARRAYSIZE(vis_chams_type));
+						bind_combo(CXOR("Material##local"), CXOR("Material"), &local_config.material, vis_chams_type, IM_ARRAYSIZE(vis_chams_type));
 						color_picker(CXOR("Material color##local"), local_config.main_color);
 						if (local_config.material == 4)
 						{
-							slider_int(CXOR("Fill##local"), &local_config.glow_fill, 0, 100, CXOR("%d%%"));
+							bind_slider(CXOR("Fill##local"), CXOR("Fill"), &local_config.glow_fill, 0, 100, CXOR("%d%%"));
 							color_picker(CXOR("Glow color##local"), local_config.glow_color);
 						}
 
@@ -1126,8 +1080,8 @@ void c_menu::draw_ui_items()
 					begin_child(CXOR("General     "))
 					{
 						auto& weapon_esp = g_cfg.visuals.esp[esp_weapon];
-						checkbox(CXOR("Enable##esp_weapon"), &weapon_esp.enable);
-						multi_combo(CXOR("Elements##esp_weapon"), weapon_esp.elements,
+						bind_checkbox(CXOR("Enable##esp_weapon"), CXOR("Enable"), &weapon_esp.enable);
+						bind_multi_combo(CXOR("Elements##esp_weapon"), CXOR("Elements"), weapon_esp.elements,
 							{
 							  XOR("Box"),
 							  XOR("Icon"),
@@ -1162,12 +1116,12 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Predictions"))
 					{
-						checkbox(CXOR("Projectile prediction"), &g_cfg.visuals.grenade_predict);
+						bind_checkbox(CXOR("Projectile prediction"), CXOR("Projectile prediction"), &g_cfg.visuals.grenade_predict);
 						if (g_cfg.visuals.grenade_predict)
 							color_picker(CXOR("Prediction color"), g_cfg.visuals.predict_clr);
 
-						checkbox(CXOR("Projectile warning"), &g_cfg.visuals.grenade_warning);
-						checkbox(CXOR("Warning line"), &g_cfg.visuals.grenade_warning_line);
+						bind_checkbox(CXOR("Projectile warning"), CXOR("Projectile warning"), &g_cfg.visuals.grenade_warning);
+						bind_checkbox(CXOR("Warning line"), CXOR("Warning line"), &g_cfg.visuals.grenade_warning_line);
 						color_picker(CXOR("Warning color"), g_cfg.visuals.warning_clr);
 					}
 					end_child;
@@ -1175,9 +1129,9 @@ void c_menu::draw_ui_items()
 					auto& weapon_esp = g_cfg.visuals.esp[esp_weapon];
 					begin_child(CXOR("Prediction OOF "));
 					{
-						checkbox(CXOR("Enable##esp_pred_arrow"), &weapon_esp.nade_offscreen);
-						slider_int(CXOR("Distance  "), &weapon_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
-						slider_int(CXOR("Size  "), &weapon_esp.offscreen_size, 5, 25, CXOR("%d px"));
+						bind_checkbox(CXOR("Enable##esp_pred_arrow"), CXOR("Enable"), &weapon_esp.nade_offscreen);
+						bind_slider(CXOR("Distance  "), CXOR("Distance  "), &weapon_esp.offscreen_dist, 1, 450, CXOR("%d ft"));
+						bind_slider(CXOR("Size  "), CXOR("Size  "), &weapon_esp.offscreen_size, 5, 25, CXOR("%d px"));
 						color_picker(CXOR("Color##esp_pred_arrow"), weapon_esp.colors.offscreen_arrow);
 						color_picker(CXOR("Outline color##esp_pred_arrow"), weapon_esp.colors.offscreen_arrow_outline);
 					}
@@ -1192,11 +1146,11 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Sky & props"))
 					{
-						combo(CXOR("Skybox"), &g_cfg.misc.skybox, skyboxes, IM_ARRAYSIZE(skyboxes));
+						bind_combo(CXOR("Skybox"), CXOR("Skybox"), &g_cfg.misc.skybox, skyboxes, IM_ARRAYSIZE(skyboxes));
 						if (g_cfg.misc.skybox == 23)
 							input_text(CXOR("Sky name"), g_cfg.misc.skybox_name, 128);
 
-						slider_int(CXOR("Props alpha"), &g_cfg.misc.prop_alpha, 0, 100, CXOR("%d%%"));
+						bind_slider(CXOR("Props alpha"), CXOR("Props alpha"), &g_cfg.misc.prop_alpha, 0, 100, CXOR("%d%%"));
 					}
 					end_child;
 				}
@@ -1204,7 +1158,7 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World modulation"))
 					{
-						multi_combo(CXOR("Modifiers"), g_cfg.misc.world_modulation,
+						bind_multi_combo(CXOR("Modifiers"), CXOR("Modifiers"), g_cfg.misc.world_modulation,
 							{
 								XOR("Night mode"),
 								XOR("Sunset mode"),
@@ -1220,9 +1174,9 @@ void c_menu::draw_ui_items()
 
 						if (g_cfg.misc.world_modulation & 2)
 						{
-							slider_int(CXOR("Sun pitch"), &g_cfg.misc.sunset_angle.x, -180, 180, CXOR("%d degrees"));
-							slider_int(CXOR("Sun yaw"), &g_cfg.misc.sunset_angle.y, -180, 180, CXOR("%d degrees"));
-							slider_int(CXOR("Sun roll"), &g_cfg.misc.sunset_angle.z, -180, 180, CXOR("%d degrees"));
+							bind_slider(CXOR("Sun pitch"), CXOR("Sun pitch"), &g_cfg.misc.sunset_angle.x, -180, 180, CXOR("%d degrees"));
+							bind_slider(CXOR("Sun yaw"), CXOR("Sun yaw"), &g_cfg.misc.sunset_angle.y, -180, 180, CXOR("%d degrees"));
+							bind_slider(CXOR("Sun roll"), CXOR("Sun roll"), &g_cfg.misc.sunset_angle.z, -180, 180, CXOR("%d degrees"));
 						}
 					}
 					end_child;
@@ -1236,7 +1190,7 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Screen effects"))
 					{
-						multi_combo(CXOR("Removals"), g_cfg.misc.removals,
+						bind_multi_combo(CXOR("Removals"), CXOR("Removals"), g_cfg.misc.removals,
 							{
 								XOR("Scope"),
 								XOR("Visual recoil"),
@@ -1251,12 +1205,12 @@ void c_menu::draw_ui_items()
 
 					begin_child(CXOR("World bloom"))
 					{
-						checkbox(CXOR("Customize bloom"), &g_cfg.misc.custom_bloom);
+						bind_checkbox(CXOR("Customize bloom"), CXOR("Customize bloom"), &g_cfg.misc.custom_bloom);
 						if (g_cfg.misc.custom_bloom)
 						{
-							slider_int(CXOR("Bloom scale"), &g_cfg.misc.bloom_scale, 0, 5);
-							slider_int(CXOR("Exposure min"), &g_cfg.misc.exposure_min, 1, 10);
-							slider_int(CXOR("Exposure max"), &g_cfg.misc.exposure_max, 1, 10);
+							bind_slider(CXOR("Bloom scale"), CXOR("Bloom scale"), &g_cfg.misc.bloom_scale, 0, 5);
+							bind_slider(CXOR("Exposure min"), CXOR("Exposure min"), &g_cfg.misc.exposure_min, 1, 10);
+							bind_slider(CXOR("Exposure max"), CXOR("Exposure max"), &g_cfg.misc.exposure_max, 1, 10);
 						}
 					}
 					end_child;
@@ -1265,12 +1219,12 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World fog"))
 					{
-						checkbox(CXOR("Customize fog"), &g_cfg.misc.custom_fog);
+						bind_checkbox(CXOR("Customize fog"), CXOR("Customize fog"), &g_cfg.misc.custom_fog);
 						if (g_cfg.misc.custom_fog)
 						{
-							slider_int(CXOR("Fog start"), &g_cfg.misc.fog_start, 0, 10000);
-							slider_int(CXOR("Fog end"), &g_cfg.misc.fog_end, 0, 10000);
-							slider_int(CXOR("Density"), &g_cfg.misc.fog_density, 0, 100, CXOR("%d%%"));
+							bind_slider(CXOR("Fog start"), CXOR("Fog start"), &g_cfg.misc.fog_start, 0, 10000);
+							bind_slider(CXOR("Fog end"), CXOR("Fog end"), &g_cfg.misc.fog_end, 0, 10000);
+							bind_slider(CXOR("Density"), CXOR("Density"), &g_cfg.misc.fog_density, 0, 100, CXOR("%d%%"));
 							color_picker(CXOR("Fog color"), g_cfg.misc.world_clr[fog], no_alpha_picker);
 						}
 					}
@@ -1285,19 +1239,19 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World camera"))
 					{
-						key_bind(CXOR("Thirdperson"), g_cfg.binds[tp_b]);
-						slider_int(CXOR("Distance"), &g_cfg.misc.thirdperson_dist, 10, 300);
-						checkbox(CXOR("While dead"), &g_cfg.misc.thirdperson_dead);
+						bind_checkbox(CXOR("Thirdperson"), CXOR("Thirdperson"), &g_cfg.misc.thirdperson);
+						bind_slider(CXOR("Distance"), CXOR("Distance"), &g_cfg.misc.thirdperson_dist, 10, 300);
+						bind_checkbox(CXOR("While dead"), CXOR("While dead"), &g_cfg.misc.thirdperson_dead);
 					}
 					end_child;
 
 					begin_child(CXOR("Viewmodel  "))
 					{
-						slider_int(CXOR("Viewmodel FOV"), &g_cfg.misc.fovs[arms], 0, 30);
-						checkbox(CXOR("Show viewmodel in scope"), &g_cfg.misc.viewmodel_scope);
-						slider_int(CXOR("Offset X"), &g_cfg.misc.viewmodel_pos[0], -20, 20);
-						slider_int(CXOR("Offset Y"), &g_cfg.misc.viewmodel_pos[1], -20, 20);
-						slider_int(CXOR("Offset Z"), &g_cfg.misc.viewmodel_pos[2], -20, 20);
+						bind_slider(CXOR("Viewmodel FOV"), CXOR("Viewmodel FOV"), &g_cfg.misc.fovs[arms], 0, 30);
+						bind_checkbox(CXOR("Show viewmodel in scope"), CXOR("Show viewmodel in scope"), &g_cfg.misc.viewmodel_scope);
+						bind_slider(CXOR("Offset X"), CXOR("Offset X"), &g_cfg.misc.viewmodel_pos[0], -20, 20);
+						bind_slider(CXOR("Offset Y"), CXOR("Offset Y"), &g_cfg.misc.viewmodel_pos[1], -20, 20);
+						bind_slider(CXOR("Offset Z"), CXOR("Offset Z"), &g_cfg.misc.viewmodel_pos[2], -20, 20);
 					}
 					end_child;
 				}
@@ -1305,10 +1259,10 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("World view"))
 					{
-						slider_int(CXOR("Aspect ratio"), &g_cfg.misc.aspect_ratio, 0, 200);
-						slider_int(CXOR("FOV"), &g_cfg.misc.fovs[world], 0, 60);
-						slider_int(CXOR("Zoom FOV"), &g_cfg.misc.fovs[zoom], 0, 100, CXOR("%d%%"));
-						checkbox(CXOR("Skip second zoom"), &g_cfg.misc.skip_second_zoom);
+						bind_slider(CXOR("Aspect ratio"), CXOR("Aspect ratio"), &g_cfg.misc.aspect_ratio, 0, 200);
+						bind_slider(CXOR("FOV"), CXOR("FOV"), &g_cfg.misc.fovs[world], 0, 60);
+						bind_slider(CXOR("Zoom FOV"), CXOR("Zoom FOV"), &g_cfg.misc.fovs[zoom], 0, 100, CXOR("%d%%"));
+						bind_checkbox(CXOR("Skip second zoom"), CXOR("Skip second zoom"), &g_cfg.misc.skip_second_zoom);
 					}
 					end_child;
 				}
@@ -1352,15 +1306,15 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Main"))
 					{
-						checkbox(CXOR("Auto jump"), &g_cfg.misc.auto_jump);
+						bind_checkbox(CXOR("Auto jump"), CXOR("Auto jump"), &g_cfg.misc.auto_jump);
 
-						checkbox(CXOR("Auto strafe"), &g_cfg.misc.auto_strafe);
-						slider_int(CXOR("Turn smooth"), &g_cfg.misc.strafe_smooth, 0, 100, CXOR("%d%%"));
+						bind_checkbox(CXOR("Auto strafe"), CXOR("Auto strafe"), &g_cfg.misc.auto_strafe);
+						bind_slider(CXOR("Turn smooth"), CXOR("Turn smooth"), &g_cfg.misc.strafe_smooth, 0, 100, CXOR("%d%%"));
 
-						key_bind(CXOR("Edge jump"), g_cfg.binds[ej_b]);
+						bind_checkbox(CXOR("Edge jump"), CXOR("Edge jump"), &g_cfg.misc.edge_jump);
 
-						checkbox(CXOR("Fast stop"), &g_cfg.misc.fast_stop);
-						checkbox(CXOR("Slide walk"), &g_cfg.misc.slide_walk);
+						bind_checkbox(CXOR("Fast stop"), CXOR("Fast stop"), &g_cfg.misc.fast_stop);
+						bind_checkbox(CXOR("Slide walk"), CXOR("Slide walk"), &g_cfg.misc.slide_walk);
 					}
 					end_child;
 				}
@@ -1368,10 +1322,10 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Helpers"))
 					{
-						key_bind(CXOR("Auto peek"), g_cfg.binds[ap_b]);
+						bind_checkbox(CXOR("Auto peek"), CXOR("Auto peek"), &g_cfg.misc.auto_peek);
 						color_picker(CXOR("Start color##peek"), g_cfg.misc.autopeek_clr);
 						color_picker(CXOR("Move color##peek"), g_cfg.misc.autopeek_clr_back);
-						checkbox(CXOR("Return on key release"), &g_cfg.misc.retrack_peek);
+						bind_checkbox(CXOR("Return on key release"), CXOR("Return on key release"), &g_cfg.misc.retrack_peek);
 					}
 					end_child;
 				}
@@ -1384,15 +1338,15 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Tracers"))
 					{
-						checkbox(CXOR("Bullet impacts"), &g_cfg.misc.impacts);
+						bind_checkbox(CXOR("Bullet impacts"), CXOR("Bullet impacts"), &g_cfg.misc.impacts);
 						color_picker(CXOR("Server color"), g_cfg.misc.server_clr);
 						color_picker(CXOR("Client color"), g_cfg.misc.client_clr);
-						slider_int(CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);				
+						bind_slider(CXOR("Size"), CXOR("Size"), &g_cfg.misc.impact_size, 5, 15);				
 
-						multi_combo(CXOR("Bullet tracers"), g_cfg.misc.tracers, { XOR("Enemy"), XOR("Team"), XOR("Local") });
+						bind_multi_combo(CXOR("Bullet tracers"), CXOR("Bullet tracers"), g_cfg.misc.tracers, { XOR("Enemy"), XOR("Team"), XOR("Local") });
 
-						combo(CXOR("Tracer type"), &g_cfg.misc.tracer_type, tracers, IM_ARRAYSIZE(tracers));
-						slider_int(CXOR("Bullet size"), &g_cfg.misc.bullet_size, 0, 10);
+						bind_combo(CXOR("Tracer type"), CXOR("Tracer type"), &g_cfg.misc.tracer_type, tracers, IM_ARRAYSIZE(tracers));
+						bind_slider(CXOR("Bullet size"), CXOR("Bullet size"), &g_cfg.misc.bullet_size, 0, 10);
 
 						if (g_cfg.misc.tracers & 1)
 							color_picker(CXOR("Enemy tracer"), g_cfg.misc.trace_clr[0]);
@@ -1407,9 +1361,9 @@ void c_menu::draw_ui_items()
 
 					begin_child(CXOR("Event log"))
 					{
-						checkbox(CXOR("Enable##eventlog"), &g_cfg.visuals.eventlog.enable);
-						multi_combo(CXOR("Type##eventlog"), g_cfg.visuals.eventlog.logs, { XOR("Hits"), XOR("Misses"), XOR("Debug"), XOR("Purchases"), XOR("Bomb plant") });
-						checkbox(CXOR("Filter console##eventlog"), &g_cfg.visuals.eventlog.filter_console);
+						bind_checkbox(CXOR("Enable##eventlog"), CXOR("Enable"), &g_cfg.visuals.eventlog.enable);
+						bind_multi_combo(CXOR("Type##eventlog"), CXOR("Type"), g_cfg.visuals.eventlog.logs, { XOR("Hits"), XOR("Misses"), XOR("Debug"), XOR("Purchases"), XOR("Bomb plant") });
+						bind_checkbox(CXOR("Filter console##eventlog"), CXOR("Filter console"), &g_cfg.visuals.eventlog.filter_console);
 					}
 					end_child;
 				}
@@ -1417,27 +1371,27 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Hit indicators"))
 					{
-						multi_combo(CXOR("Hitmarker"), g_cfg.misc.hitmarker, { XOR("On enemy"), XOR("On screen") });
+						bind_multi_combo(CXOR("Hitmarker"), CXOR("Hitmarker"), g_cfg.misc.hitmarker, { XOR("On enemy"), XOR("On screen") });
 						color_picker(CXOR("Hitmarker color"), g_cfg.misc.hitmarker_clr);
 
-						combo(CXOR("Hitsound"), &g_cfg.misc.sound, hitsound, IM_ARRAYSIZE(hitsound));
-						slider_int(CXOR("Volume"), &g_cfg.misc.sound_volume, 0, 100, CXOR("%d%%"));
+						bind_combo(CXOR("Hitsound"), CXOR("Hitsound"), &g_cfg.misc.sound, hitsound, IM_ARRAYSIZE(hitsound));
+						bind_slider(CXOR("Volume"), CXOR("Volume"), &g_cfg.misc.sound_volume, 0, 100, CXOR("%d%%"));
 
 						if (g_cfg.misc.sound == 2)
 							input_text(CXOR("Sound name"), g_cfg.misc.sound_name, 128);
 
-						checkbox(CXOR("Damage indicator"), &g_cfg.misc.damage);
+						bind_checkbox(CXOR("Damage indicator"), CXOR("Damage indicator"), &g_cfg.misc.damage);
 						color_picker(CXOR("Indicator color"), g_cfg.misc.damage_clr);
 					}
 					end_child;
 
 					begin_child(CXOR("Buy bot"))
 					{
-						checkbox(CXOR("Enable##buybot"), &g_cfg.misc.buybot.enable);
-						combo(CXOR("Primary weapon##buybot"), &g_cfg.misc.buybot.main_weapon, buybot_main, IM_ARRAYSIZE(buybot_main));
-						combo(CXOR("Secondary weapon##buybot"), &g_cfg.misc.buybot.second_weapon, buybot_second, IM_ARRAYSIZE(buybot_second));
+						bind_checkbox(CXOR("Enable##buybot"), CXOR("Enable"), &g_cfg.misc.buybot.enable);
+						bind_combo(CXOR("Primary weapon##buybot"), CXOR("Primary weapon"), &g_cfg.misc.buybot.main_weapon, buybot_main, IM_ARRAYSIZE(buybot_main));
+						bind_combo(CXOR("Secondary weapon##buybot"), CXOR("Secondary weapon"), &g_cfg.misc.buybot.second_weapon, buybot_second, IM_ARRAYSIZE(buybot_second));
 
-						multi_combo(CXOR("Items##buybot"), g_cfg.misc.buybot.other_items,
+						bind_multi_combo(CXOR("Items##buybot"), CXOR("Items"), g_cfg.misc.buybot.other_items,
 							{ XOR("Head armor"), XOR("Armor"), XOR("HE grenade"), XOR("Molotov"), XOR("Smoke"), XOR("Taser"), XOR("Defuse kit") });
 					}
 					end_child;
@@ -1451,17 +1405,17 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Hud"))
 					{
-						checkbox(CXOR("Force engine radar"), &g_cfg.misc.force_radar);
-						checkbox(CXOR("Preserve killfeed"), &g_cfg.misc.preverse_killfeed);
-						checkbox(CXOR("Unlock inventory"), &g_cfg.misc.unlock_inventory);
-						checkbox(CXOR("Remove server ads"), &g_cfg.misc.remove_ads);
+						bind_checkbox(CXOR("Force engine radar"), CXOR("Force engine radar"), &g_cfg.misc.force_radar);
+						bind_checkbox(CXOR("Preserve killfeed"), CXOR("Preserve killfeed"), &g_cfg.misc.preverse_killfeed);
+						bind_checkbox(CXOR("Unlock inventory"), CXOR("Unlock inventory"), &g_cfg.misc.unlock_inventory);
+						bind_checkbox(CXOR("Remove server ads"), CXOR("Remove server ads"), &g_cfg.misc.remove_ads);
 					}
 					end_child;
 
 					begin_child(CXOR("Menu"))
 					{
 						color_picker(CXOR("Accent color"), g_cfg.misc.ui_color);
-						multi_combo(CXOR("Indicators##menu"), g_cfg.misc.menu_indicators, { XOR("Keybind list"), XOR("Bomb"), XOR("Watermark"), XOR("Spectators") });
+						bind_multi_combo(CXOR("Indicators##menu"), CXOR("Indicators"), g_cfg.misc.menu_indicators, { XOR("Keybind list"), XOR("Bomb"), XOR("Watermark"), XOR("Spectators") });
 					}
 					end_child;
 				}
@@ -1469,19 +1423,19 @@ void c_menu::draw_ui_items()
 				{
 					begin_child(CXOR("Changers"))
 					{
-						multi_combo(CXOR("Breaker animation"), g_cfg.misc.local_breaker, { XOR("static legs air"), XOR("reverse legs"), XOR("allah legs") });
-						combo(CXOR("Ragdoll gravity"), &g_cfg.misc.ragdoll_gravity, ragdoll_gravities, IM_ARRAYSIZE(ragdoll_gravities));
-						checkbox(CXOR("Clantag changer"), &g_cfg.misc.clantag);
+						bind_multi_combo(CXOR("Breaker animation"), CXOR("Breaker animation"), g_cfg.misc.local_breaker, { XOR("static legs air"), XOR("reverse legs"), XOR("allah legs") });
+						bind_combo(CXOR("Ragdoll gravity"), CXOR("Ragdoll gravity"), &g_cfg.misc.ragdoll_gravity, ragdoll_gravities, IM_ARRAYSIZE(ragdoll_gravities));
+						bind_checkbox(CXOR("Clantag changer"), CXOR("Clantag changer"), &g_cfg.misc.clantag);
 					}
 					end_child;
 
 					begin_child(CXOR("Bypass"))
 					{
-						checkbox(CXOR("Unlock hidden cvars"), &g_cfg.misc.unlock_hidden_cvars);
-						checkbox(CXOR("Bypass sv_pure"), &g_cfg.misc.bypass_sv_pure);
+						bind_checkbox(CXOR("Unlock hidden cvars"), CXOR("Unlock hidden cvars"), &g_cfg.misc.unlock_hidden_cvars);
+						bind_checkbox(CXOR("Bypass sv_pure"), CXOR("Bypass sv_pure"), &g_cfg.misc.bypass_sv_pure);
 
 //#if ALPHA || _DEBUG
-//						checkbox(CXOR("Force crash"), &g_cfg.misc.force_crash);
+//						bind_checkbox(CXOR("Force crash"), CXOR("Force crash"), &g_cfg.misc.force_crash);
 //#endif
 					}
 					end_child;
@@ -1502,31 +1456,31 @@ void c_menu::draw_ui_items()
 			{
 				begin_child(CXOR("Choose your weapon     "))
 				{
-					combo(CXOR("Painting up...##skins"), &g_cfg.skins.group_type, skin_weapon_configs, IM_ARRAYSIZE(skin_weapon_configs));
+					bind_combo(CXOR("Painting up...##skins"), CXOR("Painting up..."), &g_cfg.skins.group_type, skin_weapon_configs, IM_ARRAYSIZE(skin_weapon_configs));
 
 					if (g_cfg.skins.group_type == weapon_cfg_knife)
-						combo(CXOR("Model  "), &g_cfg.skins.skin_weapon[g_cfg.skins.group_type].knife_model, knife_models, IM_ARRAYSIZE(knife_models));
+						bind_combo(CXOR("Model  "), CXOR("Model  "), &g_cfg.skins.skin_weapon[g_cfg.skins.group_type].knife_model, knife_models, IM_ARRAYSIZE(knife_models));
 				}
 				end_child;
 
 				begin_child(CXOR("Gloves"))
 				{
-					combo(CXOR("Glove model"), &g_cfg.skins.model_glove, glove_models, IM_ARRAYSIZE(glove_models));
-					combo(CXOR("Glove skin"), &g_cfg.skins.glove_skin, glove_skins, IM_ARRAYSIZE(glove_skins));
+					bind_combo(CXOR("Glove model"), CXOR("Glove model"), &g_cfg.skins.model_glove, glove_models, IM_ARRAYSIZE(glove_models));
+					bind_combo(CXOR("Glove skin"), CXOR("Glove skin"), &g_cfg.skins.glove_skin, glove_skins, IM_ARRAYSIZE(glove_skins));
 				}
 				end_child;
 
 #ifndef LEGACY
 				begin_child(CXOR("Player"))
 				{
-					combo(CXOR("Mask"), &g_cfg.skins.masks, masks, IM_ARRAYSIZE(masks));
+					bind_combo(CXOR("Mask"), CXOR("Mask"), &g_cfg.skins.masks, masks, IM_ARRAYSIZE(masks));
 
-					combo(CXOR("Agent CT"), &g_cfg.skins.model_ct, agents, IM_ARRAYSIZE(agents));
+					bind_combo(CXOR("Agent CT"), CXOR("Agent CT"), &g_cfg.skins.model_ct, agents, IM_ARRAYSIZE(agents));
 
 					if (g_cfg.skins.model_ct == 76)
 						input_text(CXOR("Model path##agent_ct"), g_cfg.skins.custom_model_ct, 128);
 
-					combo(CXOR("Agent T"), &g_cfg.skins.model_t, agents, IM_ARRAYSIZE(agents));
+					bind_combo(CXOR("Agent T"), CXOR("Agent T"), &g_cfg.skins.model_t, agents, IM_ARRAYSIZE(agents));
 
 					if (g_cfg.skins.model_t == 76)
 						input_text(CXOR("Model path##agent_t"), g_cfg.skins.custom_model_t, 128);
@@ -1548,7 +1502,7 @@ void c_menu::draw_ui_items()
 
 				begin_child(skin_list_child_name.c_str())
 				{
-					checkbox(CXOR("Enable"), &config.enable);
+					bind_checkbox(CXOR("Enable"), CXOR("Enable"), &config.enable);
 
 					input_text(CXOR("Skins search"), config.skins_search, 256);
 					listbox(CXOR("skinlist_____"), &config.skin, skin_list, 17, config.skins_search);

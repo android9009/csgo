@@ -2,6 +2,7 @@
 #include <atomic>
 #include <wtypes.h>
 #include <functional>
+#include <mutex>
 
 class c_key_states
 {
@@ -26,7 +27,19 @@ public:
 	key_info_t get_key_state(UINT uMsg, WPARAM wParam);
 	bool key_updated(int key, UINT uMsg, WPARAM wParam);
 	void update(UINT uMsg, WPARAM wParam);
+
+	// resolves every per-control bind stored in g_cfg.item_binds here so the
+	// menu thread never touches the bind state directly
+	void update_item_binds(UINT uMsg, WPARAM wParam);
+
+	// combines the control value with its bind: a bound control is "enabled" as
+	// long as the bind is held / toggled, even when the checkbox is off
+	static bind_state_t resolve(const char* label, bool enabled);
 };
+
+// guards g_cfg.item_binds: the menu adds entries while the input thread walks the
+// container every message
+extern std::mutex item_binds_mutex;
 
 #ifdef _DEBUG
 inline auto KEY_STATES = std::make_unique<c_key_states>();

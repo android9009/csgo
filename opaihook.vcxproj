@@ -401,7 +401,7 @@
     <ClCompile Include="menu\menu\menu elements\checkbox.cpp" />
     <ClCompile Include="menu\menu\menu elements\colorpicker.cpp" />
     <ClCompile Include="menu\menu\menu elements\combobox.cpp" />
-    <ClCompile Include="menu\menu\menu elements\keybind.cpp" />
+    <ClCompile Include="menu\menu\menu elements\menu_binds.cpp" />
     <ClCompile Include="menu\menu\menu elements\listbox.cpp" />
     <ClCompile Include="menu\menu\menu elements\slider.cpp" />
     <ClCompile Include="menu\menu\menu elements\textbox.cpp" />

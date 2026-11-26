@@ -559,6 +559,11 @@ void c_menu::draw()
 	this->draw_ui_background();
 	this->draw_tabs();
 	this->draw_ui_items();
+
+	// bind dropdown / settings flyouts are drawn outside the tab child so they can
+	// follow the menu window without being clipped by it
+	this->draw_menu_popups();
+
 	this->window_end();
 
 	HACKS->loading_config = false;

@@ -14,6 +14,15 @@ struct ImVec2;
 
 constexpr int max_tabs = 7;
 
+// settings flyouts opened by the gear icons of the rage tab
+enum settings_popup_t
+{
+	settings_popup_none = 0,
+	settings_main,
+	settings_double_tap,
+	settings_multipoint,
+};
+
 enum animation_flags_t
 {
 	skip_enable = (1 << 0),
@@ -50,7 +59,6 @@ private:
 	ImVec2 window_pos{};
 
 	spectator_animation_t spectator_animaiton[50]{};
-	key_binds_t prev_keys[binds_max]{};
 	std::map<std::string, menu_key_binds_t> updated_keybinds{};
 	std::map< std::string, std::array< tab_animation_t, 6 > > subtab_info{};
 	std::array<tab_animation_t, max_tabs> tab_info{};
@@ -120,11 +128,11 @@ private:
 	bool selectable2(const char* label, bool* p_selected, ImGuiSelectableFlags flags = 0, const ImVec2& size_arg = ImVec2(0, 0));
 	bool selectable_flags(const char* label, unsigned int* flags, unsigned int flags_value);
 	void multi_combo(const char* name, unsigned int& var, std::vector< std::string > elements);
+	void multi_combo_exclusive(const char* name, int& var, std::vector< std::string > elements);
 
 	bool slider_scalar(const char* label, ImGuiDataType data_type, void* p_data, const void* p_min, const void* p_max, const char* format = NULL, float power = 1.0f);
 	bool slider_int(const char* label, int* v, int v_min, int v_max, const char* format = CXOR("%d"));
 
-	bool key_bind(const char* label, key_binds_t& var);
 
 	bool color_picker_wrapper(const char* label, float col[4], ImGuiColorEditFlags flags = 0, const float* ref_col = NULL);
 	bool color_button_wrapper(const char* desc_id, const ImVec4& col, ImGuiColorEditFlags flags = 0);
@@ -138,7 +146,52 @@ private:
 	bool listbox(const char* label, int* currIndex, std::vector< std::string >& values, int height, const std::string& compare_text = "");
 
 public:
+	// per-control binds + settings flyouts (menu elements/menu_binds.cpp)
+	key_binds_t& item_bind(const char* label);
+	bind_state_t item_state(const char* label, bool enabled);
+
+	void open_item_bind(const char* label, ImVec2 anchor);
+	void close_item_bind();
+	void draw_item_bind_popup();
+
+	void open_settings_popup(int popup_id, ImVec2 anchor);
+	void close_settings_popup();
+	bool settings_popup_hovered() const;
+	void settings_popup_begin(const char* id, float width, float height);
+	void settings_popup_end();
+	bool settings_checkbox(const char* label, bool* v);
+	void settings_slider(const char* label, int* v, int v_min, int v_max, const char* format = nullptr);
+	bool settings_selectable(const char* label, bool selected);
+
+	void draw_gear(const char* label, float x, float y, int popup_id);
+	void bind_right_click(const char* label, const ImVec2& min, float height);
+
+	bool bind_checkbox(const char* scope, const char* label, bool* v, int popup_id = 0);
+	void bind_multi_combo(const char* scope, const char* label, unsigned int& var, std::vector< std::string > elements, int popup_id = 0);
+	void bind_combo(const char* scope, const char* label, int* var, const char* const items[], int items_count, int height_in_items = -1);
+	void bind_combo(const char* scope, const char* label, int& var, std::vector< std::string > elements, int popup_id = 0);
+	void bind_slider(const char* scope, const char* label, int* v, int v_min, int v_max, const char* format = nullptr);
+
+	void draw_menu_popups();
+	void draw_settings_body();
+
 	bool opened{};
+
+	// --- per-control key bind dropdown -----------------------------------
+	bool item_bind_open{};
+	bool item_bind_capturing{};
+	std::string item_bind_label{};
+	ImVec2 item_bind_anchor{};
+	ImVec2 item_bind_pos{};
+	ImVec2 item_bind_size{};
+
+	// --- gear settings flyout -------------------------------------------
+	int settings_popup_id{};
+	bool settings_popup_open{};
+	ImVec2 settings_popup_anchor{};
+	ImVec2 settings_popup_pos{};
+	ImVec2 settings_popup_size{};
+	ImRect gear_rect{};
 
 	LPDIRECT3DTEXTURE9 avatar{};
 
@@ -200,9 +253,6 @@ public:
 
 	INLINE void reset_init()
 	{
-		for (auto& i : prev_keys)
-			i.reset();
-
 		updated_keybinds.clear();
 		subtab_info.clear();
 		item_animations.clear();

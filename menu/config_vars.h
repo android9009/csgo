@@ -62,31 +62,6 @@ enum rage_hitbox_t
 	legs = 32
 };
 
-enum binds_idx_t
-{
-	fd_b = 0,
-	sw_b,
-	dt_b,
-	hs_b,
-	ap_b,
-	tp_b,
-	inv_b,
-	edge_b,
-	left_b,
-	right_b,
-	back_b,
-	override_dmg_b,
-	ens_lean_b,
-	spike_b,
-	toggle_legit_b,
-	force_roll_b,
-	freestand_b,
-	force_body_b,
-	force_sp_b,
-	ej_b,
-	binds_max
-};
-
 enum esp_type_t
 {
 	esp_enemy,
@@ -175,26 +150,33 @@ struct chams_t
 
 struct key_binds_t;
 
+// body aim / safe point modes shared by the Extra groupbox
+enum aim_mode_t
+{
+	aim_off = 0,
+	aim_prefer,
+	aim_force,
+	aim_mode_max
+};
+
 struct rage_weapon_t
 {
 	bool enable{};
 	bool quick_stop{};
 	bool auto_scope{};
-	bool strict_mode{};
 
 	int hitchance{};
 	int mindamage = 1;
-	int damage_override = 1;
-	int scale_head = -1;
-	int scale_body = -1;
-	int group_type{};
-	int hitbox_type{};
 
-	bool prefer_body;
-	bool prefer_safe;
+	// multipoint amount, -1 = dynamic (auto)
+	int head_point = -1;
+	int body_point = -1;
+
+	int body_aim{};
+	int safe_point{};
 
 	unsigned int hitboxes{};
-	unsigned int hitchance_skips{ 1 | 2 };
+	unsigned int multipoint{};
 	unsigned int quick_stop_options{};
 
 	std::array< unsigned int, 6 > hitbox_cond{};
@@ -232,7 +214,6 @@ struct configs_t
 		bool enable{};
 
 		bool auto_fire{};
-		bool air_defensive{};
 		bool resolver{};
 
 #if ALPHA || _DEBUG || BETA
@@ -244,11 +225,24 @@ struct configs_t
 #endif
 
 		int spike_amt{};
-		int roll_amt = 50;
-		int roll_amt_pitch = 0;
 		int desync_degree{};
 
+		// menu: Enable gear + Double tap gear
+		// menu: Enable gear (auto fire / anti aim correction / dormant aimbot)
+		bool dormant_aim{};
+
+		// menu: Double tap + gear (defensive mode + speed)
+		bool double_tap{};
+		bool hide_shots{};
+		int dt_mode{}; // 0 = off, 1 = on peek, 2 = always
+		int dt_speed = 100;
+
+		// weapon / Extra groupbox
+		int body_aim{};
+		int safe_point{};
+
 		int group_type{};
+		bool override_config{};
 
 		std::array< rage_weapon_t, 6 > weapon{};
 	} rage;
@@ -256,6 +250,7 @@ struct configs_t
 	struct legitbot_t
 	{
 		bool enable{};
+		bool aim_key{};
 		bool smoke_check{};
 		bool flash_check{};
 		bool autowall{};
@@ -303,6 +298,15 @@ struct configs_t
 		int distortion_range = 100;
 		int distortion_pitch{};
 
+		// these used to be key binds, now they are plain switches with an optional bind
+		bool active_edge{};
+		bool freestand{};
+		bool manual_left{};
+		bool manual_right{};
+		bool manual_back{};
+		bool inverter{};
+		bool force_extend{};
+
 		bool fakelag{};
 		bool fluctiate_in_air{};
 		int fakelag_limit = 14;
@@ -311,6 +315,9 @@ struct configs_t
 		bool jitter_move{};
 		bool silent_onshot = false;
 	} antihit;
+
+	// key binds of the menu controls, keyed by the control label
+	std::map< std::string, key_binds_t > item_binds{};
 
 	struct visuals_t
 	{
@@ -400,6 +407,13 @@ struct configs_t
 
 		int thirdperson_dist = 150;
 		bool thirdperson_dead{};
+
+		// formerly key binds
+		bool thirdperson{};
+		bool fake_duck{};
+		bool slow_walk{};
+		bool auto_peek{};
+		bool edge_jump{};
 
 		bool blend_scope{};
 		int scope_amt = 50;
@@ -517,37 +531,11 @@ struct configs_t
 		std::array< skin_weapon_t, weapon_cfg_max > skin_weapon{};
 	} skins;
 
-	std::array< key_binds_t, binds_max > binds = {
-		  key_binds_t{ -1, 1, false, CXOR("Fake duck") },
-#ifdef LEGACY
-		  key_binds_t{ -1, 1, false, CXOR("Fake walk") },
-#else
-		  key_binds_t{ -1, 1, false, CXOR("Slow walk") },
-#endif
-		  key_binds_t{ -1, 2, false, CXOR("Double tap") },
-		  key_binds_t{ -1, 2, false, CXOR("Hide shots") },
-		  key_binds_t{ -1, 2, false, CXOR("Auto peek") },
-		  key_binds_t{ -1, 2, false, CXOR("Thirdperson") },
-		  key_binds_t{ -1, 2, false, CXOR("Inverter") },
-		  key_binds_t{ -1, 2, false, CXOR("Edge yaw") },
-		  key_binds_t{ -1, 2, false, CXOR("Manual left") },
-		  key_binds_t{ -1, 2, false, CXOR("Manual right") },
-		  key_binds_t{ -1, 2, false, CXOR("Manual back") },
-		  key_binds_t{ -1, 2, false, CXOR("Override dmg") },
-		  key_binds_t{ -1, 1, false, CXOR("Force extend") },
-		  key_binds_t{ -1, 1, false, CXOR("Ping spike") },
-		  key_binds_t{ -1, 1, false, CXOR("Aim (legit)") },
-		  key_binds_t{ -1, 1, false, CXOR("Roll override") },
-		  key_binds_t{ -1, 1, false, CXOR("Freestanding") },
-		  key_binds_t{ -1, 1, false, CXOR("Force body") },
-		  key_binds_t{ -1, 1, false, CXOR("Force safe") },
-		  key_binds_t{ -1, 1, false, CXOR("Edge jump") }
-	};
-
-	INLINE void reset_init()
+	// releases every held / toggled bind (used when a config is loaded)
+	INLINE void reset_binds()
 	{
-		for (auto& i : binds)
-			i.reset2();
+		for (auto& bind : item_binds)
+			bind.second.reset2();
 	}
 };
 

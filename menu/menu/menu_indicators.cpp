@@ -45,31 +45,38 @@ void c_menu::draw_binds()
 
 	static auto window_size = ImVec2(184, 40.f);
 
-	for (int i = 0; i < binds_max; ++i)
+	// every menu control that owns a bind ends up in the same on-screen list
+	static std::map< std::string, bool > prev_item_binds{};
 	{
-		if (i == tp_b)
-			continue;
+		const std::lock_guard<std::mutex> lock(item_binds_mutex);
 
-		auto& prev_bind = prev_keys[i];
-		auto& current_bind = g_cfg.binds[i];
-		auto& binds = updated_keybinds[current_bind.name];
-		if (prev_bind.toggled != current_bind.toggled)
+		for (auto& entry : g_cfg.item_binds)
 		{
-			if (current_bind.toggled)
+			auto& bind = entry.second;
+			if (bind.type != 1 && bind.type != 2)
+				continue;
+
+			auto& prev = prev_item_binds[entry.first];
+			if (prev == bind.toggled)
+				continue;
+
+			auto& updated = updated_keybinds[entry.first];
+
+			if (bind.toggled)
 			{
-				binds.name = current_bind.name;
-				binds.type = current_bind.type;
-				binds.time = HACKS->system_time();
+				updated.name = entry.first;
+				updated.type = bind.type;
+				updated.time = HACKS->system_time();
 
 				window_size.y += 25.f;
 			}
 			else
 			{
-				binds.reset(HACKS->system_time());
+				updated.reset(HACKS->system_time());
 				window_size.y -= 25.f;
 			}
 
-			prev_bind = current_bind;
+			prev = bind.toggled;
 		}
 	}
 

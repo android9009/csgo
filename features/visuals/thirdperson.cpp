@@ -9,7 +9,7 @@ void c_thirdperson::run_alive()
 
 	bool alive = HACKS->local && HACKS->local->is_alive();
 
-	if (g_cfg.binds[tp_b].toggled)
+	if (KEY_STATES->resolve(CXOR("Thirdperson"), g_cfg.misc.thirdperson).active)
 	{
 		if (alive)
 		{

@@ -45,12 +45,6 @@ inline void save_clr(json& j, std::string name, c_float_color* v)
 	j[name][CXOR("a")] = color[3];
 }
 
-inline void save_bind(json& j, std::string name, const key_binds_t& v)
-{
-	j[name][CXOR("key")] = v.key;
-	j[name][CXOR("type")] = v.type;
-}
-
 inline void load_uint(const json& j, std::string name, unsigned int& v)
 {
 	if (j[name].empty())
@@ -70,13 +64,37 @@ inline void load_clr(const json& j, std::string name, c_float_color& v)
 	v[3] = j[name][CXOR("a")].asFloat();
 }
 
-inline void load_bind(json& j, std::string name, key_binds_t& v)
+// per-control binds: stored as a plain list of "label" -> {key, type} so the set
+// of controls can grow without touching saved configs
+inline void save_item_binds(json& j, const std::map< std::string, key_binds_t >& v)
 {
-	if (j[name].empty())
+	auto& out = j[CXOR("item_binds")];
+
+	for (auto& bind : v)
+	{
+		if (bind.second.type != 1 && bind.second.type != 2)
+			continue;
+
+		auto& item = out[bind.first];
+		item[CXOR("key")] = bind.second.key;
+		item[CXOR("type")] = bind.second.type;
+	}
+}
+
+inline void load_item_binds(const json& j, std::map< std::string, key_binds_t >& v)
+{
+	auto& in = j[CXOR("item_binds")];
+	if (in.empty())
 		return;
 
-	v.key = j[name][CXOR("key")].asInt();
-	v.type = j[name][CXOR("type")].asInt();
+	for (auto it = in.begin(); it != in.end(); ++it)
+	{
+		auto& bind = v[it.name()];
+		bind.key = it->isMember(CXOR("key")) ? (*it)[CXOR("key")].asInt() : -1;
+		bind.type = it->isMember(CXOR("type")) ? (*it)[CXOR("type")].asInt() : -1;
+		bind.name = it.name();
+		bind.toggled = false;
+	}
 }
 
 inline void load_int(const json& j, std::string name, int& v)
@@ -161,11 +179,13 @@ namespace config
 			save_bool(rage, CXOR("enable"), default_config.rage.enable);
 			save_bool(rage, CXOR("resolver"), default_config.rage.resolver);
 			save_bool(rage, CXOR("auto_fire"), default_config.rage.auto_fire);
-			save_bool(rage, CXOR("air_defensive"), default_config.rage.air_defensive);
 			save_int(rage, CXOR("spike_amt"), default_config.rage.spike_amt);
-			save_int(rage, CXOR("roll_amt"), default_config.rage.roll_amt);
-			save_int(rage, CXOR("roll_amt_pitch"), default_config.rage.roll_amt_pitch);
 			save_int(rage, CXOR("desync_degree"), default_config.rage.desync_degree);
+			save_bool(rage, CXOR("double_tap"), default_config.rage.double_tap);
+			save_bool(rage, CXOR("hide_shots"), default_config.rage.hide_shots);
+			save_bool(rage, CXOR("dormant_aim"), default_config.rage.dormant_aim);
+			save_int(rage, CXOR("dt_mode"), default_config.rage.dt_mode);
+			save_int(rage, CXOR("dt_speed"), default_config.rage.dt_speed);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), default_config.rage.round_lagcomp);
@@ -180,26 +200,25 @@ namespace config
 				save_bool(rage[sub], CXOR("enable"), default_config.rage.weapon[i].enable);
 				save_bool(rage[sub], CXOR("quick_stop"), default_config.rage.weapon[i].quick_stop);
 				save_bool(rage[sub], CXOR("auto_scope"), default_config.rage.weapon[i].auto_scope);
-				save_bool(rage[sub], CXOR("prefer_body"), default_config.rage.weapon[i].prefer_body);
-				save_bool(rage[sub], CXOR("prefer_safe"), default_config.rage.weapon[i].prefer_safe);
-				save_bool(rage[sub], CXOR("strict_mode"), default_config.rage.weapon[i].strict_mode);
+				save_int(rage[sub], CXOR("body_aim"), default_config.rage.weapon[i].body_aim);
+				save_int(rage[sub], CXOR("safe_point"), default_config.rage.weapon[i].safe_point);
 
 				save_int(rage[sub], CXOR("hitchance"), default_config.rage.weapon[i].hitchance);
 				save_int(rage[sub], CXOR("mindamage"), default_config.rage.weapon[i].mindamage);
-				save_int(rage[sub], CXOR("damage_override"), default_config.rage.weapon[i].damage_override);
 
-				save_int(rage[sub], CXOR("scale_head"), default_config.rage.weapon[i].scale_head);
-				save_int(rage[sub], CXOR("scale_body"), default_config.rage.weapon[i].scale_body);
+				save_int(rage[sub], CXOR("head_point"), default_config.rage.weapon[i].head_point);
+				save_int(rage[sub], CXOR("body_point"), default_config.rage.weapon[i].body_point);
 
 				save_uint(rage[sub], CXOR("quick_stop_options"), default_config.rage.weapon[i].quick_stop_options);
 				save_uint(rage[sub], CXOR("hitboxes"), default_config.rage.weapon[i].hitboxes);
-			//	save_uint(rage[sub], CXOR("hitchance_skips"), default_config.rage.weapon[i].hitchance_skips);
+				save_uint(rage[sub], CXOR("multipoint"), default_config.rage.weapon[i].multipoint);
 			}
 		}
 
 		auto& legit = json_obj[CXOR("legit")];
 		{
 			save_bool(legit, CXOR("enable"), default_config.legit.enable);
+			save_bool(legit, CXOR("aim_key"), default_config.legit.aim_key);
 			save_bool(legit, CXOR("autowall"), default_config.legit.autowall);
 			save_bool(legit, CXOR("flash_check"), default_config.legit.flash_check);
 			save_bool(legit, CXOR("smoke_check"), default_config.legit.smoke_check);
@@ -261,6 +280,14 @@ namespace config
 			save_int(antihit, CXOR("desync_right"), default_config.antihit.desync_right);
 			save_int(antihit, CXOR("distortion_range"), default_config.antihit.distortion_range);
 			save_int(antihit, CXOR("distortion_pitch"), default_config.antihit.distortion_pitch);
+
+			save_bool(antihit, CXOR("active_edge"), default_config.antihit.active_edge);
+			save_bool(antihit, CXOR("freestand"), default_config.antihit.freestand);
+			save_bool(antihit, CXOR("manual_left"), default_config.antihit.manual_left);
+			save_bool(antihit, CXOR("manual_right"), default_config.antihit.manual_right);
+			save_bool(antihit, CXOR("manual_back"), default_config.antihit.manual_back);
+			save_bool(antihit, CXOR("inverter"), default_config.antihit.inverter);
+			save_bool(antihit, CXOR("force_extend"), default_config.antihit.force_extend);
 			save_int(antihit, CXOR("fakelag_limit"), default_config.antihit.fakelag_limit);
 			save_uint(antihit, CXOR("fakelag_conditions"), default_config.antihit.fakelag_conditions);
 		}
@@ -346,6 +373,11 @@ namespace config
 
 			save_bool(misc, CXOR("thirdperson_dead"), default_config.misc.thirdperson_dead);
 			save_int(misc, CXOR("thirdperson_dist"), default_config.misc.thirdperson_dist);
+			save_bool(misc, CXOR("thirdperson"), default_config.misc.thirdperson);
+			save_bool(misc, CXOR("fake_duck"), default_config.misc.fake_duck);
+			save_bool(misc, CXOR("slow_walk"), default_config.misc.slow_walk);
+			save_bool(misc, CXOR("auto_peek"), default_config.misc.auto_peek);
+			save_bool(misc, CXOR("edge_jump"), default_config.misc.edge_jump);
 
 			save_bool(misc, CXOR("impacts"), default_config.misc.impacts);
 			save_clr(misc, CXOR("server_clr"), &default_config.misc.server_clr);
@@ -456,14 +488,7 @@ namespace config
 			}
 		}
 
-		auto& binds = json_obj[CXOR("binds")];
-		{
-			for (int i = 0; i < binds_max; i++)
-			{
-				auto add = std::to_string(i + 1);
-				save_bind(binds, add, default_config.binds[i]);
-			}
-		}
+		save_item_binds(json_obj, default_config.item_binds);
 
 		std::string file = folder + config_name;
 		auto str = json_obj.toStyledString();
@@ -491,11 +516,14 @@ namespace config
 			save_bool(rage, CXOR("enable"), g_cfg.rage.enable);
 			save_bool(rage, CXOR("resolver"), g_cfg.rage.resolver);
 			save_bool(rage, CXOR("auto_fire"), g_cfg.rage.auto_fire);
-			save_bool(rage, CXOR("air_defensive"), g_cfg.rage.air_defensive);
+			
 			save_int(rage, CXOR("spike_amt"), g_cfg.rage.spike_amt);
-			save_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
-			save_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
 			save_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
+			save_bool(rage, CXOR("double_tap"), g_cfg.rage.double_tap);
+			save_bool(rage, CXOR("hide_shots"), g_cfg.rage.hide_shots);
+			save_bool(rage, CXOR("dormant_aim"), g_cfg.rage.dormant_aim);
+			save_int(rage, CXOR("dt_mode"), g_cfg.rage.dt_mode);
+			save_int(rage, CXOR("dt_speed"), g_cfg.rage.dt_speed);
 
 #if ALPHA || _DEBUG || BETA
 			save_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);
@@ -510,26 +538,25 @@ namespace config
 				save_bool(rage[sub], CXOR("enable"), g_cfg.rage.weapon[i].enable);
 				save_bool(rage[sub], CXOR("quick_stop"), g_cfg.rage.weapon[i].quick_stop);
 				save_bool(rage[sub], CXOR("auto_scope"), g_cfg.rage.weapon[i].auto_scope);
-				save_bool(rage[sub], CXOR("prefer_body"), g_cfg.rage.weapon[i].prefer_body);
-				save_bool(rage[sub], CXOR("prefer_safe"), g_cfg.rage.weapon[i].prefer_safe);
-				save_bool(rage[sub], CXOR("strict_mode"), g_cfg.rage.weapon[i].strict_mode);
+				save_int(rage[sub], CXOR("body_aim"), g_cfg.rage.weapon[i].body_aim);
+				save_int(rage[sub], CXOR("safe_point"), g_cfg.rage.weapon[i].safe_point);
 
 				save_int(rage[sub], CXOR("hitchance"), g_cfg.rage.weapon[i].hitchance);
 				save_int(rage[sub], CXOR("mindamage"), g_cfg.rage.weapon[i].mindamage);
-				save_int(rage[sub], CXOR("damage_override"), g_cfg.rage.weapon[i].damage_override);
 
-				save_int(rage[sub], CXOR("scale_head"), g_cfg.rage.weapon[i].scale_head);
-				save_int(rage[sub], CXOR("scale_body"), g_cfg.rage.weapon[i].scale_body);
+				save_int(rage[sub], CXOR("head_point"), g_cfg.rage.weapon[i].head_point);
+				save_int(rage[sub], CXOR("body_point"), g_cfg.rage.weapon[i].body_point);
 
 				save_uint(rage[sub], CXOR("quick_stop_options"), g_cfg.rage.weapon[i].quick_stop_options);
 				save_uint(rage[sub], CXOR("hitboxes"), g_cfg.rage.weapon[i].hitboxes);
-				//save_uint(rage[sub], CXOR("hitchance_skips"), g_cfg.rage.weapon[i].hitchance_skips);
+				save_uint(rage[sub], CXOR("multipoint"), g_cfg.rage.weapon[i].multipoint);
 			}
 		}
 
 		auto& legit = json_obj[CXOR("legit")];
 		{
 			save_bool(legit, CXOR("enable"), g_cfg.legit.enable);
+			save_bool(legit, CXOR("aim_key"), g_cfg.legit.aim_key);
 			save_bool(legit, CXOR("autowall"), g_cfg.legit.autowall);
 			save_bool(legit, CXOR("flash_check"), g_cfg.legit.flash_check);
 			save_bool(legit, CXOR("smoke_check"), g_cfg.legit.smoke_check);
@@ -591,6 +618,14 @@ namespace config
 			save_int(antihit, CXOR("desync_right"), g_cfg.antihit.desync_right);
 			save_int(antihit, CXOR("distortion_range"), g_cfg.antihit.distortion_range);
 			save_int(antihit, CXOR("distortion_pitch"), g_cfg.antihit.distortion_pitch);
+
+			save_bool(antihit, CXOR("active_edge"), g_cfg.antihit.active_edge);
+			save_bool(antihit, CXOR("freestand"), g_cfg.antihit.freestand);
+			save_bool(antihit, CXOR("manual_left"), g_cfg.antihit.manual_left);
+			save_bool(antihit, CXOR("manual_right"), g_cfg.antihit.manual_right);
+			save_bool(antihit, CXOR("manual_back"), g_cfg.antihit.manual_back);
+			save_bool(antihit, CXOR("inverter"), g_cfg.antihit.inverter);
+			save_bool(antihit, CXOR("force_extend"), g_cfg.antihit.force_extend);
 			save_int(antihit, CXOR("fakelag_limit"), g_cfg.antihit.fakelag_limit);
 			save_uint(antihit, CXOR("fakelag_conditions"), g_cfg.antihit.fakelag_conditions);
 		}
@@ -676,6 +711,11 @@ namespace config
 
 			save_bool(misc, CXOR("thirdperson_dead"), g_cfg.misc.thirdperson_dead);
 			save_int(misc, CXOR("thirdperson_dist"), g_cfg.misc.thirdperson_dist);
+			save_bool(misc, CXOR("thirdperson"), g_cfg.misc.thirdperson);
+			save_bool(misc, CXOR("fake_duck"), g_cfg.misc.fake_duck);
+			save_bool(misc, CXOR("slow_walk"), g_cfg.misc.slow_walk);
+			save_bool(misc, CXOR("auto_peek"), g_cfg.misc.auto_peek);
+			save_bool(misc, CXOR("edge_jump"), g_cfg.misc.edge_jump);
 
 			save_bool(misc, CXOR("impacts"), g_cfg.misc.impacts);
 			save_clr(misc, CXOR("server_clr"), &g_cfg.misc.server_clr);
@@ -787,14 +827,7 @@ namespace config
 			}
 		}
 
-		auto& binds = json_obj[CXOR("binds")];
-		{
-			for (int i = 0; i < binds_max; i++)
-			{
-				auto add = std::to_string(i + 1);
-				save_bind(binds, add, g_cfg.binds[i]);
-			}
-		}
+		save_item_binds(json_obj, g_cfg.item_binds);
 
 		std::string file = folder + config_name;
 		auto str = json_obj.toStyledString();
@@ -832,11 +865,13 @@ namespace config
 			load_bool(rage, CXOR("enable"), g_cfg.rage.enable);
 			load_bool(rage, CXOR("resolver"), g_cfg.rage.resolver);
 			load_bool(rage, CXOR("auto_fire"), g_cfg.rage.auto_fire);
-			load_bool(rage, CXOR("air_defensive"), g_cfg.rage.air_defensive);
 			load_int(rage, CXOR("spike_amt"), g_cfg.rage.spike_amt);
-			load_int(rage, CXOR("roll_amt"), g_cfg.rage.roll_amt);
-			load_int(rage, CXOR("roll_amt_pitch"), g_cfg.rage.roll_amt_pitch);
 			load_int(rage, CXOR("desync_degree"), g_cfg.rage.desync_degree);
+			load_bool(rage, CXOR("double_tap"), g_cfg.rage.double_tap);
+			load_bool(rage, CXOR("hide_shots"), g_cfg.rage.hide_shots);
+			load_bool(rage, CXOR("dormant_aim"), g_cfg.rage.dormant_aim);
+			load_int(rage, CXOR("dt_mode"), g_cfg.rage.dt_mode);
+			load_int(rage, CXOR("dt_speed"), g_cfg.rage.dt_speed);
 
 #if ALPHA || _DEBUG || BETA
 			load_bool(rage, CXOR("round_lagcomp"), g_cfg.rage.round_lagcomp);
@@ -851,26 +886,25 @@ namespace config
 				load_bool(rage[sub], CXOR("enable"), g_cfg.rage.weapon[i].enable);
 				load_bool(rage[sub], CXOR("quick_stop"), g_cfg.rage.weapon[i].quick_stop);
 				load_bool(rage[sub], CXOR("auto_scope"), g_cfg.rage.weapon[i].auto_scope);
-				load_bool(rage[sub], CXOR("prefer_body"), g_cfg.rage.weapon[i].prefer_body);
-				load_bool(rage[sub], CXOR("prefer_safe"), g_cfg.rage.weapon[i].prefer_safe);
-				load_bool(rage[sub], CXOR("strict_mode"), g_cfg.rage.weapon[i].strict_mode);
+				load_int(rage[sub], CXOR("body_aim"), g_cfg.rage.weapon[i].body_aim);
+				load_int(rage[sub], CXOR("safe_point"), g_cfg.rage.weapon[i].safe_point);
 
 				load_int(rage[sub], CXOR("hitchance"), g_cfg.rage.weapon[i].hitchance);
 				load_int(rage[sub], CXOR("mindamage"), g_cfg.rage.weapon[i].mindamage);
-				load_int(rage[sub], CXOR("damage_override"), g_cfg.rage.weapon[i].damage_override);
 
-				load_int(rage[sub], CXOR("scale_head"), g_cfg.rage.weapon[i].scale_head);
-				load_int(rage[sub], CXOR("scale_body"), g_cfg.rage.weapon[i].scale_body);
+				load_int(rage[sub], CXOR("head_point"), g_cfg.rage.weapon[i].head_point);
+				load_int(rage[sub], CXOR("body_point"), g_cfg.rage.weapon[i].body_point);
 
 				load_uint(rage[sub], CXOR("quick_stop_options"), g_cfg.rage.weapon[i].quick_stop_options);
 				load_uint(rage[sub], CXOR("hitboxes"), g_cfg.rage.weapon[i].hitboxes);
-			//	load_uint(rage[sub], CXOR("hitchance_skips"), g_cfg.rage.weapon[i].hitchance_skips);
+				load_uint(rage[sub], CXOR("multipoint"), g_cfg.rage.weapon[i].multipoint);
 			}
 		}
 
 		auto& legit = json_obj[CXOR("legit")];
 		{
 			load_bool(legit, CXOR("enable"), g_cfg.legit.enable);
+			load_bool(legit, CXOR("aim_key"), g_cfg.legit.aim_key);
 			load_bool(legit, CXOR("autowall"), g_cfg.legit.autowall);
 			load_bool(legit, CXOR("flash_check"), g_cfg.legit.flash_check);
 			load_bool(legit, CXOR("smoke_check"), g_cfg.legit.smoke_check);
@@ -932,6 +966,14 @@ namespace config
 			load_int(antihit, CXOR("desync_right"), g_cfg.antihit.desync_right);
 			load_int(antihit, CXOR("distortion_range"), g_cfg.antihit.distortion_range);
 			load_int(antihit, CXOR("distortion_pitch"), g_cfg.antihit.distortion_pitch);
+
+			load_bool(antihit, CXOR("active_edge"), g_cfg.antihit.active_edge);
+			load_bool(antihit, CXOR("freestand"), g_cfg.antihit.freestand);
+			load_bool(antihit, CXOR("manual_left"), g_cfg.antihit.manual_left);
+			load_bool(antihit, CXOR("manual_right"), g_cfg.antihit.manual_right);
+			load_bool(antihit, CXOR("manual_back"), g_cfg.antihit.manual_back);
+			load_bool(antihit, CXOR("inverter"), g_cfg.antihit.inverter);
+			load_bool(antihit, CXOR("force_extend"), g_cfg.antihit.force_extend);
 			load_int(antihit, CXOR("fakelag_limit"), g_cfg.antihit.fakelag_limit);
 			load_uint(antihit, CXOR("fakelag_conditions"), g_cfg.antihit.fakelag_conditions);
 		}
@@ -1017,6 +1059,11 @@ namespace config
 
 			load_bool(misc, CXOR("thirdperson_dead"), g_cfg.misc.thirdperson_dead);
 			load_int(misc, CXOR("thirdperson_dist"), g_cfg.misc.thirdperson_dist);
+			load_bool(misc, CXOR("thirdperson"), g_cfg.misc.thirdperson);
+			load_bool(misc, CXOR("fake_duck"), g_cfg.misc.fake_duck);
+			load_bool(misc, CXOR("slow_walk"), g_cfg.misc.slow_walk);
+			load_bool(misc, CXOR("auto_peek"), g_cfg.misc.auto_peek);
+			load_bool(misc, CXOR("edge_jump"), g_cfg.misc.edge_jump);
 
 			load_bool(misc, CXOR("impacts"), g_cfg.misc.impacts);
 			load_int(misc, CXOR("impact_size"), g_cfg.misc.impact_size);
@@ -1128,13 +1175,7 @@ namespace config
 			}
 		}
 
-		auto& binds = json_obj[CXOR("binds")];
-		{
-			for (int i = 0; i < binds_max; i++)
-			{
-				auto add = std::to_string(i + 1);
-				load_bind(binds, add, g_cfg.binds[i]);
-			}
-		}
+		load_item_binds(json_obj, g_cfg.item_binds);
+		g_cfg.reset_binds();
 	}
 }

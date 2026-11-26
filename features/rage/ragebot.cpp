@@ -512,6 +512,34 @@ void c_ragebot::update_hitboxes()
 	}
 }
 
+// maps a hitbox index to the rage_hitbox_t flag used by the Multipoint multibox
+static unsigned int get_multipoint_flag(int hitbox)
+{
+	switch (hitbox)
+	{
+	case HITBOX_HEAD:
+		return head;
+	case HITBOX_CHEST:
+	case HITBOX_UPPER_CHEST:
+	case HITBOX_THORAX:
+		return chest;
+	case HITBOX_STOMACH:
+		return stomach;
+	case HITBOX_PELVIS:
+		return pelvis;
+	case HITBOX_LEFT_UPPER_ARM:
+	case HITBOX_RIGHT_UPPER_ARM:
+		return arms_;
+	case HITBOX_LEFT_CALF:
+	case HITBOX_RIGHT_CALF:
+	case HITBOX_LEFT_FOOT:
+	case HITBOX_RIGHT_FOOT:
+		return legs;
+	}
+
+	return 0;
+}
+
 multipoints_t c_ragebot::get_points(c_cs_player* player, int hitbox, matrix3x4_t* matrix)
 {
 	auto local_anims = ANIMFIX->get_local_anims();
@@ -578,12 +606,18 @@ multipoints_t c_ragebot::get_points(c_cs_player* player, int hitbox, matrix3x4_t
 
 		auto dynamic_scale = get_dynamic_scale(center, bbox->radius);
 
-		auto head_scale = rage_config.scale_head != -1 ? rage_config.scale_head * 0.01f : dynamic_scale;
-		auto body_scale = rage_config.scale_body != -1 ? rage_config.scale_body * 0.01f : dynamic_scale;
+		auto head_scale = rage_config.head_point != -1 ? rage_config.head_point * 0.01f : dynamic_scale;
+		auto body_scale = rage_config.body_point != -1 ? rage_config.body_point * 0.01f : dynamic_scale;
+
+		// the Multipoint multibox decides which hitboxes may receive extra points
+		const bool allow_multipoint = (rage_config.multipoint & get_multipoint_flag(hitbox)) != 0;
 
 		auto body_slider = 0.35f * body_scale;
 		auto r = bbox->radius * body_slider, r2 = bbox->radius * (body_slider * 2.f - 1.f);
 
+		if (!allow_multipoint)
+			points.emplace_back(center, true);
+		else
 		switch (hitbox)
 		{
 		case HITBOX_HEAD:
@@ -1414,18 +1448,19 @@ void c_ragebot::choose_best_point()
 				if (point.damage < damage)
 					continue;
 				
-				if (g_cfg.binds[force_body_b].toggled && !is_body)
+				if (KEY_STATES->resolve(CXOR("Body aim"), g_cfg.rage.weapon[g_cfg.rage.group_type].body_aim == aim_force).active && !is_body)
 					continue;
 
-				if (g_cfg.binds[force_sp_b].toggled && point.safety < 5 && !allow_visible_unsafe)
+				if (KEY_STATES->resolve(CXOR("Safe points"), g_cfg.rage.weapon[g_cfg.rage.group_type].safe_point == aim_force).active && point.safety < 5 && !allow_visible_unsafe)
 					continue;
 
-				if (point.safety == 5 && rage_config.prefer_safe)
+				if (point.safety == 5 && rage_config.safe_point == aim_force)
 				{
 					point.found = true;
 					return point;
 				}
-				else if (is_body && (point.damage >= player->health() || prefer_baim_on_dt || rage_config.prefer_body))
+				else if (is_body && (point.damage >= player->health() || prefer_baim_on_dt
+					|| rage_config.body_aim == aim_force))
 				{
 					point.found = true;
 					return point;
@@ -1437,6 +1472,37 @@ void c_ragebot::choose_best_point()
 						best = point;
 						best.found = true;
 					}
+				}
+			}
+
+			// "prefer" only kicks in when the scan above produced nothing usable:
+			// a safe point first, then a body point, so the shot is not skipped
+			if (!best.found && rage_config.safe_point == aim_prefer)
+			{
+				for (auto& point : rage->points_to_scan)
+				{
+					if (point.damage < damage || point.safety != 5)
+						continue;
+
+					best = point;
+					best.found = true;
+					break;
+				}
+			}
+
+			if (!best.found && rage_config.body_aim == aim_prefer)
+			{
+				for (auto& point : rage->points_to_scan)
+				{
+					if (point.damage < damage)
+						continue;
+
+					if (point.hitbox != HITBOX_PELVIS && point.hitbox != HITBOX_STOMACH)
+						continue;
+
+					best = point;
+					best.found = true;
+					break;
 				}
 			}
 
@@ -1454,7 +1520,7 @@ void c_ragebot::choose_best_point()
 			&& !rage->hitscan_record->break_lc
 			&& !rage->hitscan_record->tickbase_shift
 			&& LAGCOMP->is_tick_valid(rage->hitscan_record->break_lc, rage->hitscan_record->sim_time);
-		if (!best_point.found && g_cfg.binds[force_sp_b].toggled && reliable_visible_record)
+		if (!best_point.found && KEY_STATES->resolve(CXOR("Safe points"), g_cfg.rage.weapon[g_cfg.rage.group_type].safe_point == aim_force).active && reliable_visible_record)
 		{
 			const auto has_current_eye_point = std::any_of(rage->points_to_scan.begin(), rage->points_to_scan.end(), [](const rage_point_t& point)
 			{
@@ -1901,7 +1967,7 @@ void c_ragebot::run()
 			shots.back().hitchance_source = hitchance_source;
 			log_shot_fire(shots.back());
 
-			if ((g_cfg.binds[hs_b].toggled || !ANTI_AIM->is_fake_ducking()) && !*HACKS->send_packet)
+			if ((KEY_STATES->resolve(CXOR("Hide shot"), g_cfg.rage.hide_shots).active || !ANTI_AIM->is_fake_ducking()) && !*HACKS->send_packet)
 				*HACKS->send_packet = true;
 		}
 	}

@@ -194,7 +194,7 @@ void c_fake_lag::run()
 
 void c_ping_spike::on_procces_packet()
 {
-	if (!g_cfg.binds[spike_b].toggled || !HACKS->local || !HACKS->local->is_alive())
+	if (!KEY_STATES->resolve(CXOR("Ping spike"), false).active || !HACKS->local || !HACKS->local->is_alive())
 	{
 		flipped_state = true;
 		return;

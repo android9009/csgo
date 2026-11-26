@@ -312,24 +312,23 @@ public:
 
 	INLINE float get_head_scale(c_cs_player* player)
 	{
-		if (rage_config.scale_head != -1)
-			return rage_config.scale_head * 0.01f;
+		if (rage_config.head_point != -1)
+			return rage_config.head_point * 0.01f;
 
 		return 0.f;
 	}
 
 	INLINE float get_body_scale(c_cs_player* player)
 	{
-		if (rage_config.scale_body != -1)
-			return rage_config.scale_body * 0.01f;
+		if (rage_config.body_point != -1)
+			return rage_config.body_point * 0.01f;
 
 		return 0.f;
 	}
 
 	INLINE int get_min_damage(c_cs_player* player)
 	{
-		auto mindamage = g_cfg.binds[override_dmg_b].toggled ?
-			rage_config.damage_override : rage_config.mindamage;
+		auto mindamage = rage_config.mindamage;
 
 		auto health = player->health();
 		if (mindamage > 99)

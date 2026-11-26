@@ -133,7 +133,7 @@ void c_movement::fast_stop()
 		return;
 	}*/
 
-	if (!g_cfg.misc.fast_stop && !g_cfg.binds[ap_b].toggled) 
+	if (!g_cfg.misc.fast_stop && !KEY_STATES->resolve(CXOR("Auto peek"), g_cfg.misc.auto_peek).active) 
 	{
 		complete_fast_stop = false;
 		return;
@@ -171,7 +171,7 @@ void c_movement::edge_jump( )
 
 bool c_movement::can_use_auto_peek()
 {
-	if (!g_cfg.binds[ap_b].toggled)
+	if (!KEY_STATES->resolve(CXOR("Auto peek"), g_cfg.misc.auto_peek).active)
 		return false;
 
 	auto moving = HACKS->cmd->buttons.has(IN_MOVELEFT) || HACKS->cmd->buttons.has(IN_MOVERIGHT) || HACKS->cmd->buttons.has(IN_BACK) || HACKS->cmd->buttons.has(IN_FORWARD);
