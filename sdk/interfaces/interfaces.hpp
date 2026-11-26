@@ -8,9 +8,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <windows.h>
-// hacks.hpp (pulled below) references IDirect3DDevice9; include d3d9.h here
-// so every consumer of this adapter gets it, not just the menu TUs.
-#include <d3d9.h>
+// hacks.hpp is written for the main tree's globals.hpp preamble; the
+// preamble header supplies exactly what it references (d3d9.h, the c_*
+// forward declarations, memory::bits_t, the obfuscation macros) so every
+// consumer of this adapter compiles, not just the menu TUs.
+#include "../hacks_preamble.hpp"
 #include "../../hacks.hpp"
 #include "../clientclass.hpp"
 #include "../studiohdr.hpp"
