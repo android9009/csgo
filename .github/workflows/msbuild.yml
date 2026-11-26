@@ -1,40 +1,111 @@
-name: CS:GO (airflow) Win32 build
+name: CS:GO base Win32 build
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-  build-live:
+
+  build:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
-      - uses: microsoft/setup-msbuild@v2
+      - name: Configure (Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
 
-      - name: Build opaihook.sln (Live Win32)
+      - name: Build Release DLL
         shell: pwsh
         run: |
-          msbuild opaihook.sln /m /t:Rebuild /p:Configuration=Live /p:Platform=x86 /verbosity:minimal 2>&1 | Tee-Object -FilePath build-live.log
+          cmake --build build --config Release 2>&1 | Tee-Object -FilePath compile.log
           $code = $LASTEXITCODE
           if ($code -ne 0) {
-            Get-Content build-live.log | Select-String '(: error |fatal error|error LNK|MSB\d+)' | Select-Object -Unique | Select-Object -First 40 | ForEach-Object { Write-Output "::error::$_" }
-            $tail = @(Get-Content build-live.log)[-50..-1] -join " ||| "
-            for ($k = 0; $k -lt $tail.Length; $k += 2800) {
-              Write-Output ("::notice::TAIL" + $k + "|" + $tail.Substring($k, [Math]::Min(2800, $tail.Length - $k)))
-            }
+            Get-Content compile.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
           }
           exit $code
 
-      - name: Verify + upload release
+      - name: Verify Release filenames
         shell: pwsh
         run: |
-          $dll = "Bins/csgo-release.dll"
-          if (!(Test-Path $dll)) { throw "Missing $dll" }
-          Get-Item $dll | ForEach-Object { Write-Output ("size=" + $_.Length) }
+          foreach ($file in @('build/Release/csgo_release.dll', 'build/Release/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Release
+        uses: actions/upload-artifact@v4
         with:
-          name: csgo-airflow-live-win32
-          path: Bins/csgo-release.dll
+          name: csgo-release-win32
+          path: |
+            build/Release/csgo_release.dll
+            build/Release/injector.exe
+          if-no-files-found: error
+
+  fatality-port-check:
+    # Compile the GUI library independently in addition to the DLL build.
+    runs-on: windows-2022
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure staged Win32 GUI
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+      - name: Compile staged GUI and DX9 renderer
+        run: cmake --build build --config Release --target fatality_port_check
+
+  visual-studio-solution:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build Visual Studio solution (Release Win32)
+        shell: pwsh
+        run: |
+          msbuild csgo_base.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=Win32 /verbosity:minimal 2>&1 | Tee-Object -FilePath vs-build.log
+          $code = $LASTEXITCODE
+          $warnings = @(Get-Content vs-build.log | Select-String ': warning C\d+')
+          Write-Output "::notice::Visual Studio compiler warning lines: $($warnings.Count)"
+          $warnings | Select-Object -Unique | Select-Object -First 20 | ForEach-Object { Write-Output "::notice::$_" }
+          $warnings | Select-String 'warning C(4100|4189|4505)' | Select-Object -Unique | Select-Object -First 80 | ForEach-Object { Write-Output "::notice::$_" }
+          if ($code -ne 0) {
+            Get-Content vs-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+          }
+          if ($code -eq 0) {
+            foreach ($file in @('build/Release/csgo_release.dll', 'build/Release/injector.exe')) {
+              if (!(Test-Path $file)) { throw "Missing $file" }
+            }
+          }
+          exit $code
+      - name: Build Visual Studio solution (Debug Win32)
+        shell: pwsh
+        run: |
+          msbuild csgo_base.sln /m /t:Rebuild /p:Configuration=Debug /p:Platform=Win32 /verbosity:minimal 2>&1 | Tee-Object -FilePath vs-debug-build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            Get-Content vs-debug-build.log | Select-String '(: error |fatal error|error LNK)' | Select-Object -Unique | Select-Object -First 30 | ForEach-Object { Write-Output "::error::$_" }
+            exit $code
+          }
+          foreach ($file in @('build/Debug/csgo_debug.dll', 'build/Debug/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
+
+  debug-build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32
+      - name: Build Debug DLL and injector
+        run: cmake --build build --config Debug
+      - name: Verify Debug filenames
+        shell: pwsh
+        run: |
+          foreach ($file in @('build/Debug/csgo_debug.dll', 'build/Debug/injector.exe')) {
+            if (!(Test-Path $file)) { throw "Missing $file" }
+          }
+      - name: Upload Debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: csgo-debug-win32
+          path: |
+            build/Debug/csgo_debug.dll
+            build/Debug/injector.exe
           if-no-files-found: error

@@ -1,6 +1,5 @@
 #include "globals.hpp"
 #include "features.hpp"
-#include "menu/menu.hpp"
 
 namespace hooks::vmt
 {
@@ -412,9 +411,7 @@ namespace hooks::vmt
 		imgui_blur::set_device(device);
 		imgui_blur::new_frame();
 
-		// The FATALITY menu (menu/) replaced the legacy g_menu UI. g_menu.draw()
-		// is intentionally no longer called; the FATALITY pass runs after the
-		// ImGui pass below, once the game frame is in the back buffer.
+		g_menu.draw();
 
 		if (g_cfg.legit.enable)
 		{
@@ -429,15 +426,6 @@ namespace hooks::vmt
 		}
 
 		RENDER->end();
-
-		// FATALITY menu: draws after the ImGui pass so it composites on top of the
-		// game frame. Its evo renderer issues its own D3D9 draws without calling
-		// BeginScene/EndScene (see reference_main.cpp), so frame the pass in its own pair.
-		if (SUCCEEDED(device->BeginScene()))
-		{
-			FatalityMenu::RenderSafe(device, HACKS->window, g_cfg.misc.menu);
-			device->EndScene();
-		}
 
 		d3d9_state_block->Apply();
 		d3d9_state_block->Release();
@@ -468,14 +456,10 @@ namespace hooks::vmt
 
 		ImGui_ImplDX9_InvalidateDeviceObjects();
 
-		FatalityMenu::BeforeResetSafe(device);
-
 		auto hr = original(device, params);
 
 		if (SUCCEEDED(hr))
 			ImGui_ImplDX9_CreateDeviceObjects();
-
-		FatalityMenu::AfterResetSafe(device, hr);
 
 		return hr;
 	}

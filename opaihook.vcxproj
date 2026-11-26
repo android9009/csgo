@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Alpha|Win32">
@@ -155,10 +155,7 @@
     <TargetName>csgo-legacy_beta</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
-    <PropertyGroup Label="FatalityMenuIncludes">
-    <IncludePath>$(SolutionDir)sdk\third_party\gui\deps\renderer\include;$(SolutionDir)sdk\third_party\gui\src;$(SolutionDir)sdk\third_party\gui;$(SolutionDir);$(IncludePath)</IncludePath>
-  </PropertyGroup>
-<ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -179,7 +176,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
@@ -201,7 +198,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Live|Win32'">
@@ -233,7 +230,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Beta|Win32'">
@@ -264,7 +261,7 @@
       <OptimizeReferences>false</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Alpha|Win32'">
@@ -295,7 +292,7 @@
       <OptimizeReferences>false</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Live|Win32'">
@@ -326,7 +323,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Beta|Win32'">
@@ -356,7 +353,7 @@
       <OptimizeReferences>false</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>freetype_release.lib;d3dcompiler.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>freetype_release.lib;PolyHook_2.lib;zydis.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -533,308 +530,6 @@
     <ClInclude Include="xorint.hpp" />
     <ClInclude Include="xorpointer.hpp" />
     <ClInclude Include="xorstr.hpp" />
-  </ItemGroup>
-  <ItemGroup Label="FatalityMenu">
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\adapters\adapter_dx9.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\cmd_buffer.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\ib_dx9.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\buffers\vb_dx9.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\layer.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\renderer.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\animated_texture.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\font.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\shader.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\deps\renderer\src\types\texture.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\anim.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\container.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\control.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\action_item.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\button.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\checkbox.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\child_tab.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\color_picker.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\combo_box.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\combo_box_agent.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\control_container.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\group.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hotkey.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hotkey_view.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\hsv_slider.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\label.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\layout.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\list.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\loading.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\notification_control.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\public_software_item.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\search_result.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_game.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_inv.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\selectable_script.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\settings.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\slider.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\spacer.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\tab.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\tabs_layout.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\text_input.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\toggle_button.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\widget.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\controls\window.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\gui.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\helpers.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\input.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\notify_system.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\about_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\action_list_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\color_picker_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\combo_box_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\configs_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\dialog_box.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\hotkey_overview_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\hotkey_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\message_box.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\notifications_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\public_software_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\search_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\third_party\gui\src\gui\popups\settings_popup.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\bridge.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\menu.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\preview\model_preview.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\tabs\tab_legit.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\tabs\tab_misc.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\tabs\tab_rage.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\tabs\tab_skins.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="menu\tabs\tab_visuals.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="features\skins\local_inventory.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="utils\offsets\offsets.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="sdk\netvars.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
-    <ClCompile Include="utils\patterns\patterns.cpp">
-      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
-      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="world_modulation.hpp" />
