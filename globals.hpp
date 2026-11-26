@@ -27,7 +27,8 @@ class c_hacks;
 #include <windows.h>
 #include <libs.h>
 #include <d3d9.h>
-#include <d3dx9.h>
+// d3dx9.h is not shipped with the modern Windows SDK and no D3DX API is
+// actually used - the include only broke the CI build.
 #include <math.h>
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
@@ -36,7 +37,6 @@ class c_hacks;
 #include "imgui/imgui_impl_win32.h"
 
 #pragma comment(lib, "d3d9.lib")
-#pragma comment(lib, "d3dx9.lib")
 
 // SECURITY
 #include "seeds.hpp"
