@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Alpha|x86">
+    <ProjectConfiguration Include="Alpha|Win32">
       <Configuration>Alpha</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Beta|x86">
+    <ProjectConfiguration Include="Beta|Win32">
       <Configuration>Beta</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x86">
+    <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Legacy Beta|x86">
+    <ProjectConfiguration Include="Legacy Beta|Win32">
       <Configuration>Legacy Beta</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Legacy Debug|x86">
+    <ProjectConfiguration Include="Legacy Debug|Win32">
       <Configuration>Legacy Debug</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Legacy Live|x86">
+    <ProjectConfiguration Include="Legacy Live|Win32">
       <Configuration>Legacy Live</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Live|x86">
+    <ProjectConfiguration Include="Live|Win32">
       <Configuration>Live</Configuration>
-      <Platform>x86</Platform>
+      <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
