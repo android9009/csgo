@@ -36,5 +36,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: csgo-airflow-live-win32
-          path: Bins/csgo-release.dll
+          path: Bins
           if-no-files-found: error
