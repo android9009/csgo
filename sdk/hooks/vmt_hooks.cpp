@@ -456,6 +456,10 @@ namespace hooks::vmt
 
 		ImGui_ImplDX9_InvalidateDeviceObjects();
 
+		// D3DPOOL_DEFAULT textures (menu icons, logo) are wiped by the reset;
+		// drop them so c_menu::init_textures() re-uploads on the next draw.
+		g_menu.invalidate_textures();
+
 		auto hr = original(device, params);
 
 		if (SUCCEEDED(hr))

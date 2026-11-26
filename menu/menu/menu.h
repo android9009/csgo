@@ -173,6 +173,7 @@ public:
 	ImVec2 get_window_pos();
 
 	void init_textures();
+	void invalidate_textures();
 	void draw_ui_background();
 	void draw_tabs();
 	void draw_sub_tabs(int& selector, const std::vector< std::string >& tabs);

@@ -122,37 +122,37 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Debug|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-legacy_debug</TargetName>
+    <TargetName>csgo_legacy_debug</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Live|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;D:\Utils\Code Virtualizer\Include\C;E:\Coding\Libs\shared\include;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;E:\Coding\Libs\shared\lib\release;D:\Utils\Code Virtualizer\Lib\x86_x64\COFF;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-release</TargetName>
+    <TargetName>csgo_release</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Beta|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;D:\Utils\Code Virtualizer\Include\C;E:\Coding\Libs\shared\include;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;E:\Coding\Libs\shared\lib\release;D:\Utils\Code Virtualizer\Lib\x86_x64\COFF;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-release_beta</TargetName>
+    <TargetName>csgo_release_beta</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Alpha|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;D:\Utils\Code Virtualizer\Include\C;E:\Coding\Libs\shared\include;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;E:\Coding\Libs\shared\lib\release;D:\Utils\Code Virtualizer\Lib\x86_x64\COFF;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-release_alpha</TargetName>
+    <TargetName>csgo_release_alpha</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Live|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;D:\Utils\Code Virtualizer\Include\C;E:\Coding\Libs\shared\include;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;E:\Coding\Libs\shared\lib\release;D:\Utils\Code Virtualizer\Lib\x86_x64\COFF;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-legacy</TargetName>
+    <TargetName>csgo_legacy</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Legacy Beta|Win32'">
     <IncludePath>$(DXSDK_Dir)\Include;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs;$(SolutionDir)\Libs\PolyHook;$(SolutionDir)\Libs\PolyHook\zydis\include;$(SolutionDir)\Libs\PolyHook\zydis\dependencies\zycore\include;$(SolutionDir)\Libs\PolyHook\build32\zydis;$(SolutionDir)\Libs\PolyHook\build32\zydis\dependencies\zycore;D:\Utils\Code Virtualizer\Include\C;E:\Coding\Libs\shared\include;$(SolutionDir)\features;$(SolutionDir)\features\rage;$(SolutionDir)\features\anti_aim;$(SolutionDir)\features\visuals;$(SolutionDir)\features\misc;$(SolutionDir)\features\skins;$(SolutionDir)\sdk;$(SolutionDir)\sdk\hooks;$(SolutionDir)\utils;$(SolutionDir)\menu;$(SolutionDir)\menu\menu;$(SolutionDir);$(IncludePath)</IncludePath>
     <LibraryPath>$(DXSDK_Dir)\Lib\x86;$(SolutionDir)\Libs\Freetype;$(SolutionDir)\Libs\PolyHook\build32\Release;$(SolutionDir)\Libs\PolyHook\build32\zydis\Release;E:\Coding\Libs\shared\lib\release;D:\Utils\Code Virtualizer\Lib\x86_x64\COFF;$(LibraryPath)</LibraryPath>
-    <TargetName>csgo-legacy_beta</TargetName>
+    <TargetName>csgo_legacy_beta</TargetName>
     <OutDir>$(SolutionDir)\Bins\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
