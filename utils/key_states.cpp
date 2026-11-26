@@ -161,7 +161,9 @@ void c_key_states::update_item_binds(UINT uMsg, WPARAM wParam)
 		bind.key = (std::max)(bind.key, -1);
 		bind.key = (std::min)(bind.key, 255);
 
-		if (bind.key == -1 && bind.type != 0)
+		// a control is only driven by its bind when a key is attached, the control
+		// itself is the on/off switch
+		if ((bind.type != 1 && bind.type != 2) || bind.key == -1)
 		{
 			bind.toggled = false;
 			continue;
@@ -169,9 +171,6 @@ void c_key_states::update_item_binds(UINT uMsg, WPARAM wParam)
 
 		switch (bind.type)
 		{
-		case 0:
-			bind.toggled = true;
-			break;
 		case 1:
 			bind.toggled = bind.key >= 0 && this->at(bind.key);
 			break;

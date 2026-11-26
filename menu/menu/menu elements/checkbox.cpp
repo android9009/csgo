@@ -58,7 +58,7 @@ bool c_menu::checkbox(const char* label, bool* v)
 	draw_list->AddCircleFilled(circle_pos, 4.f, circle_clr.as_imcolor());
 
 	if (label_size.x > 0.0f)
-		RenderText(ImVec2(pos.x + 12, pos.y + 7), label);
+		RenderText(ImVec2(pos.x + 12 + this->label_indent, pos.y + 7), label);
 
 	ImGui::PopStyleColor();
 

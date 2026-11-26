@@ -94,19 +94,20 @@ void c_menu::draw_item_bind_popup()
 	item_bind_pos = ImGui::GetWindowPos();
 	item_bind_size = ImGui::GetWindowSize();
 
+	// The control itself is the on/off switch (a checked checkbox is active), the
+	// bind only adds a key on top of it: hold while pressed or toggle on press.
 	auto mode_row = [&](const char* text, int type)
 	{
 		if (this->selectable(text, bind.type == type, alpha))
 		{
 			bind.type = type;
 
-			// "None" needs no key, leave the capture mode when switching to it
-			if (type == 0)
-				item_bind_capturing = false;
+			// a fresh bind waits for its key right away
+			if (type == 2 && bind.key == -1)
+				item_bind_capturing = true;
 		}
 	};
 
-	mode_row(CXOR("None"), 0);
 	mode_row(CXOR("Hold"), 1);
 	mode_row(CXOR("Toggle"), 2);
 
@@ -125,13 +126,14 @@ void c_menu::draw_item_bind_popup()
 	if (this->selectable(key_text.c_str(), item_bind_capturing, alpha))
 		item_bind_capturing = !item_bind_capturing;
 
-	if (bind.type == 1 || bind.type == 2)
+	if (bind.type == 1 || bind.type == 2 || bind.key != -1)
 	{
 		if (this->selectable(CXOR("Clear"), false, alpha))
 		{
 			bind.reset2();
 			bind.type = -1;
 			bind.key = -1;
+			item_bind_capturing = false;
 		}
 	}
 
@@ -330,17 +332,24 @@ void c_menu::bind_right_click(const char* label, const ImVec2& min, float height
 bool c_menu::bind_checkbox(const char* scope, const char* label, bool* v, int popup_id)
 {
 	ImGui::PushID(scope);
+
+	// the gear sits at the very left of the row, the label moves right by exactly
+	// the space it takes
+	const float indent = popup_id != 0 ? 20.f : 0.f;
+	label_indent = indent;
+
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.85f * this->get_alpha()));
 	const bool changed = this->checkbox(label, v);
 	ImGui::PopStyleColor();
 
+	label_indent = 0.f;
+
 	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 32.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 14.f + label_size.x + 10.f, min.y + 2.f, popup_id);
+		this->draw_gear(label, min.x + 6.f, min.y + 8.f, popup_id);
 
 	ImGui::PopID();
 
@@ -350,15 +359,20 @@ bool c_menu::bind_checkbox(const char* scope, const char* label, bool* v, int po
 void c_menu::bind_multi_combo(const char* scope, const char* label, unsigned int& var, std::vector< std::string > elements, int popup_id)
 {
 	ImGui::PushID(scope);
+
+	const float indent = popup_id != 0 ? 20.f : 0.f;
+	label_indent = indent;
+
 	this->multi_combo(label, var, elements);
 
-	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
+	label_indent = 0.f;
 
-	this->bind_right_click(label, min, 32.f);
+	const ImVec2 min = ImGui::GetItemRectMin();
+
+	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 14.f + label_size.x + 10.f, min.y + 2.f, popup_id);
+		this->draw_gear(label, min.x + 6.f, min.y + 16.f, popup_id);
 
 	ImGui::PopID();
 }
@@ -378,15 +392,20 @@ void c_menu::bind_combo(const char* scope, const char* label, int* var, const ch
 void c_menu::bind_combo(const char* scope, const char* label, int& var, std::vector< std::string > elements, int popup_id)
 {
 	ImGui::PushID(scope);
+
+	const float indent = popup_id != 0 ? 20.f : 0.f;
+	label_indent = indent;
+
 	this->multi_combo_exclusive(label, var, elements);
 
-	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
+	label_indent = 0.f;
 
-	this->bind_right_click(label, min, 32.f);
+	const ImVec2 min = ImGui::GetItemRectMin();
+
+	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 14.f + label_size.x + 10.f, min.y + 2.f, popup_id);
+		this->draw_gear(label, min.x + 6.f, min.y + 16.f, popup_id);
 
 	ImGui::PopID();
 }
