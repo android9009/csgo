@@ -531,6 +531,12 @@ struct configs_t
 		std::array< skin_weapon_t, weapon_cfg_max > skin_weapon{};
 	} skins;
 
+	INLINE void reset_init()
+	{
+		for (auto& bind : item_binds)
+			bind.second.reset2();
+	}
+
 	// releases every held / toggled bind (used when a config is loaded)
 	INLINE void reset_binds()
 	{

@@ -176,7 +176,7 @@ void c_menu::draw_item_bind_popup()
 		}
 	}
 
-	ImGui::End();
+	ImGui::End(false);
 	ImGui::PopStyleColor(2);
 	ImGui::PopStyleVar(2);
 
@@ -253,7 +253,7 @@ void c_menu::settings_popup_begin(const char* id, float width, float height)
 
 void c_menu::settings_popup_end()
 {
-	ImGui::End();
+	ImGui::End(false);
 	ImGui::PopStyleColor(2);
 	ImGui::PopStyleVar(2);
 }
