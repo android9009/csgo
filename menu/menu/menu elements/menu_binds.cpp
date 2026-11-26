@@ -100,13 +100,13 @@ void c_menu::draw_item_bind_popup()
 		{
 			bind.type = type;
 
-			// Always needs no key, escape the capture mode when switching to it
+			// "None" needs no key, leave the capture mode when switching to it
 			if (type == 0)
 				item_bind_capturing = false;
 		}
 	};
 
-	mode_row(CXOR("Always"), 0);
+	mode_row(CXOR("None"), 0);
 	mode_row(CXOR("Hold"), 1);
 	mode_row(CXOR("Toggle"), 2);
 
