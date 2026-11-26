@@ -87,6 +87,10 @@ void c_menu::draw_item_bind_popup()
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(18, 18, 20, (int)(248 * alpha)).Value);
 	ImGui::PushStyleColor(ImGuiCol_Border, ImColor(255, 255, 255, (int)(26 * alpha)).Value);
 
+	// draw on top of the menu so the controls it covers do not swallow the clicks
+	if (ImGui::GetCurrentContext()->Windows.Size > 0)
+		ImGui::SetNextWindowFocus();
+
 	ImGui::Begin(CXOR("##item_bind_popup"), nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
 		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav);
@@ -338,15 +342,13 @@ bool c_menu::bind_checkbox(const char* scope, const char* label, bool* v, int po
 	ImGui::PopStyleColor();
 
 	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 32.f);
 
 	if (popup_id != 0)
 	{
-		// label -> small gap -> gear -> the toggle itself (which starts at 220px)
-		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 202.f);
-		this->draw_gear(label, gear_x, min.y + 9.f, popup_id);
+		// label ... toggle at the far right, the gear follows right after the toggle
+		this->draw_gear(label, min.x + 251.f, min.y + 9.f, popup_id);
 	}
 
 	ImGui::PopID();
@@ -361,15 +363,13 @@ void c_menu::bind_multi_combo(const char* scope, const char* label, unsigned int
 	this->multi_combo(label, var, elements);
 
 	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
 	{
-		// label -> small gap -> gear -> the combo preview / arrow
-		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 196.f);
-		this->draw_gear(label, gear_x, min.y + 16.f, popup_id);
+		// label ... combo preview / arrow on the right, the gear follows it
+		this->draw_gear(label, min.x + 251.f, min.y + 16.f, popup_id);
 	}
 
 	ImGui::PopID();
@@ -394,14 +394,12 @@ void c_menu::bind_combo(const char* scope, const char* label, int& var, std::vec
 	this->multi_combo_exclusive(label, var, elements);
 
 	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
 	{
-		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 196.f);
-		this->draw_gear(label, gear_x, min.y + 16.f, popup_id);
+		this->draw_gear(label, min.x + 251.f, min.y + 16.f, popup_id);
 	}
 
 	ImGui::PopID();
