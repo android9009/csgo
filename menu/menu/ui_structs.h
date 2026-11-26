@@ -198,9 +198,10 @@ public:
 		return color_base[idx];
 	}
 
-	__forceinline c_color& base()
+	// NB: returned by value on purpose - this used to return a reference to a
+	// local, which is dangling as soon as the function returns.
+	__forceinline c_color base() const
 	{
-		c_color out = c_color(color_base[0] * 255.f, color_base[1] * 255.f, color_base[2] * 255.f, color_base[3] * 255.f);
-		return out;
+		return c_color((int)(color_base[0] * 255.f), (int)(color_base[1] * 255.f), (int)(color_base[2] * 255.f), (int)(color_base[3] * 255.f));
 	}
 };

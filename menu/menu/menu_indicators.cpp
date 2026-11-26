@@ -115,7 +115,8 @@ void c_menu::draw_binds()
 		// header
 		imgui_blur::create_blur(list, window_pos, window_pos + ImVec2(keybinds_size.x, 32.f), c_color(255, 255, 255, window_alpha).as_imcolor(), 4.f, ImDrawCornerFlags_Top);
 
-		list->AddImage((void*)keyboard_texture, ImVec2(window_pos.x + 51, window_pos.y + 9), ImVec2(window_pos.x + 67, window_pos.y + 25), ImVec2(0, 0), ImVec2(1, 1), c_color(255, 255, 255, window_alpha).as_imcolor());
+		if (keyboard_texture)
+			list->AddImage((void*)keyboard_texture, ImVec2(window_pos.x + 51, window_pos.y + 9), ImVec2(window_pos.x + 67, window_pos.y + 25), ImVec2(0, 0), ImVec2(1, 1), c_color(255, 255, 255, window_alpha).as_imcolor());
 
 		list->AddText(ImVec2(window_pos.x + 75, window_pos.y + 8), c_color(255, 255, 255, window_alpha).as_imcolor(), CXOR("keybinds"));
 
@@ -297,11 +298,12 @@ void c_menu::draw_spectators()
 		// header
 		imgui_blur::create_blur(list, window_pos, window_pos + ImVec2(keybinds_size.x, 32.f), c_color(255, 255, 255, window_alpha).as_imcolor(), 4.f, ImDrawCornerFlags_Top);
 
-		list->AddImage((void*)spectator_texture,
-			ImVec2(window_pos.x + 41, window_pos.y + 9),
-			ImVec2(window_pos.x + 57, window_pos.y + 25),
-			ImVec2(0, 0), ImVec2(1, 1), 
-			c_color(255, 255, 255, window_alpha).as_imcolor());
+		if (spectator_texture)
+			list->AddImage((void*)spectator_texture,
+				ImVec2(window_pos.x + 41, window_pos.y + 9),
+				ImVec2(window_pos.x + 57, window_pos.y + 25),
+				ImVec2(0, 0), ImVec2(1, 1),
+				c_color(255, 255, 255, window_alpha).as_imcolor());
 
 		list->AddText(
 			ImVec2(window_pos.x + 65, window_pos.y + 8),
@@ -540,7 +542,8 @@ void c_menu::draw_bomb_indicator()
 		// header
 		imgui_blur::create_blur(list, window_pos, ImVec2(window_pos.x + bomb_size.x, window_pos.y + bomb_size.y), c_color(155, 155, 155, window_alpha).as_imcolor(), 8.f);
 
-		list->AddImage((void*)bomb_texture, ImVec2(window_pos.x + 19, window_pos.y + 16), ImVec2(window_pos.x + 51, window_pos.y + 47), ImVec2(0, 0), ImVec2(1, 1), c_color(255, 255, 255, window_alpha).as_imcolor());
+		if (bomb_texture)
+			list->AddImage((void*)bomb_texture, ImVec2(window_pos.x + 19, window_pos.y + 16), ImVec2(window_pos.x + 51, window_pos.y + 47), ImVec2(0, 0), ImVec2(1, 1), c_color(255, 255, 255, window_alpha).as_imcolor());
 
 		// border
 		list->AddRect(window_pos, ImVec2(window_pos.x + bomb_size.x, window_pos.y + bomb_size.y), c_color(100, 100, 100, 100.f * alpha).as_imcolor(), 8.f);
@@ -693,7 +696,8 @@ void c_menu::draw_watermark()
 			auto base_offset = ImVec2{ base_window_pos.x + 10.f, base_window_pos.y + 7.f };
 
 			auto clr = g_cfg.misc.ui_color.base();
-			list->AddImage((void*)logo_texture, base_offset, base_offset + image_size, ImVec2(0, 0), ImVec2(1, 1), clr.as_imcolor());
+			if (logo_texture)
+				list->AddImage((void*)logo_texture, base_offset, base_offset + image_size, ImVec2(0, 0), ImVec2(1, 1), clr.as_imcolor());
 
 			auto watermark_offset = base_offset + ImVec2{ image_size.x + 6.f, -0.5f };
 			list->AddText(watermark_offset, ImColor(255, 255, 255, 255), this->prefix.c_str());

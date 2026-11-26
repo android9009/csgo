@@ -1,69 +1,57 @@
-AsmJit
-------
+# airflow
 
-AsmJit is a lightweight library for machine code generation written in C++ language.
+Internal CS:GO cheat (Win32 / x86 DLL), built with MSVC.
 
-  * [Official Home Page (asmjit.com)](https://asmjit.com)
-  * [Official Repository (asmjit/asmjit)](https://github.com/asmjit/asmjit)
-  * [Public Chat Channel](https://gitter.im/asmjit/asmjit)
-  * [Zlib License](./LICENSE.md)
+## Requirements
 
-See [asmjit.com](https://asmjit.com) page for more details, examples, and documentation.
+* Visual Studio 2022 (v143 toolset) with the **Desktop development with C++** workload
+* Windows SDK (no DirectX SDK needed — `d3d9`, `stb_image`, PolyHook and FreeType are vendored)
+* A CS:GO (Legacy) installation for testing
 
-Documentation
--------------
+## Building
 
-  * [Documentation Index](https://asmjit.com/doc/index.html)
-  * [Build Instructions](https://asmjit.com/doc/group__asmjit__build.html)
+Open `opaihook.sln` and build one of the Win32 configurations:
 
-Breaking Changes
-----------------
+| Configuration | Output | Notes |
+|---|---|---|
+| `Live` | `Bins/csgo_release.dll` | main build |
+| `Beta` | `Bins/csgo_release_beta.dll` | crash handler + extra diagnostics |
+| `Alpha` | `Bins/csgo_release_alpha.dll` | crash handler + extra diagnostics |
+| `Debug` | `Bins/csgo_debug.dll` | console log, `DELETE` unloads the DLL |
 
-Breaking the API is sometimes inevitable, what to do?
+or from the command line:
 
-  * See [Breaking Changes Guide](https://asmjit.com/doc/group__asmjit__breaking__changes.html), which is now part of AsmJit documentation.
-  * See asmjit tests, they always compile and provide implementation of many use-cases:
-    * [asmjit_test_emitters.cpp](./test/asmjit_test_emitters.cpp) - Tests that demonstrate the purpose of emitters.
-    * [asmjit_test_assembler_x86.cpp](./test/asmjit_test_assembler_x86.cpp) - Tests targeting AsmJit's Assembler (x86/x64).
-    * [asmjit_test_compiler_x86.cpp](./test/asmjit_test_compiler_x86.cpp) - Tests targeting AsmJit's Compiler (x86/x64).
-    * [asmjit_test_instinfo.cpp](./test/asmjit_test_instinfo.cpp) - Tests that query instruction information.
-    * [asmjit_test_x86_sections.cpp](./test/asmjit_test_x86_sections.cpp) - Multiple sections test.
-  * Visit our [Official Chat](https://gitter.im/asmjit/asmjit) if you need a quick help.
+```bat
+msbuild opaihook.sln /m /p:Configuration=Live /p:Platform=x86
+```
 
-Project Organization
---------------------
+`injector/` contains a small GUI injector (build it the same way, Win32) that waits for
+`csgo.exe`, injects the matching DLL and shows the log. The DLL itself also works with any
+standard injector — it waits for the `Valve001` window and `serverbrowser.dll` before hooking.
 
-  * **`/`**        - Project root.
-    * **src**      - Source code.
-      * **asmjit** - Source code and headers (always point include path in here).
-        * **core** - Core API, backend independent except relocations.
-        * **arm**  - ARM specific API, used only by ARM and AArch64 backends.
-        * **x86**  - X86 specific API, used only by X86 and X64 backends.
-    * **test**     - Unit and integration tests (don't embed in your project).
-    * **tools**    - Tools used for configuring, documenting, and generating files.
+CI (`.github/workflows/msbuild.yml`) rebuilds `Live|Win32` on every push and uploads `Bins/`
+as an artifact.
 
-TODO
-----
+## Layout
 
-  * [ ] Core:
-    * [ ] Add support for user external buffers in CodeBuffer / CodeHolder.
-  * [ ] Ports:
-    * [ ] 32-bit ARM/Thumb port.
-    * [ ] 64-bit ARM (AArch64) port.
-    * [ ] RISC-V port.
+```
+dllmain.cpp          entry point, crash handler (Alpha/Beta)
+globals.cpp/.hpp     c_hacks: init sequence, interface list, precompiled-ish header
+hacks.hpp            global state (interfaces, convars, modules) + c_hacks declaration
+defines.hpp          vtable indices / flags for both Legacy and Live builds
+features/            anti_aim, rage, visuals, skins, misc modules
+sdk/                 entity/interface wrappers, netvars, hooks (VMT + detours)
+utils/               math, render, memory, offset scanner, xor helpers, config paths
+menu/                ImGui menu, custom widgets, config system, embedded fonts/icons
+imgui/               ImGui + FreeType + DX9 backend (compiled into the DLL)
+Libs/                vendored PolyHook/zydis, FreeType headers, tinyformat
+injector/            standalone injector project
+```
 
-Support
--------
+## Notes
 
-  * AsmJit project has both community and commercial support, see [AsmJit's Support Page](https://asmjit.com/support.html)
-  * You can help the development and maintenance through Petr Kobalicek's [GitHub sponsors Profile](https://github.com/sponsors/kobalicek)
-
-Notable Donors List:
-
-  * [ZehMatt](https://github.com/ZehMatt)
-
-
-Authors & Maintainers
----------------------
-
-  * Petr Kobalicek <kobalicek.petr@gmail.com>
+* `LEGACY` selects the deprecated CS:GO branch (`Legacy*` configurations); without it the
+  project targets the current client. Most SDK differences live in `defines.hpp`.
+* All strings/pointers used by features are obfuscated (`XOR`, `XORN`, `CXOR`, `XORED_PTR`).
+* Configs are JSON files, stored in an `airflow\` folder in the current working directory
+  of the game (`airflow\sounds` holds custom hit sounds).

@@ -17,75 +17,50 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../lib/image.h"
 
-// Modern Windows SDKs no longer ship d3dx9.h. All embedded images are PNG, so
-// decode them with the stb_image vendored in the evo renderer and upload to
-// D3D9 with the same CreateTexture shape as the font texture path
-// (D3DUSAGE_DYNAMIC/D3DPOOL_DEFAULT); LockRect is called through the vtable
-// with runtime shape detection (see surface_lock_checked).
-// Which step of add_texture_to_memory failed last (0 = none / working).
-// Shown in the menu header so a broken icon path is visible on screen.
+// Icons, logo and the blur sprites are stored as embedded PNGs (menu/bytesarray.cpp).
+// They are decoded once with the stb_image vendored in lib/image.h and uploaded
+// through ImGui_ImplDX9_* so every texture in the menu follows the exact same
+// D3D9 path as the ImGui font atlas (D3DUSAGE_DYNAMIC + D3DPOOL_DEFAULT, and the
+// same LockRect/UnlockRect shape the dx9 backend compiles against).
+// This is also what keeps them from turning into "empty squares": a texture that
+// fails to upload still renders as a quad filled with the current draw colour.
+
+// Diagnostics (debug builds only): which step of load_texture() failed last.
+#ifndef _DEBUG
+#define LOAD_TEX_FAIL(step) ((void)0)
+#else
 static int g_icon_fail_step = 0;
+#define LOAD_TEX_FAIL(step) do { if (!g_icon_fail_step) g_icon_fail_step = (step); } while (0)
+
 static const char* icon_fail_text()
 {
 	switch (g_icon_fail_step)
 	{
-		case 1: return "icons: no device";
+		case 1: return "icons: invalid args";
 		case 2: return "icons: png decode";
 		case 3: return "icons: create texture";
-		case 4: return "icons: get surface";
-		case 5: return "icons: lock rect";
+		case 4: return "icons: lock rect";
+		case 5: return "icons: pixel upload";
 		default: return nullptr;
 	}
 }
+#endif
 
-// IDirect3DSurface9 vtable slots (after the 3 IUnknown entries):
-//   3 GetDevice, 4 GetContainer, 5 Map, 6 Unmap, 7 LockRect, 8 UnlockRect.
-//
-// The 32-bit d3d9.dll at runtime implements either the legacy 4-arg LockRect
-// (DWORD Level, D3DLOCKED_RECT*, RECT*, DWORD) or the modern 3-arg form, and
-// the headers used to compile (CI SDK: 3-arg, legacy DX9 SDK: 4-arg) do not
-// necessarily match the runtime. Trust neither: call the vtable slot directly
-// through function pointers of both shapes and verify the D3DLOCKED_RECT
-// actually got filled. The 1-DWORD UnlockRect form is a safe superset: the
-// argument is unused by the runtime in either signature.
-typedef HRESULT (__thiscall * SurfaceLock3Fn)(IDirect3DSurface9*, D3DLOCKED_RECT*, RECT*, DWORD);
-typedef HRESULT (__thiscall * SurfaceLock4Fn)(IDirect3DSurface9*, DWORD, D3DLOCKED_RECT*, RECT*, DWORD);
-typedef HRESULT (__thiscall * SurfaceUnlockFn)(IDirect3DSurface9*, DWORD);
-
-static bool surface_lock_checked(IDirect3DSurface9* surface, int width, D3DLOCKED_RECT* locked)
+// Decode an embedded PNG and upload it as a D3D9 texture.
+// The device is taken from the renderer, which is only valid inside a frame
+// (g_menu::draw() runs from end_scene, right after RENDER->begin()), so the
+// textures are created on the same path as the ImGui font atlas.
+// `out` receives nullptr on failure, so callers can keep retrying next frame.
+static bool load_texture(IDirect3DDevice9* device, const void* data, size_t size, LPDIRECT3DTEXTURE9* out)
 {
-	void** vtbl = reinterpret_cast<void***>(surface)[0];
-	*locked = {};
-	if (SUCCEEDED(reinterpret_cast<SurfaceLock3Fn>(vtbl[7])(surface, locked, nullptr, 0)) &&
-		locked->pBits && locked->Pitch >= width * 4)
-		return true;
+	if (!out)
+		return false;
 
-	// the 3-arg attempt may have locked the surface without filling the rect
-	// (a legacy runtime reads our nullptr as its lpRect slot) - release it,
-	// then retry with the legacy 4-arg shape
-	reinterpret_cast<SurfaceUnlockFn>(vtbl[8])(surface, 0);
-	*locked = {};
-	if (SUCCEEDED(reinterpret_cast<SurfaceLock4Fn>(vtbl[7])(surface, 0, locked, nullptr, 0)) &&
-		locked->pBits && locked->Pitch >= width * 4)
-		return true;
-
-	return false;
-}
-
-static void surface_unlock_checked(IDirect3DSurface9* surface)
-{
-	void** vtbl = reinterpret_cast<void***>(surface)[0];
-	reinterpret_cast<SurfaceUnlockFn>(vtbl[8])(surface, 0);
-}
-
-static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, size_t size, LPDIRECT3DTEXTURE9* out_texture)
-{
-	*out_texture = nullptr;
+	*out = nullptr;
 
 	if (!device || !data || size == 0)
 	{
-		if (!g_icon_fail_step)
-			g_icon_fail_step = 1;
+		LOAD_TEX_FAIL(1);
 		return false;
 	}
 
@@ -94,61 +69,44 @@ static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, si
 	if (!rgba || width <= 0 || height <= 0)
 	{
 		stbi_image_free(rgba);
-		if (!g_icon_fail_step)
-			g_icon_fail_step = 2;
+		LOAD_TEX_FAIL(2);
 		return false;
 	}
 
-	bool ok = false;
-	// Exactly the same recipe as the working font texture path in
-	// imgui_impl_dx9.cpp: D3DUSAGE_DYNAMIC + D3DPOOL_DEFAULT + D3DLOCK_DISCARD
-	// and the legacy 4-arg LockRect/UnlockRect calls (Level is always 0).
-	// Content is re-uploaded after a device reset (see c_menu::invalidate_textures).
-	if (SUCCEEDED(device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, out_texture, nullptr)) && *out_texture)
+	// stb gives RGBA rows, D3DFMT_A8R8G8B8 expects BGRA in memory.
+	for (int i = 0; i < width * height; ++i)
+		std::swap(rgba[i * 4 + 0], rgba[i * 4 + 2]);
+
+	LPDIRECT3DTEXTURE9 texture = nullptr;
+	if (FAILED(device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, nullptr)) || !texture)
 	{
-		IDirect3DSurface9* surface = nullptr;
-		if (SUCCEEDED((*out_texture)->GetSurfaceLevel(0, &surface)) && surface)
-		{
-			D3DLOCKED_RECT locked = {};
-			if (surface_lock_checked(surface, width, &locked))
-			{
-				const size_t row_bytes = static_cast<size_t>(width) * 4u;
-				for (int y = 0; y < height; ++y)
-				{
-					BYTE* dest = reinterpret_cast<BYTE*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch;
-					const unsigned char* src = rgba + row_bytes * y;
-					for (int x = 0; x < width; ++x)
-					{
-						// D3DFMT_A8R8G8B8 memory order is BGRA, stb gives RGBA
-						dest[x * 4 + 0] = src[x * 4 + 2];
-						dest[x * 4 + 1] = src[x * 4 + 1];
-						dest[x * 4 + 2] = src[x * 4 + 0];
-						dest[x * 4 + 3] = src[x * 4 + 3];
-					}
-				}
-				surface_unlock_checked(surface);
-				ok = true;
-			}
-			else if (!g_icon_fail_step)
-				g_icon_fail_step = 5;
-			surface->Release();
-		}
-		else if (!g_icon_fail_step)
-			g_icon_fail_step = 4;
-
-		if (!ok)
-		{
-			(*out_texture)->Release();
-			*out_texture = nullptr;
-		}
+		stbi_image_free(rgba);
+		LOAD_TEX_FAIL(3);
+		return false;
 	}
-	else if (!g_icon_fail_step)
-		g_icon_fail_step = 3;
 
+	D3DLOCKED_RECT locked = {};
+	if (FAILED(texture->LockRect(0, &locked, nullptr, D3DLOCK_DISCARD)) || !locked.pBits)
+	{
+		stbi_image_free(rgba);
+		texture->Release();
+		LOAD_TEX_FAIL(4);
+		return false;
+	}
+
+	for (int y = 0; y < height; ++y)
+		std::memcpy(reinterpret_cast<unsigned char*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch,
+			rgba + static_cast<size_t>(y) * width * 4u, static_cast<size_t>(width) * 4u);
+
+	texture->UnlockRect(0);
 	stbi_image_free(rgba);
-	if (ok)
-		g_icon_fail_step = 0;
-	return ok;
+
+	*out = texture;
+
+#ifdef _DEBUG
+	g_icon_fail_step = 0;
+#endif
+	return true;
 }
 
 std::vector< std::string > key_strings = { XOR("None"), XOR("M1"), XOR("M2"), XOR("Ctrl+brk"), XOR("M3"), XOR("M4"), XOR("M5"), XOR(" "), XOR("Back"), XOR("Tab"),
@@ -218,46 +176,30 @@ ImVec2 c_menu::get_window_pos()
 
 void c_menu::init_textures()
 {
-	if (!logo_texture)
-		add_texture_to_memory(RENDER->get_device(), cheatLogo, sizeof(cheatLogo), &logo_texture);
+	// Only called from draw(), i.e. inside the frame where the device is alive.
+	auto device = RENDER->get_device();
+	auto load = [device](const void* data, size_t size, LPDIRECT3DTEXTURE9& texture)
+	{
+		if (!texture)
+			load_texture(device, data, size, &texture);
+	};
 
-	if (!keyboard_texture)
-		add_texture_to_memory(RENDER->get_device(), keyboard_icon, sizeof(keyboard_icon), &keyboard_texture);
+	load(cheatLogo, sizeof(cheatLogo), logo_texture);
+	load(keyboard_icon, sizeof(keyboard_icon), keyboard_texture);
+	load(warning_icon, sizeof(warning_icon), warning_texture);
+	load(spectators_icon, sizeof(spectators_icon), spectator_texture);
+	load(bomb_indicator, sizeof(bomb_indicator), bomb_texture);
 
-	if (!warning_texture)
-		add_texture_to_memory(RENDER->get_device(), warning_icon, sizeof(warning_icon), &warning_texture);
+	load(rage_icon, sizeof(rage_icon), icon_textures[0]);
+	load(legit_icon, sizeof(legit_icon), icon_textures[1]);
+	load(antihit_icon, sizeof(antihit_icon), icon_textures[2]);
+	load(visuals_icon, sizeof(visuals_icon), icon_textures[3]);
+	load(misc_icon, sizeof(misc_icon), icon_textures[4]);
+	load(skins_icon, sizeof(skins_icon), icon_textures[5]);
+	load(cfg_icon, sizeof(cfg_icon), icon_textures[6]);
 
-	if (!spectator_texture)
-		add_texture_to_memory(RENDER->get_device(), spectators_icon, sizeof(spectators_icon), &spectator_texture);
-
-	if (!bomb_texture)
-		add_texture_to_memory(RENDER->get_device(), bomb_indicator, sizeof(bomb_indicator), &bomb_texture);
-
-	if (!icon_textures[0])
-		add_texture_to_memory(RENDER->get_device(), rage_icon, sizeof(rage_icon), &icon_textures[0]);
-
-	if (!icon_textures[1])
-		add_texture_to_memory(RENDER->get_device(), legit_icon, sizeof(legit_icon), &icon_textures[1]);
-
-	if (!icon_textures[2])
-		add_texture_to_memory(RENDER->get_device(), antihit_icon, sizeof(antihit_icon), &icon_textures[2]);
-
-	if (!icon_textures[3])
-		add_texture_to_memory(RENDER->get_device(), visuals_icon, sizeof(visuals_icon), &icon_textures[3]);
-
-	if (!icon_textures[4])
-		add_texture_to_memory(RENDER->get_device(), misc_icon, sizeof(misc_icon), &icon_textures[4]);
-
-	if (!icon_textures[5])
-		add_texture_to_memory(RENDER->get_device(), skins_icon, sizeof(skins_icon), &icon_textures[5]);
-
-	if (!icon_textures[6])
-		add_texture_to_memory(RENDER->get_device(), cfg_icon, sizeof(cfg_icon), &icon_textures[6]);
-
-	//MessageBoxA(0, g_cheat_info->user_avatar.c_str(), 0, 0);
-
-	if (!avatar && !HACKS->cheat_info.user_avatar.empty() && HACKS->cheat_info.user_avatar.size())
-		add_texture_to_memory(RENDER->get_device(), HACKS->cheat_info.user_avatar.data(), HACKS->cheat_info.user_avatar.size(), &avatar);
+	if (!HACKS->cheat_info.user_avatar.empty())
+		load(HACKS->cheat_info.user_avatar.data(), HACKS->cheat_info.user_avatar.size(), avatar);
 }
 
 void c_menu::invalidate_textures()
@@ -386,16 +328,19 @@ void c_menu::draw_ui_background()
 	ImGui::PushFont(RENDER->fonts.dmg.get());
 	auto text_size = ImGui::CalcTextSize(letter.c_str());
 
-	list->AddImage(
-		(void*)logo_texture, window_pos + image_pos_min - ImVec2(text_size.x - 18, 0.f), window_pos + image_pos_max - ImVec2(text_size.x - 18, 0.f), ImVec2(0, 0), ImVec2(1, 1), clr.new_alpha(window_alpha).as_imcolor());
+	if (logo_texture)
+		list->AddImage(
+			(void*)logo_texture, window_pos + image_pos_min - ImVec2(text_size.x - 18, 0.f), window_pos + image_pos_max - ImVec2(text_size.x - 18, 0.f), ImVec2(0, 0), ImVec2(1, 1), clr.new_alpha(window_alpha).as_imcolor());
 
 	auto base_x = window_pos.x + image_pos_min.x - text_size.x + 18.f;
 	list->AddText(ImVec2(base_x + 30.f, window_pos.y + 13), c_color(255, 255, 255, 150.f * alpha).as_imcolor(), letter.c_str());
 	ImGui::PopFont();
 
-	// icon load diagnostics (only visible while something is broken)
+#ifdef _DEBUG
+	// icon load diagnostics (debug builds only, hidden while everything works)
 	if (const char* fail = icon_fail_text())
 		list->AddText(window_pos + ImVec2(8, 6), ImColor(255, 215, 0, 255), fail);
+#endif
 
 	// body
 	imgui_blur::create_blur(list, window_pos + ImVec2(0, 47), ImVec2(window_pos.x + 720, window_pos.y + 520), ImColor(80, 80, 80, (int)(window_alpha)), 6.f, ImDrawCornerFlags_Bot);

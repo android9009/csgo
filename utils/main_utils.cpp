@@ -10,20 +10,6 @@ namespace main_utils
 		return std::string(result, GetModuleFileName(NULL, result, MAX_PATH));
 	}
 
-	INLINE bool file_have_extension(const char* path, const char* extension)
-	{
-		auto path_exist = std::filesystem::exists(path);
-		if (path_exist)
-		{
-			std::filesystem::path model_path(path);
-			if (!model_path.has_extension())
-				return false;
-
-			const auto& str = model_path.extension().string();
-			return std::strstr(str.c_str(), extension);
-		}
-	}
-
 	INLINE bool file_exist(const char* path)
 	{
 		return std::filesystem::exists(path);

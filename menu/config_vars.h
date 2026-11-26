@@ -153,7 +153,6 @@ enum weapon_cfg_type_t
 struct chams_t
 {
 	bool enable{};
-	bool interp{};
 
 	int material = 0;
 	int glow_fill = 100;
@@ -164,8 +163,8 @@ struct chams_t
 
 	char chams_sprite[128]{};
 
-	INLINE chams_t(bool enable, bool interp, int mat, int fill, int shot, c_float_color main, c_float_color glow)
-	: enable(enable), interp(interp), material(mat), glow_fill(fill), shot_duration(shot), main_color(main), glow_color(glow) {
+	INLINE chams_t(bool enable, int mat, int fill, int shot, c_float_color main, c_float_color glow)
+	: enable(enable), material(mat), glow_fill(fill), shot_duration(shot), main_color(main), glow_color(glow) {
 		std::strcpy(chams_sprite, CXOR("models\\weapons\\customization\\paints\\custom\\money"));
 	}
 
@@ -316,16 +315,16 @@ struct configs_t
 	struct visuals_t
 	{
 		chams_t chams[c_max]{
-		  chams_t{ false, false, 0, 100, 5, c_float_color(150, 200, 60), c_float_color(80, 78, 138, 150) },        // C_VIS
-		  chams_t{ false, false, 0, 100, 5, c_float_color(60, 120, 180), c_float_color(80, 78, 138, 150) },         // C_XQZ
-		  chams_t{ false, false, 3, 100, 5, c_float_color(169, 166, 255, 80), c_float_color(80, 78, 138, 80) },     // C_HISTORY
-		  chams_t{ false, false, 4, 100, 5, c_float_color(0, 0, 0, 0), c_float_color(102, 92, 138, 100) },          // C_ONSHOT
-		  chams_t{ false, false, 0, 100, 5, c_float_color(108, 126, 184), c_float_color(80, 78, 138, 150) },        // C_RAGDOLLS
-		  chams_t{ false, false, 3, 100, 5, c_float_color(148, 168, 255, 100), c_float_color(100, 100, 100, 150) }, // C_LOCAL
-		  chams_t{ false, false, 3, 100, 5, c_float_color(169, 125, 255, 100), c_float_color(168, 169, 255, 150) }, // C_VIEWMODEL
-		  chams_t{ false, false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_WPN
-		  chams_t{ false, false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_ATTACHMENTS
-		  chams_t{ false, false, 3, 100, 5, c_float_color(255, 255, 255, 100), c_float_color(0, 0, 0, 0) },         // C_FAKE
+		  chams_t{ false, 0, 100, 5, c_float_color(150, 200, 60), c_float_color(80, 78, 138, 150) },        // C_VIS
+		  chams_t{ false, 0, 100, 5, c_float_color(60, 120, 180), c_float_color(80, 78, 138, 150) },         // C_XQZ
+		  chams_t{ false, 3, 100, 5, c_float_color(169, 166, 255, 80), c_float_color(80, 78, 138, 80) },     // C_HISTORY
+		  chams_t{ false, 4, 100, 5, c_float_color(0, 0, 0, 0), c_float_color(102, 92, 138, 100) },          // C_ONSHOT
+		  chams_t{ false, 0, 100, 5, c_float_color(108, 126, 184), c_float_color(80, 78, 138, 150) },        // C_RAGDOLLS
+		  chams_t{ false, 3, 100, 5, c_float_color(148, 168, 255, 100), c_float_color(100, 100, 100, 150) }, // C_LOCAL
+		  chams_t{ false, 3, 100, 5, c_float_color(169, 125, 255, 100), c_float_color(168, 169, 255, 150) }, // C_VIEWMODEL
+		  chams_t{ false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_WPN
+		  chams_t{ false, 3, 100, 5, c_float_color(218, 125, 255, 100), c_float_color(100, 100, 100, 150) }, // C_ATTACHMENTS
+		  chams_t{ false, 3, 100, 5, c_float_color(255, 255, 255, 100), c_float_color(0, 0, 0, 0) },         // C_FAKE
 		};
 
 		struct event_logs_t

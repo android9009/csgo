@@ -1,0 +1,35 @@
+# Build output
+Bins/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+*.log
+build/
+out/
+dist/
+
+# Visual Studio per-user / intermediate files
+.vs/
+*.vcxproj.user
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.ipch
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.tlog/
+ipch/
+
+# Tooling caches
+__pycache__/
+*.pyc
+.cache/
+.vscode/
+.idea/
+
+# Local configs / dumps
+*.cfg.bak
+*.dump
