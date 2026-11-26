@@ -189,8 +189,8 @@
     <ClCompile Include="features\visuals\post_processing.cpp">
       <Filter>features/visuals</Filter>
     </ClCompile>
-    <ClCompile Include="features\misc\predfix.cpp">
-      <Filter>features/misc</Filter>
+    <ClCompile Include="features\rage\predfix.cpp">
+      <Filter>features/rage</Filter>
     </ClCompile>
     <ClCompile Include="features\rage\ragebot.cpp">
       <Filter>features/rage</Filter>
@@ -438,8 +438,8 @@
     <ClInclude Include="features\visuals\post_processing.hpp">
       <Filter>features/visuals</Filter>
     </ClInclude>
-    <ClInclude Include="features\misc\predfix.hpp">
-      <Filter>features/misc</Filter>
+    <ClInclude Include="features\rage\predfix.hpp">
+      <Filter>features/rage</Filter>
     </ClInclude>
     <ClInclude Include="features\rage\ragebot.hpp">
       <Filter>features/rage</Filter>

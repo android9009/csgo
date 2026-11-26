@@ -421,7 +421,7 @@
     <ClCompile Include="features\misc\entlistener.cpp" />
     <ClCompile Include="features\rage\penetration.cpp" />
     <ClCompile Include="features\visuals\post_processing.cpp" />
-    <ClCompile Include="features\misc\predfix.cpp" />
+    <ClCompile Include="features\rage\predfix.cpp" />
     <ClCompile Include="features\rage\ragebot.cpp" />
     <ClCompile Include="features\misc\remove_projectiles.cpp" />
     <ClCompile Include="utils\render.cpp" />
@@ -508,7 +508,7 @@
     <ClInclude Include="features\misc\entlistener.hpp" />
     <ClInclude Include="features\rage\penetration.hpp" />
     <ClInclude Include="features\visuals\post_processing.hpp" />
-    <ClInclude Include="features\misc\predfix.hpp" />
+    <ClInclude Include="features\rage\predfix.hpp" />
     <ClInclude Include="features\rage\ragebot.hpp" />
     <ClInclude Include="features\misc\remove_projectiles.hpp" />
     <ClInclude Include="utils\render.hpp" />
