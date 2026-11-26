@@ -12,7 +12,10 @@
 #include <type_traits>
 #include <utility>
 #include <d3d9.h>
-#include <lib/image.h>
+// stb_image (vendored at lib/image.h) decodes the embedded PNG icons.
+// menu.cpp is the single translation unit that instantiates the loader.
+#define STB_IMAGE_IMPLEMENTATION
+#include "../../lib/image.h"
 
 // Modern Windows SDKs no longer ship d3dx9.h. All embedded images are PNG, so
 // decode them with the stb_image vendored in the evo renderer and upload to D3D9.
