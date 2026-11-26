@@ -18,9 +18,10 @@
 #include "../../lib/image.h"
 
 // Modern Windows SDKs no longer ship d3dx9.h. All embedded images are PNG, so
-// decode them with the stb_image vendored in the evo renderer and upload to D3D9
-// with the exact same calls as the font texture path in imgui_impl_dx9.cpp
-// (CreateTexture D3DUSAGE_DYNAMIC/D3DPOOL_DEFAULT + legacy 4-arg LockRect).
+// decode them with the stb_image vendored in the evo renderer and upload to
+// D3D9 with the same CreateTexture shape as the font texture path
+// (D3DUSAGE_DYNAMIC/D3DPOOL_DEFAULT); LockRect is called through the vtable
+// with runtime shape detection (see surface_lock_checked).
 // Which step of add_texture_to_memory failed last (0 = none / working).
 // Shown in the menu header so a broken icon path is visible on screen.
 static int g_icon_fail_step = 0;
@@ -35,6 +36,46 @@ static const char* icon_fail_text()
 		case 5: return "icons: lock rect";
 		default: return nullptr;
 	}
+}
+
+// IDirect3DSurface9 vtable slots (after the 3 IUnknown entries):
+//   3 GetDevice, 4 GetContainer, 5 Map, 6 Unmap, 7 LockRect, 8 UnlockRect.
+//
+// The 32-bit d3d9.dll at runtime implements either the legacy 4-arg LockRect
+// (DWORD Level, D3DLOCKED_RECT*, RECT*, DWORD) or the modern 3-arg form, and
+// the headers used to compile (CI SDK: 3-arg, legacy DX9 SDK: 4-arg) do not
+// necessarily match the runtime. Trust neither: call the vtable slot directly
+// through function pointers of both shapes and verify the D3DLOCKED_RECT
+// actually got filled. The 1-DWORD UnlockRect form is a safe superset: the
+// argument is unused by the runtime in either signature.
+typedef HRESULT (__thiscall * SurfaceLock3Fn)(IDirect3DSurface9*, D3DLOCKED_RECT*, RECT*, DWORD);
+typedef HRESULT (__thiscall * SurfaceLock4Fn)(IDirect3DSurface9*, DWORD, D3DLOCKED_RECT*, RECT*, DWORD);
+typedef HRESULT (__thiscall * SurfaceUnlockFn)(IDirect3DSurface9*, DWORD);
+
+static bool surface_lock_checked(IDirect3DSurface9* surface, int width, D3DLOCKED_RECT* locked)
+{
+	void** vtbl = reinterpret_cast<void***>(surface)[0];
+	*locked = {};
+	if (SUCCEEDED(reinterpret_cast<SurfaceLock3Fn>(vtbl[7])(surface, locked, nullptr, 0)) &&
+		locked->pBits && locked->Pitch >= width * 4)
+		return true;
+
+	// the 3-arg attempt may have locked the surface without filling the rect
+	// (a legacy runtime reads our nullptr as its lpRect slot) - release it,
+	// then retry with the legacy 4-arg shape
+	reinterpret_cast<SurfaceUnlockFn>(vtbl[8])(surface, 0);
+	*locked = {};
+	if (SUCCEEDED(reinterpret_cast<SurfaceLock4Fn>(vtbl[7])(surface, 0, locked, nullptr, 0)) &&
+		locked->pBits && locked->Pitch >= width * 4)
+		return true;
+
+	return false;
+}
+
+static void surface_unlock_checked(IDirect3DSurface9* surface)
+{
+	void** vtbl = reinterpret_cast<void***>(surface)[0];
+	reinterpret_cast<SurfaceUnlockFn>(vtbl[8])(surface, 0);
 }
 
 static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, size_t size, LPDIRECT3DTEXTURE9* out_texture)
@@ -69,7 +110,7 @@ static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, si
 		if (SUCCEEDED((*out_texture)->GetSurfaceLevel(0, &surface)) && surface)
 		{
 			D3DLOCKED_RECT locked = {};
-			if (SUCCEEDED(surface->LockRect(0, &locked, nullptr, D3DLOCK_DISCARD)) && locked.pBits)
+			if (surface_lock_checked(surface, width, &locked))
 			{
 				const size_t row_bytes = static_cast<size_t>(width) * 4u;
 				for (int y = 0; y < height; ++y)
@@ -85,7 +126,7 @@ static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, si
 						dest[x * 4 + 3] = src[x * 4 + 3];
 					}
 				}
-				surface->UnlockRect(0);
+				surface_unlock_checked(surface);
 				ok = true;
 			}
 			else if (!g_icon_fail_step)
