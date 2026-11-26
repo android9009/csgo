@@ -7,6 +7,7 @@ struct rage_weapon_t;
 namespace main_utils
 {
 	extern std::string get_executable_file_path();
+	extern bool file_have_extension(const char* path, const char* extension);
 	extern bool file_exist(const char* path);
 
 	extern void draw_hitbox(c_cs_player* player, matrix3x4_t* bones, int idx, int idx2, bool dur = false);
