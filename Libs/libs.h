@@ -2,7 +2,6 @@
 
 // Security
 #include "lazy_importer.h"
-#include "xorstr.h"
 
 // Hooking
 #include "PolyHook/polyhook2/IHook.hpp"
