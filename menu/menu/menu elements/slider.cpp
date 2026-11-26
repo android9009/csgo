@@ -127,7 +127,7 @@ bool c_menu::slider_scalar(const char* label, ImGuiDataType data_type, void* p_d
 
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.5f * alpha));
 	if (label_size.x > 0.0f)
-		RenderText(ImVec2(frame_bb.Min.x + 12.f + this->label_indent, frame_bb.Min.y + 9.f), label);
+		RenderText(ImVec2(frame_bb.Min.x + 12.f, frame_bb.Min.y + 9.f), label);
 	ImGui::PopStyleColor();
 
 	IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.ItemFlags);

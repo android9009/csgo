@@ -173,7 +173,7 @@ bool c_menu::begin_combo(const char* label, const char* preview_value, ImGuiComb
 	draw_list->AddRectFilled(frame_bb.Min, frame_bb.Max, back_clr.u32(), 4.f);
 
 	if (label_size.x > 0)
-		RenderText(ImVec2(frame_bb.Min.x + 12.f + this->label_indent, frame_bb.Min.y + 16.f), label);
+		RenderText(ImVec2(frame_bb.Min.x + 12.f, frame_bb.Min.y + 16.f), label);
 
 	if ((pressed || g.NavActivateId == id) && !popup_open)
 	{

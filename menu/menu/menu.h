@@ -134,10 +134,6 @@ private:
 	bool slider_int(const char* label, int* v, int v_min, int v_max, const char* format = CXOR("%d"));
 
 
-	// horizontal offset added to control labels so a gear can sit at the very left
-	// of the row without overlapping the text
-	float label_indent{};
-
 	bool color_picker_wrapper(const char* label, float col[4], ImGuiColorEditFlags flags = 0, const float* ref_col = NULL);
 	bool color_button_wrapper(const char* desc_id, const ImVec4& col, ImGuiColorEditFlags flags = 0);
 	bool color_picker(const char* name, c_float_color& v, ImGuiColorEditFlags flags = default_picker);

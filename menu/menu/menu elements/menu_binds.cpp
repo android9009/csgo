@@ -333,23 +333,21 @@ bool c_menu::bind_checkbox(const char* scope, const char* label, bool* v, int po
 {
 	ImGui::PushID(scope);
 
-	// the gear sits at the very left of the row, the label moves right by exactly
-	// the space it takes
-	const float indent = popup_id != 0 ? 20.f : 0.f;
-	label_indent = indent;
-
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.85f * this->get_alpha()));
 	const bool changed = this->checkbox(label, v);
 	ImGui::PopStyleColor();
 
-	label_indent = 0.f;
-
 	const ImVec2 min = ImGui::GetItemRectMin();
+	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 32.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 6.f, min.y + 8.f, popup_id);
+	{
+		// label -> small gap -> gear -> the toggle itself (which starts at 220px)
+		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 202.f);
+		this->draw_gear(label, gear_x, min.y + 9.f, popup_id);
+	}
 
 	ImGui::PopID();
 
@@ -360,19 +358,19 @@ void c_menu::bind_multi_combo(const char* scope, const char* label, unsigned int
 {
 	ImGui::PushID(scope);
 
-	const float indent = popup_id != 0 ? 20.f : 0.f;
-	label_indent = indent;
-
 	this->multi_combo(label, var, elements);
 
-	label_indent = 0.f;
-
 	const ImVec2 min = ImGui::GetItemRectMin();
+	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 6.f, min.y + 16.f, popup_id);
+	{
+		// label -> small gap -> gear -> the combo preview / arrow
+		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 196.f);
+		this->draw_gear(label, gear_x, min.y + 16.f, popup_id);
+	}
 
 	ImGui::PopID();
 }
@@ -393,19 +391,18 @@ void c_menu::bind_combo(const char* scope, const char* label, int& var, std::vec
 {
 	ImGui::PushID(scope);
 
-	const float indent = popup_id != 0 ? 20.f : 0.f;
-	label_indent = indent;
-
 	this->multi_combo_exclusive(label, var, elements);
 
-	label_indent = 0.f;
-
 	const ImVec2 min = ImGui::GetItemRectMin();
+	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 48.f);
 
 	if (popup_id != 0)
-		this->draw_gear(label, min.x + 6.f, min.y + 16.f, popup_id);
+	{
+		const float gear_x = (std::min)(min.x + 12.f + label_size.x + 10.f, min.x + 196.f);
+		this->draw_gear(label, gear_x, min.y + 16.f, popup_id);
+	}
 
 	ImGui::PopID();
 }
