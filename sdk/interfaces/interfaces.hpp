@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <windows.h>
 #include "../../hacks.hpp"
+#include "../clientclass.hpp"
 #include "../studiohdr.hpp"
 #include "../material.hpp"
 
@@ -55,6 +56,15 @@ public:
     int GetHighestEntityIndex() {
         using Fn = int (__thiscall*)(void*);
         return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[6])(this);
+    }
+};
+class IBaseClientDll {
+public:
+    // VClient::GetAllClasses - vfunc 8 (Source 1 x86), same slot the Fatality
+    // IBaseClientDll lens used.
+    ClientClass* GetAllClasses() {
+        using Fn = ClientClass* (__thiscall*)(void*);
+        return reinterpret_cast<Fn>((*reinterpret_cast<void***>(this))[8])(this);
     }
 };
 class IVModelInfo {
@@ -117,6 +127,7 @@ inline IMaterial* CreateMaterial(const char* name, void* key_values) {
     return fn ? fn(MaterialSystem, name, key_values) : nullptr;
 }
 
+inline IBaseClientDll* Client = nullptr;
 inline bool Check() {
     return Engine && EntityList && ModelInfo && ModelRender && MaterialSystem
            && RenderView && StudioRender;
@@ -135,6 +146,8 @@ inline bool Setup() {
         if (!StudioRender) StudioRender = HACKS->studio_render;
         if (!MDLCache) MDLCache = HACKS->model_cache;
     }
+    if (!Client)
+        Client = reinterpret_cast<IBaseClientDll*>(CaptureRaw("client.dll", "VClient"));
     if (!BaseFileSystem)
         BaseFileSystem = CaptureRaw("filesystem_stdio.dll", "VBaseFileSystem");
     if (!MemAlloc) {

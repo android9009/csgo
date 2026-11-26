@@ -638,8 +638,11 @@ bool LiveMaterialBuildCompatible() {
 // 4 local player, 5 no matching item, 6 owner ABI, 7 generated materials absent.
 void* FindLiveMaterialOwner(int index, int paint, int seed, float wear, int* reason=nullptr) {
     if(reason) *reason=1;
-    if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Engine->IsInGame() ||
-        !PropManager::Get().IsReady()) return nullptr;
+    if (!Interfaces::Engine || !Interfaces::EntityList || !Interfaces::Engine->IsInGame()) return nullptr;
+    // Self-healing: Fatality created the RecvTable walker at menu init; retry
+    // until the client interface is live in this base.
+    if (!PropManager::Get().IsReady()) PropManager::Get().Create();
+    if (!PropManager::Get().IsReady()) return nullptr;
     if(reason) *reason=2;
     auto& net = PropManager::Get();
     const auto weapons = net.GetOffset("DT_BaseCombatCharacter", "m_hMyWeapons");

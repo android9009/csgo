@@ -827,6 +827,10 @@
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
     </ClCompile>
+    <ClCompile Include="sdk\netvars.cpp">
+      <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
+      <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="utils\patterns\patterns.cpp">
       <AdditionalOptions>%(AdditionalOptions) /EHsc</AdditionalOptions>
       <ObjectFileName>$(IntDir)fm\%(RecursiveDir)%(Filename).obj</ObjectFileName>

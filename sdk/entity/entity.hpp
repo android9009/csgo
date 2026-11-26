@@ -7,7 +7,13 @@
 #include <cstdint>
 class CBaseEntity {
 public:
-    CBaseEntity* next() const { return *reinterpret_cast<const CBaseEntity* const*>(this); }
+    CBaseEntity* next() const { return const_cast<CBaseEntity*>(*reinterpret_cast<const CBaseEntity* const*>(this)); }
+    // model_t* m_Model (CS:GO x86 C_BaseEntity offset 0x29C8); model_t holds
+    // the .mdl path in name[260] at byte 4.
+    const char* GetModelName() const {
+        const auto* model = *reinterpret_cast<const void* const*>(reinterpret_cast<const uint8_t*>(this) + 0x29C8);
+        return model ? reinterpret_cast<const char*>(static_cast<const uint8_t*>(model) + 4) : nullptr;
+    }
     int index() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x8); }
     int m_iHealth() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x100); }
     int m_iArmor() const { return *reinterpret_cast<const int*>(reinterpret_cast<const uint8_t*>(this) + 0x120); }
