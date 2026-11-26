@@ -100,7 +100,7 @@ namespace hooks::detour
 			return original(ecx, edx, datagram);
 #endif
 
-		if (ecx != HACKS->client_state->net_channel || !HACKS->in_game || !HACKS->local || !HACKS->local->is_alive() || !g_cfg.binds[spike_b].toggled)
+		if (ecx != HACKS->client_state->net_channel || !HACKS->in_game || !HACKS->local || !HACKS->local->is_alive() || !KEY_STATES->resolve(CXOR("Ping spike"), false).active)
 			return original(ecx, edx, datagram);
 
 		auto netchannel_info = HACKS->engine->get_net_channel();
