@@ -1,132 +1,111 @@
-/* Standalone GUI injector (Win32, no console).
+/* Standalone console auto-injector (Win32, pure C).
  *
- * Picks a process from a list, injects a DLL (default: csgo-release.dll next
- * to the exe) via VirtualAllocEx + remote LoadLibraryW. Works from x64 into
- * both x86 and x64 targets: the target's kernel32 base is walked out of its
- * PEB and LoadLibraryW is resolved from the target's own PE export table, so
- * no cross-bitness GetModuleHandle guessing is involved.
+ * What it does, by itself, with zero arguments:
+ *   1. finds the freshly built DLL  (csgo-release.dll next to the injector,
+ *      in Bins/ next to the injector, or in the current folder / Bins there)
+ *   2. waits for the game process to appear (cs2.exe, then csgo.exe)
+ *   3. injects the DLL via VirtualAllocEx + remote LoadLibraryW
+ *
+ * Works from x64 into both x86 and x64 targets: the target's kernel32 base
+ * is walked out of its PEB and LoadLibraryW is resolved from the target's
+ * own PE export table, so no cross-bitness GetModuleHandle guessing.
+ *
+ * Optional args:
+ *   injector.exe [path\to\dll] [process name]
  */
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <tlhelp32.h>
-#include <commdlg.h>
+#include <stdio.h>
 #include <string.h>
-#include <commctrl.h>
-#include <shlwapi.h>
 #include <wchar.h>
+#include <stdbool.h>
 
-#pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "shlwapi.lib")
+#define INJECTOR_OK    0
+#define INJECTOR_ERR   1
 
-enum {
-	IDC_PROCESS = 1001,
-	IDC_REFRESH = 1002,
-	IDC_DLL     = 1003,
-	IDC_BROWSE  = 1004,
-	IDC_INJECT  = 1005,
-	IDC_STATUS  = 1006,
-};
-
-static HWND  g_hProcess, g_hRefresh, g_hDll, g_hBrowse, g_hInject, g_hStatus;
-static bool  g_statusOk = true;
-static WCHAR g_exeDir[MAX_PATH];
+static void PrintW(const WCHAR* w);
 
 /* ---------------------------------------------------------------- helpers */
 
-static void SetStatus(HWND h, const WCHAR* text, bool ok)
-{
-	g_statusOk = ok;
-	SetWindowTextW(h, text);
-	InvalidateRect(h, NULL, TRUE);
-}
-
-static void GetExeDir(void)
+static void GetExeDir(WCHAR* out, int cap)
 {
 	WCHAR buf[MAX_PATH];
 	GetModuleFileNameW(NULL, buf, MAX_PATH);
 	WCHAR* slash = wcsrchr(buf, L'\\');
-	if (slash)
-		lstrcpynW(g_exeDir, buf, (int)(slash - buf + 2));
+	if (slash) {
+		int n = (int)(slash - buf + 2);
+		if (n >= cap) n = cap - 1;
+		memcpy(out, buf, (size_t)n * sizeof(WCHAR));
+		out[n] = 0;
+	} else
+		out[0] = 0;
 }
 
-static int CmpProc(const PROCESSENTRY32W* a, const PROCESSENTRY32W* b)
+/* returns pid or 0 */
+static DWORD FindProcess(const WCHAR* name)
 {
-	return lstrcmpiW(a->szExeFile, b->szExeFile);
-}
-
-static void RefreshProcesses(HWND hCombo, const WCHAR* lastPick)
-{
-	SendMessageW(hCombo, CB_RESETCONTENT, 0, 0);
-
 	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (snap == INVALID_HANDLE_VALUE)
-		return;
+		return 0;
 
-	PROCESSENTRY32W* list = (PROCESSENTRY32W*)LocalAlloc(LPTR, sizeof(PROCESSENTRY32W) * 4096);
+	DWORD pid = 0;
 	PROCESSENTRY32W pe;
 	pe.dwSize = sizeof(pe);
-	int count = 0;
 	if (Process32FirstW(snap, &pe)) {
 		do {
-			if (count < 4096)
-				list[count++] = pe;
+			if (lstrcmpiW(pe.szExeFile, name) == 0) {
+				pid = pe.th32ProcessID;
+				break;
+			}
 		} while (Process32NextW(snap, &pe));
 	}
 	CloseHandle(snap);
-
-	/* simple insertion sort - process lists are small */
-	for (int i = 1; i < count; i++) {
-		PROCESSENTRY32W key = list[i];
-		int j = i - 1;
-		while (j >= 0 && CmpProc(&list[j], &key) > 0) {
-			list[j + 1] = list[j];
-			j--;
-		}
-		list[j + 1] = key;
-	}
-
-	int best = -1;
-	for (int i = 0; i < count; i++) {
-		int idx = (int)SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)list[i].szExeFile);
-		if (lastPick && *lastPick && lstrcmpiW(list[i].szExeFile, lastPick) == 0)
-			SendMessageW(hCombo, CB_SETCURSEL, idx, 0);
-		if (best < 0 &&
-			(lstrcmpiW(list[i].szExeFile, L"cs2.exe") == 0 ||
-			 lstrcmpiW(list[i].szExeFile, L"csgo.exe") == 0))
-			best = i;
-	}
-	if (best >= 0)
-		SendMessageW(hCombo, CB_SETCURSEL, best, 0);
-
-	LocalFree(list);
+	return pid;
 }
 
-static DWORD GetSelectedPid(HWND hCombo)
+/* tries candidate locations, writes the first existing one to out; true on success */
+static bool ResolveDll(const WCHAR* argDll, WCHAR* out, int cap)
 {
-	int idx = (int)SendMessageW(hCombo, CB_GETCURSEL, 0, 0);
-	if (idx < 0)
-		return 0;
-
-	WCHAR name[1024] = {0};
-	SendMessageW(hCombo, CB_GETLBTEXT, idx, (LPARAM)name);
-
-	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	DWORD pid = 0;
-	if (snap != INVALID_HANDLE_VALUE) {
-		PROCESSENTRY32W pe;
-		pe.dwSize = sizeof(pe);
-		if (Process32FirstW(snap, &pe)) {
-			do {
-				if (lstrcmpiW(pe.szExeFile, name) == 0) {
-					pid = pe.th32ProcessID;
-					break;
-				}
-			} while (Process32NextW(snap, &pe));
+	if (argDll && *argDll) {
+		if (GetFileAttributesW(argDll) != INVALID_FILE_ATTRIBUTES) {
+			lstrcpynW(out, argDll, cap);
+			return true;
 		}
-		CloseHandle(snap);
+		{
+			WCHAR line[1100];
+			swprintf(line, 1100, L"DLL not found: %s", argDll);
+			PrintW(line);
+			printf("\n");
+		}
+		return false;
 	}
-	return pid;
+
+	WCHAR exeDir[MAX_PATH];
+	GetExeDir(exeDir, MAX_PATH);
+
+	/* candidates, in order:
+	 *   0: next to the injector
+	 *   1: in Bins\ next to the injector (local build layout)
+	 *   2: current folder
+	 *   3: Bins\ in current folder (CI artifact layout)
+	 */
+	WCHAR paths[4][MAX_PATH] = {0};
+	wcsncat(paths[0], exeDir, MAX_PATH - 1);
+	wcsncat(paths[0], L"csgo-release.dll", MAX_PATH - 1 - (int)wcslen(paths[0]));
+	wcsncat(paths[1], exeDir, MAX_PATH - 1);
+	wcsncat(paths[1], L"Bins\\csgo-release.dll", MAX_PATH - 1 - (int)wcslen(paths[1]));
+	wcsncpy(paths[2], L"csgo-release.dll", MAX_PATH - 1);
+	wcsncpy(paths[3], L"Bins\\csgo-release.dll", MAX_PATH - 1);
+
+	for (int i = 0; i < 4; i++) {
+		if (GetFileAttributesW(paths[i]) != INVALID_FILE_ATTRIBUTES) {
+			lstrcpynW(out, paths[i], cap);
+			return true;
+		}
+	}
+	return false;
 }
 
 /* ------------------------------------------- remote PE / PEB reading (C) */
@@ -172,8 +151,9 @@ static bool GetTargetInfo(HANDLE hProcess, bool* is64Out, DWORD64* kernel32BaseO
 		DWORD64 entry, base, namePtr;
 		WORD    nameLen;
 
-		if (!ReadRemote(hProcess, listHead, &entry, ptrSize) || !entry || entry == ldrAddr)
+		if (!ReadRemote(hProcess, listHead, &entry, ptrSize) || !entry)
 			break;
+
 		if (!ReadRemote(hProcess, entry + entDllBase, &base, ptrSize))
 			break;
 		if (!ReadRemote(hProcess, entry + entNameLen, &nameLen, 2))
@@ -188,7 +168,7 @@ static bool GetTargetInfo(HANDLE hProcess, bool* is64Out, DWORD64* kernel32BaseO
 			*kernel32BaseOut = base;
 			return true;
 		}
-		listHead = entry; /* follow InLoadOrder Flink */
+		listHead = entry; /* next entry */
 	}
 	return false;
 }
@@ -250,7 +230,7 @@ static bool GetRemoteExport(HANDLE hProcess, DWORD64 moduleBase, const WCHAR* na
 
 /* ---------------------------------------------------------------- inject */
 
-static bool DoInject(DWORD pid, const WCHAR* dllPath, DWORD* errOut, WCHAR* outBuf, int outBufLen)
+static bool DoInject(DWORD pid, const WCHAR* dllPath, DWORD* errOut, DWORD64* loadedAtOut)
 {
 	*errOut = 0;
 
@@ -261,222 +241,139 @@ static bool DoInject(DWORD pid, const WCHAR* dllPath, DWORD* errOut, WCHAR* outB
 	}
 
 	bool is64 = false;
-	DWORD64 kernel32Base = 0;
-	if (!GetTargetInfo(hProcess, &is64, &kernel32Base)) {
+	DWORD64 kernel32 = 0;
+	if (!GetTargetInfo(hProcess, &is64, &kernel32)) {
 		CloseHandle(hProcess);
-		*errOut = ERROR_READ_FAULT;
+		*errOut = 2;
 		return false;
 	}
 
-	DWORD64 loadLibraryW = 0;
-	if (!GetRemoteExport(hProcess, kernel32Base, L"LoadLibraryW", &loadLibraryW)) {
+	DWORD64 loadLib = 0;
+	if (!GetRemoteExport(hProcess, kernel32, L"LoadLibraryW", &loadLib)) {
 		CloseHandle(hProcess);
-		*errOut = 7; /* ERROR_BAD_MODULE */
+		*errOut = 3;
 		return false;
 	}
 
-	size_t bytes = (wcslen(dllPath) + 1) * sizeof(WCHAR);
-	LPVOID remote = VirtualAllocEx(hProcess, NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	SIZE_T pathBytes = (wcslen(dllPath) + 1) * sizeof(WCHAR);
+	void* remote = VirtualAllocEx(hProcess, NULL, pathBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (!remote) {
 		CloseHandle(hProcess);
-		*errOut = GetLastError();
+		*errOut = 4;
 		return false;
 	}
 
-	if (!WriteProcessMemory(hProcess, remote, dllPath, bytes, NULL)) {
+	if (!WriteProcessMemory(hProcess, remote, dllPath, pathBytes, NULL)) {
 		VirtualFreeEx(hProcess, remote, 0, MEM_RELEASE);
 		CloseHandle(hProcess);
-		*errOut = GetLastError();
+		*errOut = 5;
 		return false;
 	}
 
-	DWORD threadId = 0;
-	HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0,
-		(LPTHREAD_START_ROUTINE)loadLibraryW, remote, 0, &threadId);
-	if (!hThread) {
-		*errOut = GetLastError();
+	HANDLE thread = CreateRemoteThread(hProcess, NULL, 0,
+		(LPTHREAD_START_ROUTINE)loadLib, remote, 0, NULL);
+	if (!thread) {
+		DWORD err = GetLastError();
 		VirtualFreeEx(hProcess, remote, 0, MEM_RELEASE);
 		CloseHandle(hProcess);
+		*errOut = err;
 		return false;
 	}
 
-	bool ok = false;
-	if (WaitForSingleObject(hThread, 30000) == WAIT_OBJECT_0) {
-		DWORD exitCode = 0;
-		GetExitCodeThread(hThread, &exitCode);
-		if (exitCode) {
-			int n = swprintf(outBuf, outBufLen, L"0x%llX", (unsigned long long)exitCode);
-			if (n < 0) n = 0;
-			ok = true;
-		} else {
-			*errOut = GetLastError();
-		}
-	} else {
-		*errOut = ERROR_TIMEOUT;
-		TerminateThread(hThread, 0);
-	}
+	WaitForSingleObject(thread, 15000);
+	DWORD exitCode = 0;
+	GetExitCodeThread(thread, &exitCode);
+	*loadedAtOut = (DWORD64)exitCode; /* LoadLibraryW returns the module base */
+	CloseHandle(thread);
 
-	CloseHandle(hThread);
 	VirtualFreeEx(hProcess, remote, 0, MEM_RELEASE);
 	CloseHandle(hProcess);
-	return ok;
+
+	return exitCode != 0;
 }
 
-/* ----------------------------------------------------------------- gui */
+/* ------------------------------------------------------------------ main */
 
-static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static void PrintW(const WCHAR* w)
 {
-	switch (msg) {
-	case WM_CREATE: {
-		g_hProcess = CreateWindowExW(0, L"COMBOBOX", L"",
-			WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
-			16, 66, 430, 260, hWnd, (HMENU)IDC_PROCESS, NULL, NULL);
-		g_hRefresh = CreateWindowExW(0, L"BUTTON", L"Refresh",
-			WS_CHILD | WS_VISIBLE | WS_TABSTOP, 452, 63, 76, 26, hWnd, (HMENU)IDC_REFRESH, NULL, NULL);
+	char buf[1024];
+	int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, buf, (int)sizeof(buf) - 1, NULL, NULL);
+	if (n > 0)
+		fwrite(buf, 1, (size_t)(n - 1), stdout);
+}
 
-		CreateWindowExW(0, L"STATIC", L"DLL:", WS_CHILD | WS_VISIBLE, 16, 106, 40, 18, hWnd, NULL, NULL, NULL);
-		g_hDll = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
-			WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
-			56, 104, 400, 24, hWnd, (HMENU)IDC_DLL, NULL, NULL);
-		g_hBrowse = CreateWindowExW(0, L"BUTTON", L"...",
-			WS_CHILD | WS_VISIBLE | WS_TABSTOP, 462, 103, 30, 26, hWnd, (HMENU)IDC_BROWSE, NULL, NULL);
+int main(int argc, char** argv)
+{
+	SetConsoleOutputCP(CP_UTF8);
 
-		g_hInject = CreateWindowExW(0, L"BUTTON", L"Inject",
-			WS_CHILD | WS_VISIBLE | WS_TABSTOP, 16, 140, 120, 32, hWnd, (HMENU)IDC_INJECT, NULL, NULL);
-		g_hStatus = CreateWindowExW(0, L"STATIC", L"Ready.",
-			WS_CHILD | WS_VISIBLE, 150, 148, 378, 20, hWnd, (HMENU)IDC_STATUS, NULL, NULL);
+	WCHAR argDll[1024] = {0};
+	if (argc > 1)
+		MultiByteToWideChar(CP_ACP, 0, argv[1], -1, argDll, 1024);
 
-		HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-		SendMessageW(g_hProcess, WM_SETFONT, (WPARAM)font, TRUE);
-		SendMessageW(g_hRefresh, WM_SETFONT, (WPARAM)font, TRUE);
-		SendMessageW(g_hDll,     WM_SETFONT, (WPARAM)font, TRUE);
-		SendMessageW(g_hBrowse,  WM_SETFONT, (WPARAM)font, TRUE);
-		SendMessageW(g_hInject,  WM_SETFONT, (WPARAM)font, TRUE);
-		SendMessageW(g_hStatus,  WM_SETFONT, (WPARAM)font, TRUE);
+	WCHAR dll[MAX_PATH] = {0};
+	if (!ResolveDll(argDll, dll, MAX_PATH)) {
+		printf("csgo-release.dll not found.\n");
+		printf("Put it next to injector.exe or in Bins\\ next to injector.exe.\n");
+		printf("\nPress any key to exit...");
+		getchar();
+		return INJECTOR_ERR;
+	}
+	PrintW(L"  DLL: ");
+	PrintW(dll);
+	printf("\n");
 
-		RefreshProcesses(g_hProcess, NULL);
-		return 0;
+	const WCHAR* targets[2] = { L"cs2.exe", L"csgo.exe" };
+	const WCHAR* foundName = NULL;
+	DWORD pid = 0;
+
+	for (int i = 0; i < 2; i++) {
+		pid = FindProcess(targets[i]);
+		if (pid) {
+			foundName = targets[i];
+			break;
+		}
 	}
 
-	case WM_COMMAND: {
-		WORD id = LOWORD(wParam);
-
-		if (id == IDC_REFRESH && HIWORD(wParam) == BN_CLICKED) {
-			WCHAR pick[1024] = {0};
-			int cur = (int)SendMessageW(g_hProcess, CB_GETCURSEL, 0, 0);
-			if (cur >= 0)
-				SendMessageW(g_hProcess, CB_GETLBTEXT, cur, (LPARAM)pick);
-			RefreshProcesses(g_hProcess, pick);
-			SetStatus(g_hStatus, L"Process list refreshed.", true);
-		}
-		else if (id == IDC_BROWSE && HIWORD(wParam) == BN_CLICKED) {
-			WCHAR file[MAX_PATH] = {0};
-			OPENFILENAMEW ofn;
-			ZeroMemory(&ofn, sizeof(ofn));
-			ofn.lStructSize = sizeof(ofn);
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = L"DLL files (*.dll)\0*.dll\0All files (*.*)\0*.*\0";
-			ofn.lpstrFile = file;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-			if (GetOpenFileNameW(&ofn))
-				SetWindowTextW(g_hDll, file);
-		}
-		else if (id == IDC_INJECT && HIWORD(wParam) == BN_CLICKED) {
-			DWORD pid = GetSelectedPid(g_hProcess);
-			if (!pid) {
-				SetStatus(g_hStatus, L"Select a process first.", false);
-				break;
-			}
-
-			WCHAR dll[MAX_PATH] = {0};
-			GetWindowTextW(g_hDll, dll, MAX_PATH);
-			if (!*dll) {
-				int n = (int)wcslen(g_exeDir);
-				if (n + 24 < MAX_PATH) {
-					memcpy(dll, g_exeDir, (size_t)n * sizeof(WCHAR));
-					wcscpy(dll + n, L"csgo-release.dll");
+	if (!pid) {
+		printf("CS not running, waiting for it to start...\n");
+		for (int i = 0; i < 240 && !pid; i++) { /* up to 2 minutes */
+			Sleep(500);
+			for (int t = 0; t < 2; t++) {
+				pid = FindProcess(targets[t]);
+				if (pid) {
+					foundName = targets[t];
+					break;
 				}
 			}
-			if (!*dll || !PathFileExistsW(dll)) {
-				SetStatus(g_hStatus, L"DLL not found.", false);
-				break;
-			}
-
-			SetWindowTextW(g_hInject, L"Injecting...");
-			EnableWindow(g_hInject, FALSE);
-			SetStatus(g_hStatus, L"Injecting...", true);
-
-			DWORD err = 0;
-			WCHAR mod[32] = {0};
-			WCHAR status[160];
-			if (DoInject(pid, dll, &err, mod, 32)) {
-				swprintf(status, 160, L"Loaded in target at %s - OK", mod);
-				SetStatus(g_hStatus, status, true);
-			} else {
-				swprintf(status, 160, L"Failed (error %lu)", (unsigned long)err);
-				SetStatus(g_hStatus, status, false);
-			}
-
-			EnableWindow(g_hInject, TRUE);
-			SetWindowTextW(g_hInject, L"Inject");
 		}
-		return 0;
 	}
 
-	case WM_CTLCOLORSTATIC: {
-		HDC dc = (HDC)wParam;
-		if ((HWND)lParam == g_hStatus) {
-			SetTextColor(dc, g_statusOk ? RGB(20, 120, 20) : RGB(170, 30, 30));
-			SetBkMode(dc, TRANSPARENT);
-			return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
-		}
-		break;
+	if (!pid) {
+		printf("Timed out waiting for the game process.\n");
+		printf("\nPress any key to exit...");
+		getchar();
+		return INJECTOR_ERR;
+	}
+	{
+		WCHAR line[128];
+		swprintf(line, 128, L"Found %s (pid %lu)", foundName, (unsigned long)pid);
+		PrintW(line);
+		printf("\n");
 	}
 
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
+	printf("Injecting...\n");
+
+	DWORD err = 0;
+	DWORD64 base = 0;
+	if (DoInject(pid, dll, &err, &base)) {
+		printf("OK, injected. Loaded at 0x%llX\n", (unsigned long long)base);
+		printf("\nEnjoy.");
+	} else {
+		printf("FAILED (error %lu).", (unsigned long)err);
+		printf("\nTry running as administrator or check that the game is not under debugger.\n");
 	}
-	return DefWindowProcW(hWnd, msg, wParam, lParam);
-}
 
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmdShow, int)
-{
-	(void)hPrev; (void)cmdShow;
-
-	INITCOMMONCONTROLSEX icc;
-	icc.dwSize = sizeof(icc);
-	icc.dwICC = ICC_STANDARD_CLASSES;
-	InitCommonControlsEx(&icc);
-
-	GetExeDir();
-
-	WNDCLASSEXW wc;
-	ZeroMemory(&wc, sizeof(wc));
-	wc.cbSize = sizeof(wc);
-	wc.style = CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc = WndProc;
-	wc.hInstance = hInst;
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-	wc.lpszClassName = L"OpaiInjectorWnd";
-	wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-	RegisterClassExW(&wc);
-
-	HWND hWnd = CreateWindowExW(0, wc.lpszClassName, L"Injector",
-		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-		CW_USEDEFAULT, CW_USEDEFAULT, 550, 200, NULL, NULL, hInst, NULL);
-	if (!hWnd)
-		return 1;
-
-	ShowWindow(hWnd, SW_SHOW);
-	UpdateWindow(hWnd);
-
-	MSG msg;
-	while (GetMessageW(&msg, NULL, 0, 0) > 0) {
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
-	}
-	return (int)msg.wParam;
+	printf("\nPress any key to exit...");
+	getchar();
+	return 0;
 }
