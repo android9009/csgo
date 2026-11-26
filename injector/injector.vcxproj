@@ -42,7 +42,7 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" CustomProps="">
+  <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -54,7 +54,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)Bins\</OutDir>
-    <IntDir>$(SolutionDir)Bins\obj.injector\$(Configuration)\</IntDir>
+    <IntDir>$(SolutionDir)obj.injector\$(Configuration)\</IntDir>
     <TargetName>injector</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup>

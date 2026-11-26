@@ -93,7 +93,12 @@ static bool add_texture_to_memory(IDirect3DDevice9* device, const void* data, si
 	}
 
 	bool ok = false;
-	if (SUCCEEDED(device->CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, out_texture, nullptr)) && *out_texture)
+	// D3DPOOL_MANAGED (like the original D3DX path): the driver keeps a CPU
+	// copy and restores the content automatically after IDirect3DDevice9::Reset.
+	// D3DPOOL_DEFAULT would wipe the icons on every device reset (alt-tab,
+	// focus change at game start) and the if (!tex) guards in init_textures()
+	// would never re-upload them.
+	if (SUCCEEDED(device->CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, out_texture, nullptr)) && *out_texture)
 	{
 		IDirect3DSurface9* surface = nullptr;
 		if (SUCCEEDED((*out_texture)->GetSurfaceLevel(0, &surface)) && surface)
