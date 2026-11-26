@@ -1,5 +1,5 @@
 #include "globals.hpp"
-#include "thirdpesron.hpp"
+#include "thirdperson.hpp"
 #include "anti_aim.hpp"
 
 void c_thirdperson::run_alive()

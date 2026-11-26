@@ -4,7 +4,7 @@
 
 #include "../legacy_str.h"
 #include "menu.h"
-#include "../../skins.hpp"
+#include "skins.hpp"
 
 #include <ShlObj.h>
 #include <algorithm>

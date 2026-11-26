@@ -1,7 +1,7 @@
 #include "globals.hpp"
 #include "grenade_prediction.hpp"
 #include "entlistener.hpp"
-#include "legacy ui/menu/menu.h"
+#include "menu/menu.h"
 
 void nade_path_t::perform_fly_collision_resolution(c_game_trace& trace)
 {

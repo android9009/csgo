@@ -3,7 +3,7 @@
 #include "../config_vars.h"
 
 #include "menu.h"
-#include "../../entlistener.hpp"
+#include "entlistener.hpp"
 
 #include <ShlObj.h>
 #include <algorithm>

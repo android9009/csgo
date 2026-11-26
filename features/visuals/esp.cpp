@@ -7,7 +7,7 @@
 #include "penetration.hpp"
 #include "esp.hpp"
 #include "resolver.hpp"
-#include "legacy ui/menu/menu.h"
+#include "menu/menu.h"
 
 constexpr auto MOLOTOV_ICON = (u8"\uE02E");
 constexpr auto SMOKE_ICON = (u8"\uE02D");

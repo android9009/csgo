@@ -1,7 +1,7 @@
 #pragma once
 
 // FEATURES
-#include "legacy ui/menu/menu.h" 
+#include "menu/menu.h" 
 
 #include "esp_object_render.hpp"
 #include "entlistener.hpp"
@@ -14,7 +14,7 @@
 #include "hud_hacks.hpp"
 #include "clantag.hpp"
 #include "spoofers.hpp"
-#include "thirdpesron.hpp"
+#include "thirdperson.hpp"
 #include "fov_and_view.hpp"
 #include "post_processing.hpp"
 #include "remove_projectiles.hpp"

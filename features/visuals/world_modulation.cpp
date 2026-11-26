@@ -1,5 +1,5 @@
 #include "globals.hpp"
-#include "legacy ui/legacy_str.h"
+#include "menu/legacy_str.h"
 #include "world_modulation.hpp"
 
 std::vector<std::string> skybox_list

@@ -1,5 +1,5 @@
 #include "globals.hpp"
-#include "legacy ui/legacy_str.h"
+#include "menu/legacy_str.h"
 #include "features.hpp"
 
 #ifdef _DEBUG

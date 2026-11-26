@@ -1,11 +1,11 @@
-#include "../globals.hpp"
+#include "globals.hpp"
 #include <libs.h>
 #include <cstring>
 #include <urlmon.h>
 #pragma comment (lib, "urlmon.lib")
 
-#include "../json/json.h"
-#include "../json/json-forwards.h"
+#include "Json/json.h"
+#include "Json/json-forwards.h"
 
 typedef Json::Value json;
 

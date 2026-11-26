@@ -63,8 +63,8 @@ class c_hacks;
 #include "offsets.hpp"
 #include "entities.hpp"
 #include "main_utils.hpp"
-#include "legacy ui/config_system.h"
-#include "legacy ui/config_vars.h"
+#include "menu/config_system.h"
+#include "menu/config_vars.h"
 #include "key_states.hpp"
 #include "threads.hpp"
 
