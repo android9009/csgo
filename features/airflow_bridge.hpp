@@ -13,6 +13,15 @@
 // colours as c_float_color (0..255 ints).
 #include "globals.hpp"
 
+// globals.hpp drags in the main tree's xorstr.hpp, which redefines XOR() to
+// a lambda returning std::string. The ported menu (menu/controls/macros.hpp)
+// defines XOR() as a const char* identity, and evo gui controls pass that
+// string to const char* parameters (e.g. the slider fmt), so the menu's
+// spelling must be the one that stays defined. Undo the collision here, at
+// the single point where the menu bridges meet the main tree.
+#undef XOR
+#define XOR(s) s
+
 namespace fatality_bridge {
 inline c_float_color unpack(uint32_t rgba) {
     const int r = (rgba >> 16) & 0xFF;

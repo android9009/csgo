@@ -1,4 +1,8 @@
 #pragma once
+// The main tree's xorstr.hpp (via globals.hpp in the menu bridges) defines
+// XOR() as a std::string-returning obfuscator; the menu needs the const char*
+// identity. Undefine first so the include order cannot leave the wrong one.
+#undef XOR
 #define XOR(s) s
 
 
