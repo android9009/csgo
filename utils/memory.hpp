@@ -2,15 +2,18 @@
 #include <cstdint>
 #include <cstddef>
 #include <windows.h>
+#include <string>
+#include <string_view>
 // Compat shim: old project memory helpers used by the ported menu code.
 // Plain Win32 - identical behavior, no extra allocator state.
 namespace MEM {
-inline void* GetModuleBase(const char* module) {
-    return reinterpret_cast<void*>(GetModuleHandleA(module));
+inline void* GetModuleBase(std::string_view module) {
+    const std::string name(module);
+    return reinterpret_cast<void*>(GetModuleHandleA(name.c_str()));
 }
 // Byte pattern with "?" wildcards (e.g. "8D 44 24 28 B9 ? ? ? ? 50").
-inline std::uintptr_t FindPattern(const char* module, const char* pattern) {
-    const auto base = reinterpret_cast<uint8_t*>(GetModuleHandleA(module));
+inline std::uintptr_t FindPattern(std::string_view module, std::string_view pattern) {
+    const auto base = reinterpret_cast<uint8_t*>(GetModuleBase(module));
     if (!base) return 0;
     const auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     if (dos->e_magic != IMAGE_DOS_SIGNATURE) return 0;
@@ -49,7 +52,7 @@ inline std::uintptr_t FindPattern(const char* module, const char* pattern) {
     }
     return 0;
 }
-inline uintptr_t GetPattern(const char* module, const char* pattern) {
+inline uintptr_t GetPattern(std::string_view module, std::string_view pattern) {
     return FindPattern(module, pattern);
 }
 template <class T>
