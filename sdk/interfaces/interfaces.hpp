@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <windows.h>
+// hacks.hpp (pulled below) references IDirect3DDevice9; include d3d9.h here
+// so every consumer of this adapter gets it, not just the menu TUs.
+#include <d3d9.h>
 #include "../../hacks.hpp"
 #include "../clientclass.hpp"
 #include "../studiohdr.hpp"
