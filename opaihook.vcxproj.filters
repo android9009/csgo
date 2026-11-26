@@ -500,45 +500,47 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Filter>Json</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features/anti_aim</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features/misc</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features/rage</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features/skins</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>features/visuals</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>imgui</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>menu</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>menu/menu</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>menu/menu/menu elements</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>sdk</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>sdk/hooks</Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter>utils</Filter>
+    <Filter Include="Json">
+      <UniqueIdentifier>{B52F1FF6-F5BC-4C99-986B-C8D90C83A817}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features">
+      <UniqueIdentifier>{351002EF-0A06-43D5-B548-6E3E755F78FA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features/anti_aim">
+      <UniqueIdentifier>{195A147E-56E5-4F05-9890-885FBF55CA34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features/misc">
+      <UniqueIdentifier>{61DC2AF3-CFB9-446E-BE75-330925A2B8E2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features/rage">
+      <UniqueIdentifier>{000210DD-F8D7-4EE4-A2EB-DE6CCA595D52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features/skins">
+      <UniqueIdentifier>{8A4EF124-2B8C-44FE-8C02-D37CACF7A6BA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="features/visuals">
+      <UniqueIdentifier>{B2E3FFAF-4C0A-424A-8237-207B65DD7882}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{BABA248E-279F-4121-9798-D5A664B5F9BF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="menu">
+      <UniqueIdentifier>{F2AA58F4-EDEC-4C13-A736-9D1A7711EF36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="menu/menu">
+      <UniqueIdentifier>{3BE68FDF-2B0E-4FA5-9C71-A02C77A2FAD8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="menu/menu/menu elements">
+      <UniqueIdentifier>{C9397D3B-D2C9-4544-980C-DAB8667382FB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sdk">
+      <UniqueIdentifier>{0B327DCA-5299-4394-A229-95377455586B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sdk/hooks">
+      <UniqueIdentifier>{8DD3C5DA-4E2F-464B-B06E-03E05411F8ED}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="utils">
+      <UniqueIdentifier>{EDC5D635-1374-49F1-A83E-7B9A526B6751}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>
