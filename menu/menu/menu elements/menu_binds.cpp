@@ -369,12 +369,8 @@ void c_menu::bind_combo(const char* scope, const char* label, int* var, const ch
 	this->combo(label, var, items, items_count, height);
 
 	const ImVec2 min = ImGui::GetItemRectMin();
-	const auto label_size = ImGui::CalcTextSize(label);
 
 	this->bind_right_click(label, min, 32.f);
-
-	if (popup_id != 0)
-		this->draw_gear(label, min.x + 14.f + label_size.x + 10.f, min.y + 2.f, popup_id);
 
 	ImGui::PopID();
 }
