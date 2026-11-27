@@ -114,6 +114,37 @@ void c_menu::draw_item_bind_popup()
 	item_bind_pos = ImGui::GetWindowPos();
 	item_bind_size = ImGui::GetWindowSize();
 
+	// header: which control this dropdown belongs to, plus a hairline under it so
+	// it reads as a menu of its own and not as a floating list of rows
+	{
+		auto list = ImGui::GetWindowDrawList();
+
+		// the control name can be long, shorten it so the header stays on one line
+		std::string title = item_bind_label;
+
+		while (!title.empty() && ImGui::CalcTextSize(title.c_str()).x > 150.f)
+			title.pop_back();
+
+		if (title.length() != item_bind_label.length())
+			title += CXOR("...");
+
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.42f * alpha));
+		ImGui::TextUnformatted(CXOR("Bind"));
+		ImGui::PopStyleColor();
+
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.9f * alpha));
+		ImGui::TextUnformatted(title.c_str());
+		ImGui::PopStyleColor();
+
+		const ImVec2 sep = ImGui::GetCursorScreenPos();
+		const float sep_w = ImGui::GetWindowWidth() - 14.f;
+
+		list->AddLine(sep + ImVec2(0.f, 2.f), sep + ImVec2(sep_w, 2.f),
+			c_color(255, 255, 255).new_alpha((int)(22.f * alpha)).as_imcolor(), 1.f);
+
+		ImGui::Dummy(ImVec2(0.f, 4.f));
+	}
+
 	// The control itself is the on/off switch (a checked checkbox is active), the
 	// bind only adds a key on top of it: hold while pressed or toggle on press.
 	auto mode_row = [&](const char* text, int type)
