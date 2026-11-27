@@ -74,16 +74,37 @@ void c_menu::draw_item_bind_popup()
 	auto alpha = this->get_alpha();
 	auto& bind = item_bind(item_bind_label.c_str());
 
-	const ImVec2 pos = item_bind_anchor + ImVec2(0.f, 20.f);
+	// keep the dropdown inside the menu, flipping above the row when it would
+	// otherwise run past the bottom edge. The size is known from the last frame.
+	const ImVec2 window_pos = this->get_window_pos();
+	const ImVec2 menu_max = window_pos + ImVec2(720.f, 520.f);
+	const float popup_w = 168.f;
+	const float known_h = item_bind_size.y > 0.f ? item_bind_size.y : 130.f;
+
+	ImVec2 pos = item_bind_anchor + ImVec2(0.f, 20.f);
+
+	if (pos.y + known_h > menu_max.y)
+		pos.y = item_bind_anchor.y - known_h - 6.f;
+
+	if (pos.y < window_pos.y + 4.f)
+		pos.y = window_pos.y + 4.f;
+
+	if (pos.x + popup_w > menu_max.x)
+		pos.x = menu_max.x - popup_w - 6.f;
+
+	if (pos.x < window_pos.x + 4.f)
+		pos.x = window_pos.x + 4.f;
 
 	item_bind_pos = pos;
 
 	ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(160.f, 0.f), ImGuiCond_Always);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.f, 6.f));
+	ImGui::SetNextWindowSize(ImVec2(popup_w, 0.f), ImGuiCond_Always);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(7.f, 7.f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.f, 2.f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(18, 18, 20, (int)(248 * alpha)).Value);
-	ImGui::PushStyleColor(ImGuiCol_Border, ImColor(255, 255, 255, (int)(26 * alpha)).Value);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.f);
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(16, 16, 18, (int)(252 * alpha)).Value);
+	ImGui::PushStyleColor(ImGuiCol_Border, ImColor(255, 255, 255, (int)(34 * alpha)).Value);
 
 	ImGui::Begin(CXOR("##item_bind_popup"), nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
@@ -179,7 +200,7 @@ void c_menu::draw_item_bind_popup()
 
 	ImGui::End(false);
 	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar(2);
+	ImGui::PopStyleVar(4);
 
 	const auto mouse = ImGui::GetIO().MousePos;
 	const bool over = mouse.x >= item_bind_pos.x && mouse.y >= item_bind_pos.y
@@ -197,6 +218,9 @@ void c_menu::open_settings_popup(int popup_id, ImVec2 anchor)
 	settings_popup_id = popup_id;
 	settings_popup_anchor = anchor;
 	settings_popup_open = true;
+
+	// forget the previous flyout size, the new one has a different height
+	settings_popup_size = ImVec2(0.f, 0.f);
 
 	close_item_bind();
 }
@@ -230,10 +254,14 @@ void c_menu::settings_popup_begin(const char* id, float width, float height)
 	// whole flyout inside the menu
 	const float popup_w = width > 0.f ? width : 220.f;
 
-	ImVec2 pos = settings_popup_anchor + ImVec2(0.f, 20.f);
+	// the flyout height is only known after the first frame, so fall back to the
+	// last measured height to decide whether it has to open upwards
+	const float known_h = height > 0.f ? height : settings_popup_size.y;
 
-	if (height > 0.f && pos.y + height > menu_max.y)
-		pos.y = settings_popup_anchor.y - height - 6.f;
+	ImVec2 pos = settings_popup_anchor + ImVec2(0.f, 22.f);
+
+	if (known_h > 0.f && pos.y + known_h > menu_max.y - 4.f)
+		pos.y = settings_popup_anchor.y - known_h - 8.f;
 
 	if (pos.y < window_pos.y + 4.f)
 		pos.y = window_pos.y + 4.f;
@@ -251,10 +279,12 @@ void c_menu::settings_popup_begin(const char* id, float width, float height)
 	else
 		ImGui::SetNextWindowSize(ImVec2(popup_w, 0.f), ImGuiCond_Always);
 
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.f, 4.f));
-	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(18, 18, 20, (int)(248 * alpha)).Value);
-	ImGui::PushStyleColor(ImGuiCol_Border, ImColor(255, 255, 255, (int)(26 * alpha)).Value);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(9.f, 8.f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.f, 3.f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.f);
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(16, 16, 18, (int)(252 * alpha)).Value);
+	ImGui::PushStyleColor(ImGuiCol_Border, ImColor(255, 255, 255, (int)(34 * alpha)).Value);
 
 	ImGui::Begin(id, nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
@@ -272,7 +302,7 @@ void c_menu::settings_popup_end()
 
 	ImGui::End(false);
 	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar(2);
+	ImGui::PopStyleVar(4);
 }
 
 bool c_menu::settings_checkbox(const char* label, bool* v)
@@ -381,12 +411,13 @@ void c_menu::bind_multi_combo(const char* scope, const char* label, unsigned int
 {
 	ImGui::PushID(scope);
 
-	// gear first: it takes the hovered id away from the combo below it. It is placed
-	// just left of the combo preview / arrow.
+	// gear first: it takes the hovered id away from the combo below it. The combo
+	// pill starts at +126 and its preview text is right aligned inside it, so the
+	// gear has to sit left of the pill, not on top of the preview.
 	const ImVec2 row = ImGui::GetCursorScreenPos();
 
 	if (popup_id != 0)
-		this->draw_gear(label, row.x + 190.f, row.y + 16.f, popup_id);
+		this->draw_gear(label, row.x + 107.f, row.y + 16.f, popup_id);
 
 	this->multi_combo(label, var, elements);
 
@@ -416,7 +447,7 @@ void c_menu::bind_combo(const char* scope, const char* label, int& var, std::vec
 	const ImVec2 row = ImGui::GetCursorScreenPos();
 
 	if (popup_id != 0)
-		this->draw_gear(label, row.x + 190.f, row.y + 16.f, popup_id);
+		this->draw_gear(label, row.x + 107.f, row.y + 16.f, popup_id);
 
 	this->multi_combo_exclusive(label, var, elements);
 
