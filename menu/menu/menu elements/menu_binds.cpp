@@ -75,13 +75,11 @@ void c_menu::draw_item_bind_popup()
 	auto& bind = item_bind(item_bind_label.c_str());
 
 	const ImVec2 pos = item_bind_anchor + ImVec2(0.f, 20.f);
-	const ImVec2 size = ImVec2(148.f, item_bind_capturing ? 132.f : 124.f);
 
 	item_bind_pos = pos;
-	item_bind_size = size;
 
 	ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-	ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(160.f, 0.f), ImGuiCond_Always);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.f, 6.f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.f, 2.f));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(18, 18, 20, (int)(248 * alpha)).Value);
@@ -89,7 +87,8 @@ void c_menu::draw_item_bind_popup()
 
 	ImGui::Begin(CXOR("##item_bind_popup"), nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav);
+		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav
+		| ImGuiWindowFlags_AlwaysAutoResize);
 
 	item_bind_pos = ImGui::GetWindowPos();
 	item_bind_size = ImGui::GetWindowSize();
@@ -227,22 +226,31 @@ void c_menu::settings_popup_begin(const char* id, float width, float height)
 	const ImVec2 window_pos = this->get_window_pos();
 	const ImVec2 menu_max = window_pos + ImVec2(720.f, 520.f);
 
+	// anchor to the gear, flip above it when there is no room below, and keep the
+	// whole flyout inside the menu
+	const float popup_w = width > 0.f ? width : 220.f;
+
 	ImVec2 pos = settings_popup_anchor + ImVec2(0.f, 20.f);
 
-	if (pos.y + height > menu_max.y)
+	if (height > 0.f && pos.y + height > menu_max.y)
 		pos.y = settings_popup_anchor.y - height - 6.f;
 
-	if (pos.x + width > menu_max.x)
-		pos.x = menu_max.x - width - 6.f;
+	if (pos.y < window_pos.y + 4.f)
+		pos.y = window_pos.y + 4.f;
 
-	if (pos.x < window_pos.x)
-		pos.x = window_pos.x + 6.f;
+	if (pos.x + popup_w > menu_max.x)
+		pos.x = menu_max.x - popup_w - 6.f;
 
-	settings_popup_pos = pos;
-	settings_popup_size = ImVec2(width, height);
+	if (pos.x < window_pos.x + 4.f)
+		pos.x = window_pos.x + 4.f;
 
 	ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-	ImGui::SetNextWindowSize(settings_popup_size, ImGuiCond_Always);
+
+	if (width > 0.f && height > 0.f)
+		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+	else
+		ImGui::SetNextWindowSize(ImVec2(popup_w, 0.f), ImGuiCond_Always);
+
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.f, 4.f));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(18, 18, 20, (int)(248 * alpha)).Value);
@@ -250,11 +258,18 @@ void c_menu::settings_popup_begin(const char* id, float width, float height)
 
 	ImGui::Begin(id, nullptr,
 		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav);
+		| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav
+		| ImGuiWindowFlags_AlwaysAutoResize);
+
+	settings_popup_pos = ImGui::GetWindowPos();
+	settings_popup_size = ImGui::GetWindowSize();
 }
 
 void c_menu::settings_popup_end()
 {
+	settings_popup_pos = ImGui::GetWindowPos();
+	settings_popup_size = ImGui::GetWindowSize();
+
 	ImGui::End(false);
 	ImGui::PopStyleColor(2);
 	ImGui::PopStyleVar(2);
@@ -263,7 +278,9 @@ void c_menu::settings_popup_end()
 bool c_menu::settings_checkbox(const char* label, bool* v)
 {
 	ImGui::PushID(label);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.85f * this->get_alpha()));
 	const bool ret = this->checkbox(label, v);
+	ImGui::PopStyleColor();
 	ImGui::PopID();
 
 	return ret;
@@ -290,9 +307,9 @@ void c_menu::draw_gear(const char* label, float x, float y, int popup_id)
 	auto list = ImGui::GetWindowDrawList();
 
 	const ImVec2 min = ImVec2(x, y);
-	const ImVec2 center = min + ImVec2(6.5f, 8.f);
+	const ImVec2 center = min + ImVec2(7.f, 7.5f);
 
-	// the owning control spans the whole 256px row, so drive the button through
+	// the owning control spans the whole row, so drive the button through
 	// ButtonBehavior directly to make the gear win the hover test on top of it
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 	const ImGuiID id = window->GetID((void*)(intptr_t)(CONST_HASH(label) + 0x51ED));
@@ -302,21 +319,27 @@ void c_menu::draw_gear(const char* label, float x, float y, int popup_id)
 
 	gear_rect = ImRect(min, min + ImVec2(15.f, 16.f));
 
-	c_color tint = c_color(120, 120, 120).new_alpha(255.f * alpha);
+	// gear glyph: a ring, a hub and eight teeth, drawn thin so it reads as a gear
+	// even at 14px instead of turning into a blob
+	const float outer = 5.6f;
+	const float inner = 3.2f;
+	const ImU32 stem = c_color(120, 120, 120).new_alpha(210.f * alpha).as_imcolor();
+	const ImU32 tint = hovered
+		? c_color(245, 245, 245).new_alpha(255.f * alpha).as_imcolor()
+		: c_color(150, 150, 150).new_alpha(235.f * alpha).as_imcolor();
+
+	const float step = 3.14159265f / 4.f;
+	for (int i = 0; i < 8; ++i)
+	{
+		const float a = step * (float)i;
+		const ImVec2 dir = ImVec2(cosf(a), sinf(a));
+		list->AddLine(center + dir * inner, center + dir * outer, tint, 1.4f);
+	}
+
+	list->AddCircle(center, inner, tint, 12, 1.3f);
 
 	if (hovered)
-		tint = c_color(235, 235, 235).new_alpha(255.f * alpha);
-
-	// gear: ring + hub + four teeth
-	list->AddCircle(center, 5.2f, tint.as_imcolor(), 16, 1.2f);
-	list->AddCircleFilled(center, 1.7f, tint.as_imcolor(), 8);
-
-	for (int i = 0; i < 4; ++i)
-	{
-		const float a = (float)i * (3.14159265f / 2.f) + 0.785f;
-		const ImVec2 dir = ImVec2(cosf(a), sinf(a));
-		list->AddLine(center + dir * 3.8f, center + dir * 6.8f, tint.as_imcolor(), 1.4f);
-	}
+		list->AddCircleFilled(center, 1.3f, tint, 6);
 
 	if (pressed)
 		this->open_settings_popup(popup_id, min);
@@ -363,7 +386,7 @@ void c_menu::bind_multi_combo(const char* scope, const char* label, unsigned int
 	const ImVec2 row = ImGui::GetCursorScreenPos();
 
 	if (popup_id != 0)
-		this->draw_gear(label, row.x + 200.f, row.y + 16.f, popup_id);
+		this->draw_gear(label, row.x + 190.f, row.y + 16.f, popup_id);
 
 	this->multi_combo(label, var, elements);
 
@@ -393,7 +416,7 @@ void c_menu::bind_combo(const char* scope, const char* label, int& var, std::vec
 	const ImVec2 row = ImGui::GetCursorScreenPos();
 
 	if (popup_id != 0)
-		this->draw_gear(label, row.x + 200.f, row.y + 16.f, popup_id);
+		this->draw_gear(label, row.x + 190.f, row.y + 16.f, popup_id);
 
 	this->multi_combo_exclusive(label, var, elements);
 
@@ -448,7 +471,7 @@ void c_menu::draw_settings_body()
 	{
 	case settings_main:
 	{
-		settings_popup_begin(CXOR("##settings_main"), 200.f, 132.f);
+		settings_popup_begin(CXOR("##settings_main"), 210.f, 0.f);
 
 		settings_checkbox(CXOR("Auto fire"), &g_cfg.rage.auto_fire);
 		settings_checkbox(CXOR("Anti aim correction"), &g_cfg.rage.resolver);
@@ -459,7 +482,7 @@ void c_menu::draw_settings_body()
 	break;
 	case settings_double_tap:
 	{
-		settings_popup_begin(CXOR("##settings_double_tap"), 200.f, 214.f);
+		settings_popup_begin(CXOR("##settings_double_tap"), 210.f, 0.f);
 
 		auto alpha = this->get_alpha();
 
@@ -473,6 +496,10 @@ void c_menu::draw_settings_body()
 		if (this->selectable(CXOR("Always"), g_cfg.rage.dt_mode == 2, alpha))
 			g_cfg.rage.dt_mode = 2;
 
+		if (this->selectable(CXOR("Disable"), g_cfg.rage.dt_mode == 0, alpha))
+			g_cfg.rage.dt_mode = 0;
+
+		ImGui::Dummy(ImVec2(0.f, 2.f));
 		settings_slider(CXOR("Double tap speed"), &g_cfg.rage.dt_speed, 0, 100, CXOR("%d%%"));
 
 		settings_popup_end();
@@ -480,7 +507,7 @@ void c_menu::draw_settings_body()
 	break;
 	case settings_multipoint:
 	{
-		settings_popup_begin(CXOR("##settings_multipoint"), 200.f, 164.f);
+		settings_popup_begin(CXOR("##settings_multipoint"), 210.f, 0.f);
 
 		auto& weapon = g_cfg.rage.weapon[g_cfg.rage.group_type];
 

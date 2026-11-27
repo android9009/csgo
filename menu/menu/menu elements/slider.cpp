@@ -31,7 +31,9 @@ bool c_menu::slider_scalar(const char* label, ImGuiDataType data_type, void* p_d
 	ImGuiContext& g = *GImGui;
 	const ImGuiStyle& style = g.Style;
 	const ImGuiID id = window->GetID(label);
-	const float w = 256.f;
+	// fit the available width: the menu row is 256 wide, a popup is narrower
+	auto avail = ImGui::GetContentRegionAvail().x;
+	const float w = avail > 40.f ? (std::min)(256.f, avail) : 256.f;
 
 	const ImVec2 label_size = CalcTextSize(label, NULL, true);
 	const ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(w, 56.f));
@@ -55,7 +57,7 @@ bool c_menu::slider_scalar(const char* label, ImGuiDataType data_type, void* p_d
 	this->create_animation(mod_frame.alpha, true, 0.3f, skip_disable | lerp_animation);
 
 	auto slider_start = frame_bb.Min + ImVec2(12.f, 28.f);
-	auto slider_size = ImVec2(232, 24.f);
+	auto slider_size = ImVec2((std::max)(w - 24.f, 24.f), 24.f);
 	auto slider_bounds = ImRect(slider_start, slider_start + slider_size);
 
 	// Tabbing or CTRL-clicking on Slider turns it into an input box
